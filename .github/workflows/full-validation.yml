@@ -31,28 +31,28 @@ jobs:
             scripts/requirements-audit.txt
       - name: Install backend, package-test and audit dependencies
         id: dependencies
-        run: python scripts/ci.py run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt -r backend/requirements-build.txt -r scripts/requirements-audit.txt
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements-dev.txt -r backend/requirements-build.txt -r scripts/requirements-audit.txt
       - name: Check Python dependencies
         id: pip_check
-        run: python scripts/ci.py run pip_check -- python -m pip check
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run pip_check -- python -m pip check
       - name: Lint Python with Ruff
         id: ruff
-        run: python scripts/ci.py run ruff -- python -m ruff check backend scripts
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run ruff -- python -m ruff check backend scripts
       - name: Validate workflow contracts
         id: workflow_contracts
-        run: python scripts/ci.py run workflow_contracts -- python scripts/check-workflows.py
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run workflow_contracts -- python scripts/check-workflows.py
       - name: Validate workflow schemas, expressions and shell commands
         id: workflow_lint
-        run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run workflow_lint -- python scripts/testing/ci.py lint
       - name: Parse PowerShell and check static safety guards
         id: powershell
-        run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
       - name: Run all backend and repository regressions with deprecations as errors
         id: backend
-        run: python scripts/ci.py run backend -- python scripts/run-tests.py regression --backend --report "$RUNNER_TEMP/backend-report.json"
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run backend -- python scripts/run-tests.py full --backend --report "$RUNNER_TEMP/backend-report.json"
       - name: Audit installed Python dependencies
         id: python_audit
-        run: python scripts/ci.py run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
       - name: Upload backend report
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -68,8 +68,8 @@ jobs:
           CI_REQUIRED: checkout setup_python dependencies pip_check ruff workflow_contracts workflow_lint powershell backend python_audit
           CI_JOB_NAME: ${{ github.job }}
         run: |
-          if [ -f scripts/ci.py ]; then
-            python scripts/ci.py summary
+          if [ -f scripts/testing/ci.py ]; then
+            python scripts/build.py test --ci-tool validation --non-interactive --scope full -- summary
           else
             echo 'Validation incomplete: source checkout failed.' >> "$GITHUB_STEP_SUMMARY"
           fi
@@ -102,25 +102,28 @@ jobs:
             scripts/requirements-audit.txt
       - name: Install browser-test backend dependencies
         id: dependencies
-        run: python scripts/ci.py run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements.txt
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run dependencies -- python -m pip install --disable-pip-version-check -r backend/requirements.txt
       - name: Install frontend dependencies
         id: npm_install
-        run: python scripts/ci.py run npm_install -- npm --prefix frontend ci --no-audit --no-fund
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run npm_install -- npm --prefix frontend ci --no-audit --no-fund
       - name: Run frontend type checks
         id: types
-        run: python scripts/ci.py run types -- npm --prefix frontend run check:types
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run types -- npm --prefix frontend run check:types
       - name: Lint frontend with ESLint
         id: eslint
-        run: python scripts/ci.py run eslint -- npm --prefix frontend run lint
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run eslint -- npm --prefix frontend run lint
+      - name: Run frontend unit tests
+        id: unit
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run unit -- npm --prefix frontend run test:unit
       - name: Verify module icon catalog
         id: catalog
-        run: python scripts/ci.py run catalog -- node scripts/sync-lucide-catalog.mjs --check
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run catalog -- node scripts/sync-lucide-catalog.mjs --check
       - name: Build production frontend
         id: build
-        run: python scripts/ci.py run build -- npm --prefix frontend run build
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run build -- npm --prefix frontend run build
       - name: Audit production JavaScript dependencies
         id: javascript_audit
-        run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run javascript_audit -- npm --prefix frontend audit --omit=dev
       - name: Configure browser cache location
         id: browser_path
         run: echo "PLAYWRIGHT_BROWSERS_PATH=$RUNNER_TEMP/sap-lens-playwright" >> "$GITHUB_ENV"
@@ -132,10 +135,10 @@ jobs:
           key: playwright-headless-v1-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('frontend/package-lock.json') }}
       - name: Install Playwright headless browser and system libraries
         id: browser_setup
-        run: python scripts/ci.py run browser_setup -- node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run browser_setup -- node frontend/node_modules/playwright/cli.js install --with-deps chromium --only-shell
       - name: Run browser regression tests
         id: browser
-        run: python scripts/ci.py run browser -- python scripts/run-tests.py regression --browser --no-build --report "$RUNNER_TEMP/browser-report.json"
+        run: python scripts/build.py test --ci-tool validation --non-interactive --scope full -- run browser -- python scripts/run-tests.py full --browser --no-build --report "$RUNNER_TEMP/browser-report.json"
       - name: Upload browser report and failure traces
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -150,11 +153,11 @@ jobs:
         if: always()
         env:
           CI_STEPS: ${{ toJSON(steps) }}
-          CI_REQUIRED: checkout setup_node setup_python dependencies npm_install types eslint catalog build javascript_audit browser_path browser_cache browser_setup browser
+          CI_REQUIRED: checkout setup_node setup_python dependencies npm_install types eslint unit catalog build javascript_audit browser_path browser_cache browser_setup browser
           CI_JOB_NAME: ${{ github.job }}
         run: |
-          if [ -f scripts/ci.py ]; then
-            python scripts/ci.py summary
+          if [ -f scripts/testing/ci.py ]; then
+            python scripts/build.py test --ci-tool validation --non-interactive --scope full -- summary
           else
             echo 'Validation incomplete: source checkout failed.' >> "$GITHUB_STEP_SUMMARY"
           fi

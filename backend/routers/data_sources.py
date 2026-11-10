@@ -82,6 +82,7 @@ class SourceSelection(StrictModel):
     revision: int = Field(ge=0)
     mode: Literal['static','dynamic']
     profile: dict | None = Field(default=None,max_length=8)
+    confirm_anomalies: bool = False
 
 
 @router.post('/{source}/select')
@@ -122,7 +123,7 @@ async def select_source(source:Literal['roles','users','employees','sod'], body:
         validate_configuration(candidate,current)
     except (ValueError,OSError):
         raise HTTPException(400,'The source location, mode or import profile is invalid. Check source access and server path policy.') from None
-    report=await request.app.state.loader.load(configuration=candidate,operation='import',force=(source,))
+    report=await request.app.state.loader.load(configuration=candidate,operation='import',force=(source,),confirm=(source,) if body.confirm_anomalies else ())
     result=next((item for item in report['sources'] if item['source']==source),None)
     if not result or result['status'] not in {'updated','unchanged'}:
         raise HTTPException(409,'The source was not activated. Previous validated data is retained.')

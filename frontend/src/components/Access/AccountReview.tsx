@@ -1,5 +1,4 @@
 import { Dialog } from '@/components/Shared/Dialog'
-import { userHref } from '@/hooks/useViewHistory'
 import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
 import { ClipboardCheck as PageIcon } from 'lucide-react'
@@ -8,7 +7,7 @@ import { kpiTone } from '@/lib/kpiTone'
 import { InfoTip } from '@/components/Shared/InfoTip'
 import { StackedBar } from '@/components/Shared/Charts'
 import { FilterLayout, FilterSection, PageToolbar, SortControl } from '@/components/Shared/FilterLayout'
-import { FormField } from '@/components/Shared/Controls'
+import { Checkbox, FormField } from '@/components/Shared/Controls'
 import { SearchInput } from '@/components/Shared/Controls'
 import { Button } from '@/components/Shared/Button'
 import { SavedFilters } from '@/components/Shared/SavedFilters'
@@ -20,9 +19,11 @@ import { apiRequest, applicationToken } from '@/api/client'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { FilterChip } from '@/components/Shared/FilterChip'
-import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { SAPUserLink } from '@/components/Shared/SAPUserLink'
 import { Select } from '@/components/Shared/Select'
 import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
+import { ClassificationPill, FunctionalGroupReview } from './FunctionalGroupPanel'
+import type { ClassificationStatus } from '@/api/functionalGroups'
 import { csvField } from '@/lib/accessExport'
 import { formatTimestamp } from '@/lib/dateFormat'
 import { Filter, Pagination, QueryState, inputClass } from './Shared'
@@ -46,7 +47,14 @@ interface PositionChange {
   previous_imported_at?: string | null
   current_imported_at?: string | null
 }
+interface ManagerChange { id: string; open: boolean; previous_manager: string; current_manager: string; previous_manager_email: string; current_manager_email: string; detected_at: string }
 interface Row {
+  functional_group: { id: string; name: string; status: string } | null
+  functional_groups?: { id: string; name: string; status: string }[]
+  classification: { status: ClassificationStatus; revision: number; review: { change_id: string; reason: string; required_since: string } | null; confirmed_at: string | null }
+  classification_review: boolean
+  manager: { name: string; email: string; status: string } | null
+  manager_change: ManagerChange | null
   username: string
   name: string
   groups: string[]
@@ -61,6 +69,7 @@ interface Row {
   stale: boolean
   review_state: string
   needs_review: boolean
+  workflow_status: 'open' | 'completed'
   priority: 'High' | 'Normal' | 'None'
   position_change: PositionChange | null
   evidence?:ReviewEvidence
@@ -74,7 +83,10 @@ interface Results {
   data_revision: string
   summary: Record<string, number | null>
   finding_labels: Record<string, string>
+  completed_hidden?: number
   review_states: string[]
+  functional_group_options: { value: string; label: string }[]
+  manager_options: { value: string; label: string; count: number }[]
 }
 const SORTS = [{ value: 'username', label: 'Username' }, { value: 'name', label: 'Name' }, { value: 'sap_validity', label: 'SAP validity' }, { value: 'lock_status', label: 'SAP lock status' }, { value: 'ad_status', label: 'AD status' }, { value: 'review_state', label: 'Review state' }, { value: 'priority', label: 'Priority' }]
 const matchLabel = (status: string) => ({matched:'Matched',duplicate_email:'Duplicate Email',missing_email:'Missing Email',ambiguous:'Ambiguous Match',unmatched:'Unmatched',disabled:'Disabled',unavailable:'Unavailable'} as Record<string,string>)[status] || status.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase())
@@ -92,7 +104,7 @@ const ATTENTION_TILES: [string, string, ReactNode, { finding: string }][] = [
 ]
 /** The fifth attention KPI; like the others it occupies one grid cell, so the last cell on the right stays empty. */
 const FINAL_TILE: [string, string, ReactNode, { finding: string }] = ['mismatch', 'AD disabled / SAP valid and unlocked', <UserMinus size={16} />, { finding: 'ad_disabled_open' }]
-const FINDING_NAMES: Record<string, string> = { any: 'Accounts requiring review', matched: 'Reliably matched identities', directory_missing: 'Missing directory matches', directory_ambiguous: 'Ambiguous directory matches', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
+const FINDING_NAMES: Record<string, string> = { manager_change: 'Manager changes', functional_group_review: 'Functional Group reconfirmation', any: 'Accounts requiring review', matched: 'Reliably matched identities', directory_missing: 'Missing directory matches', directory_ambiguous: 'Ambiguous directory matches', reviewed: 'Completed reviews', pending: 'Pending reviews', position_change: 'Position changes', stale: 'Outdated reviews' }
 
 /** Department and job title together, labelled so the two are never confused. Changed values are emphasized; unchanged ones are muted. */
 function PositionCell({ department, title, changed }: { department?: string | null; title?: string | null; changed?: string[] }) {
@@ -111,6 +123,9 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   const [search, setSearch] = useState(retained?.search||''),
     [licenses, setLicenses] = useState<string[]>(retained?.licenses||[]),
     [states, setStates] = useState<string[]>(retained?.states||[]),
+    [includeCompleted, setIncludeCompleted] = useState(false),
+    [groupFilter, setGroupFilter] = useState<string[]>([]),
+    [managerFilter, setManagerFilter] = useState<string[]>([]),
     [sort, setSort] = useState(retained?.sort||'username'),
     [descending, setDescending] = useState(retained?.descending||false),
     [offset, setOffset] = useState(0)
@@ -137,7 +152,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   }, [search])
   useEffect(
     () => setOffset(0),
-    [term, findings.join('|'), licenses.join('|'), states.join('|'), sort, descending],
+    [term, findings.join('|'), licenses.join('|'), states.join('|'), groupFilter.join('|'), managerFilter.join('|'), includeCompleted, sort, descending],
   )
   const params = new URLSearchParams({
     search: term,
@@ -147,6 +162,9 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   findings.forEach(value => params.append('findings', value))
   licenses.forEach(value => params.append('license_groups', value))
   states.forEach(value => params.append('review_states', value))
+  if (includeCompleted) params.set('include_completed', 'true')
+  groupFilter.forEach(value => params.append('functional_groups', value))
+  managerFilter.forEach(value => params.append('managers', value))
   const generation = useRef(0)
   useEffect(() => {
     generation.current++
@@ -214,9 +232,9 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       </div>
     )
   }
-  const findingOptions = ['any', 'matched', 'directory_missing', 'directory_ambiguous', 'reviewed', 'pending', 'position_change', ...Object.keys(data?.finding_labels || {}), 'stale']
+  const findingOptions = ['any', 'matched', 'directory_missing', 'directory_ambiguous', 'reviewed', 'pending', 'position_change', 'manager_change', 'functional_group_review', ...Object.keys(data?.finding_labels || {}), 'stale']
   const findingLabel = (key: string) => FINDING_NAMES[key] || data?.finding_labels[key] || key
-  const clearAll = () => { setOffset(0); setSearch(''); setTerm(''); setFindings([]); setLicenses([]); setStates([]); setSort('username'); setDescending(false) }
+  const clearAll = () => { setOffset(0); setSearch(''); setTerm(''); setFindings([]); setLicenses([]); setStates([]); setGroupFilter([]); setManagerFilter([]); setIncludeCompleted(false); setSort('username'); setDescending(false) }
   const queueParams = 'finding=position_change&sort=priority&limit=25'
   const queue = useQuery({
     queryKey: ['account-review', 'position-queue'],
@@ -395,7 +413,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     const change = row.position_change as PositionChange
                     return (
                       <tr key={row.username}>
-                        <td><RoleIdentifier value={row.username} label="username" onOpen={() => onUser(row.username)} href={userHref(row.username)} openLabel={`Open SAP user ${row.username}`} openButtonProps={{ 'data-user': row.username }} /></td>
+                        <td><SAPUserLink username={row.username} copyLabel="username" onOpen={()=>onUser(row.username)}/></td>
                         <td>{row.name || 'Unknown'}</td>
                         <td><PositionCell department={change.previous_department} title={change.previous_title} /></td>
                         <td><PositionCell department={change.current_department} title={change.current_title} changed={change.fields} /></td>
@@ -411,7 +429,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
           {queue.data && queue.data.total > queue.data.items.length && <p className="ui-description">Showing {queue.data.items.length} of {queue.data.total}. Use the Review finding filter to see all.</p>}
         </section>
       )}
-      <FilterLayout label="Filters" activeCount={findings.length + licenses.length + states.length + (search ? 1 : 0)} onClear={clearAll} clearDisabled={!(findings.length || licenses.length || states.length || search) && sort === 'username' && !descending}
+      <FilterLayout label="Filters" activeCount={(includeCompleted ? 1 : 0) + findings.length + licenses.length + states.length + groupFilter.length + managerFilter.length + (search ? 1 : 0)} onClear={clearAll} clearDisabled={!(includeCompleted || findings.length || licenses.length || states.length || groupFilter.length || managerFilter.length || search) && sort === 'username' && !descending}
         toolbar={<PageToolbar>
           <SortControl label="Sort account reviews" value={sort} options={SORTS} descending={descending} onChange={setSort} onDescending={setDescending} />
           <Button className="settings-secondary-button" disabled={busy || !data?.loaded} onClick={() => void exportCSV()}>
@@ -421,7 +439,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         </PageToolbar>}
         sidebar={<div className="grid min-w-0 gap-3" role="search" aria-label="Review filters">
           <FilterSection title="Saved Filters">
-            <SavedFilters showClear={false} view="review" state={{search,findings,licenses,states,sort,descending}} apply={s=>{if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.findings))setFindings(s.findings.filter(item=>findingOptions.includes(item)));if(Array.isArray(s.licenses))setLicenses(s.licenses.filter(item=>['classified','exclude'].includes(item)));if(Array.isArray(s.states))setStates(s.states.filter(item=>(data?.review_states||[]).includes(item)));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFindings([]);setLicenses([]);setStates([]);setSort('username');setDescending(false)}}/>
+            <SavedFilters showClear={false} view="review" state={{search,findings,licenses,states,groups:groupFilter,managers:managerFilter,includeCompleted,sort,descending}} apply={s=>{setIncludeCompleted(s.includeCompleted===true);if(Array.isArray(s.groups))setGroupFilter(s.groups.filter((item:string)=>(data?.functional_group_options||[]).some(o=>o.value===item)));if(Array.isArray(s.managers))setManagerFilter(s.managers.filter((item:string)=>(data?.manager_options||[]).some(o=>o.value===item)));if(typeof s.search==='string')setSearch(s.search);if(Array.isArray(s.findings))setFindings(s.findings.filter(item=>findingOptions.includes(item)));if(Array.isArray(s.licenses))setLicenses(s.licenses.filter(item=>['classified','exclude'].includes(item)));if(Array.isArray(s.states))setStates(s.states.filter(item=>(data?.review_states||[]).includes(item)));if(['username','name','sap_validity','lock_status','ad_status','review_state'].includes(String(s.sort)))setSort(String(s.sort));if(typeof s.descending==='boolean')setDescending(s.descending)}} clear={()=>{setSearch('');setFindings([]);setLicenses([]);setStates([]);setSort('username');setDescending(false)}}/>
           </FilterSection>
           <FilterSection title="Search">
             <SearchInput className={inputClass} aria-label="Search account reviews" placeholder="Search" value={search} onChange={(e) => setSearch(e.target.value)} onClear={() => setSearch('')} />
@@ -436,15 +454,26 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             <FormField label="Review decision">
               <MultiSelectFilter label="Review decision" values={states} options={data?.review_states || []} onChange={setStates} placeholder="All decisions" />
             </FormField>
+            <Checkbox checked={includeCompleted} onChange={event => setIncludeCompleted(event.target.checked)}>Include completed reviews</Checkbox>
+          </FilterSection>
+          <FilterSection title="Organization">
+            <FormField label="Functional Group">
+              <MultiSelectFilter label="Functional Group" values={groupFilter} options={(data?.functional_group_options || []).map(o => o.value)} optionLabel={value => data?.functional_group_options.find(o => o.value === value)?.label ?? value} onChange={setGroupFilter} placeholder="All Functional Groups" />
+            </FormField>
+            <FormField label="Manager">
+              <MultiSelectFilter label="Manager" values={managerFilter} options={(data?.manager_options || []).map(o => o.value)} optionLabel={value => { const o = data?.manager_options.find(item => item.value === value); return o ? `${o.label} (${o.count})` : value }} onChange={setManagerFilter} placeholder="All managers" />
+            </FormField>
           </FilterSection>
         </div>}>
-      {(findings.length > 0 || licenses.length > 0 || states.length > 0 || search) && <div className="active-filter-row" aria-label="Active review filters">
+      {(findings.length > 0 || licenses.length > 0 || states.length > 0 || groupFilter.length > 0 || managerFilter.length > 0 || search) && <div className="active-filter-row" aria-label="Active review filters">
         {findings.map(value => <FilterChip key={`finding-${value}`} removeLabel={`Remove review finding ${findingLabel(value)}`} onRemove={() => setFindings(findings.filter(item => item !== value))}>Finding: {findingLabel(value)}</FilterChip>)}
         {licenses.map(value => <FilterChip key={`license-${value}`} removeLabel={`Remove license classification ${value === 'classified' ? 'Configured unlicensed groups' : 'Exclude unlicensed groups'}`} onRemove={() => setLicenses(licenses.filter(item => item !== value))}>{value === 'classified' ? 'Configured unlicensed groups' : 'Excluding unlicensed groups'}</FilterChip>)}
         {states.map(value => <FilterChip key={`state-${value}`} removeLabel={`Remove review decision ${value}`} onRemove={() => setStates(states.filter(item => item !== value))}>Decision: {value}</FilterChip>)}
+        {groupFilter.map(value => <FilterChip key={`group-${value}`} removeLabel={`Remove Functional Group ${data?.functional_group_options.find(o => o.value === value)?.label ?? value}`} onRemove={() => setGroupFilter(groupFilter.filter(item => item !== value))}>Functional Group: {data?.functional_group_options.find(o => o.value === value)?.label ?? value}</FilterChip>)}
+        {managerFilter.map(value => <FilterChip key={`manager-${value}`} removeLabel={`Remove manager ${data?.manager_options.find(o => o.value === value)?.label ?? value}`} onRemove={() => setManagerFilter(managerFilter.filter(item => item !== value))}>Manager: {data?.manager_options.find(o => o.value === value)?.label ?? value}</FilterChip>)}
         {search && <FilterChip removeLabel="Remove account search filter" onRemove={() => { setSearch(''); setTerm('') }}>Search: {search}</FilterChip>}
       </div>}
-      <div className="results-toolbar ui-toolbar"><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong></div>
+      <div className="results-toolbar ui-toolbar"><strong>{data?.total.toLocaleString() ?? '…'} accounts</strong>{!!data?.completed_hidden && <span className="ui-description" role="status"> · {data.completed_hidden.toLocaleString()} completed review{data.completed_hidden === 1 ? '' : 's'} hidden · <Button size="compact" variant="ghost" onClick={() => setIncludeCompleted(true)}>Show reviewed</Button></span>}</div>
       <QueryState
         loading={result.isLoading || (dataLoading && !data?.loaded)}
         error={result.error}
@@ -475,6 +504,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     'SAP username',
                     'Name',
                     'SAP User Group',
+                    'Functional Group',
                     'SAP validity',
                     'SAP lock status',
                     'AD account status',
@@ -490,11 +520,10 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                 {data.items.map((row) => (
                   <tr key={row.username}>
                     <td>
-                      <RoleIdentifier
-                        value={row.username}
-                        label="username"
+                      <SAPUserLink
+                        username={row.username}
+                        copyLabel="username"
                         onOpen={() => onUser(row.username)}
-                        href={userHref(row.username)}
                         openLabel={row.username}
                         openButtonProps={{
                           disabled: busy,
@@ -504,6 +533,11 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     </td>
                     <td>{row.name || 'Unknown'}</td>
                     <td>{row.groups.join(', ') || 'Unknown'}</td>
+                    <td>
+                      {row.functional_groups?.length ? row.functional_groups.map(group => group.name).join('; ') : row.functional_group ? row.functional_group.name : <span className="text-muted">Unassigned</span>}
+                      {row.classification.status === 'Needs review' && <> <ClassificationPill status="Needs review" /></>}
+                      {row.manager?.name && <small className="block">Manager: {row.manager.name}</small>}
+                    </td>
                     <td>
                       <AccountStatus value={row.sap_validity} />
                       {row.evidence&&row.evidence.account_total>row.evidence.accounts.length&&<small>More source intervals in User Details</small>}
@@ -525,7 +559,9 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                         </p>
                       )}
                       {row.position_change && <p><strong>Position change{row.position_change.open ? '' : ' (reviewed)'}:</strong> {changeText(row.position_change)}</p>}
-                      {!row.findings.length && !row.position_change && <p>No automated findings</p>}
+                      {row.manager_change && <p><strong>Manager change{row.manager_change.open ? '' : ' (reviewed)'}:</strong> {row.manager_change.previous_manager || 'unknown'} → {row.manager_change.current_manager || 'unknown'}</p>}
+                      {row.classification_review && <p><strong>Functional Group:</strong> reconfirmation required</p>}
+                      {!row.findings.length && !row.position_change && !row.manager_change && !row.classification_review && <p>No automated findings</p>}
                     </td>
                     <td>
                       <Button
@@ -536,6 +572,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                       >
                         {row.review_state}
                       </Button>
+                      {row.workflow_status === 'completed' && <p className="ui-description">Review completed</p>}
                       {row.stale && (
                         <p className="text-[var(--warning)]">
                           Evidence changed — review again
@@ -571,13 +608,18 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         >
           <section aria-label="SAP identity" className="review-dialog-section"><h3>SAP identity</h3>
             <MetadataList items={[
-              {label:'SAP username',value:<RoleIdentifier value={editing.username} label="username"/>},
+              {label:'SAP username',value:<SAPUserLink reviewSupported={false} username={editing.username} copyLabel="username"/>},
               {label:'Name',value:editing.name||'Name unavailable'},
               {label:'SAP User Group',value:editing.groups.join(', ')||'Group unavailable'},
               {label:'Directory match',value:matchLabel(editing.match_status)},
             ]}/>
             <div className="ui-toolbar"><Button onClick={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}><ArrowUpRight size={16} aria-hidden="true"/>Investigate SAP user</Button></div>
           </section>
+          {editing.classification.status !== 'Unassigned' && <FunctionalGroupReview username={editing.username}
+            department={editing.position_change?.fields.includes('department') ? { previous: editing.position_change.previous_department, current: editing.position_change.current_department } : undefined}
+            title={editing.position_change?.fields.includes('title') ? { previous: editing.position_change.previous_title, current: editing.position_change.current_title } : undefined}
+            manager={editing.manager_change ? { previous: editing.manager_change.previous_manager, current: editing.manager_change.current_manager } : null}
+            detectedAt={editing.position_change?.detected_at ?? editing.manager_change?.detected_at} />}
           {editing.position_change&&<section aria-label="Position change that triggered this review" className="review-dialog-section review-dialog-trigger"><h3>Organizational position changes</h3>
             <table className="review-change-table"><thead><tr><th scope="col"><span className="sr-only">Field</span></th><th scope="col">Previous (last known)</th><th scope="col">Current</th></tr></thead><tbody>
               <tr><th scope="row">Department</th><td>{editing.position_change.previous_department||'—'}</td><td data-changed={editing.position_change.fields.includes('department')||undefined}>{editing.position_change.current_department||'—'}</td></tr>
@@ -641,6 +683,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
                     reviewer: reviewer.trim(),
                     rationale: rationale.trim(),
                     evidence_version: editing.evidence_version,
+                    expected_decision: editing.decision?.timestamp ?? '',
                   },
                 )
                 await qc.invalidateQueries({

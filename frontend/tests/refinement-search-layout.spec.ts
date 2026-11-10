@@ -1,12 +1,9 @@
 import {test,expect} from '@playwright/test'
-import {textMatches} from '../src/lib/searchMatching'
 import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
 let root:string
-const cases:[string,string,boolean][]=[['ME23N','ME*',true],['ME23N','*23N',true],['ME23N','*me*',true],['ME23N','ME*23*',true],['XME23N','ME*',false],['ME23NX','*23N',false],['abc','',true],['abc','b',true],['[a].+','[a].*',true],['abc','a?c',false],['a','a*a',false],['Åse','å*',true],['ab','a**b',true],['','**',true]]
-test('literal SAP wildcard matching agrees with backend semantics',()=>{for(const [value,query,result] of cases)expect(textMatches(value,query)).toBe(result)})
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers});root=mkdtempSync(path.join(tmpdir(),'sap-lens-search-ui-'))
  const roles=path.join(root,'roles.csv'),users=path.join(root,'users.csv')
@@ -16,7 +13,7 @@ test.beforeEach(async({request})=>{
  expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(root,{recursive:true,force:true})})
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`dashboard settings navigation and source layout ${theme} ${width}`,async({page,request},info)=>{
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`dashboard settings navigation and source layout ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;await request.post('/api/configuration',{headers,data:settings})
  await page.setViewportSize({width,height:900});await page.goto('/#session=browser-test-session')
  await expect(page.getByRole('region',{name:'Assignment Distribution',exact:true})).toBeVisible()
@@ -27,7 +24,7 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
  await expect(page.getByRole('navigation',{name:'User Access view',exact:true}).getByRole('link',{name:'User directory',exact:true})).toHaveCSS('border-bottom-width','2px')
  await page.getByRole('link', { name: 'SYN_BUY',exact:true}).click();await expect(page.getByRole('columnheader',{name:'Role description',exact:true})).toHaveCount(0);await expect(page.getByRole('region',{name:'User role assignments',exact:true})).toContainText('Purchasing')
  const back=page.getByRole('button',{name:'Back to users',exact:true});await expect(back).toHaveCSS('border-top-width','1px')
- await expect(page.locator('.profile-matching-evidence')).toHaveCSS('margin-top','16px')
+ await expect(page.locator('.profile-identity-header .profile-identity-match').getByRole('button',{name:/Directory matching details/})).toBeVisible()
  await page.getByRole('button',{name:'View role details: ZC:SYN:BUY',exact:true}).click()
  const close=page.getByRole('button',{name:'Close role details',exact:true});await expect(close).toBeVisible()
  await expect(page.locator('.role-detail-header .detail-back-action')).toHaveCSS('color',await page.locator('.role-detail-header').evaluate(element=>getComputedStyle(element).color))

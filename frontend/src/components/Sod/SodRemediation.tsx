@@ -1,25 +1,27 @@
-import { Fragment, useState, type ReactNode } from 'react'
+import {SAPUserLink} from '@/components/Shared/SAPUserLink'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type AssignmentRow, type ContextInfo } from '@/api/sod'
+import { downloadFile, scopeParams, sod, sodPost, EXPORT_NAME, type DecisionSummary,type AssignmentRow, type ContextInfo } from '@/api/sod'
 import { useViewHistory } from '@/hooks/useViewHistory'
 import { Button } from '@/components/Shared/Button'
+import {PrimaryDecisionBadge} from './SodDecisionStatus'
 import { Kpi } from '@/components/Shared/Kpi'
 import { UserGroupCell } from '@/components/Shared/UserGroup'
 import { Dialog } from '@/components/Shared/Dialog'
 import { ErrorState, DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 import { FormField, Input } from '@/components/Shared/Controls'
 import { Select } from '@/components/Shared/Select'
-import { ExportCSVButton } from '@/components/Shared/ExportCSVButton'
+import { ExportMenu, ROLE_ASSIGNMENTS_ICON } from '@/components/Shared/ExportMenu'
 import { NorwegianDateInput, parseNorwegianDate } from '@/components/Shared/NorwegianDateInput'
 import { PAGE_SIZES, Pagination } from '@/components/Access/Shared'
-import { ChevronDown, ChevronRight } from 'lucide-react'
+import { ChevronDown, ChevronRight, ChevronsDown, ChevronsUp, ClipboardCheck, Search } from 'lucide-react'
 import { SodPill } from '@/lib/sodAppearance'
 import { RoleEntry } from '@/components/Shared/RoleEntry'
 import { moduleOfRoles, useRoleModules } from '@/hooks/useRoleModules'
 import { announceExport } from '@/lib/exportNotice'
 import { formatDate } from '@/lib/dateFormat'
 import { kpiTone, stateTone } from '@/lib/kpiTone'
-import { AlertNote, CoverageNotice, SodFilters, invalidateSod, LifecycleBadge, useSodContext, useSodFilters, useSodSubject } from './SodShared'
+import { AlertNote, CoverageNotice, SodFilters, invalidateSod, useSodContext, useSodFilters, useSodSubject } from './SodShared'
 
 const GROUPS = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required']
 /** Handling that can carry a tracked action: removals and investigations. */
@@ -27,6 +29,7 @@ const TRACKABLE = ['Remove assignment', 'Investigate assignment']
 const STATUSES = ['Open', 'In progress', 'Completed', 'Cancelled']
 interface TrackedAction { id: string; user: string; activity: string; risk_id: string; assignment_id: string; role: string; recommended: string; reason: string; owner: string; due_date: string | null; status: string; completion_evidence: string; verification: string; history: { timestamp: string; actor: string; note: string }[] }
 interface Row {
+  assignment_summary?:DecisionSummary;activity_summary?:DecisionSummary|null;
   user: string; activity: string; risks: string[]; role: string; catalogue_roles?: string[]; user_group?: string; assignment_id: string; valid_from: string | null; valid_to: string | null
   activity_decision: string; assignment_decision: string; risk_acceptance: string[]; recommended: string; reason: string; controls: string
   action: TrackedAction | null; owner: string; due_date: string | null; action_status: string; overdue: boolean; verification: string
@@ -114,16 +117,18 @@ export function RemediationView() {
   const params = scopeParams(context, filters, { recommended, offset, limit: pageSize })
   const result = useQuery({ queryKey: ['sod-remediation', params.toString()], queryFn: () => sod<Result>('/api/sod/remediation', params) })
   const data = result.data
-  /** One parent per SAP user and role assignment; the server orders rows by user and role, so activity rows are contiguous. */
-  const parents = (data?.items || []).reduce<{ key: string; user: string; rows: Row[] }[]>((list, row) => {
-    const key = `${row.user}:${row.assignment_id}`, last = list[list.length - 1]
-    if (last?.key === key) last.rows.push(row); else list.push({ key, user: row.user, rows: [row] })
-    return list
-  }, [])
-  const exportCsv = async () => {
+  /** Current-page rows only; group by assignment identity without relying on adjacency. */
+  const parents = useMemo(()=>{
+    const groups=new Map<string,{key:string;user:string;rows:Row[]}>()
+    for(const row of data?.items||[]){const key=JSON.stringify([row.user,row.assignment_id]);const parent=groups.get(key);if(parent)parent.rows.push(row);else groups.set(key,{key,user:row.user,rows:[row]})}
+    return [...groups.values()]
+  },[data?.items])
+  const exportCsv = async (format: 'detailed' | 'role-assignments') => {
     setBusy(true)
     try {
-      const name = await downloadFile('/api/sod/remediation/export', { params: scopeParams(context, filters, { recommended }), namePattern: EXPORT_NAME, kind: 'csv' })
+      const exportParams = scopeParams(context, filters, { recommended })
+      if (format === 'role-assignments') exportParams.set('format', format) // detailed keeps the original request unchanged
+      const name = await downloadFile('/api/sod/remediation/export', { params: exportParams, namePattern: EXPORT_NAME, kind: 'csv' })
       announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (cause) {
       announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })
@@ -136,7 +141,9 @@ export function RemediationView() {
       <CoverageNotice info={data} />
       <SodFilters view="sod_queue" filters={filters} setFilters={(value) => { setOffset(0); setFiltersState(value) }}
         fields={['group', 'username', 'risk', 'activity', 'role', 'role_suffix', 'tcode', 'category', 'validity']}
-        actions={<ExportCSVButton loading={busy} disabled={!data?.total || verifiedOnly} onClick={() => void exportCsv()} title={verifiedOnly ? 'Verified removals are tracked actions; export the remediation report instead.' : 'Exports the filtered remediation rows.'} />}>
+        actions={<ExportMenu busy={busy} disabled={!data?.total || verifiedOnly} title={verifiedOnly ? 'Verified removals are tracked actions; export the remediation report instead.' : undefined}
+          options={[{ id: 'role-assignments', label: 'Role Assignments', description: 'One row per unique SAP user and assigned role.', icon: ROLE_ASSIGNMENTS_ICON }, { id: 'detailed', label: 'Detailed Remediation', description: 'Full remediation details, including existing risk, activity and tracking information.' }]}
+          onSelect={(id) => void exportCsv(id === 'role-assignments' ? 'role-assignments' : 'detailed')} />}>
       {result.isError ? <ErrorState error={result.error} onRetry={() => void result.refetch()} /> : !data ? <LoadingState /> : <>
         <section className="sod-tiles" aria-label="Recommended handling">
           <Kpi label="All handling" value={GROUPS.reduce((sum, group) => sum + (data.summary[group] ?? 0), 0).toLocaleString()} active={!recommended} onClick={() => { setRecommended(''); setOffset(0) }} />
@@ -151,33 +158,32 @@ export function RemediationView() {
         <p className="ui-description">A proposed removal is not completed remediation. Verification compares with the latest imported evidence and is only conclusive when source coverage is complete.</p>
         {verifiedOnly ? <p className="ui-description" role="status">Verified removals need a tracked removal action and a newer User-Role import that no longer contains the assignment. A completed status alone never verifies. They are listed under Tracked actions.</p> : data.items.length ? <>
           <Toolbar aria-label="Remediation row controls">
-            <span className="ui-description" role="status">{parents.length} {parents.length === 1 ? 'assignment' : 'assignments'} · {data.items.length} activity {data.items.length === 1 ? 'row' : 'rows'} on this page</span>
-            <Button size="compact" onClick={() => setOpenKeys(new Set(parents.map((parent) => parent.key)))}>Expand all</Button>
-            <Button size="compact" onClick={() => setOpenKeys(new Set())}>Collapse all</Button>
+            <span className="ui-description" role="status">{parents.length} {parents.length === 1 ? 'assignment' : 'assignments'} · {data.items.filter(row=>row.activity).length} activity {data.items.filter(row=>row.activity).length === 1 ? 'row' : 'rows'} on this page</span>
+            <Button size="compact" onClick={() => setOpenKeys(new Set(parents.map((parent) => parent.key)))}><ChevronsDown size={14} aria-hidden="true"/>Expand all</Button>
+            <Button size="compact" onClick={() => setOpenKeys(new Set())}><ChevronsUp size={14} aria-hidden="true"/>Collapse all</Button>
           </Toolbar>
           <DataTable caption="Access remediation rows" density="compact" sticky>
-            <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Validity</th><th>Review</th><th>Recommended handling</th><th>Remediation</th><th className="col-actions">Actions</th></tr></thead>
+            <thead><tr><th>SAP user</th><th>SAP User Group</th><th>Role assignment</th><th>Validity</th><th>Review</th><th>Remediation</th><th className="col-actions">Actions</th></tr></thead>
             <tbody>{parents.map((parent) => {
               const open = openKeys.has(parent.key), first = parent.rows[0], tracked = parent.rows.find((row) => row.action) ?? first
-              const decided = parent.rows.filter((row) => row.activity_decision !== 'Pending').length
+              const decided = parent.rows.filter((row) => ['Approved','Keep','Conditional','Removal required','Rejected'].includes(row.activity_decision)).length
               return <ParentRows key={parent.key} open={open}
                 parent={<tr className="remediation-parent" data-open={open || undefined}>
-                  <td><button type="button" className="sod-expand-toggle" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true" /> : <ChevronRight size={14} aria-hidden="true" />}<strong>{parent.user}</strong></button></td>
+                  <td><SAPUserLink username={parent.user}/></td>
                   <td><UserGroupCell groups={first.user_group} /></td>
-                  <td><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles} /></td>
+                  <td><div className="flex items-center gap-1"><button type="button" className="sod-expand-toggle shrink-0" aria-expanded={open} aria-label={`${open ? 'Hide' : 'Show'} activities and risks for ${parent.user} ${first.role}`} onClick={() => toggleKey(parent.key)}>{open ? <ChevronDown size={14} aria-hidden="true"/> : <ChevronRight size={14} aria-hidden="true"/>}</button><RemediationRole role={first.role} catalogueRoles={first.catalogue_roles}/></div></td>
                   <td className="whitespace-nowrap"><dl className="validity-dates"><div><dt>Valid from</dt><dd>{formatDate(first.valid_from)}</dd></div><div><dt>Valid to</dt><dd>{formatDate(first.valid_to)}</dd></div></dl></td>
-                  <td><LifecycleBadge value={first.assignment_decision} /><p className="text-xs text-muted">{decided}/{parent.rows.length} activities decided</p></td>
-                  <td>{[...new Set(parent.rows.map((row) => row.recommended))].sort((x, y) => GROUPS.indexOf(x) - GROUPS.indexOf(y)).map((value) => <StatusBadge key={value} tone={value === 'Remove assignment' ? 'error' : value === 'Investigate assignment' ? 'warning' : 'neutral'}>{value}</StatusBadge>)}</td>
+                  <td><PrimaryDecisionBadge summary={first.assignment_summary}/><p className="text-xs text-muted">{first.activity ? `${decided}/${parent.rows.filter(row=>row.activity).length} activities decided` : 'No linked SoD activity'}</p></td>
                   <td>{tracked.action_status}{parent.rows.some((row) => row.overdue) && <StatusBadge tone="error">Overdue</StatusBadge>}<p className="text-xs text-muted">{tracked.owner || 'No owner'} · {tracked.due_date ? formatDate(tracked.due_date) : 'No due date'}</p></td>
                   <td className="col-actions"><div className="flex flex-wrap justify-end gap-1">
-                    {data.reviewable && parent.rows.some((row) => TRACKABLE.includes(row.recommended)) && <Button size="compact" onClick={() => setEditing(parent.rows.find((row) => TRACKABLE.includes(row.recommended))!)}>{tracked.action ? 'Update action' : 'Track action'}</Button>}
-                    <Button size="compact" onClick={() => setSubject({ user: parent.user, activity: first.activity })}>Investigate</Button>
+                    {data.reviewable && parent.rows.some((row) => TRACKABLE.includes(row.recommended)) && <Button size="compact" onClick={() => setEditing(parent.rows.find((row) => TRACKABLE.includes(row.recommended))!)}><ClipboardCheck size={14} aria-hidden="true"/>{tracked.action ? 'Update action' : 'Track action'}</Button>}
+                    <Button size="compact" onClick={() => setSubject({ user: parent.user, activity: first.activity })}><Search size={14} aria-hidden="true"/>Investigate</Button>
                   </div></td>
                 </tr>}
                 children={parent.rows.map((row) => <tr key={row.activity} className="remediation-child">
-                  <td colSpan={3}><span className="remediation-child-title">Activity</span> <SodPill kind="activity" value={row.activity} /> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
-                  <td colSpan={2}>Activity <LifecycleBadge value={row.activity_decision} /> · Risk acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
-                  <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason || row.controls}</p></td>
+                  <td colSpan={2}><span className="remediation-child-title">Activity</span> <span>{row.activity ? <SodPill kind="activity" value={row.activity} /> : 'No linked SoD activity'}</span> <span className="id-pill-list" aria-label={`Risks for ${row.activity}`}>{row.risks.map((risk) => <SodPill key={risk} kind="risk" value={risk} />)}</span></td>
+                  <td colSpan={2}>Activity {row.activity ? <PrimaryDecisionBadge summary={row.activity_summary ?? undefined}/> : 'Not applicable'} · Formal acceptance: {row.risk_acceptance.join(', ') || '—'}</td>
+                  <td><StatusBadge tone={row.recommended === 'Remove assignment' ? 'error' : row.recommended === 'Investigate assignment' ? 'warning' : 'neutral'}>{row.recommended}</StatusBadge><p className="text-xs">{row.reason}{row.controls&&<span className="block">Controls: {row.controls}</span>}</p></td>
                   <td className="text-xs" colSpan={2}>Verification: {row.verification}</td>
                 </tr>)} />
             })}</tbody>

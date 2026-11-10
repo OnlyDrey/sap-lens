@@ -16,8 +16,8 @@ export interface ContextInfo {
 }
 export interface RiskColumn { risk_id: string; criticality: string; display_name: string; source_text: string; category: string; users: number }
 export interface ActivityColumn { activity: string; risks: string[]; users: number }
-export interface RiskCell { finding_id: string; criticality: string; acceptance: Lifecycle; activities: Record<string, number> }
-export interface ActivityCell { key: string; decision: Lifecycle; roles: number; risks: string[]; duplicate: boolean }
+export interface RiskCell { decision_summary?:DecisionSummary; review_coverage?: ReviewCoverage; finding_id: string; criticality: string; acceptance: Lifecycle; activities: Record<string, number> }
+export interface ActivityCell { decision_summary?:DecisionSummary; review_coverage?: ReviewCoverage; key: string; decision: Lifecycle; roles: number; risks: string[]; duplicate: boolean }
 export interface GroupCell { users: number }
 export interface MatrixRow<Cell> { user: string; groups: string[]; users?: number; cells: Record<string, Cell | GroupCell>; /** Grouped view only: the one SAP User Group this user is listed under. */ group?: string }
 export interface GroupSummary { name: string; users: number; findings: number; start: number }
@@ -37,8 +37,10 @@ export interface MatrixResult<Column, Cell> extends ContextInfo {
   status_counts: Record<string, number>
 }
 export interface DecisionEvent {
+  bulk_operation_id?:string
+  previous_decision?:string
   event_id: string
-  kind: 'activity' | 'assignment' | 'acceptance'
+  kind: 'activity' | 'assignment' | 'acceptance' | 'risk'
   context: string
   timestamp: string
   key: string
@@ -98,14 +100,17 @@ export interface AssignmentImpact {
   warnings: string[]
   eliminates_all: boolean
 }
-export interface OverviewAssignment { id: string; role: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }
+export interface DecisionSummary {derived_label?:string;explicit_label?:string;disagreement?:boolean;label:string;tone:'neutral'|'success'|'warning'|'error'|'info';explicit:boolean;stale:boolean;basis:string;assignment_decisions:Record<string,number>}
+export interface ReviewCoverage { reviewed: boolean; provenance: string; removal_planned: boolean; risk_accepted?: boolean; remediation_verified?: boolean; label?: string }
+export interface RemediationVerification {status:string;reason:string;source_version?:string|null;imported_at?:string|null;decision_event_id?:string}
+export interface OverviewAssignment {remediation_verification?:RemediationVerification; decision_summary?:DecisionSummary; id: string; role: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; activities: string[]; valid_from: string | null; valid_to: string | null; interval_status: string | null; user_group: string; catalogue_roles: string[] }
 export interface SubjectOverview {
-  activities: { activity: string; key: string; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; tcodes: string[]; roles: number; duplicate_coverage: boolean }[]
+  activities: { decision_summary?:DecisionSummary; activity: string; key: string; review_coverage?: ReviewCoverage; decision: Lifecycle; event: DecisionEvent | null; evidence_version: string; risks: string[]; tcodes: string[]; roles: number; duplicate_coverage: boolean }[]
   assignments: OverviewAssignment[]
-  risks: { risk_id: string; criticality: string; display_name: string; source_text: string; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
+  risks: { risk_review_summary?:DecisionSummary;risk_review?:Lifecycle;risk_review_event?:DecisionEvent|null;decision_summary?:DecisionSummary; risk_id: string; criticality: string; display_name: string; source_text: string; review_coverage?: ReviewCoverage; finding_id: string; evidence_version: string; acceptance: Lifecycle; event: DecisionEvent | null }[]
 }
 export interface UserQueueRow {
-  user: string; groups?: string[]; total: number; decided: number; outstanding: number; removal: number; historical: number
+  formal_acceptance: { total: number; decided: number }; user: string; groups?: string[]; total: number; decided: number; outstanding: number; removal: number; historical: number
   activity: { total: number; decided: number }; assignment: { total: number; decided: number }; acceptance: { total: number; decided: number }
 }
 export interface Subject extends ContextInfo {
@@ -133,13 +138,13 @@ export interface Subject extends ContextInfo {
 }
 
 const SCALAR_KEYS = ['search', 'risk', 'criticality', 'risk_type', 'category', 'username', 'group', 'composite_role', 'single_role', 'tcode', 'role', 'role_suffix', 'activity', 'account_status', 'multiple_risks', 'tracking',
-  'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort']
+  'activity_decision', 'assignment_decision', 'acceptance', 'validity', 'as_of', 'sort', 'queue_sort', 'role_match','assignment_scope']
 
 /** Exact multi-select values: OR within the list, AND with every other filter. */
-const MULTI_KEYS = ['usernames', 'role_suffixes', 'risks', 'activities', 'groups', 'roles', 'tcodes', 'categories', 'criticalities']
+const MULTI_KEYS = ['functional_groups', 'managers', 'usernames', 'role_suffixes', 'risks', 'activities', 'groups', 'roles', 'role_families','role_exact', 'tcodes', 'categories', 'criticalities']
 
 export const emptyFilters: Filters = {
-  search: '', risk: '', criticality: '', category: '', username: '', usernames: [], role_suffixes: [], risks: [], activities: [], groups: [], roles: [], tcodes: [], categories: [], criticalities: [], group: '', role: '', role_suffix: '', activity: '', tcode: '', account_status: '', multiple_risks: '', tracking: '',
+  search: '', risk: '', criticality: '', category: '', username: '', functional_groups: [], managers: [], usernames: [], role_suffixes: [], risks: [], activities: [], groups: [], roles: [], role_families:[],role_exact:[], tcodes: [], categories: [], criticalities: [], group: '', role: '', role_suffix: '', activity: '', tcode: '', account_status: '', multiple_risks: '', tracking: '',
   activity_decision: '', assignment_decision: '', acceptance: '', validity: 'active', as_of: '', sort: 'subject', descending: false,
 }
 
@@ -224,11 +229,13 @@ export async function downloadFile(path: string, options: { method?: 'GET' | 'PO
   return name
 }
 
-export const EXPORT_NAME = /^sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation)-\d{4}-\d{2}-\d{2}\.csv$/
+export const EXPORT_NAME = /^sap-lens-sod-(explorer-(user-risk|user-activity|access-list|lookup)|group-(risk|activity)-heatmap|review-queue|access-remediation|role-assignments)-\d{4}-\d{2}-\d{2}\.csv$/
 export const REPORT_NAME = /^sap-lens-(sod-report-[a-f0-9]{32}|access-remediation-(current|[a-f0-9]{32}))-\d{4}-\d{2}-\d{2}\.(pdf|docx|csv)$/
 
 /** One filtered assignment, identified by its stable assignment id and carrying the evidence version the review is bound to. */
 export interface AssignmentPick {
+  has_review?: boolean
+  previous_decision?: string
   key: string
   user: string
   ref: string
@@ -237,7 +244,7 @@ export interface AssignmentPick {
   decision: Lifecycle
   user_group: string
 }
-export interface AssignmentSelection extends ContextInfo { items: AssignmentPick[]; total: number; truncated: boolean; limit: number }
+export interface AssignmentSelection extends ContextInfo { eligible_counts?:Record<BulkAction,{unreviewed:number;include_reviewed:number}>; matching_users?:number;matching_roles?:number; items: AssignmentPick[]; total: number; truncated: boolean; limit: number }
 export type BulkAction = 'Keep' | 'Remove' | 'Investigate'
 export interface BulkOutcome { key: string; user: string; ref: string; reason: string }
-export interface BulkResult { action: BulkAction; recorded: string[]; skipped: BulkOutcome[]; failed: BulkOutcome[]; tracked_actions?: string[]; revision: number }
+export interface BulkResult { operation_id?:string; action: BulkAction; recorded: string[]; skipped: BulkOutcome[]; failed: BulkOutcome[]; tracked_actions?: string[]; revision: number }

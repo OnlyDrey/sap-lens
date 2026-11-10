@@ -92,7 +92,7 @@ source changed during the complete validation run.
 | Full `npm audit` | Existing seven development advisories: five high, two moderate; no suppression or unrelated upgrades |
 | `actionlint` | Passed |
 | PowerShell 7.6.7 parser and existing AST/timing checks | Both scripts parsed; success/failure records and error preservation passed |
-| `python scripts/write-windows-metadata.py` | Passed |
+| `python scripts/packaging/write-windows-metadata.py` | Passed |
 | `git diff --check`, documentation links and repository integrity/privacy tests | Passed |
 
 README, canonical PNG/ICO, runtime requirement files, frontend lockfile,

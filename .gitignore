@@ -21,6 +21,8 @@ __pycache__/
 .ruff_cache/
 .venv/
 venv/
+# Environments set aside by `build.ps1 -Mode prerequisites -Repair` (kept for inspection, never committed)
+.venv.broken-*/
 
 # PyInstaller
 backend/build/
@@ -55,11 +57,11 @@ htmlcov/
 # Browser test artifacts
 /frontend/test-results/
 /frontend/playwright-report/
+/frontend/blob-report/
 
 # User-owned application data (generic fixtures remain versioned)
 *.csv
 !**/fixtures/*.csv
-!examples/synthetic.csv
 !examples/role-catalogue.example.csv
 !examples/user-access.example.csv
 !examples/employee-directory.example.csv
@@ -80,9 +82,6 @@ htmlcov/
 *.tsbuildinfo
 SAP-Lens-diagnostics*.json
 
-# Supported local Windows builds and validation receipts
-/dist/local/
-
 # Private imported Employee Directory snapshots (never build inputs)
 **/employee-directory/
 
@@ -94,17 +93,16 @@ SAP-Lens-diagnostics*.json
 # Local canonical CSV snapshots and private refresh evidence
 **/csv-data/
 
-# Cross-platform service distributions and private access configuration
-/dist/server/
 *.secret
-
-# Verified cross-platform distribution output
-/dist/deployment/
-
-# Versioned local cross-platform outputs (source/build assets remain tracked)
-/dist/[0-9]*/
 
 # Private SoD annotations and review indexes
 sod-catalogue.json
 sod-reviews.json
 sod-periods.json
+
+# Local validation reports, traces and synthetic browser artifacts
+/build/validation/
+/build/test-artifacts/
+
+# Every generated distributable (scripts/build_system/layout.py): local, deployment, server, publication, versioned outputs and the cleanup lock
+/dist/

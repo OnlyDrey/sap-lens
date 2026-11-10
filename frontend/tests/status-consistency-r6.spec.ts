@@ -38,12 +38,12 @@ test('status labels are never lowercase enum values and Enabled, Disabled, Stati
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click(); await check()
   const enabled = page.locator('.evidence-badge', { hasText: /^(Enabled|Disabled)$/ })
-  expect(await enabled.count()).toBeGreaterThan(0)
+  await expect.poll(() => enabled.count()).toBeGreaterThan(0)
   for (let index = 0; index < await enabled.count(); index++) await expect(enabled.nth(index).locator('svg')).toHaveCount(1)
   await page.getByRole('tab', { name: 'SoD Risk Configuration', exact: true }).click(); await check()
 })
 
-for (const theme of ['light', 'dark']) test(`keyboard focus is one visible, rounded ring across the SoD pages and Settings (${theme})`, async ({ page, request }) => {
+for (const theme of ['light', 'dark']) test(`keyboard focus is one visible, rounded ring across the SoD pages and Settings (${theme})`, { tag: ['@visual', '@a11y'] }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers: { 'X-SAP-Lens': 'browser-test-session' } })).json().catch(() => ({ settings: {} }))).settings
   if (settings?.theme !== undefined) { settings.theme = theme; await request.post('/api/configuration', { headers: { 'X-SAP-Lens': 'browser-test-session' }, data: settings }) }
   await page.setViewportSize({ width: 1280, height: 900 })

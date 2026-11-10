@@ -8,7 +8,7 @@ import logging
 from fastapi import HTTPException
 from config import atomic_write, config_dir
 from user_access import interval_status, sap_date
-from employee_directory import sap_email_owners, match_sap_identity
+from employee_directory import identity_matcher, sap_email_owners, match_sap_identity  # noqa: F401 - re-exported for callers and tests
 from position_changes import normalize_text
 
 lock = threading.RLock()
@@ -35,37 +35,44 @@ def decisions():
         with path.open('rb') as stream: raw = stream.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES: raise ValueError()
         data = json.loads(raw)
-        if not isinstance(data, dict): raise ValueError()
-        if data.get('format') not in {1,2} or not isinstance(data['decisions'], dict): raise ValueError()
-        def validate(item):
-            if not isinstance(item,dict) or item['state'] not in STATES: raise ValueError()
-            if any(not isinstance(item[field],str) for field in ('reviewer','rationale','evidence_version','timestamp')): raise ValueError()
-            if not re.fullmatch(r'[a-f0-9]{64}',item['evidence_version']) or len(item['reviewer'])>120 or len(item['rationale'])>2000: raise ValueError()
-            datetime.fromisoformat(item['timestamp'])
-            if item.get('evidence_schema',1) not in {1,2}: raise ValueError()
-            if 'identity_version' in item and not re.fullmatch(r'[a-f0-9]{64}',item['identity_version']): raise ValueError()
-            if 'absent_since' in item: datetime.fromisoformat(item['absent_since'])
-        for key,item in data['decisions'].items():
-            if not re.fullmatch(r'[a-f0-9]{64}',key): raise ValueError()
-            validate(item)
-            history=item.get('history',[])
-            if not isinstance(history,list) or len(history)>1000: raise ValueError()
-            for event in history:
-                validate(event)
-                if 'history' in event: raise ValueError()
-        return data['decisions']
+        return validate_storage(data)
     except (OSError, ValueError, KeyError, TypeError, RecursionError):
         raise HTTPException(409, 'Review annotations could not be read. Original storage is retained; review local application storage before recovery.') from None
 
 
-def rows(state, directory, saved, groups, today=None, position=None):
+def validate_storage(data):
+    """Pure persisted review contract, also used before restore activation."""
+    if not isinstance(data, dict): raise ValueError()
+    if data.get('format') not in {1,2} or not isinstance(data['decisions'], dict): raise ValueError()
+    def validate(item):
+        if not isinstance(item,dict) or item['state'] not in STATES: raise ValueError()
+        if any(not isinstance(item[field],str) for field in ('reviewer','rationale','evidence_version','timestamp')): raise ValueError()
+        if not re.fullmatch(r'[a-f0-9]{64}',item['evidence_version']) or len(item['reviewer'])>120 or len(item['rationale'])>2000: raise ValueError()
+        datetime.fromisoformat(item['timestamp'])
+        if item.get('evidence_schema',1) not in {1,2}: raise ValueError()
+        if 'identity_version' in item and not re.fullmatch(r'[a-f0-9]{64}',item['identity_version']): raise ValueError()
+        if 'absent_since' in item: datetime.fromisoformat(item['absent_since'])
+    for key,item in data['decisions'].items():
+        if not re.fullmatch(r'[a-f0-9]{64}',key): raise ValueError()
+        validate(item)
+        history=item.get('history',[])
+        if not isinstance(history,list) or len(history)>1000: raise ValueError()
+        for event in history:
+            validate(event)
+            if 'history' in event: raise ValueError()
+    return data['decisions']
+
+
+def rows(state, directory, saved, groups, today=None, position=None, managers=None, classifications=None):
     today = today or date.today()
+    classifications = classifications or {}
     position = position or {}
+    managers = managers or {}
     configured = {g.strip().casefold() for g in groups}
     result = []
-    owners = sap_email_owners(state.users.users.values())
+    matcher = identity_matcher(state.users, directory) if directory else None
     for user in state.users.users.values():
-        match = match_sap_identity(directory, user, owners) if directory else {'status': 'directory_unavailable', 'employee': None}
+        match = matcher(user) if directory else {'status': 'directory_unavailable', 'employee': None}
         employee = match['employee']
         ad = employee['account_status'] if employee else 'Unknown'
         valid = validity(user['accounts'], today)
@@ -90,19 +97,37 @@ def rows(state, directory, saved, groups, today=None, position=None):
         stale = bool(stored and (stored.get('absent_since') or stored['evidence_version'] != (version if stored.get('evidence_schema')==2 else legacy_version)))
         decision = {k:v for k,v in stored.items() if k!='history'} if stored else None
         change = position.get(normalize_text(employee['email'])) if employee and match['status'] == 'matched' and employee.get('email') else None
-        # A decision recorded after the change reviews it; reusing the Account Review decision avoids a second record.
-        open_change = bool(change and (not stored or datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(change['detected_at'])))
-        needs = bool(findings or stale or open_change)
+        # New decisions capture the event ID they reviewed: a later event can share the same Windows clock tick.
+        # Legacy decisions retain timestamp comparison; reusing Account Review avoids a second decision system.
+        open_change = bool(change and (not stored or (stored['position_change_id'] != change['id'] if 'position_change_id' in stored else datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(change['detected_at']))))
+        mgr_event = managers.get(normalize_text(employee['email'])) if employee and match['status'] == 'matched' and employee.get('email') else None
+        # Like a position change, a manager change is reviewed by any later decision. It is an organizational review signal only.
+        open_manager = bool(mgr_event and (not stored or (stored['manager_change_id'] != mgr_event['id'] if 'manager_change_id' in stored else datetime.fromisoformat(stored['timestamp']) < datetime.fromisoformat(mgr_event['detected_at']))))
+        classified = classifications.get(user['username'].strip().upper())
+        classification_review = bool(classified and classified['status'] == 'Needs review')
+        needs = bool(findings or stale or open_change or open_manager or classification_review)
+        # Workflow status is separate from the finding (which stays in `findings`) and from the decision (`review_state`): a review is complete when the
+        # latest decision is "No action required" and nothing new asks for reassessment (changed evidence, an open organizational change or reconfirmation).
+        # Investigating and Approved for deactivation stay open because follow-up work is outstanding.
+        completed = bool(decision and decision['state'] == 'No action required' and not stale and not open_change and not open_manager and not classification_review)
         result.append(dict(username=user['username'], name=' / '.join(' '.join(n).strip() for n in user['names'] if any(n)),
                            groups=user['groups'], sap_validity=valid, lock_status=locked, ad_status=ad,
                            match_status=match['status'], findings=findings, unlicensed=unlicensed,
                            evidence_version=version, identity_version=identity, evidence=dict(accounts=user['accounts'][:25],account_total=len(user['accounts']),assignment_records=len(user['assignments']),sap_emails=user['emails'][:5],directory_email=employee.get('email') if employee else None), decision=decision, history_count=len(stored.get('history',[])) if stored else 0, stale=stale,
-                           review_state='Needs review' if not decision or stale or open_change else decision['state'],
-                           needs_review=needs,
+                           review_state='Needs review' if not decision or stale or open_change or open_manager else decision['state'],
+                           needs_review=needs, workflow_status='completed' if completed else 'open',
                            position_change=dict(id=change['id'], open=open_change, fields=change['fields'], previous_department=change['previous_department'],
                                                 current_department=change['current_department'], previous_title=change['previous_title'], current_title=change['current_title'],
                                                 detected_at=change['detected_at'], source_generation=change['source_generation'],
                                                 previous_imported_at=change.get('previous_imported_at') or None, current_imported_at=change.get('current_imported_at') or None) if change else None,
+                           manager=dict(name=employee['manager']['name'], email=employee['manager']['email'], status=employee['manager']['status']) if employee else None,
+                           manager_change=dict(id=mgr_event['id'], open=open_manager, previous_manager=mgr_event['previous_manager'], current_manager=mgr_event['current_manager'],
+                                               previous_manager_email=mgr_event['previous_manager_email'], current_manager_email=mgr_event['current_manager_email'],
+                                               detected_at=mgr_event['detected_at']) if mgr_event else None,
+                           functional_group=classified['group'] if classified else None,
+                           functional_groups=[m['group'] for m in classified['memberships']] if classified else [],
+                           classification=dict(status=classified['status'], revision=classified['revision'], review=classified['review'], confirmed_at=classified['confirmed_at']) if classified else dict(status='Unassigned', revision=0, review=None, confirmed_at=None),
+                           classification_review=classification_review,
                            priority='High' if open_change else 'Normal' if needs else 'None', priority_order=0 if open_change else 1 if needs else 2))
     return result
 
@@ -115,6 +140,8 @@ def write_decisions(data):
 
 
 def save_decision(username, decision):
+    from server_access import actor
+    decision = {**decision, 'reviewer': actor(decision.get('reviewer', ''))}
     with lock:
         data=decisions();key=digest(username.strip().upper());previous=data.get(key)
         history=[*previous.get('history',[]),{k:v for k,v in previous.items() if k!='history'}] if previous else []
@@ -146,19 +173,20 @@ def record_missing_users(state):
 _cached = None
 
 
-def cached_rows(state, directory, saved, groups, today, position=None):
+def cached_rows(state, directory, saved, groups, today, position=None, managers=None, classifications=None):
     """One bounded publication cache; page/export reads do not re-hash every assignment."""
     global _cached
-    key = (state.last_loaded, directory.digest if directory else None, digest(saved), tuple(groups), today, tuple(sorted(position or {})) , tuple(event['id'] for event in (position or {}).values()))
+    key = (state.last_loaded, directory.digest if directory else None, digest(saved), tuple(groups), today, tuple(sorted(position or {})) , tuple(event['id'] for event in (position or {}).values()), tuple(event['id'] for event in (managers or {}).values()), digest(classifications or {}))
     with lock:
         if _cached is None or _cached[0] != key:
             # Cache derived rows only; do not retain a second full SAP snapshot.
-            _cached = (key, rows(state, directory, saved, groups, today, position))
+            _cached = (key, rows(state, directory, saved, groups, today, position, managers, classifications))
         return _cached[1]
 
 
-def current_rows(state, directory, saved, groups, today):
+def current_rows(state, directory, saved, groups, today, classifications=None):
     """Review rows including recent employee position changes; the one place that combines them."""
-    from position_changes import latest_recent, read
+    from position_changes import latest_managers, latest_recent, read, read_manager_events
     position = latest_recent(read()['events'], today) if directory else {}
-    return cached_rows(state, directory, saved, groups, today, position), position
+    managers = latest_managers(read_manager_events(), today) if directory else {}
+    return cached_rows(state, directory, saved, groups, today, position, managers, classifications), {**position, **{'m:' + k: v for k, v in managers.items()}}

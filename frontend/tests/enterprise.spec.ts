@@ -6,7 +6,7 @@ import path from 'node:path'
 import { headers } from './support'
 test.beforeEach(async ({request}) => { expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy() })
 
-test('system identity, private logo storage, persisted theme and portable backup/restore',async ({page}) => {
+test('system identity, private logo storage, persisted theme and portable backup/restore',{ tag: '@workflow' }, async ({page}) => {
   const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-test-logo-'))
   const logoPath=path.join(directory,'synthetic-logo.png')
   const logoData=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=320;canvas.height=80;const context=canvas.getContext('2d')!;context.fillStyle='#123456';context.fillRect(0,0,320,80);return canvas.toDataURL('image/png').split(',')[1]})
@@ -30,6 +30,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     await expect(page.getByRole('img',{name:'Header logo preview',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
     await expect(page.getByRole('img',{name:'Selected header logo preview',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+    await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
     unlinkSync(logoPath)
     await page.reload()
     await expect(page.locator('html')).toHaveClass(/dark/)
@@ -71,7 +72,7 @@ test('system identity, private logo storage, persisted theme and portable backup
 
 test('custom column mapping preserves relationships and transactions',async ({page,request})=>{
   const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-mapping-'))
-  const file=path.join(directory,'synthetic.csv')
+  const file=path.join(directory,'role-catalogue.csv')
   writeFileSync(file,'Module;Role;Child;Parent;Effective;Transaction\nFI;DEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
   try {
     await page.goto('/#session=browser-test-session')
@@ -97,7 +98,7 @@ test('custom column mapping preserves relationships and transactions',async ({pa
 
 test('registry customization preserves custom mappings, CSV modules and transactions',async ({page,request})=>{
   const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-registry-'))
-  const file=path.join(directory,'synthetic.csv')
+  const file=path.join(directory,'role-catalogue.csv')
   writeFileSync(file,'Module;Role;Child;Parent;Effective;Transaction\nFI;DEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
   try {
     // Seed explicit CSV module evidence; module preferences never classify names.
@@ -135,7 +136,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
 
 test('large catalogs render bounded pages and retain cross-page comparisons',async({page,request})=>{
   const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-pages-'))
-  const file=path.join(directory,'synthetic.csv')
+  const file=path.join(directory,'role-catalogue.csv')
   writeFileSync(file,'AGR_NAME,TEXT,TCODE\n'+Array.from({length:205},(_,i)=>`DEMO_PAGE_${String(i).padStart(3,'0')},Synthetic page role ${String(i).padStart(3,'0')},DEMO_T`).join('\n')+'\n')
   try {
     expect((await request.post('/api/settings',{headers,data:{data_csv_path:file}})).ok()).toBeTruthy()

@@ -1,9 +1,11 @@
 import { test, expect, type Page } from '@playwright/test'
+import { bootstrapDocument } from './bootstrap-fixture'
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { PYTHON } from './python'
+import { mkdtempSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 
 const WIDTHS = [375, 800, 1280, 1600]
 const repository = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -25,7 +27,7 @@ const expectCentred = (found: Awaited<ReturnType<typeof centres>>) => {
 
 test.describe('web startup document (before the application script runs)', () => {
   test.use({ javaScriptEnabled: false })
-  for (const width of WIDTHS) test(`logo, name and status share one centre at ${width}px`, async ({ page }) => {
+  for (const width of WIDTHS) test(`logo, name and status share one centre at ${width}px`, { tag: '@visual' }, async ({ page }) => {
     await page.setViewportSize({ width, height: 800 })
     await page.goto('/')
     await expect(page.locator('[role="status"]')).toHaveText('Connecting to local service…')
@@ -39,14 +41,14 @@ test.describe('desktop startup document', () => {
     directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-startup-'))
     file = path.join(directory, 'startup.html')
     try {
-      execFileSync('python3', ['-c', `import sys\nfrom pathlib import Path\nsys.path.insert(0, 'backend')\nfrom startup_screen import startup_html\nPath(sys.argv[1]).write_text(startup_html(Path('assets/sap-lens.png'), 'synthetic-capability'))`, file], { cwd: repository })
+      execFileSync(PYTHON, ['-c', `import sys\nfrom pathlib import Path\nsys.path.insert(0, 'backend')\nfrom startup_screen import startup_html\nPath(sys.argv[1]).write_text(startup_html(Path('assets/sap-lens.png'), 'synthetic-capability'))`, file], { cwd: repository })
     } catch { file = '' }
   })
   test.afterAll(() => rmSync(directory, { recursive: true, force: true }))
-  for (const width of WIDTHS) test(`logo, name and status share one centre at ${width}px, also while the status changes`, async ({ page }) => {
+  for (const width of WIDTHS) test(`logo, name and status share one centre at ${width}px, also while the status changes`, { tag: '@visual' }, async ({ page }) => {
     test.skip(!file, 'The desktop startup document needs the Python backend with Pillow')
     await page.setViewportSize({ width, height: 800 })
-    await page.goto(pathToFileURL(file).href)
+    await page.setContent(readFileSync(file,'utf8')) // same startup document; no file:// policy dependency
     const before = await page.locator('.card').boundingBox()
     expectCentred(await centres(page, '#status'))
     await page.evaluate(() => (window as unknown as { sapLensStartup: { setState: (label: string) => void } }).sapLensStartup.setState('Connecting to local service…'))
@@ -56,4 +58,27 @@ test.describe('desktop startup document', () => {
     await page.evaluate(() => (window as unknown as { sapLensStartup: { setState: (label: string, error: string) => void } }).sapLensStartup.setState('Failed', 'The local service could not start.'))
     expectCentred(await centres(page, '#status'))
   })
+})
+
+test('desktop startup recovery shows category, guarded retry, log location and explicit close',async({page})=>{
+  const document=bootstrapDocument()
+  await page.setContent(document)
+  await page.evaluate(()=>{
+    const target=window as unknown as {pywebview:{api:Record<string,(token:string)=>Promise<unknown>>};startupCalls:string[];sapLensStartup:{setState:(label:string,error:string,code:string,retry:boolean)=>void}}
+    target.startupCalls=[]
+    target.pywebview={api:{retry_startup:async token=>{target.startupCalls.push(`retry:${token}`);return true},startup_log_location:async token=>{target.startupCalls.push(`logs:${token}`);return 'Synthetic application data / sap-lens.log'},close_application:async token=>{target.startupCalls.push(`close:${token}`)}}}
+    target.sapLensStartup.setState('Startup needs attention','The backend did not answer.','READINESS_TIMEOUT',true)
+  })
+  await expect(page.getByRole('alert')).toHaveText('The backend did not answer.')
+  await expect(page.getByText('Startup code: READINESS_TIMEOUT',{exact:true})).toBeVisible()
+  const retry=page.getByRole('button',{name:'Retry startup',exact:true})
+  await retry.focus();await page.keyboard.press('Enter')
+  await expect(retry).toBeDisabled()
+  await page.getByRole('button',{name:'Log location',exact:true}).click()
+  await expect(page.getByText('Synthetic application data / sap-lens.log',{exact:true})).toBeVisible()
+  await page.getByRole('button',{name:'Close SAP Lens',exact:true}).click()
+  expect(await page.evaluate(()=>(window as unknown as {startupCalls:string[]}).startupCalls)).toEqual(['retry:synthetic-preview','logs:synthetic-preview','close:synthetic-preview'])
+  await page.evaluate(()=>(window as unknown as {sapLensStartup:{setState:(label:string,error:string,code:string,retry:boolean)=>void}}).sapLensStartup.setState('Startup needs attention','Shutdown incomplete. Close fully.','CLEANUP_INCOMPLETE',false))
+  await expect(retry).toBeHidden()
+  await expect(page.getByRole('button',{name:'Close SAP Lens',exact:true})).toBeEnabled()
 })

@@ -47,6 +47,12 @@ class ApplicationTests(unittest.TestCase):
             writer.writerow(['MM', 'B', 'Materials', 'SHARED', 'Shared', tcode, 'Display'])
             writer.writerow(['FI', 'A', 'Finance', 'UNIQUE', 'Unique', 'UNIQUE', 'Unique'])
 
+    RETAINED = 'CSV load unsuccessful; previous data retained'
+
+    def retained(self, logs, count):
+        """The expected negative-path diagnostic was logged exactly `count` times (and captured, so it does not reach the console)."""
+        self.assertEqual(sum(self.RETAINED in line for line in logs.output), count, logs.output)
+
     def save(self, path=None):
         return self.client.post('/api/settings', json={'data_csv_path': str(path or self.csv)}, headers=HEADERS)
 
@@ -78,8 +84,10 @@ class ApplicationTests(unittest.TestCase):
         original = (self.root / 'config/settings.json').read_bytes()
         bad = self.root / 'bad.csv'
         bad.write_text('WRONG,COLUMNS\na,b\n')
-        self.assertEqual(self.save(bad).status_code, 400)
-        self.assertEqual(self.save(self.root / 'missing.csv').status_code, 400)
+        with self.assertLogs('data_loader', 'WARNING') as logs:
+            self.assertEqual(self.save(bad).status_code, 400)
+            self.assertEqual(self.save(self.root / 'missing.csv').status_code, 400)
+        self.retained(logs, 2)
         self.assertEqual((self.root / 'config/settings.json').read_bytes(), original)
         self.assertEqual(len(self.client.get('/api/roles').json()), 2)
         self.assertEqual(len(self.client.get('/api/roles?tcode=OLD').json()), 2)
@@ -87,8 +95,9 @@ class ApplicationTests(unittest.TestCase):
     def test_persistence_failure_preserves_cache(self):
         self.save()
         self.write_csv('NEW')
-        with patch('csv_lifecycle.save_configuration', side_effect=OSError('Disk full')):
+        with patch('csv_lifecycle.save_configuration', side_effect=OSError('Disk full')), self.assertLogs('data_loader', 'WARNING') as logs:
             self.assertEqual(self.save().status_code, 400)
+        self.retained(logs, 1)
         self.assertEqual(len(self.client.get('/api/roles?tcode=OLD').json()), 2)
         self.assertEqual(self.client.get('/api/roles?tcode=NEW').json(), [])
 
@@ -108,13 +117,17 @@ class ApplicationTests(unittest.TestCase):
 
     def test_unreadable_and_malformed_csv_have_safe_errors(self):
         self.save()
-        with patch('csv_lifecycle.load', side_effect=PermissionError('/private/path')):
+        with patch('csv_lifecycle.load', side_effect=PermissionError('/private/path')), self.assertLogs('data_loader', 'WARNING') as logs:
             result = self.save()
         self.assertEqual(result.status_code, 400)
         self.assertIn('permissions', result.json()['detail'])
         self.assertNotIn('/private/path', result.text)
+        self.assertNotIn('/private/path', '\n'.join(logs.output))                      # the log line never carries the path either
+        self.retained(logs, 1)
         self.csv.write_text('FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n"unfinished')
-        self.assertEqual(self.save().status_code, 400)
+        with self.assertLogs('data_loader', 'WARNING') as logs:
+            self.assertEqual(self.save().status_code, 400)
+        self.retained(logs, 1)
         self.assertEqual(len(self.client.get('/api/roles').json()), 2)
         self.assertEqual(self.client.post('/api/settings', json={'data_csv_path': 'relative.csv'}, headers=HEADERS).status_code, 400)
 
@@ -139,10 +152,15 @@ class ApplicationTests(unittest.TestCase):
         self.assertIn('NEW', cache.get_snapshot().tcode_index)
 
     def test_corrupt_settings_do_not_block_first_run(self):
+        # A real first run starts with the corrupt file already in place. The application started in setUp creates its data directory
+        # within milliseconds (scheduler: backups, retention), so stop it, prepare the file and start it again.
+        self.client_context.__exit__(None, None, None)
         folder = self.root / 'config'
-        folder.mkdir()
+        folder.mkdir(parents=True, exist_ok=True)
         (folder / 'settings.json').write_text('{invalid')
         config.get_settings.cache_clear()
+        self.client_context = TestClient(app, base_url='http://127.0.0.1:18743')
+        self.client = self.client_context.__enter__()
         self.assertEqual(config.get_settings().data_csv_path, '')
         self.assertEqual(self.save().status_code, 200)
         self.assertEqual(json.loads((folder / 'settings.json').read_text())['data_csv_path'], str(self.csv))

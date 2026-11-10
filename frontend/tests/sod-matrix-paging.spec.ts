@@ -1,6 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, headers, openSod, seedGovernance } from './sod-fixture'
 import { pickMulti } from './support'
+import { layoutMatrix } from './matrix'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -109,7 +110,7 @@ test('All stays responsive with two thousand users', async ({ page }) => {
   await expect(rows(page).last()).toHaveText('USER2000')
 })
 
-for (const theme of ['light', 'dark']) for (const width of [375, 800, 1280]) test(`the control and range fit the toolbar in ${theme} at ${width}px`, async ({ page, request }) => {
+for (const { theme, width } of layoutMatrix([375, 800, 1280])) test(`the control and range fit the toolbar in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
   await request.post('/api/configuration', { headers, data: settings })
   await population(page)

@@ -3,20 +3,26 @@
  "features": {
   "dashboard": {
    "description": "Dashboard metrics, drill-downs and SoD summary",
+   "owner": "browser",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [],
    "browser": [
-    "dashboard-user-transactions"
+    "dashboard-user-transactions",
+    "revision-consistency"
    ]
   },
   "role-lookup": {
    "description": "Role Lookup, catalogue and transaction filters, wildcard matching",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_search_matching",
     "test_role_negative_tcode",
     "test_investigation_filters"
    ],
    "browser": [
-    "saved-filter-migration",
     "consolidated-role-ui",
     "investigation-filter-refinement",
     "live-filters-polish",
@@ -26,6 +32,9 @@
   },
   "role-comparison": {
    "description": "Role comparison and similarity",
+   "owner": "backend",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [
     "test_investigation_tools"
    ],
@@ -35,6 +44,9 @@
   },
   "user-comparison": {
    "description": "User comparison and investigation tools",
+   "owner": "browser",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [],
    "browser": [
     "investigation-tools"
@@ -42,6 +54,9 @@
   },
   "user-access": {
    "description": "User Access, Release Roles, assignment evidence and exports",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_user_access",
     "test_assignment_exports",
@@ -60,9 +75,14 @@
   },
   "access-package": {
    "description": "Role cart, access package naming and users lacking roles",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_access_package",
-    "test_missing_roles"
+    "test_missing_roles",
+    "test_username_filter",
+    "test_bulk_group_assignment"
    ],
    "browser": [
     "access-package",
@@ -71,19 +91,29 @@
   },
   "account-review": {
    "description": "Account Review decisions and position-change priority review",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_account_review",
+    "test_functional_groups",
     "test_position_changes"
    ],
    "browser": [
+    "account-review-completed",
     "account-review-refinement",
+    "functional-groups",
     "position-changes"
    ]
   },
   "employee-directory": {
    "description": "Employee Directory import and enrichment",
+   "owner": "backend",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [
-    "test_employee_directory"
+    "test_employee_directory",
+    "test_directory_cache"
    ],
    "browser": [
     "employee-directory"
@@ -91,7 +121,21 @@
   },
   "data-sources": {
    "description": "CSV import, source lifecycle, refresh and snapshots",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
+    "test_import_checks",
+    "test_data_revision",
+    "test_refresh_performance",
+    "test_persistent_cache",
+    "test_source_store",
+    "test_source_refresh",
+    "test_staging_ownership",
+    "test_data_retention",
+    "test_review_retention",
+    "test_backup_retention",
+    "test_storage_migration",
     "test_application",
     "test_auto_import",
     "test_csv_area_labels",
@@ -101,6 +145,7 @@
     "test_loading_publication"
    ],
    "browser": [
+    "import-checks",
     "data-source-browse",
     "automatic-import",
     "csv-lifecycle",
@@ -110,11 +155,15 @@
   },
   "settings": {
    "description": "Settings, modules, theme, scheduled refresh, maintenance",
+   "owner": "backend",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [
     "test_configuration",
     "test_refresh_schedule",
     "test_theme_and_diagnostics",
-    "test_maintenance"
+    "test_maintenance",
+    "test_application_backups"
    ],
    "browser": [
     "enterprise",
@@ -127,6 +176,9 @@
   },
   "sod": {
    "description": "Segregation of Duties analysis, governance, periods and reports",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_sod_analysis",
     "test_sod_analysis_api",
@@ -134,8 +186,12 @@
     "test_sod_catalogue",
     "test_sod_feature",
     "test_sod_governance",
+    "test_assignment_lifecycle",
+    "test_sod_group_selection",
+    "test_sod_review_coverage",
     "test_sod_inspection",
     "test_sod_metadata",
+    "test_sod_reference",
     "test_sod_report_metadata",
     "test_sod_import",
     "test_sod_integration",
@@ -158,6 +214,8 @@
     "sod-feature",
     "sod-filters-tiles",
     "sod-governance",
+    "sod-exact-groups",
+    "sod-review-coverage",
     "sod-integration",
     "sod-layout",
     "sod-overview-heatmap",
@@ -173,15 +231,38 @@
     "sod-shared-filters",
     "sod-periods-dialogs",
     "sod-reviews-r6",
-    "sod-evidence-modals"
+    "sod-evidence-modals",
+    "sod-work-queue-visual",
+    "sod-review-performance",
+    "sod-configuration-recovery",
+    "sod-complete-bulk",
+    "remediation-export"
    ]
   },
   "shared-ui": {
    "description": "Shared components, navigation, accessibility, visual consistency",
+   "owner": "component",
+   "criticality": "standard",
+   "platform": "any",
    "backend": [],
    "browser": [
     "role-codeblocks",
     "select-family",
+    "decision-controls",
+    "multi-select-clear-all",
+    "multiselect-dropdown",
+    "dropdown-layout",
+    "user-directory-table",
+    "user-profile-layout",
+    "bulk-group-assignment",
+    "functional-groups-members",
+    "username-filter",
+    "component-library",
+    "backup-time-format",
+    "sod-role-evidence-review",
+    "session-recovery",
+    "tooltip-visibility",
+    "startup-recovery",
     "shared-ui-r5",
     "status-consistency-r6",
     "consolidated-refinement",
@@ -203,14 +284,22 @@
     "transaction-filter",
     "ui-consistency",
     "ui-polish-actions",
-    "settings-r2"
+    "settings-r2",
+    "application-backups",
+   "storage-upgrade",
+   "data-retention",
+    "application-footer"
    ]
   },
   "platform": {
    "description": "Desktop and server runtime, process lifecycle, native bridge contracts",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "windows+linux",
    "backend": [
     "test_desktop",
     "test_desktop_browser",
+    "test_startup_session",
     "test_desktop_installer",
     "test_linux_lifecycle",
     "test_security_surface",
@@ -218,8 +307,16 @@
     "test_secret_file_policy",
     "test_server",
     "test_windows_package",
+    "test_windows_stages",
+    "test_windows_ports",
+    "test_windows_acceptance_split",
+    "test_server_connection_modes",
+    "test_windows_identity",
+    "test_desktop_smoke_script",
+    "test_scripts_layout",
     "test_windows_tray",
-    "test_docker_management"
+    "test_docker_management",
+    "test_server_setup"
    ],
    "browser": [
     "desktop",
@@ -228,7 +325,11 @@
   },
   "deployment": {
    "description": "Packaging, build metadata and release contracts",
+   "owner": "platform",
+   "criticality": "release",
+   "platform": "windows+linux",
    "backend": [
+    "test_build_diagnostics",
     "test_artifact_zip",
     "test_build_report",
     "test_build_version",
@@ -238,12 +339,21 @@
     "test_deployment_selection",
     "test_local_build",
     "test_local_deployments",
-    "test_release_automation"
+    "test_release_automation",
+    "test_unified_build",
+    "test_python_env",
+    "test_prerequisites",
+    "test_powershell",
+    "test_installer_preflight",
+    "test_artifact_layout"
    ],
    "browser": []
   },
   "repository": {
    "description": "Documentation, workflow contracts, privacy and test-profile integrity",
+   "owner": "backend",
+   "criticality": "critical",
+   "platform": "any",
    "backend": [
     "test_ci_report",
     "test_documentation",
@@ -251,10 +361,136 @@
     "test_repository_privacy",
     "test_test_profiles",
     "test_validation_tracker",
-    "test_workflows"
+    "test_workflows",
+    "test_validation_entrypoint"
    ],
    "browser": []
   }
+ },
+ "profiles": {
+  "_comment": "Profiles of run-tests.py (docs/development/TESTING.md#profiles). quick: static checks, frontend unit tests and the backend modules a change reaches, never a browser. targeted: the backend modules and browser specs a change reaches (import graphs plus validation_sources), browser smoke, and the security modules for security-sensitive paths. regression: every backend module except the release features, plus the curated browser set below. full: everything, including release-only checks. Unresolvable changes fall back to the whole backend and the regression browser set.",
+  "release_features": [
+   "deployment"
+  ],
+  "regression_browser_specs": [
+   "access-package",
+   "account-review-refinement",
+   "application-backups",
+   "automatic-import",
+   "csv-lifecycle",
+   "data-aware-ux",
+   "enterprise",
+   "functional-groups",
+   "import-checks",
+   "navigation-a11y",
+   "revision-consistency",
+   "server-deployment",
+   "sod-bulk-review",
+   "sod-complete-bulk",
+   "sod-governance",
+   "sod-periods"
+  ],
+  "regression_browser_tags": "@smoke|@workflow|@component|@regression",
+  "full_only_tags": "@integration",
+  "page_specs_comment": "TARGETED for a page-level frontend file: the import graph is walked up to these page roots; the change selects the specs that open those pages plus page_core_specs of the area. A file that reaches the container, App.tsx or files outside the area before a page root is shared and selects the whole feature.",
+  "page_specs": {
+   "frontend/src/components/Sod/SodOverview.tsx": [
+    "sod-overview-heatmap",
+    "sod-overview-actionable",
+    "sod-dashboard-startup",
+    "sod-work-queue-visual",
+    "sod-complete-bulk"
+   ],
+   "frontend/src/components/Sod/SodMatrices.tsx": [
+    "sod-assignment-decisions",
+    "sod-export-ux",
+    "sod-filters-tiles",
+    "sod-integration",
+    "sod-layout",
+    "sod-periods",
+    "sod-shared-heatmap",
+    "sod-matrix-grouping",
+    "sod-matrix-paging",
+    "sod-shared-filters",
+    "sod-reviews-r6",
+    "sod-evidence-modals",
+    "sod-user-group-column",
+    "sod-metadata"
+   ],
+   "frontend/src/components/Sod/SodExplorer.tsx": [
+    "sod-analysis",
+    "sod-assignment-decisions",
+    "sod-bulk-review",
+    "sod-filters-tiles",
+    "sod-integration",
+    "sod-layout",
+    "sod-evidence-modals",
+    "sod-complete-bulk",
+    "sod-role-evidence-review",
+    "sod-user-group-column",
+    "sod-metadata"
+   ],
+   "frontend/src/components/Sod/SodReviews.tsx": [
+    "sod-exact-groups",
+    "sod-review-coverage",
+    "sod-layout",
+    "sod-reviews-r6",
+    "sod-evidence-modals",
+    "sod-work-queue-visual",
+    "sod-review-performance",
+    "sod-complete-bulk",
+    "remediation-export",
+    "sod-bulk-review",
+    "sod-user-group-column"
+   ],
+   "frontend/src/components/Sod/SodPeriods.tsx": [
+    "sod-periods",
+    "sod-periods-dialogs",
+    "sod-shared-heatmap"
+   ],
+   "frontend/src/components/Sod/SodReports.tsx": [
+    "sod-reports",
+    "sod-export-ux",
+    "sod-shared-heatmap"
+   ],
+   "frontend/src/components/Sod/SodGroupHeatmap.tsx": [
+    "sod-shared-heatmap",
+    "sod-overview-heatmap"
+   ]
+  },
+  "page_core_specs": {"frontend/src/components/Sod/": ["sod-feature", "sod-governance", "sod-stability"]},
+  "security_sensitive": [
+   "backend/main.py",
+   "backend/deployment.py",
+   "backend/server*.py",
+   "backend/request_limits.py",
+   "backend/windows_identity.py",
+   "backend/maintenance.py",
+   "backend/application_backups.py",
+   "backend/storage*.py",
+   "backend/routers/*.py",
+   "scripts/manage-server-service.ps1",
+   "deploy/windows/ServiceManager.cs"
+  ],
+  "security_modules": [
+   "test_security_surface",
+   "test_server",
+   "test_server_setup",
+   "test_server_connection_modes",
+   "test_auth_throttle",
+   "test_application",
+   "test_secret_file_policy",
+   "test_startup_session",
+   "test_windows_identity",
+   "test_repository_privacy"
+  ],
+  "selection_system": [
+   "scripts/test-map.json",
+   "scripts/run-tests.py",
+   "scripts/validate.py",
+   "frontend/playwright.config.ts",
+   "frontend/tests/progress-reporter.ts"
+  ]
  },
  "smoke": {
   "backend": [
@@ -303,6 +539,7 @@
   "dashboard-user-transactions": 27,
   "data-aware-ux": 35,
   "data-source-browse": 13,
+  "decision-controls": 16,
   "design-system": 62,
   "desktop": 12,
   "employee-directory": 51,
@@ -315,6 +552,7 @@
   "kpi-standard": 9,
   "live-filters-polish": 38,
   "loading-consolidation": 29,
+  "multi-select-clear-all": 5,
   "navigation-a11y": 24,
   "navigation-modules": 28,
   "navigation-r3": 31,
@@ -326,13 +564,14 @@
   "refinement-round2": 91,
   "refinement-search-layout": 25,
   "release-roles": 31,
+  "remediation-export": 12,
   "role-codeblocks": 16,
   "role-visuals": 19,
-  "saved-filter-migration": 0,
   "scheduled-refresh": 9,
   "secondary-navigation-icons": 11,
   "select-family": 25,
   "server-deployment": 15,
+  "session-recovery": 12,
   "settings-r2": 7,
   "settings-refinement": 18,
   "settings-runtime-theme": 10,
@@ -403,6 +642,180 @@
   ],
   "always": [
    "repository"
+  ]
+ },
+ "validation_sources": [
+  {
+   "patterns": [
+    "backend/sod*",
+    "backend/routers/sod*",
+    "frontend/src/components/Sod/**",
+    "frontend/src/api/sod.ts",
+    "frontend/src/components/Settings/Sod*",
+    "backend/resources/reference-defaults.json",
+    "backend/access_package.py"
+   ],
+   "areas": [
+    "sod"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/config*",
+    "frontend/src/components/Settings/**"
+   ],
+   "areas": [
+    "settings",
+    "data-sources"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/csv*",
+    "backend/data_loader.py",
+    "backend/routers/data_sources.py"
+   ],
+   "areas": [
+    "data-sources"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/employee*",
+    "backend/routers/employees.py"
+   ],
+   "areas": [
+    "employee-directory"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/account_review.py",
+    "backend/routers/account_review.py"
+   ],
+   "areas": [
+    "account-review"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/user*",
+    "backend/routers/access.py",
+    "frontend/src/components/Access/**"
+   ],
+   "areas": [
+    "user-access",
+    "user-comparison",
+    "account-review"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/cache.py"
+   ],
+   "areas": [
+    "data-sources",
+    "sod",
+    "role-lookup",
+    "user-access"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/routers/dashboard.py",
+    "frontend/src/components/Dashboard*"
+   ],
+   "areas": [
+    "dashboard",
+    "account-review",
+    "sod"
+   ]
+  },
+  {
+   "patterns": [
+    "frontend/src/components/Role*/*"
+   ],
+   "areas": [
+    "role-lookup",
+    "role-comparison"
+   ]
+  },
+  {
+   "patterns": [
+    "frontend/src/components/Shared/**",
+    "frontend/src/components/Layout/**",
+    "frontend/src/hooks/**",
+    "frontend/src/lib/**",
+    "frontend/src/styles/**",
+    "frontend/src/state/**",
+    "frontend/src/api/*",
+    "frontend/src/App.tsx",
+    "frontend/src/main.tsx",
+    "frontend/src/index.css",
+    "frontend/src/vite-env.d.ts"
+   ],
+   "areas": [
+    "shared-ui"
+   ]
+  },
+  {
+   "patterns": [
+    "backend/main.py",
+    "backend/deployment.py",
+    "backend/server*",
+    "backend/desktop*",
+    "backend/storage*",
+    "backend/maintenance.py",
+    "backend/application_backups.py",
+    "backend/backup_schedule.py",
+    "backend/routers/backups.py",
+    "backend/request_limits.py",
+    "backend/scheduler.py"
+   ],
+   "areas": [
+    "platform",
+    "settings"
+   ]
+  },
+  {
+   "patterns": [
+    "scripts/**",
+    ".github/workflows/*",
+    "Dockerfile",
+    "compose*",
+    ".gitignore",
+    "backend/version.py",
+    "backend/resources/product-version.json",
+    "frontend/package.json",
+    "frontend/package-lock.json",
+    "frontend/vite.config.ts"
+   ],
+   "areas": [
+    "repository",
+    "deployment"
+   ]
+  }
+ ],
+ "validation_dependencies": {
+  "shared-ui": [
+   "sod",
+   "user-access",
+   "role-lookup",
+   "settings",
+   "dashboard"
+  ],
+  "data-sources": [
+   "sod",
+   "employee-directory",
+   "role-lookup",
+   "user-access"
+  ],
+  "settings": [
+   "data-sources"
+  ],
+  "platform": [
+   "settings",
+   "sod"
   ]
  }
 }

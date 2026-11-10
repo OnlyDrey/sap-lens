@@ -41,3 +41,9 @@ scripts/*
 frontend/node_modules/
 frontend/test-results/
 frontend/playwright-report/
+
+!backend/resources/
+!backend/resources/*.json
+!scripts/product-version.mjs
+
+!backend/resources/sod-reference-template.xlsx

@@ -10,7 +10,7 @@ test.setTimeout(90_000)
 const TABS: [string, string][] = [['Users', 'lucide-users'], ['Assignments', 'lucide-list-checks'], ['Roles', 'lucide-layers'], ['Role conflicts', 'lucide-shield-alert']]
 const strip = (page: Page) => page.getByRole('tablist', { name: 'Access Explorer views' })
 
-for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`Access Explorer tabs carry their icons in ${theme} at ${width}px`, async ({ page, request }) => {
+for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`Access Explorer tabs carry their icons in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
   await request.post('/api/configuration', { headers, data: settings })
   await page.setViewportSize({ width, height: 900 })
@@ -26,7 +26,7 @@ for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`Ac
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
 })
 
-test('the active underline stays, selecting a tab shifts no layout and arrow keys move the focus ring', async ({ page }) => {
+test('the active underline stays, selecting a tab shifts no layout and arrow keys move the focus ring', { tag: '@a11y' }, async ({ page }) => {
   await openSod(page, 'Access Explorer')
   const tabs = strip(page).getByRole('tab')
   await expect(tabs).toHaveCount(4)

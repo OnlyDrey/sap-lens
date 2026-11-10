@@ -24,7 +24,7 @@ test.beforeEach(async ({ request }) => {
   const settings = (
     await (await request.get('/api/configuration', { headers })).json()
   ).settings
-  settings.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
+  settings.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   settings.user_csv_path = users
   expect(
     (
@@ -37,7 +37,7 @@ test.afterEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
   rmSync(directory, { recursive: true, force: true })
 })
-test('compact navbar has labeled icon utilities, focus tooltips and refresh feedback without timestamps', async ({
+test('compact navbar has labeled icon utilities, focus tooltips and refresh feedback without timestamps', { tag: '@a11y' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
@@ -155,7 +155,7 @@ test('Account Review keeps investigation controls across secondary navigation an
   ).toHaveValue('Alpha')
 })
 
-test('role content tabs have keyboard semantics and associated assignment panel', async ({
+test('role content tabs have keyboard semantics and associated assignment panel', { tag: '@a11y' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
@@ -199,6 +199,9 @@ test('component library previews are isolated, interactive and use canonical com
   })
   await library(page)
   const preview = page.getByLabel('Component Library previews', { exact: true })
+  const decisions=preview.getByLabel('SoD primary decision badges',{exact:true})
+  await expect(decisions.locator('.evidence-badge')).toHaveText(['Approved','Remove','Investigate','Pending'])
+  await expect(decisions.locator('svg[aria-hidden="true"]')).toHaveCount(4)
   await expect(
     preview.getByRole('button', { name: 'Disabled', exact: true }),
   ).toBeDisabled()
@@ -286,7 +289,7 @@ test('component library previews are isolated, interactive and use canonical com
     page.getByRole('button', { name: 'Save and load CSV', exact: true }),
   ).toBeHidden()
 })
-test('saved filters portal handles keyboard, outside dismissal and neutral clear actions', async ({
+test('saved filters portal handles keyboard, outside dismissal and neutral clear actions', { tag: '@a11y' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
@@ -332,7 +335,7 @@ test('saved filters portal handles keyboard, outside dismissal and neutral clear
 })
 for (const theme of ['light', 'dark'])
   for (const width of [375, 800, 1280])
-    test(`canonical component visual contracts ${theme} ${width}`, async ({
+    test(`canonical component visual contracts ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {
@@ -446,7 +449,7 @@ test('shared import controls and nested date drafts use isolated showcase state'
 })
 
 for(const theme of ['light','dark']) for(const width of [375,800,1280])
- test(`import settings visual contracts ${theme} ${width}`,async({page,request},info)=>{
+ test(`import settings visual contracts ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
   const settings=(await(await request.get('/api/configuration',{headers})).json()).settings
   settings.theme=theme
   await request.post('/api/configuration',{headers,data:settings})
@@ -454,17 +457,23 @@ for(const theme of ['light','dark']) for(const width of [375,800,1280])
   await page.goto('/#session=browser-test-session')
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
   const tabs=page.getByRole('tab')
+  await expect(tabs.filter({hasText:'About SAP Lens'})).toBeVisible() // the tab list renders after the dialog opens; read it once it is there
   const names=await tabs.allTextContents()
+  expect(names).toContain('Component Library')
   expect(names.indexOf('Component Library')).toBeLessThan(names.indexOf('About SAP Lens'))
   await page.getByRole('tab',{name:'Data Sources',exact:true}).click()
   for(const source of ['Role Catalogue','User Access','Employee Directory']){
    await page.getByRole('tab',{name:source,exact:true}).click()
-   const row=page.locator('.source-file-row:visible').first()
-   await row.scrollIntoViewIfNeeded()
-   await expect(row.locator('input')).toBeVisible()
-   const input=await row.locator('input').boundingBox(),button=await row.getByRole('button').boundingBox()
-   expect(input!.width).toBeGreaterThan(width<1000?180:300)
-   if(width>=800) expect(Math.abs(input!.y-button!.y)).toBeLessThan(4)
+   const manager=page.getByRole('region',{name:`${source} source management`,exact:true})
+   const upload=manager.getByRole('button',{name:'Browse / Upload file',exact:true})
+   await expect(upload).toHaveCount(1)
+   await expect(upload).toBeVisible()
+   await expect(manager.getByRole('button',{name:'Browse CSV',exact:true})).toHaveCount(0)
+   const advanced=manager.locator('details').filter({has:page.locator('summary',{hasText:'Advanced server source path'})}).first()
+   if(await advanced.getAttribute('open')===null)await advanced.locator('summary').click()
+   const location=manager.getByRole('textbox',{name:source==='Role Catalogue'?'CSV file location':source==='User Access'?'User CSV file location':'Employee Directory CSV location',exact:true})
+   await location.scrollIntoViewIfNeeded();await expect(location).toBeVisible()
+   expect((await location.boundingBox())!.width).toBeGreaterThan(width<1000?180:300)
    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1)).toBeTruthy()
    await page.screenshot({path:info.outputPath(`${source.toLowerCase().replaceAll(' ','-')}.png`),animations:'disabled'})
   }
@@ -475,7 +484,7 @@ for(const theme of ['light','dark']) for(const width of [375,800,1280])
   await page.screenshot({path:info.outputPath('sap-modules.png')})
  })
 
-test('library matrix grid and side panel are isolated, keyboard operable and never rely on color alone', async ({ page, request }) => {
+test('library matrix grid and side panel are isolated, keyboard operable and never rely on color alone', { tag: '@a11y' }, async ({ page, request }) => {
   await page.goto('/#session=browser-test-session')
   await library(page)
   const writes: string[] = []

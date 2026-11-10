@@ -1,3 +1,6 @@
+import type { ReactNode } from 'react'
+import {Button} from '@/components/Shared/Button'
+import {BackupRestore} from './BackupRestore'
 import {useApplicationData} from '@/state/ApplicationData'
 import {DesktopOptions} from './DesktopOptions'
 import {ScheduledRefresh} from './ScheduledRefresh'
@@ -8,6 +11,8 @@ import { About } from './About'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { DirectoryDiagnostics, DirectorySnapshotRecovery, EmployeeBrowser, FeatureSettings } from './EmployeeDirectory'
 import {SodRiskSettings} from './SodRiskSettings'
+import {FunctionalGroupSettings} from './FunctionalGroupSettings'
+import {ImportChecksSettings} from './ImportChecksSettings'
 import {SourceManager} from './SourceManager'
 import {SodImportEditor} from './SodImportEditor'
 import {rebaseSourceDraft,type CSVSource,type SourceActivation} from '@/api/sources'
@@ -34,7 +39,8 @@ import {
   BookUser,
   ShieldCheck,
   Info,
-  Clock
+  Clock,
+  Archive
 } from 'lucide-react'
 import { ModuleEditor } from './ModuleEditor'
 import { UserSourceEditor, PresetActions } from './ImportPresets'
@@ -58,7 +64,7 @@ import {
 import { ReportBranding } from './ReportBranding'
 import { DISCARD_PROMPT, setSettingsDirty } from '@/lib/settingsGuard'
 const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
-const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock, Archive, UsersRound]
 const sections = [
   'Organization & SAP System',
   'Data Sources',
@@ -69,9 +75,11 @@ const sections = [
   'About SAP Lens',
   'Component Library',
   'SoD Risk Configuration',
-  'Runtime & Scheduling'
+  'Runtime & Scheduling',
+  'Backup & Restore',
+  'Functional Groups'
 ]
-const navigationOrder=[0,3,1,2,8,5,9,4,7,6]
+const navigationOrder=[0,3,1,2,8,11,5,9,10,4,7,6]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -98,6 +106,7 @@ const inputClass = controlClass
 const buttonClass = 'ui-button ui-button-secondary ui-button-default'
 const Field=FormField
 export function SettingsView({
+  applicationFooter,
   open,
   dataSourceRequest = 0,
   onOpen,
@@ -105,6 +114,7 @@ export function SettingsView({
   onDataChanged,
   onSaved
 }: {
+  applicationFooter?: ReactNode
   open: boolean
   dataSourceRequest?: number
   onOpen: () => void
@@ -490,6 +500,7 @@ export function SettingsView({
               <div key={label}>{[0,1,5].includes(index)&&<p className="settings-nav-category">{index===0?'GENERAL':index===1?'DATA & MODULES':'APPLICATION'}</p>}<button
                 role="tab"
                 aria-label={label}
+                title={label}
                 id={`settings-tab-${index}`}
                 aria-selected={section === index}
                 aria-controls={`settings-panel-${index}`}
@@ -610,7 +621,8 @@ export function SettingsView({
             )}
             {config.isError && (
               <p role="alert" className="text-[var(--error)]">
-                Could not read configuration. Close and reopen SAP Lens.
+                Unable to load application configuration. Retry; Backup & Restore remains available independently.
+                <Button variant="ghost" onClick={() => void config.refetch()}>Retry configuration</Button>
               </p>
             )}
             {message && (
@@ -624,7 +636,7 @@ export function SettingsView({
               aria-labelledby={`settings-tab-${section}`}
               className="space-y-5 min-w-0"
             >
-              {!draft ? (
+              {section === 10 ? <BackupRestore/> : !draft ? (
                 <p>Loading settings…</p>
               ) : (
                 <>
@@ -747,6 +759,7 @@ export function SettingsView({
                           onMode={mode=>setDraft(previous=>previous?{...previous,source_modes:{roles:'dynamic',users:'dynamic',employees:'static',sod:'static',...previous.source_modes,[importSource]:mode}}:previous)}
                           onCandidate={path=>setCandidatePaths(previous=>({...previous,[importSource]:path}))} onActivated={sourceActivated} onClear={()=>clearSource(importSource)} onFeatures={()=>setSection(5)}/>
                         {importSource==='employees'&&<><DirectorySnapshotRecovery onPersisted={async()=>{const saved=await fetchConfiguration();qc.setQueryData(['configuration'],saved);setDraft(previous=>previous?rebaseSourceDraft(previous,saved.settings,'employees'):previous);await qc.invalidateQueries({predicate:query=>['diagnostics','data-health','dashboard'].includes(String(query.queryKey[0]))});setMessage('Validated directory records saved locally. The original CSV is no longer required for restart.')}}/><DirectoryDiagnostics sourceView onFeatureSettings={()=>setSection(5)}/><details className="settings-advanced mt-4"><summary>Employee Directory data preview</summary><EmployeeBrowser/></details></>}
+                      <ImportChecksSettings draft={draft} onChange={value=>setDraft(previous=>previous?{...previous,import_checks:value}:previous)}/>
                       {(importSource==='roles'||importSource==='users'||importSource==='sod')&&<details className="settings-advanced" onToggle={event=>setAdvancedSource(event.currentTarget.open)}>
                         <summary>Advanced import format and column mapping</summary>
                         <p className="ui-description">Optional inspection and mapping. Selecting a file imports automatically using the selected format. Apply settings to save format-only changes.</p>
@@ -983,15 +996,17 @@ export function SettingsView({
                       </div>
                     </div>
                   }
+
                   {section === 6 && <About/>}
                   {section === 9 && <><ScheduledRefresh draft={draft} onChange={setDraft}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
-                  {section === 8 && <SodRiskSettings onConfigure={()=>{setSection(1);setImportSource('sod')}}/>}
+                  {section === 8 && <SodRiskSettings/>}
+                  {section === 11 && <FunctionalGroupSettings/>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
                   {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/></>}
                   {section === 4 && (
                     <>
                       <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
-                      <h2 className="settings-subheading">Backup & recovery</h2>
+                      <h2 className="settings-subheading">Configuration export & recovery</h2>
                       <p className="text-sm text-[var(--text2)]">
                         Export saved settings before an update, or restore a
                         previously exported package. Import and reset keep a
@@ -1085,10 +1100,11 @@ export function SettingsView({
                   )}
                 </>
               )}
+              {applicationFooter}
             </div>
           </div>
         </div>
-        <div className={section===7||section===8?'hidden':'settings-actions'}>
+        <div className={section===7||section===8||section===10||section===11?'hidden':'settings-actions'}>
           <p role="status" className="text-xs text-[var(--muted)] mr-auto">
             {draft &&
             (['dark', 'light'] as const).some(

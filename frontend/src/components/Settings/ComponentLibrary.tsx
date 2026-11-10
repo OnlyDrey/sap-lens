@@ -1,3 +1,4 @@
+import {PrimaryDecisionBadge} from '@/components/Sod/SodDecisionStatus'
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { ReviewFindings } from '@/components/Shared/ReviewFindings'
@@ -27,6 +28,7 @@ import {
   ContentTabs,
 } from '@/components/Shared/Navigation'
 import { ComponentLibraryPatterns } from './ComponentLibraryPatterns'
+import { ComponentLibraryStates } from './ComponentLibraryStates'
 import { Popover } from '@/components/Shared/Popover'
 import { Dialog } from '@/components/Shared/Dialog'
 import { SidePanel } from '@/components/Shared/SidePanel'
@@ -246,7 +248,7 @@ export function ComponentLibrary() {
           ))}
         </div>
       </Card>}
-      {(category==='all'||category==='sap')&&<Card><PageHeader title="Page header preview" icon={<LayoutDashboard size={22} aria-hidden="true"/>}/><MetadataList items={[{label:'Records',value:'2'},{label:'Last validated source check',value:'Not checked · Static source'}]}/><TransactionCount count={12}/><ExportCSVButton disabled title="Isolated preview; no records are exported."/><h2>Import and source controls</h2><p className="ui-description">Real import components with isolated synthetic state. In Data Sources, selection automatically validates and imports a complete dataset. This isolated preview only selects a demo string; no files, settings or datasets are changed.</p><SourceFileField label="Demo source file" value={demoPath} onChange={setDemoPath} native onBrowse={()=>setDemoPath('C:/synthetic/replacement.csv')} browseLabel="Browse demo source"/><div className="demo-grid"><MappingField field="AGR_NAME" label="Demo role name" required value={demoMapping} columns={['AGR_NAME','ROLE_NAME']} onChange={setDemoMapping}/><SourceHealthSummary source={{id:'roles',mode:'static',loaded:true,loading:false,error:null,records:2,last_successful_load:'2026-01-01T12:00:00Z',snapshot_available:true}}/></div><ImportPreview fileName="synthetic.csv" metrics={[{label:'Records',value:2}]} samples={[{AGR_NAME:'ZC:DEMO',TCODE:'MIGO'},{AGR_NAME:'ZC:EXAMPLE',TCODE:'ME23N'}]} warnings={['Example warning: an optional description was not supplied.']}/></Card>}
+      {(category==='all'||category==='sap')&&<Card><PageHeader title="Page header preview" icon={<LayoutDashboard size={22} aria-hidden="true"/>}/><MetadataList items={[{label:'Records',value:'2'},{label:'Last validated source check',value:'Not checked · Static source'}]}/><TransactionCount count={12}/><ExportCSVButton disabled title="Isolated preview; no records are exported."/><h2>Import and source controls</h2><p className="ui-description">Real import components with isolated synthetic state. In Data Sources, selection automatically validates and imports a complete dataset. This isolated preview only selects a demo string; no files, settings or datasets are changed.</p><SourceFileField label="Demo source file" value={demoPath} onChange={setDemoPath} native onBrowse={()=>setDemoPath('C:/synthetic/replacement.csv')} browseLabel="Browse demo source"/><div className="demo-grid"><MappingField field="AGR_NAME" label="Demo role name" required value={demoMapping} columns={['AGR_NAME','ROLE_NAME']} onChange={setDemoMapping}/><SourceHealthSummary source={{id:'roles',mode:'static',loaded:true,loading:false,error:null,records:2,last_successful_load:'2026-01-01T12:00:00Z',snapshot_available:true}}/></div><ImportPreview fileName="role-catalogue.csv" metrics={[{label:'Records',value:2}]} samples={[{AGR_NAME:'ZC:DEMO',TCODE:'MIGO'},{AGR_NAME:'ZC:EXAMPLE',TCODE:'ME23N'}]} warnings={['Example warning: an optional description was not supplied.']}/></Card>}
       {(category==='all'||category==='data')&&<ComponentLibraryPatterns />}
       {(category==='all'||category==='data')&&<Card><SectionHeader title="Investigation evidence" icon={<Info size={18}/>}/><ReviewFindings row={{sap_validity:'Valid',lock_status:'Unlocked',ad_status:'Unknown',match_status:'missing_email',findings:['directory_match'],stale:false}} labels={{directory_match:'Missing directory match'}}/><ChangeRecordDetails change={{source:'employees',source_name:'Synthetic directory',type:'modified',identifier:'SYNTHETIC_RECORD',fields:[{field:'Title',before:'Example analyst',after:'Example reviewer'}],before:{Name:'Synthetic Example'},after:{Name:'Synthetic Example'}}}/></Card>}
       {(category==='all'||category==='status')&&<Card><h2>Operational status and filtering</h2><div className="demo-grid"><StatusCard label="Demo service" value="Running" tone="success"/><StatusCard label="Demo source" value="Needs attention" tone="warning"/></div><FilterPanel label="Demo filters"><p className="ui-description">Apply commits only demo date state; Cancel leaves it unchanged. Calendar and filter popovers do not reflow their parent.</p><AssignmentDateFilters value={demoDates} onChange={setDemoDates}/></FilterPanel><ResultsToolbar><span>2 demo results</span><Button onClick={()=>setDemoDates({...emptyDates})}>Clear demo filters</Button></ResultsToolbar></Card>}
@@ -412,6 +414,7 @@ export function ComponentLibrary() {
           onSelect={(row,column)=>setMatrixPick(`${row}/${column}`)}/>
         <p role="status">{matrixPick?`Selected ${matrixPick}`:'No cell selected'}</p>
       </Card>}
+      {(category==='all'||category==='status')&&<ComponentLibraryStates />}
       {(category==='all'||category==='status')&&<Card>
         <h2>Status &amp; feedback</h2>
         <Toolbar>
@@ -423,6 +426,7 @@ export function ComponentLibrary() {
             ),
           )}
         </Toolbar>
+        <div className="flex flex-wrap gap-2" aria-label="SoD primary decision badges">{([['Approved','success'],['Remove','error'],['Investigate','warning'],['Pending','neutral']] as const).map(([label,tone])=><PrimaryDecisionBadge key={label} summary={{label,tone,explicit:false,stale:false,basis:'Isolated component preview',assignment_decisions:{}}}/>)}</div>
         <Notification variant="info">Informational demo message</Notification>
         <Notification variant="warning">Warning demo message</Notification>
         <Notification variant="error">Error demo message</Notification>
@@ -525,7 +529,7 @@ export function ComponentLibrary() {
         <SectionHeader title="Selection, page sizes and row actions" icon={<Info size={18}/>}/>
         <p className="ui-description">Bulk selection works on stable identifiers; the toolbar states how many items are affected and where they are. Page sizes and row action menus are shared by every list.</p>
         <BulkToolbar label="Demo bulk toolbar" summary="2 demo assignments selected" scope="1 on this page · 1 on other pages · 12 match the current filters">
-          <Button size="compact">Select all 12 matching</Button><Button size="compact">Clear selection</Button><Button size="compact">Keep</Button><Button size="compact">Investigate</Button><Button size="compact" variant="destructive">Recommend removal</Button>
+          <Button size="compact">Select all 12 matching</Button><Button size="compact">Clear selection</Button><Button size="compact">Investigate</Button><Button size="compact">Keep</Button><Button size="compact" variant="destructive">Recommend removal</Button>
         </BulkToolbar>
         <Pagination label="Demo sized pagination" offset={demoOffset} total={60} limit={demoSize} onChange={setDemoOffset} pageSizes={PAGE_SIZES} onPageSize={(size)=>{setDemoSize(size);setDemoOffset(0)}}/>
         <Toolbar>

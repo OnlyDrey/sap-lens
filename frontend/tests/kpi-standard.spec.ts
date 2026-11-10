@@ -5,7 +5,7 @@ let directory: string
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request) })
 test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
-test('interactive KPIs are keyboard buttons with a full-border active state and informational KPIs are plain groups', async ({ page }) => {
+test('interactive KPIs are keyboard buttons with a full-border active state and informational KPIs are plain groups', { tag: '@a11y' }, async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await openSod(page, 'Risk Matrix')
   const figures = page.getByRole('region', { name: 'Risk matrix figures' })

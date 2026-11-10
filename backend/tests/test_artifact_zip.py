@@ -8,7 +8,7 @@ import unittest
 import warnings
 import zipfile
 
-spec = importlib.util.spec_from_file_location('artifact_zip', Path(__file__).resolve().parents[2] / 'scripts/verify-artifact-zip.py')
+spec = importlib.util.spec_from_file_location('artifact_zip', Path(__file__).resolve().parents[2] / 'scripts/packaging/verify-artifact-zip.py')
 artifact = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(artifact)
 

@@ -46,7 +46,7 @@ and case-normalized equal-specificity ambiguity are intentional.
 Headers follow the current built-in schemas exactly; optional fields may be blank.
 See [access schema](../docs/data/CSV_SCHEMAS.md) and
 [directory schema](../docs/data/EMPLOYEE_DIRECTORY.md). Regenerate deterministically
-from the repository root with `python scripts/generate-examples.py`. The generator
+from the repository root with `python scripts/maintenance/generate-examples.py`. The generator
 never reads local configuration or source exports. Automated regression tests
 import the role, user and directory examples through the real APIs and verify snapshot
 restoration in a fresh process after removing the source files. A separate test
@@ -55,9 +55,10 @@ catalogue T-code links and privacy boundaries.
 
 ## Compatibility examples
 
-[synthetic.csv](synthetic.csv) retains the small historical role-catalogue example.
-Its DEMO transactions are invented. The optional PARENT_AGR and Effective_Role
-columns demonstrate relationship provenance.
+The former small compatibility catalogue was removed: the role catalogue example above covers the same schema, including the optional
+PARENT_AGR and Effective_Role relationship columns. Automated browser tests keep their own minimal fixture under
+`frontend/tests/fixtures/`, which is test data and not an example for users.
+
 [synthetic-profile.sap-lens.json](synthetic-profile.sap-lens.json) is a schema-2
 compatibility example, not an active classification preset. Legacy rules are
 archived without execution; it contains no source paths or raw records.

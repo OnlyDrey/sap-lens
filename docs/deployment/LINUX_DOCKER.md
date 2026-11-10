@@ -6,7 +6,7 @@ The allowlisted `.dockerignore` excludes settings, snapshots, Git history and te
 
 ## Downloaded image (no source build)
 
-Choose `Linux Docker` or `All` in [Build Deployment Packages](BUILD.md).
+Choose `Linux Docker` or `All` in [Build Deployment Packages](../BUILD.md).
 The Linux amd64 archive contains `image.tar`, a Compose file referencing that
 **locally loaded versioned image**, documentation, manifest and checksum. No registry
 is used. After extracting GitHub's outer download ZIP:
@@ -67,7 +67,7 @@ volumes:
 
 Give UID10001 read/traverse permission, then configure paths such as
 `/sources/roles.csv` in Settings. Container paths are not arbitrary Docker host
-paths. Browser uploads require no source mount and become Static after confirmation.
+paths. Browser uploads require no source mount and become Static after successful validation and automatic activation.
 
 ## Managed offline installation and lifecycle
 

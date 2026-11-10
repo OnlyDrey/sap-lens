@@ -1,28 +1,40 @@
 import { observeAnchorLayout } from '@/lib/observeAnchorLayout'
-import { textMatches } from '@/lib/searchMatching'
+import { textMatches, textMatchesAny } from '@/lib/searchMatching'
 import { usePopoverOwners } from './Popover'
 import { Button } from './Button'
 import { FilterChip } from './FilterChip'
+import { useFieldActionSlot } from './Controls'
 import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronDown, ChevronUp, FilterX, ListChecks, Search, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, FilterX, ListChecks, Search, X, XCircle } from 'lucide-react'
 
 /** Searchable multi-select. The list stays open while options are toggled and closes on outside click, Escape, Tab or Close. Values combine with OR; the caller owns the AND between filters.
  * Selections are independent of the search text: narrowing the list never drops a selected value. Select all applies to the options currently shown. */
-export function MultiSelectFilter({ label, values, options, onChange, onSearch, loading, hasMore, optionLabel = (value: string) => value, placeholder = 'All · type to search', maxSelected = 100, scope }: {
+export function MultiSelectFilter({ label, values, options, onChange, onSearch, loading, hasMore, optionLabel = (value: string) => value, optionDescription, placeholder = 'All · type to search', maxSelected = 100, scope }: {
   label: string; values: string[]; options: string[]; onChange: (values: string[]) => void; onSearch?: (query: string) => void
   loading?: boolean; hasMore?: boolean; optionLabel?: (value: string) => string; placeholder?: string; maxSelected?: number
+  /** Secondary line of an option (for example a role description): searched with the name, wrapped to two lines, complete in the tooltip. Chips show the name only. */
+  optionDescription?: (value: string) => string
   /** Describes what the option list is limited to (for example the active filters); shown beside Select all. */
   scope?: string
 }) {
-  const owners = usePopoverOwners()
+  const owners = usePopoverOwners(), fieldSlot = useFieldActionSlot()
   const uid = useId(), listId = `${uid}-list`
   const anchor = useRef<HTMLDivElement>(null), popup = useRef<HTMLDivElement>(null), input = useRef<HTMLInputElement>(null)
   const [open, setOpen] = useState(false), [query, setQuery] = useState(''), [index, setIndex] = useState(0), [positioned, setPositioned] = useState(false)
   const [position, setPosition] = useState({ left: 0, top: 0, width: 0, maxHeight: 320 })
-  const shown = [...new Set(options.filter(Boolean))].filter(option => !query || onSearch || textMatches(option, query) || textMatches(optionLabel(option), query))
+  const shown = [...new Set(options.filter(Boolean))].filter(option => !query || onSearch || textMatches(option, query) || textMatches(optionLabel(option), query) || textMatches(optionDescription?.(option) ?? '', query))
+  const wide = Boolean(optionDescription) || shown.some(option => optionLabel(option).length > 36)
   const unselected = shown.filter(option => !values.includes(option))
   const close = () => { setOpen(false); setQuery(''); onSearch?.('') }
+  // While a search is pending (debounce or request in flight) the list can still hold the previous query's results: Enter then acts on
+  // the highlighted value only when it matches the typed text, otherwise on an exact match, and never toggles an unrelated stale value.
+  const matches = (option: string) => !query || textMatchesAny(option, query) || textMatchesAny(optionLabel(option), query) || textMatchesAny(optionDescription?.(option) ?? '', query)
+  const enterTarget = () => {
+    const highlighted = shown[index], typed = query.trim().toLowerCase()
+    if (!loading || (highlighted !== undefined && matches(highlighted))) return highlighted
+    return typed ? shown.find(option => option.toLowerCase() === typed || optionLabel(option).toLowerCase() === typed) : undefined
+  }
   const toggle = (option: string) => onChange(values.includes(option) ? values.filter(item => item !== option) : values.length < maxSelected ? [...values, option] : values)
   const selectShown = () => onChange([...values, ...unselected].slice(0, maxSelected))
   useLayoutEffect(() => {
@@ -30,14 +42,20 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
     const place = () => {
       const box = anchor.current?.getBoundingClientRect(); if (!box) return
       const below = window.innerHeight - box.bottom - 12, above = box.top - 12
-      const natural = Math.min(360, (popup.current?.scrollHeight || 340) + 2), down = below >= natural || below >= above
+      // Natural height comes from the content (header + full list), never from the popup's own scrollHeight: once the box was clamped by a
+      // short result or little space, its scrollHeight equals the clamped height and the popup would never grow back.
+      const list = popup.current?.querySelector<HTMLElement>('[role="listbox"]'), head = popup.current?.querySelector<HTMLElement>('.multi-popup-head')
+      const content = popup.current ? (head?.offsetHeight ?? 0) + (list?.scrollHeight ?? 0) + 2 : 340
+      const natural = Math.min(360, content), down = below >= natural || below >= above
       const height = Math.min(natural, Math.max(0, down ? below : above), Math.max(0, innerHeight - 16))
       setPositioned(true)
-      setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - Math.min(Math.max(box.width, 300), innerWidth - 16) - 8)), width: Math.min(Math.max(box.width, 300), window.innerWidth - 16),
+      // Content-aware width: at least the trigger, about 540 px for descriptions or long values when there is room, never wider than the viewport.
+      const width = Math.min(Math.max(box.width, wide ? 540 : 300), window.innerWidth - 16)
+      setPosition({ left: Math.max(8, Math.min(box.left, window.innerWidth - width - 8)), width,
         top: Math.max(8, Math.min(down ? box.bottom + 4 : box.top - height - 4, innerHeight - height - 8)), maxHeight: height })
     }
     place(); return anchor.current ? observeAnchorLayout(anchor.current, popup.current, place) : undefined
-  }, [open, shown.length])
+  }, [open, shown.length, query, loading, hasMore, values.length, wide])
   useEffect(() => {
     if (!open) return
     const outside = (event: PointerEvent) => { if (!anchor.current?.contains(event.target as Node) && !popup.current?.contains(event.target as Node)) close() }
@@ -52,6 +70,8 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
     return () => window.removeEventListener('popstate', dismiss)
   }, [])
   const openList = () => { if (!open) { setOpen(true); onSearch?.('') } }
+  // Clears this field only. It sits at the right of the field label (portal into the label row); outside a labelled field it falls back to a row above the chips.
+  const clearAction = values.length > 0 ? <Button size="compact" variant="ghost" className="multi-clear" aria-label={`Clear all ${label} selections`} title={`Clear ${values.length} selected`} onClick={() => onChange([])}><XCircle size={14} aria-hidden="true" />Clear</Button> : null
   const noun = query ? `matching “${query}”` : 'listed'
   return (
     <div className="grid min-w-0 gap-2">
@@ -67,7 +87,7 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
             if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); close() }
             else if (event.key === 'Tab') close()
             else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); openList(); setIndex(previous => Math.max(0, Math.min(shown.length - 1, previous + (event.key === 'ArrowDown' ? 1 : -1)))) }
-            else if (event.key === 'Enter' && open) { event.preventDefault(); if (shown[index] !== undefined) toggle(shown[index]) }
+            else if (event.key === 'Enter' && open) { event.preventDefault(); const target = enterTarget(); if (target !== undefined) toggle(target) }
             else if (event.key === 'Backspace' && !query && values.length) onChange(values.slice(0, -1))
           }} />
         <button type="button" aria-label={`${open ? 'Close' : 'Open'} ${label} options`} tabIndex={-1} onMouseDown={event => event.preventDefault()}
@@ -85,10 +105,13 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
             <div id={listId} role="listbox" aria-multiselectable="true" aria-label={`${label} options`}>
               {shown.map((option, i) => {
                 const selected = values.includes(option)
-                return <div key={option} id={`${uid}-option-${i}`} role="option" aria-selected={selected} className={`combobox-option multi-option ${i === index ? 'highlighted' : ''}`}
+                return <div key={option} id={`${uid}-option-${i}`} role="option" aria-selected={selected} aria-labelledby={`${uid}-option-${i}-name`} aria-describedby={optionDescription?.(option) ? `${uid}-option-${i}-desc` : undefined} className={`combobox-option multi-option ${i === index ? 'highlighted' : ''}`}
                   onMouseMove={() => setIndex(i)} onClick={() => toggle(option)}>
                   <span className="multi-check" data-checked={selected || undefined} aria-hidden="true">{selected && <Check size={12} strokeWidth={3} />}</span>
-                  <span>{optionLabel(option)}</span>
+                  <span className="multi-option-text" title={optionDescription ? `${optionLabel(option)} — ${optionDescription(option)}` : optionLabel(option)}>
+                    <span id={`${uid}-option-${i}-name`} className="multi-option-name">{optionLabel(option)}</span>
+                    {optionDescription?.(option) ? <span id={`${uid}-option-${i}-desc`} className="multi-option-desc">{optionDescription(option)}</span> : null}
+                  </span>
                 </div>
               })}
               {loading && <p role="status" className="p-3 text-sm text-[var(--muted)]">Searching available values…</p>}
@@ -97,9 +120,11 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
             </div>
           </div>, document.body)}
       </div>
-      {values.length > 0 && <div className="flex flex-wrap items-center gap-2" role="group" aria-label={`Selected ${label}`}>
-        {values.map(value => <FilterChip key={value} removeLabel={`Remove ${label} ${value}`} onRemove={() => onChange(values.filter(item => item !== value))}>{optionLabel(value)}</FilterChip>)}
-        {values.length > 1 && <Button size="compact" variant="ghost" aria-label={`Clear all ${label} selections`} onClick={() => onChange([])}>Clear all</Button>}
+      {clearAction && (fieldSlot ? createPortal(clearAction, fieldSlot) : <div className="multi-clear-row">{clearAction}</div>)}
+      {values.length > 0 && <div className="multi-selected" role="group" aria-label={`Selected ${label}`}>
+        <div className="flex flex-wrap items-center gap-2">
+          {values.map(value => <FilterChip key={value} removeLabel={`Remove ${label} ${value}`} onRemove={() => onChange(values.filter(item => item !== value))}>{optionLabel(value)}</FilterChip>)}
+        </div>
       </div>}
     </div>
   )

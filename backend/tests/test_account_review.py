@@ -313,3 +313,59 @@ class AccountReviewTests(unittest.TestCase):
             self.assertEqual(result.status_code,409);self.assertNotIn('inaccessible storage',result.text)
             self.assertEqual(self.client.get('/api/roles',headers=H).status_code,200)
         self.assertEqual((config.config_dir()/'account-review.json').read_bytes(),raw)
+
+    # Completed reviews leave the default queue; the finding, history and explicit filters are unaffected.
+    def names(self, query=''):
+        return [r['username'] for r in self.get(query)['items']]
+
+    def decide(self, username, state, **extra):
+        row = next(r for r in self.get('?limit=100&include_completed=true')['items'] if r['username'] == username)
+        result = self.client.post('/api/account-review/decision/' + username, headers=H, json=dict(state=state, reviewer='Rev', rationale='checked', evidence_version=row['evidence_version'], **extra))
+        self.assertEqual(result.status_code, 200, result.text)
+        return row
+
+    def test_no_action_required_removes_the_account_from_the_default_queue_but_keeps_the_finding(self):
+        self.assertIn('DEMO_MISSING', self.names('?limit=100'))
+        row = self.decide('DEMO_MISSING', 'No action required')
+        self.assertIn('directory_match', row['findings'])
+        self.assertNotIn('DEMO_MISSING', self.names('?limit=100'))
+        shown = next(r for r in self.get('?limit=100&include_completed=true')['items'] if r['username'] == 'DEMO_MISSING')
+        self.assertEqual((shown['workflow_status'], shown['review_state'], 'directory_match' in shown['findings']), ('completed', 'No action required', True))
+        self.assertEqual(self.get('?search=DEMO_MISSING')['completed_hidden'], 1)
+
+    def test_explicit_completed_filters_still_show_the_records(self):
+        self.decide('DEMO_MISSING', 'No action required')
+        self.assertIn('DEMO_MISSING', self.names('?review_states=No action required&limit=100'))
+        self.assertIn('DEMO_MISSING', self.names('?findings=reviewed&limit=100'))
+        self.assertIn('DEMO_MISSING', self.names('?findings=directory_missing&include_completed=true&limit=100'))
+        self.assertNotIn('DEMO_MISSING', self.names('?findings=directory_missing&limit=100'))
+
+    def test_investigating_and_approved_for_deactivation_stay_active(self):
+        for user, state in (('DEMO_MISSING', 'Investigating'), ('DEMO_EXPIRED', 'Approved for deactivation')):
+            self.decide(user, state)
+            self.assertIn(user, self.names('?limit=100'))
+            self.assertEqual(next(r for r in self.get('?limit=100')['items'] if r['username'] == user)['workflow_status'], 'open')
+
+    def test_counts_pagination_and_sorting_follow_the_same_filter(self):
+        everyone = self.get('?limit=100&include_completed=true')['total']
+        self.decide('DEMO_MISSING', 'No action required')
+        default = self.get('?limit=2&sort=username')
+        self.assertEqual((default['total'], default['completed_hidden']), (everyone - 1, 1))
+        self.assertEqual(default['summary']['completed'], 1)
+        pages = [r['username'] for offset in range(0, default['total'], 2) for r in self.get(f'?limit=2&offset={offset}&sort=username')['items']]
+        self.assertEqual(pages, sorted(pages, key=str.casefold))
+        self.assertEqual(len(pages), everyone - 1)
+        self.assertEqual(self.get('?limit=100&include_completed=true')['total'], everyone)
+
+    def test_changed_evidence_reopens_a_completed_review_and_history_is_preserved(self):
+        self.decide('DEMO_MISSING', 'No action required')
+        self.write_users(shared=True)  # the identity evidence for the shared-email users changes
+        config.get_settings.cache_clear(); cache.load_cache()
+        reopened = [r for r in self.get('?limit=100&include_completed=true')['items'] if r['stale']]
+        for row in reopened:
+            self.assertEqual(row['workflow_status'], 'open')
+            self.assertIn(row['username'], self.names('?limit=100'))
+        self.decide('DEMO_MISSING', 'Investigating')
+        self.decide('DEMO_MISSING', 'No action required')
+        self.assertEqual(self.client.get('/api/account-review/history/DEMO_MISSING', headers=H).json()['total'], 2)
+

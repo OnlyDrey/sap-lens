@@ -2,6 +2,7 @@
 
 from dataclasses import dataclass, field
 from datetime import date
+from functools import lru_cache
 import re
 from pathlib import Path
 
@@ -25,7 +26,9 @@ class UserCsvImport(CsvImport):
     identifier_fields = ["USERNAME", "ROLE_NAME", "USER_GROUP"]
 
 
+@lru_cache(maxsize=8192)
 def sap_date(value):
+    """Pure function of its text and called per assignment on every request; a handful of distinct strings occur, so results are memoized (errors are not cached)."""
     if not value or value in {"00000000", "0000-00-00"}:
         return None
     try:
@@ -38,6 +41,32 @@ def sap_date(value):
     raise AnalysisValidationError(
         "Invalid SAP date. Use YYYY-MM-DD or YYYYMMDD; no data was applied."
     )
+
+
+def assignment_status_counts(users_state, today=None):
+    """{status: number of assignment records} for the whole dataset, computed once per dataset and day (the Dashboard asked for it on every request)."""
+    from collections import Counter
+    today = today or date.today()
+    memo = users_state.__dict__.setdefault('_status_counts', {})
+    if memo.get('day') != today:
+        memo.clear()
+        memo['day'] = today
+        memo['value'] = Counter(interval_status(sap_date(a['valid_from']), sap_date(a['valid_to']), today) for a in users_state.assignments)
+    return memo['value']
+
+
+def expired_assignment_count(users_state, key, today=None):
+    """Number of expired assignment records of one user, memoized per dataset and day for the export totals of the user list."""
+    today = today or date.today()
+    memo = users_state.__dict__.setdefault('_expired_counts', {})
+    if memo.get('day') != today:
+        memo.clear()
+        memo['day'] = today
+        memo['by_user'] = {}
+    counts = memo['by_user']
+    if key not in counts:
+        counts[key] = sum(interval_status(sap_date(a['valid_from']), sap_date(a['valid_to']), today) == 'expired' for a in users_state.users[key]['assignments'])
+    return counts[key]
 
 
 def interval_status(start, end, today=None):
@@ -91,9 +120,15 @@ class UserState:
     groups: list = field(default_factory=list)
     group_count: int = 0
 
+    TRANSIENT = ('_identity_matchers', '_status_counts', '_expired_counts')
+
+    def __getstate__(self):
+        """Per-dataset memoised views (identity matches, status counts) belong to the live object and are never serialized into a derived cache entry or copied."""
+        return {key: value for key, value in self.__dict__.items() if key not in self.TRANSIENT}
+
 
 def build_users(path, profile, catalogue, records=None, report=None):
-    parser = UserCsvImport(Path(path).expanduser(), profile)
+    parser = UserCsvImport(Path(path).expanduser(), profile) if records is None or report is None else None
     state = UserState()
     matcher = RoleMatcher(catalogue)
     matched = {}

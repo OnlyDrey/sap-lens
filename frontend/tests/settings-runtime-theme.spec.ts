@@ -9,7 +9,7 @@ async function open(page: Page, tab: string) {
   await page.getByRole('tab', { name: tab, exact: true }).click()
 }
 
-for (const width of [375, 1280]) test(`feature cards put the Enabled switch above Configure at ${width}`, async ({ page }) => {
+for (const width of [375, 1280]) test(`feature cards put the Enabled switch above Configure at ${width}`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   await open(page, 'Features')
   for (const name of ['User–Role Mapping', 'Employee Directory', 'Segregation of Duties']) {
@@ -73,7 +73,7 @@ test('data source health cards use two columns where space permits and every act
   expect(narrow).toHaveLength(1)
 })
 
-test('Secondary Color is configurable, validated for contrast and used by secondary buttons', async ({ page, request }) => {
+test('Secondary Color is configurable, validated for contrast and used by secondary buttons', { tag: '@a11y' }, async ({ page, request }) => {
   await open(page, 'Appearance & Branding')
   const colors = page.getByRole('region', { name: 'Theme color settings', exact: true })
   const preview = page.getByLabel('Theme live preview').getByRole('button', { name: 'Secondary action' })

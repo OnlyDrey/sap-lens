@@ -15,7 +15,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('local_builder', ROOT / 'scripts/local-build.py')
+spec = importlib.util.spec_from_file_location('local_builder', ROOT / 'scripts/packaging/local-build.py')
 local = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(local)
 
@@ -42,7 +42,7 @@ class LocalVersionTests(unittest.TestCase):
             local.version.make_local_package_info('0.1.0', 'not-a-sha')
 
     def test_local_identity_generates_matching_windows_resources(self):
-        spec = importlib.util.spec_from_file_location('local_metadata', ROOT / 'scripts/write-windows-metadata.py')
+        spec = importlib.util.spec_from_file_location('local_metadata', ROOT / 'scripts/packaging/write-windows-metadata.py')
         metadata = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(metadata)
         info = local.version.make_local_package_info('0.1.0-beta-4', 'a' * 40)
@@ -137,10 +137,71 @@ class LocalReceiptTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             local.check('0.1.0', self.root)
 
+    def test_previous_receipt_schema_does_not_claim_current_packaging_validation(self):
+        saved = self.record()
+        saved['schema'] = 1
+        local.write_json(local.receipt_path(self.root), saved)
+        with self.assertRaisesRegex(ValueError, 'stale'):
+            local.check('0.1.0', self.root)
+
+
+
+class ActionlintAcquisitionTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('local_ci_acq', ROOT / 'scripts/testing/ci.py')
+        self.ci = importlib.util.module_from_spec(spec); spec.loader.exec_module(self.ci)
+        self.payload = b'synthetic archive'
+        self.digest = hashlib.sha256(self.payload).hexdigest()
+        self.name = 'actionlint-' + self.ci.ACTIONLINT_VERSION + '-pkg.zip'
+
+    def acquire(self, directory, **env):
+        with patch.dict(os.environ, env, clear=False):
+            return self.ci.acquire_actionlint('pkg.zip', self.digest, 'https://example.invalid/a.zip', Path(directory))
+
+    def test_cache_hit_needs_no_network(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen') as net:
+            (Path(d) / self.name).write_bytes(self.payload)
+            self.assertEqual(self.acquire(d), self.payload); net.assert_not_called()
+
+    def test_persistent_cache_is_preferred_and_receives_downloads(self):
+        with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as cache:
+            with patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(self.payload)):
+                self.acquire(d, SAP_LENS_TOOL_CACHE=cache)
+            self.assertEqual((Path(cache) / self.name).read_bytes(), self.payload)
+            self.assertFalse((Path(d) / self.name).exists())
+
+    def test_corrupted_cache_is_ignored_and_redownloaded(self):
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / self.name).write_bytes(b'corrupt')
+            with patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(self.payload)) as net:
+                self.assertEqual(self.acquire(d), self.payload); net.assert_called_once()
+
+    def test_failed_download_reports_url_status_cache_and_recovery_and_blocks(self):
+        import urllib.error
+        error = urllib.error.HTTPError('https://example.invalid/a.zip', 403, 'Forbidden', {}, None)
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen', side_effect=error):
+            with self.assertRaises(self.ci.ActionlintUnavailable) as raised: self.acquire(d)
+            message = str(raised.exception)
+            for token in ('403', 'https://example.invalid/a.zip', d, 'SAP_LENS_ACTIONLINT_ARCHIVE', 'never disabled'): self.assertIn(token, message)
+            with patch.object(self.ci, 'lint', side_effect=self.ci.ActionlintUnavailable('x')), patch.object(sys, 'argv', ['ci.py', 'lint']):
+                self.assertEqual(self.ci.main(), 2)
+
+    def test_checksum_mismatch_is_discarded(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(b'other')):
+            with self.assertRaisesRegex(self.ci.ActionlintUnavailable, 'checksum mismatch'): self.acquire(d)
+            self.assertFalse((Path(d) / self.name).exists())
+
+    def test_offline_local_archive_never_touches_the_network(self):
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen') as net:
+            archive = Path(d) / 'mine.zip'; archive.write_bytes(self.payload)
+            self.assertEqual(self.acquire(d, SAP_LENS_ACTIONLINT_ARCHIVE=str(archive)), self.payload); net.assert_not_called()
+            archive.write_bytes(b'tampered')
+            with self.assertRaisesRegex(self.ci.ActionlintUnavailable, 'SHA-256 does not match'): self.acquire(d, SAP_LENS_ACTIONLINT_ARCHIVE=str(archive))
+
 
 class LocalToolingTests(unittest.TestCase):
     def test_actionlint_windows_download_checksum_cache_and_extraction(self):
-        spec = importlib.util.spec_from_file_location('local_ci', ROOT / 'scripts/ci.py')
+        spec = importlib.util.spec_from_file_location('local_ci', ROOT / 'scripts/testing/ci.py')
         ci = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(ci)
         data = io.BytesIO()
@@ -150,7 +211,7 @@ class LocalToolingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(ci.platform, 'system', return_value='Windows'), patch.object(ci.platform, 'machine', return_value='AMD64'), patch.object(ci, 'ACTIONLINT_WINDOWS_SHA256', hashlib.sha256(payload).hexdigest()), patch.dict(os.environ, {'RUNNER_TEMP':directory}), patch.object(ci.subprocess, 'call', return_value=0) as execute:
             with patch.object(ci.urllib.request, 'urlopen', return_value=io.BytesIO(payload)) as download:
                 self.assertEqual(ci.lint(), 0)
-                self.assertIn('windows_amd64.zip', download.call_args.args[0])
+                self.assertIn('windows_amd64.zip', download.call_args.args[0].full_url)
             tool = Path(directory) / ('actionlint-' + ci.ACTIONLINT_VERSION + '.exe')
             self.assertEqual(tool.read_bytes(), b'synthetic executable, never executed')
             tool.write_bytes(b'tampered extracted tool')
@@ -196,7 +257,7 @@ class LocalToolingTests(unittest.TestCase):
                 local.check_packaging_tools()
 
 
-    @unittest.skipUnless(shutil.which('pwsh'), 'Requires PowerShell')
+    @unittest.skipUnless(shutil.which('powershell' if os.name == 'nt' else 'pwsh') or shutil.which('pwsh'), 'Requires Windows PowerShell 5.1 or PowerShell 7')
     def test_node_gate_accepts_24_and_25_and_rejects_unvalidated_majors(self):
         # Execute the actual preflight expression without invoking Windows setup.
         script = r'''$tokens = $null; $errors = $null
@@ -216,7 +277,7 @@ foreach ($version in @('22.12.0', '23.0.0', '24.0.0', '24.19.0', '25.0.0', '25.9
 $nodeVersion = '24.0.0'; $LASTEXITCODE = 1
 Write-Output "command-failed=$(& $condition)"
 '''
-        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+        result = subprocess.run([(shutil.which('powershell') if os.name == 'nt' else None) or shutil.which('pwsh'), '-NoProfile', '-Command', script],
                                 env={**os.environ, 'SAP_LENS_TEST_ROOT':str(ROOT)},
                                 capture_output=True, text=True, check=True)
         self.assertEqual(result.stdout.splitlines(), [
@@ -282,3 +343,128 @@ class LocalExportTests(unittest.TestCase):
             with self.assertRaises(subprocess.CalledProcessError):
                 local.export('0.1.0', self.output, self.root)
         self.assertFalse((self.output / 'build-manifest.json').exists())
+
+
+class BuildEntryRepairTests(unittest.TestCase):
+    def test_authoritative_default_and_prerelease_identity_are_preserved(self):
+        product = local.version.product_version()
+        result = subprocess.run([sys.executable, str(ROOT/'scripts/packaging/local-build.py'), 'version'], cwd=ROOT, capture_output=True, text=True, check=True)
+        self.assertEqual(result.stdout.strip(), product)
+        for requested in ('1.0.0', '1.0.0-alpha.2', '1.0.0-beta.2', '1.0.0-rc.3', '1.0.0-beta-4'):
+            info = local.identity(requested)
+            self.assertEqual(info['version'].split('+')[0], requested)
+            self.assertEqual(local.version.parse_build_info(info), info)
+        wrapper = (ROOT/'scripts'/'build.ps1').read_text()
+        self.assertNotIn('[Parameter(Mandatory=$true)][string]$Version', wrapper)
+        self.assertIn("@('--version',$Version)", wrapper)
+
+    def test_canonical_packager_uses_the_same_default_version_as_the_local_entry(self):
+        release=local.load_script('release-windows')
+        product=local.version.product_version()
+        with tempfile.TemporaryDirectory() as directory, patch.object(release,'ROOT',Path(directory)), patch.dict(os.environ,{},clear=True), patch.object(release.subprocess,'check_output',return_value='b'*40+'\n'), patch.object(sys,'argv',['release-windows.py','ensure-local-build']):
+            release.main()
+            info=json.loads((Path(directory)/'backend/build/build-version.json').read_text())
+        self.assertEqual(info,local.version.make_local_package_info(product,'b'*40))
+        entry=(ROOT/'scripts/build-local.ps1').read_text()
+        self.assertLess(entry.index("Run-Stage 'Version resolution'"),entry.index('$env:SAP_LENS_LOCAL_VERSION = $Version'))
+
+    def test_quick_is_offline_read_only_and_does_not_touch_receipts_or_versions(self):
+        names = ['backend/resources/product-version.json', 'frontend/package.json', 'frontend/package-lock.json', 'backend/build/build-version.json', 'backend/build/local-validation.json']
+        before = {name:(ROOT/name).read_bytes() if (ROOT/name).exists() else None for name in names}
+        with patch.object(local, 'git', return_value='a'*40), patch.object(local, 'write_json') as write, patch.object(local.urllib.request, 'urlopen') as download, patch.object(local.subprocess, 'run') as execute:
+            result = local.quick(local.version.product_version())
+        self.assertTrue(result['version'].startswith(local.version.product_version()+'+local.'))
+        write.assert_not_called(); download.assert_not_called(); execute.assert_not_called()
+        self.assertEqual(before, {name:(ROOT/name).read_bytes() if (ROOT/name).exists() else None for name in names})
+
+    def test_quick_checks_required_inputs_and_manifest_consistency(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            names=set(local.QUICK_INPUTS)|{'backend/version.py','scripts/packaging/local-build.py'}
+            for name in names:
+                destination=root/name; destination.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,destination)
+            with patch.object(local, 'identity', return_value=local.version.local_build_info()):
+                local.quick(local.version.product_version(),root)
+                manifest=root/'frontend/package.json';original=manifest.read_text();value=json.loads(original);value['version']='0.0.0';manifest.write_text(json.dumps(value))
+                with self.assertRaisesRegex(ValueError,'versions differ'):local.quick(local.version.product_version(),root)
+                manifest.write_text(original)
+                (root/'assets/sap-lens.ico').unlink()
+                with self.assertRaisesRegex(ValueError,'Missing or unsafe'):local.quick(local.version.product_version(),root)
+
+    def test_entry_point_keeps_quick_light_and_packaging_validation_targeted(self):
+        entry=(ROOT/'scripts/build-local.ps1').read_text()
+        quick=entry.split("if ($Mode -eq 'Quick') {",1)[1].split('    } else {',1)[0]
+        for forbidden in ('FrontendInstall','npm ci','pip install','unittest discover','invalidate','record'):
+            self.assertNotIn(forbidden,quick)
+        for command in ('local-build.py','scripts/product-version.mjs','scripts/check-docs.py','check-powershell.ps1'):
+            self.assertIn(command, entry)
+        self.assertIn('-TargetedValidation',entry)
+        self.assertIn('-IncludeService',entry)
+        self.assertNotIn(".Replace('-beta.'",entry)
+        canonical=(ROOT/'scripts/build-windows.ps1').read_text()
+        self.assertIn("'--grep', '@smoke'",canonical)
+        for pattern in ('test_desktop.py','test_windows_package.py','test_server.py','test_build_version.py','test_local_build.py'):
+            self.assertIn(pattern,canonical)
+        self.assertIn('--windowed',canonical)
+        self.assertIn('verify-windows-package.py',canonical)
+        self.assertIn('test-windows-exe.ps1',canonical)
+
+    def test_service_self_test_uses_same_source_without_launching_the_elevated_manager(self):
+        script=(ROOT/'scripts/build-service-manager.ps1').read_text()
+        self.assertIn('SapLens.ServiceSetup.SelfTest()',script)
+        self.assertIn('level="asInvoker"',script)
+        self.assertIn('/main:SapLensSelfTest',script)
+        self.assertIn('Start-Process -FilePath $check',script)
+        self.assertNotIn('Start-Process -FilePath $output',script)
+        self.assertIn('finally',script)
+        self.assertIn('Remove-Item -LiteralPath $temporary',script)
+        self.assertIn('requireAdministrator',(ROOT/'deploy/windows/service-manager.manifest').read_text())
+        self.assertIn('scripts/build-service-manager.ps1',(ROOT/'scripts/check-powershell.ps1').read_text())
+
+    def test_server_and_ci_share_verified_wrapper_download(self):
+        service=(ROOT/'scripts/build-server-windows.ps1').read_text()
+        dispatch=(ROOT/'scripts/package-windows-deployment.ps1').read_text()
+        self.assertNotIn('[Parameter(Mandatory=$true)][string]$WinSW',service)
+        self.assertIn('local-build.py winsw --output',service)
+        self.assertIn('local-build.py winsw --output',dispatch)
+        self.assertNotIn('Invoke-WebRequest',dispatch)
+        self.assertNotIn(".Replace('-beta.'",service)
+        self.assertIn('Get-FileHash $WinSW',service)
+
+
+class WinSWAcquisitionTests(unittest.TestCase):
+    def setUp(self):
+        from types import SimpleNamespace
+        self.temp=tempfile.TemporaryDirectory();self.addCleanup(self.temp.cleanup)
+        self.output=Path(self.temp.name)/'WinSW-x64.exe'
+        self.payload=b'synthetic wrapper bytes; never executed'
+        pin=hashlib.sha256(self.payload).hexdigest()
+        patcher=patch.object(local,'load_script',return_value=SimpleNamespace(WINSW_SHA=pin))
+        patcher.start();self.addCleanup(patcher.stop)
+
+    def test_verified_download_is_atomic_and_valid_cache_is_reused(self):
+        with patch.object(local.urllib.request,'urlopen',return_value=io.BytesIO(self.payload)) as download:
+            self.assertEqual(local.fetch_winsw(self.output),self.output)
+            self.assertEqual(self.output.read_bytes(),self.payload)
+            self.assertIn('/v2.12.0/WinSW-x64.exe',download.call_args.args[0])
+        with patch.object(local.urllib.request,'urlopen') as download:
+            local.fetch_winsw(self.output)
+            download.assert_not_called()
+        self.assertFalse(list(self.output.parent.glob('*.download')))
+
+    def test_bad_checksum_does_not_activate_or_leave_temporary_download(self):
+        with patch.object(local.urllib.request,'urlopen',return_value=io.BytesIO(b'corrupted')):
+            with self.assertRaisesRegex(ValueError,'SHA-256 mismatch'):local.fetch_winsw(self.output)
+        self.assertFalse(self.output.exists());self.assertFalse(list(self.output.parent.glob('*.download')))
+
+    def test_network_failure_is_actionable_and_does_not_activate_wrapper(self):
+        with patch.object(local.urllib.request,'urlopen',side_effect=OSError('synthetic offline')):
+            with self.assertRaisesRegex(ValueError,'verified offline -WinSW'):local.fetch_winsw(self.output)
+        self.assertFalse(self.output.exists());self.assertFalse(list(self.output.parent.glob('*.download')))
+
+    def test_tampered_cache_fails_without_redownloading_or_overwriting(self):
+        self.output.write_bytes(b'tampered')
+        with patch.object(local.urllib.request,'urlopen') as download:
+            with self.assertRaisesRegex(ValueError,'Cached WinSW'):local.fetch_winsw(self.output)
+            download.assert_not_called()
+        self.assertEqual(self.output.read_bytes(),b'tampered')

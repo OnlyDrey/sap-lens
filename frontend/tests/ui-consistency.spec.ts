@@ -16,7 +16,7 @@ test.beforeEach(async({request})=>{
  expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`consistent interactions previews and library ${theme} ${width}`,async({page,request},info)=>{
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`consistent interactions previews and library ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}})
  await page.setViewportSize({width,height:950});await page.goto('/#session=browser-test-session')
  const distribution=page.getByRole('region',{name:'Role Distribution',exact:true})

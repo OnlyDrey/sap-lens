@@ -3,9 +3,17 @@
 param([Parameter(Mandatory=$true)][string]$Bundle)
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Windows SCM smoke tests require Windows.' }
+# Privileged acceptance: it installs, starts, backs up, restores and removes a real service. Checked before anything is changed.
+$principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    [Console]::Error.WriteLine('ACCEPTANCE PREREQUISITE: native service (SCM) acceptance needs an elevated PowerShell (Run as administrator). No service was installed or changed.')
+    exit 3
+}
+Set-Location (Split-Path $PSScriptRoot -Parent)
+$tempBase = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
 $bundlePath=(Resolve-Path $Bundle).Path
 $manage=Join-Path $bundlePath 'manage-server-service.ps1'
-$data=Join-Path $env:RUNNER_TEMP ('sap-lens-service-'+[guid]::NewGuid().ToString('N'))
+$data=Join-Path $tempBase ('sap-lens-service-'+[guid]::NewGuid().ToString('N'))
 $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
 $listener.Start();$port=$listener.LocalEndpoint.Port;$listener.Stop()
 $installed=$false

@@ -2,6 +2,8 @@
 import asyncio
 import hmac
 import sys
+from datetime import datetime, timezone
+from uuid import uuid4
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 from pathlib import Path
@@ -9,7 +11,7 @@ from urllib.parse import urlsplit
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, HTMLResponse, FileResponse
+from fastapi.responses import JSONResponse, HTMLResponse, FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -18,6 +20,7 @@ import cache
 from config import get_settings
 from data_loader import DataLoader
 from routers import comparison, modules, roles, access, employees, dashboard, account_review, user_comparison, data_health, saved_filters, data_sources, sod, sod_analysis, sod_reviews, sod_periods, sod_reports, sod_governance
+from routers import functional_groups as functional_groups_router
 from request_limits import RequestBodyLimit
 from version import VERSION, BUILD_INFO
 from configuration_routes import configuration_router
@@ -31,14 +34,20 @@ class DataSettings(BaseModel):
 
 
 def create_app(origin: str | None = None, session_token: str | None = None,
-               instance_id: str | None = None, server=None, browser_access: bool = False, desktop_preferences=None) -> FastAPI:
+               instance_id: str | None = None, server=None, browser_access: bool = False, desktop_preferences=None, startup_observer=None) -> FastAPI:
     from deployment import server_mode, ServerSettings, AuthThrottle
     if server is None and server_mode():
         server = ServerSettings.from_env()
+    def notify(stage, result, error=None):
+        if startup_observer: startup_observer(stage, result, error)
+    notify('data_loader', 'starting')
     loader = DataLoader()
+    notify('data_loader', 'ready')
+    notify('scheduler', 'starting')
     from scheduler import Scheduler
     scheduler = Scheduler(loader)
-    allowed_origins = [server.origin] if server else [origin] if origin else get_settings().cors_origins
+    notify('scheduler', 'created')
+    allowed_origins = list(server.origins) if server else [origin] if origin else get_settings().cors_origins
     if not server and any(not _is_loopback_origin(value) for value in allowed_origins):
         raise ValueError('Only explicit HTTP loopback origins are supported.')
     if browser_access:
@@ -48,7 +57,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         allowed_origins = [f'http://127.0.0.1:{port}', f'http://localhost:{port}']
     desktop_hosts = {urlsplit(value).netloc for value in allowed_origins} if browser_access else set()
     request_header = session_token or '1'
-    throttle = AuthThrottle(server.max_failures, server.lockout_seconds) if server and server.auth == 'basic' else None
+    throttle = AuthThrottle(server.max_failures, server.lockout_seconds) if server and server.auth in {'basic','users'} else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -58,32 +67,44 @@ def create_app(origin: str | None = None, session_token: str | None = None,
 
         scheduled = asyncio.create_task(scheduler.loop())
         task = None
-        if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id or get_settings().sod_csv_path:
-            task = asyncio.create_task(initial_load())
-            # One scheduling turn lets the task mark the loader as loading before the first request is served,
-            # so a client never reads an empty, idle backend while persisted data is still being restored.
+        try:
+            if get_settings().data_csv_path or get_settings().user_csv_path or get_settings().employee_csv_path or get_settings().employee_snapshot_id or get_settings().sod_csv_path:
+                task = asyncio.create_task(initial_load())
+            else:
+                loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
+            # Start the supervised scheduler and let persisted-data loading mark its state.
             await asyncio.sleep(0)
-        else:
-            loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
-        yield
-        scheduled.cancel()
-        with suppress(asyncio.CancelledError):
-            await scheduled
-        if task:
-            task.cancel()
-            with suppress(asyncio.CancelledError):
-                await task
+            if scheduled.done():
+                scheduled.result()
+                raise RuntimeError('Scheduler stopped during initialization')
+            notify('scheduler', 'ready')
+            notify('initialization', 'ready')
+            yield
+        except Exception as error:
+            notify('initialization','failed',error)
+            raise
+        finally:
+            scheduled.cancel()
+            if task: task.cancel()
+            await asyncio.gather(scheduled, *([task] if task else []), return_exceptions=True)
+            notify('initialization', 'stopped')
 
     app = FastAPI(title='SAP Lens API', version=VERSION, lifespan=lifespan,
                   docs_url=None, redoc_url=None)
     app.state.loader = loader
 
+    def failure_response(request, error):
+        import logging
+        identity=getattr(request.state,'request_id',None) or uuid4().hex
+        timestamp=datetime.now(timezone.utc).isoformat()
+        route=getattr(request.scope.get('route'),'path','unmatched')
+        logging.getLogger('sap-lens').error('backend_failure operation=%s category=%s request_id=%s timestamp=%s',route,type(error).__name__,identity,timestamp)
+        return JSONResponse({'detail':'The operation failed unexpectedly. Retry; if it persists, check the application logs.',
+                             'request_id':identity,'timestamp':timestamp},status_code=500,headers={'X-Request-ID':identity})
+
     @app.exception_handler(Exception)
     async def unexpected_failure(request: Request, error: Exception):
-        # Always answer API failures as JSON so clients never have to parse a plain-text page; details stay in logs.
-        import logging
-        logging.getLogger('sap-lens').error('Unhandled %s on %s', type(error).__name__, request.url.path)
-        return JSONResponse({'detail': 'The operation failed unexpectedly. Retry, and check the application logs if it persists.'}, status_code=500)
+        return failure_response(request,error)
     app.state.deployment = server
     app.state.auth_throttle = throttle
     app.add_middleware(RequestBodyLimit)
@@ -95,6 +116,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
 
     @app.middleware('http')
     async def local_browser_boundary(request: Request, call_next):
+        request.state.request_id=uuid4().hex
         request_origin = request.headers.get('origin')
         if browser_access and (request.headers.get('host','').lower() not in desktop_hosts
                                or not request.client or request.client.host not in {'127.0.0.1','::1'}):
@@ -105,13 +127,19 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             if throttle is not None and offered and (wait := throttle.blocked_for(client)):
                 # Credentials from a locked-out client are not evaluated at all; a request without credentials is just challenged.
                 return JSONResponse({'detail':'Too many failed sign-in attempts. Try again later.'},status_code=429,headers={'Retry-After':str(wait)})
-            if not server.authorized(request):
+            from starlette.concurrency import run_in_threadpool
+            if not await run_in_threadpool(server.authorized, request):
                 if throttle is not None and offered and (cooldown := throttle.failure(client)):
                     import logging
                     logging.getLogger('sap-lens-server').warning('Sign-in throttled for client %s for %s seconds after repeated failures',client,cooldown)
                 return JSONResponse({'detail':'Server access is not authorized.'},status_code=401,
-                                    headers={'WWW-Authenticate':'Basic realm="SAP Lens", charset="UTF-8"'} if server.auth=='basic' else {})
+                                    headers={'WWW-Authenticate':'Basic realm="SAP Lens", charset="UTF-8"'} if server.auth in {'basic','users'} else {})
             if throttle is not None and offered: throttle.success(client)
+            if server.auth == 'users':
+                from server_access import may_access
+                username, role = request.state.server_principal
+                if not may_access(role, request.method, request.url.path):
+                    return JSONResponse({'detail':'Your account does not have permission for this operation.'},status_code=403)
             if request.method not in {'GET','HEAD','POST','OPTIONS'}:
                 return JSONResponse({'detail':'Method not allowed.'},status_code=405)
             if request.url.path == '/api/branding/preview':
@@ -123,20 +151,30 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             guarded = session_token is not None or request.method == 'POST'
             if request.method != 'OPTIONS' and guarded and not hmac.compare_digest(
                     request.headers.get('x-sap-lens', '').encode(), request_header.encode()):
-                return JSONResponse({'detail': 'Application request is not authorized.'}, status_code=403)
+                return JSONResponse({'detail': 'Application request is not authorized.', **({'code':'stale_session'} if browser_access else {})}, status_code=403)
+        from application_backups import pending
+        if request.method=='POST' and not request.url.path.startswith('/api/backups') and pending():
+            return JSONResponse({'detail':'Backup/restore restart is pending. Restart SAP Lens or cancel it in Settings → Backup & Restore before editing.'},status_code=409)
+        from server_access import ACTOR
+        principal = getattr(request.state, 'server_principal', None)
+        actor_token = ACTOR.set(principal[0] if principal else '')
+        # Read before the handler runs: data published while it runs makes the token older than the data (a harmless re-fetch), never newer.
+        data_token = cache.revision_token() if request.url.path.startswith('/api/') else ''
         try:
             response = await call_next(request)
         except Exception as error:
-            if not server: raise
-            import logging
-            logging.getLogger('sap-lens-server').error('Request failed (%s); private exception details omitted',type(error).__name__)
-            return JSONResponse({'detail':'The operation failed. Check service permissions and operational logs.'},status_code=500)
+            response=failure_response(request,error)
+        finally:
+            ACTOR.reset(actor_token)
+        response.headers['X-Request-ID']=request.state.request_id
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
         response.headers['X-Frame-Options'] = 'DENY'
         response.headers['Permissions-Policy'] = 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), bluetooth=()'
         if request.url.path.startswith(('/api/', '/health')):
             response.headers['Cache-Control'] = 'no-store'
+        if data_token:
+            response.headers['X-Data-Revision'] = data_token
         nonce = getattr(request.state,'desktop_nonce',None)
         script_policy = "'self'" + (f" 'nonce-{nonce}'" if nonce else '')
         response.headers['Content-Security-Policy'] = (
@@ -155,9 +193,16 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(employees.router)
     app.include_router(dashboard.router)
     app.include_router(account_review.router)
+    app.include_router(functional_groups_router.router)
     app.include_router(user_comparison.router)
     app.include_router(data_health.router)
     app.include_router(saved_filters.router)
+    from routers.backups import router as backups_router
+    app.include_router(backups_router)
+    from routers.storage import router as storage_router
+    app.include_router(storage_router)
+    from routers.retention import router as retention_router
+    app.include_router(retention_router)
     app.include_router(data_sources.router)
     app.include_router(sod.router)
     app.include_router(sod_analysis.router)
@@ -165,9 +210,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     app.include_router(sod_periods.router)
     app.include_router(sod_reports.router)
     app.include_router(sod_governance.router)
-    if server:
-        from server_uploads import upload_router
-        app.include_router(upload_router(server))
+    from server_uploads import upload_router
+    app.include_router(upload_router(server))
     app.include_router(modules.router)
     app.include_router(comparison.router)
 
@@ -176,8 +220,14 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         return {'app': 'SAP Lens', 'version': VERSION, 'mode': BUILD_INFO['mode']}
 
     @app.get('/api/runtime')
-    def runtime_capabilities():
-        return dict(deployment_mode='server' if server else 'desktop', browser_upload=bool(server),
+    def runtime_capabilities(request: Request):
+        from application_backups import pending
+        if request.method=='POST' and not request.url.path.startswith('/api/backups') and pending():
+            return JSONResponse({'detail':'Backup/restore restart is pending. Restart SAP Lens or cancel it in Settings → Backup & Restore before editing.'},status_code=409)
+        from server_access import ACTOR
+        principal = getattr(request.state, 'server_principal', None)
+        return dict(deployment_mode='server' if server else 'desktop', browser_upload=True, username=ACTOR.get(),
+                    role=principal[1] if principal else '',
                     native_dialogs=not bool(server), source_path_policy='configured_root' if server else 'desktop_filesystem')
 
     @app.get('/health/live')
@@ -241,6 +291,18 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                 html = (frontend_dir/'index.html').read_text(encoding='utf-8')
                 html = html.replace('<head>',f'<head><script nonce="{nonce}">{handoff}</script>',1)
                 return HTMLResponse(html,headers={'Cache-Control':'no-store'})
+        def spa_entry(path: str, request: Request):
+            query = ('?' + request.url.query) if request.url.query else ''
+            return RedirectResponse('/' + query + '#/' + path)
+        def register_entry(section):
+            def entry(request: Request):
+                return spa_entry(section, request)
+            def nested(request: Request, rest: str):
+                return spa_entry(section + '/' + rest, request)
+            app.add_api_route('/'+section, entry, methods=['GET'], include_in_schema=False)
+            app.add_api_route('/'+section+'/{rest:path}', nested, methods=['GET'], include_in_schema=False)
+        for section in ('dashboard','role-lookup','user-access','release-roles','sod'):
+            register_entry(section)
         app.mount('/', StaticFiles(directory=str(frontend_dir), html=True), name='frontend')
     return app
 

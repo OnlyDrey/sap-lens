@@ -16,10 +16,10 @@ name: Build Deployment Packages
         default: all
         required: true
       version:
-        description: Base MAJOR.MINOR.PATCH without prerelease suffix
+        description: Base MAJOR.MINOR.PATCH; empty uses the product version resource
         type: string
-        default: 0.1.0
-        required: true
+        default: ''
+        required: false
       release_channel:
         description: Explicit version channel (does not publish by itself)
         type: choice
@@ -31,9 +31,9 @@ name: Build Deployment Packages
         default: Beta
         required: true
       prerelease_number:
-        description: Positive sequence, without leading zeros; ignored for Stable
+        description: auto selects the next sequence from tags/releases; ignored for Stable
         type: string
-        default: '1'
+        default: 'auto'
         required: false
       publish_release:
         description: Publish only the selected packages, and only after every one of them passes verification
@@ -52,11 +52,14 @@ jobs:
     timeout-minutes: 5
     env:
       DEPLOYMENT_TARGET: ${{ inputs.build_target }}
+      GITHUB_TOKEN: ${{ github.token }}
       BASE_VERSION: ${{ inputs.version }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
       DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
     outputs:
+      base: ${{ steps.selection.outputs.base }}
+      sequence: ${{ steps.selection.outputs.sequence }}
       packages: ${{ steps.selection.outputs.packages }}
       desktop: ${{ steps.selection.outputs.desktop }}
       service: ${{ steps.selection.outputs.service }}
@@ -74,17 +77,17 @@ jobs:
         python-version: '3.12'
     - name: Resolve the build target into the packages to build
       id: selection
-      run: python scripts/deployment-release.py plan
+      run: python scripts/build.py release --ci-tool deployment-release --non-interactive -- plan
   validation:
     name: Shared Validation & Frontend
     runs-on: ubuntu-22.04
     timeout-minutes: 25
     needs: plan
     env:
-      BASE_VERSION: ${{ inputs.version }}
+      BASE_VERSION: ${{ needs.plan.outputs.base }}
       DEPLOYMENT_TARGET: ${{ inputs.build_target }}
       DEPLOYMENT_CHANNEL: ${{ inputs.release_channel }}
-      DEPLOYMENT_SEQUENCE: ${{ inputs.prerelease_number }}
+      DEPLOYMENT_SEQUENCE: ${{ needs.plan.outputs.sequence }}
       PUBLISH_RELEASE: ${{ inputs.publish_release }}
     outputs:
       version: ${{ steps.identity.outputs.version }}
@@ -122,37 +125,37 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ github.token }}
     - name: Check Python dependencies
-      run: python scripts/ci.py run pip_check -- python -m pip check
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run pip_check -- python -m pip check
       id: pip_check
     - name: Lint Python with Ruff
-      run: python scripts/ci.py run ruff -- python -m ruff check backend scripts
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run ruff -- python -m ruff check backend scripts
       id: ruff
     - name: Validate workflow contracts
-      run: python scripts/ci.py run workflow_contracts -- python scripts/check-workflows.py
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_contracts -- python scripts/check-workflows.py
       id: workflow_contracts
     - name: Validate workflows
-      run: python scripts/ci.py run workflow_lint -- python scripts/ci.py lint
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run workflow_lint -- python scripts/testing/ci.py lint
       id: workflow_lint
     - name: Validate PowerShell scripts
-      run: python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1
       id: powershell
     - name: Install locked frontend dependencies
       run: npm --prefix frontend ci --no-audit --no-fund
       id: s9
     - name: Check frontend types
-      run: python scripts/ci.py run types -- npm --prefix frontend run check:types
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run types -- npm --prefix frontend run check:types
       id: types
     - name: Check icon catalog
-      run: python scripts/ci.py run catalog -- node scripts/sync-lucide-catalog.mjs --check
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run catalog -- node scripts/sync-lucide-catalog.mjs --check
       id: catalog
     - name: Build production frontend
-      run: python scripts/ci.py run build -- npm --prefix frontend run build
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run build -- npm --prefix frontend run build
       id: build
     - name: Audit shared Python dependencies
-      run: python scripts/ci.py run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run python_audit -- python -m pip_audit --vulnerability-service pypi --progress-spinner off
       id: python_audit
     - name: Audit production JavaScript
-      run: python scripts/ci.py run javascript_audit -- npm --prefix frontend audit --omit=dev
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- run javascript_audit -- npm --prefix frontend audit --omit=dev
       id: javascript_audit
     - name: Seal same-commit validated inputs
       run: python scripts/deployment-package.py seal --output backend/build/validated-inputs.zip
@@ -166,7 +169,7 @@ jobs:
         retention-days: 1
       id: s19
     - name: Write shared validation summary
-      run: python scripts/ci.py summary
+      run: python scripts/build.py test --ci-tool validation --non-interactive -- summary
       if: always()
       env:
         CI_STEPS: ${{ toJSON(steps) }}
@@ -210,10 +213,10 @@ jobs:
     - name: Verify and consume validated inputs
       run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
     - name: Compile complete installer recipe for every release channel
-      run: ./scripts/build-desktop-installer.ps1 -CompileCheck -OutputDirectory "$env:RUNNER_TEMP/installer-compile-check"
+      run: python scripts/build.py build --ci-tool installer-check --non-interactive -- -CompileCheck -OutputDirectory "$env:RUNNER_TEMP/installer-compile-check"
       shell: pwsh
     - name: Build and smoke-test platform package
-      run: ./scripts/package-windows-deployment.ps1 -Target Desktop
+      run: python scripts/build.py package --ci-tool windows-package --non-interactive -- -Target Desktop
       shell: pwsh
     - name: Preserve isolated installer setup diagnostics on failure
       if: failure()
@@ -227,7 +230,7 @@ jobs:
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: SAP-Lens-Windows-Desktop-x64-${{ needs.validation.outputs.version }}
+        name: sap-lens-win-desktop-x64-v${{ needs.validation.outputs.version }}
         path: dist/deployment/*
         if-no-files-found: error
         retention-days: 14
@@ -240,9 +243,9 @@ jobs:
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
       id: integrity
-      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+      run: python scripts/deployment/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
-      run: python scripts/check-deployment-download.py --summary
+      run: python scripts/deployment/check-deployment-download.py --summary
       if: always()
       env:
         PLATFORM_LABEL: Windows Desktop
@@ -284,13 +287,13 @@ jobs:
     - name: Verify and consume validated inputs
       run: python scripts/deployment-package.py consume --archive backend/build/shared/validated-inputs.zip
     - name: Build and smoke-test platform package
-      run: ./scripts/package-windows-deployment.ps1 -Target Service
+      run: python scripts/build.py package --ci-tool windows-package --non-interactive -- -Target Service
       shell: pwsh
     - name: Upload verified platform distribution
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: SAP-Lens-Windows-Service-x64-${{ needs.validation.outputs.version }}
+        name: sap-lens-win-service-x64-v${{ needs.validation.outputs.version }}
         path: dist/deployment/*
         if-no-files-found: error
         retention-days: 14
@@ -303,9 +306,9 @@ jobs:
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
       id: integrity
-      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+      run: python scripts/deployment/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
-      run: python scripts/check-deployment-download.py --summary
+      run: python scripts/deployment/check-deployment-download.py --summary
       if: always()
       env:
         PLATFORM_LABEL: Windows Server Service
@@ -349,12 +352,12 @@ jobs:
     - name: Install pinned package audit tooling
       run: python -m pip install -r scripts/requirements-audit.txt
     - name: Build and smoke-test platform package
-      run: python scripts/package-docker.py
+      run: python scripts/build.py package --ci-tool docker-package --non-interactive --
     - name: Upload verified platform distribution
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: SAP-Lens-Linux-Docker-amd64-${{ needs.validation.outputs.version }}
+        name: sap-lens-linux-docker-amd64-v${{ needs.validation.outputs.version }}
         path: dist/deployment/*
         if-no-files-found: error
         retention-days: 14
@@ -367,9 +370,9 @@ jobs:
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
       id: integrity
-      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+      run: python scripts/deployment/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
-      run: python scripts/check-deployment-download.py --summary
+      run: python scripts/deployment/check-deployment-download.py --summary
       if: always()
       env:
         PLATFORM_LABEL: Linux Docker
@@ -413,14 +416,14 @@ jobs:
     - name: Install pinned package audit tooling
       run: python -m pip install -r scripts/requirements-audit.txt
     - name: Build and smoke-test platform package
-      run: 'python scripts/deployment-package.py native
+      run: 'python scripts/build.py package --ci-tool native-package --non-interactive -- native
 
-        python scripts/test-native-deployment.py --artifacts dist/deployment'
+        python scripts/testing/test-native-deployment.py --artifacts dist/deployment'
     - name: Upload verified platform distribution
       id: distribution
       uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
       with:
-        name: SAP-Lens-Linux-Native-x64-${{ needs.validation.outputs.version }}
+        name: sap-lens-linux-native-x64-v${{ needs.validation.outputs.version }}
         path: dist/deployment/*
         if-no-files-found: error
         retention-days: 14
@@ -433,9 +436,9 @@ jobs:
         digest-mismatch: error
     - name: Verify uploaded archives and exact contents
       id: integrity
-      run: python scripts/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
+      run: python scripts/deployment/check-deployment-download.py --directory "${{ runner.temp }}/deployment-roundtrip"
     - name: Write platform outcome
-      run: python scripts/check-deployment-download.py --summary
+      run: python scripts/deployment/check-deployment-download.py --summary
       if: always()
       env:
         PLATFORM_LABEL: Linux Native/systemd
@@ -474,7 +477,7 @@ jobs:
         python-version: '3.12'
     - name: Require every selected verified package, no unselected package and an unused version
       id: eligible
-      run: python scripts/deployment-release.py preflight
+      run: python scripts/build.py release --ci-tool deployment-release --non-interactive -- preflight
     - name: Collect only the selected same-run package artifacts
       uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333
       with:
@@ -483,4 +486,4 @@ jobs:
         merge-multiple: true
         digest-mismatch: error
     - name: Verify collected assets and publish complete release
-      run: python scripts/deployment-release.py publish --directory dist/publication
+      run: python scripts/build.py release --ci-tool deployment-release --non-interactive -- publish --directory dist/publication

@@ -8,7 +8,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-spec = importlib.util.spec_from_file_location('build_report', Path(__file__).resolve().parents[2] / 'scripts/write-build-report.py')
+spec = importlib.util.spec_from_file_location('build_report', Path(__file__).resolve().parents[2] / 'scripts/packaging/write-build-report.py')
 report = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(report)
 

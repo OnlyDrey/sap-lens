@@ -7,7 +7,7 @@ results are listed separately and never approve an item.
 - Source of truth: [`validation-items.csv`](validation-items.csv): one row per item in 22 functional areas.
 - Workbook for reviewers: [`validation-tracker.xlsx`](validation-tracker.xlsx), generated from the CSV (a test fails if it is stale).
 - CI/CD workflows: [workflow validation matrix](WORKFLOW_MATRIX.md), with GitHub run evidence per scenario.
-- Tooling: `python scripts/validation_tracker.py` with `check`, `summary`, `export`, `merge` and `migrate`.
+- Tooling: `python scripts/maintenance/validation_tracker.py` with `check`, `summary`, `export`, `merge` and `migrate`.
 
 ## Functional areas
 
@@ -31,7 +31,7 @@ is one record under Risk Matrix, so no record is duplicated.
 | Last validated date | `YYYY-MM-DD`, set when a person validates. Required for `Passed`; empty while not tested. |
 | Build/commit | The build or commit that was validated. |
 | Notes | What was seen, how, in which theme and viewport, with screenshots or test names. Required for every result status. |
-| Linked issue or finding | A finding or issue identifier, for example `SEC-02` from the [security review](../development/SECURITY_REVIEW_R8.md). |
+| Linked issue or finding | A finding or issue identifier, for example `SEC-02` from the [findings register](../architecture/SECURITY.md#findings-register-and-verified-controls). |
 | Potential future improvement | A possible improvement that is not a defect. Collected in the workbook's Future Improvements sheet. |
 | Manual validation steps | What a person must look at or try before approving (visual and subjective checks are never approved by a test run). |
 | Known limitations | Known gaps, limits and anything not covered by the automated validation. |
@@ -56,9 +56,9 @@ cannot apply to an item that is not fully implemented or failed its retest; an `
 ## Excel workbook
 
 ```
-python scripts/validation_tracker.py export --output docs/validation/validation-tracker.xlsx   # regenerate after editing the CSV
-python scripts/validation_tracker.py export                                                    # writes build/validation-tracker.xlsx (not committed)
-python scripts/validation_tracker.py merge review.xlsx                                         # copy decisions edited in the workbook back into the CSV
+python scripts/maintenance/validation_tracker.py export --output docs/validation/validation-tracker.xlsx   # regenerate after editing the CSV
+python scripts/maintenance/validation_tracker.py export                                                    # writes build/validation-tracker.xlsx (not committed)
+python scripts/maintenance/validation_tracker.py merge review.xlsx                                         # copy decisions edited in the workbook back into the CSV
 ```
 
 Sheets: **Summary** (items, status counts, manual approvals and completion per area, with live formulas over the Items sheet; outstanding counts), **Items** (a filterable

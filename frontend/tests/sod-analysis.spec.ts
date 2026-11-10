@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {enableSod} from './sod-fixture'
 import { headers } from './support'
+import { layoutMatrix } from './matrix'
 let directory:string
 const matrix='RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\nUIR01,H,S,Synthetic review activities,CREATE,APPROVE,ACTVT1,CREATE,X001,Creation\nUIR01,H,S,Synthetic review activities,CREATE,APPROVE,ACTVT2,APPROVE,X002,Approval\n'
 const catalogue='FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nBC,ZC:SYN:CREATE:*,Synthetic Creation,ZS:SYN:CREATE,Synthetic create component,X001,Creation\nBC,ZC:SYN:APPROVE,Synthetic Approval,ZS:SYN:APPROVE,Synthetic approve component,X002,Approval\nBC,ZC:SYN:BOTH,Synthetic Both,ZS:SYN:BOTH,Synthetic combined component,X001,Creation\nBC,ZC:SYN:BOTH,Synthetic Both,ZS:SYN:BOTH,Synthetic combined component,X002,Approval\n'
@@ -38,7 +39,7 @@ test('SoD role combinations preserve navigation and filtered CSV contains comple
 test('SoD missing dependency is unavailable rather than a false no-conflict claim',async({page,request})=>{
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.features.user_role_mapping=false;expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy();await userView(page);await expect(page.getByText('User–Role Mapping is disabled. Re-enable it in Features to analyze retained assignment evidence.',{exact:true})).toBeVisible();await expect(page.getByText('Unavailable evidence is not proof that no access or conflict exists.',{exact:true})).toBeVisible()
 })
-for(const theme of ['light','dark'])for(const width of [375,1280])test(`SoD conflict preview ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,1280]))test(`SoD conflict preview ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await userView(page);await expect(page.getByRole('button',{name:'Investigate SYN_UI_A UIR01',exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(`sod-conflicts-${theme}-${width}.png`)})
 })
 test('Access Explorer assignments show active assignments by default, historical ones on request, and the export follows the choice',async({page})=>{

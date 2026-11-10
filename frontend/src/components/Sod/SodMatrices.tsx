@@ -66,14 +66,14 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     if (!entry) return null
     if (risk) {
       const value = entry as RiskCell,
-        view = lifecycleView(value.acceptance),
+        view = lifecycleView(value.decision_summary?.label||'Pending'),
         sides = Object.values(value.activities).reduce((sum, count) => sum + count, 0),
         undecided = (value.activities.Pending || 0) + (value.activities.Outdated || 0)
       return { icon: view.icon, tone: view.tone, text: view.text, sub: `${sides - undecided}/${sides}`,
-        label: `${row}, risk ${column}: potential conflict detected, risk acceptance ${view.text}, ${sides - undecided} of ${sides} activities reviewed. Open investigation.` }
+        label: `${row}, risk ${column}: potential conflict detected, access assessment ${view.text}, formal risk acceptance ${value.acceptance}, ${sides - undecided} of ${sides} activities reviewed. Open investigation.` }
     }
     const value = entry as ActivityCell,
-      view = lifecycleView(value.decision)
+      view = lifecycleView(value.decision_summary?.label||'Pending')
     return { icon: view.icon, tone: view.tone, text: view.text, sub: `×${value.roles}${value.duplicate ? ' ⧉' : ''}`,
       label: `${row}, activity ${column}: review ${view.text}, supplied by ${value.roles} role assignments${value.duplicate ? ', duplicate coverage' : ''}. Open investigation.` }
   }
@@ -116,6 +116,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
         : !data ? <LoadingState />
         : <>
           <CoverageNotice info={data} />
+          <p className="ui-description">Cell badges show effective access decisions. Review coverage and formal acceptance remain separate; existing review filters and counts describe explicit reviews.</p>
           <section className="sod-tiles" aria-label={risk ? 'Risk matrix figures' : 'Activity matrix figures'}>
             {(risk
               ? [['Users with conflicts', data.totals.users], ['Distinct user-risk findings', data.totals.user_risk ?? 0], ['Risks shown', data.totals.risks ?? 0]]
@@ -127,7 +128,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
                 view = lifecycleView(value),
                 count = data.status_counts?.[value] || 0
               return (
-                <Kpi key={value} label={`${view.text}${risk ? ' risks' : ' activities'}`} value={count.toLocaleString()} active={active}
+                <Kpi key={value} label={`${value==='Conditional'?'Conditional':view.text}${risk ? ' risks' : ' activities'}${value==='Conditional'?' (legacy)':''}`} value={count.toLocaleString()} active={active}
                   tone={stateTone(value, count)}
                   onClick={() => setFilters({ ...filters, [filterName]: active ? '' : value })} />
               )
@@ -138,7 +139,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
             <Pagination label="Matrix range" offset={data.offset} total={data.total_rows} limit={Math.min(data.limit, Math.max(data.total_rows, 1))} onChange={setOffset} unit="users" alwaysShow />
             {pageSize === 'all' && data.total_rows > everyUser && <span className="ui-description" role="status">The first {everyUser.toLocaleString()} users are listed; narrow the filters to see the others. Exports always include every filtered user.</span>}
           </Toolbar>
-          <p className="ui-description">{risk ? 'Cells show the risk acceptance status and how many of the risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the activity review status and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
+          <p className="ui-description">{risk ? 'Cells show the normal Risk review decision, with formal acceptance kept separately, and how many risk activities are reviewed (reviewed/total). Criticality and type are in the column tooltip and the investigation.' : 'Scope: activities that contribute to at least one potential conflict (both sides of an enabled, supported risk). Activities a role supplies beyond those are considered in Role Assignment Review. Cells show the effective activity decision and ×roles supplying it; ⧉ marks overlapping coverage.'}</p>
           <p className="ui-description">Totals count distinct users and distinct {risk ? 'user-risk' : 'user-activity'} pairs. {data.columns_truncated ? 'Showing the first 500 columns; narrow the filters. ' : ''}Select a cell to investigate and review. {groupBy === 'group' ? 'Users are listed once under their SAP User Group (the first selected group, else their first); grouping changes presentation only. ' : ''}Detected conflicts are potential and derived from imported evidence.</p>
           {data.rows.length
             ? <>

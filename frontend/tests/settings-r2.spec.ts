@@ -12,7 +12,7 @@ test('Data Source Health cards sit in independent columns: expanding one moves o
   await openHealth(page)
   const region = page.getByRole('region', { name: 'Data source health', exact: true })
   const columns = region.locator('.independent-column')
-  expect(await columns.count()).toBeGreaterThanOrEqual(2)
+  await expect.poll(() => columns.count()).toBeGreaterThanOrEqual(2)
   const cards = region.locator('section.source-health-card')
   const count = await cards.count()
   expect(count).toBeGreaterThanOrEqual(3)

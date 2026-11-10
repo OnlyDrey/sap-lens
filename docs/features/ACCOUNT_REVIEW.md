@@ -132,7 +132,7 @@ See [Employee Directory persistence](../data/EMPLOYEE_DIRECTORY.md),
 
 ## Follow-up investigations
 
-The **Outdated reviews** count and **Review changed evidence** action use the existing stale-evidence filter. CSV now includes both the current evidence fingerprint and the fingerprint retained with the original decision. A changed fingerprint does not rewrite reviewer metadata or rationale. [Saved Filters](SAVED_FILTERS.md) can retain a follow-up investigation, including finding, license-group classification, decision state and sorting. Bulk approvals and a mandatory reason taxonomy remain deferred; see the [gap analysis](../proposals/ACCESS_INSIGHTS.md#account-review-gap-analysis).
+The **Outdated reviews** count and **Review changed evidence** action use the existing stale-evidence filter. CSV now includes both the current evidence fingerprint and the fingerprint retained with the original decision. A changed fingerprint does not rewrite reviewer metadata or rationale. [Saved Filters](SAVED_FILTERS.md) can retain a follow-up investigation, including finding, license-group classification, decision state and sorting. Bulk approvals and a mandatory reason taxonomy remain deferred.
 
 The compact summary gives each metric equal visual weight within its account,
 finding or progress group. Search/finding/license/decision controls share the
@@ -180,3 +180,16 @@ in the source evidence, CSV export and User Details; the calculation is unchange
 Account Review leads with one compact row of two aligned panels. **Account review progress** (about one third of the width) shows the heading with an info tip, the completion percentage with "N of M SAP users reviewed", a stacked bar that stays visible at 0% and a legend with Completed reviews and Pending reviews (both open the matching filter). Completed and pending partition the SAP users, so no account is counted twice; outdated reviews count as pending until they are reviewed again. **Review attention** (about two thirds) is a two-column list of icon KPIs with right-aligned values: *Accounts requiring review*, *Missing or ambiguous directory matches*, *Position changes* and *Outdated reviews*, plus a compact *AD disabled / SAP valid and unlocked* row. The panels stack in reading order on narrow screens. The investigation notice (evidence only, no SAP accounts are modified, unlicensed groups prove no entitlement) sits in the information button next to the page title. Tone comes from the shared KPI mapping (`lib/kpiTone.ts`). Classified unlicensed, the duplicate SAP accounts count and a second Pending metric are no longer tiles (the license classification stays a filter). A tile applies its filter to the list directly and KPIs combine; the active filter appears as a removable chip. The review dialog is limited to SAP identity (with the Investigate SAP user action), Organizational position changes (previous and current side by side with the Employee Directory snapshot and first-detected time; the real change time stays unknown), the Review decision and Previous decisions. The full findings and evidence stay in the account row details and behind Investigate SAP user. Decisions remain local annotations.
 
 Account Review and [Compare users](COMPARE_USERS.md) filter in the shared sidebar (search, review finding, license classification and decision, or validity, section and SAP area), with Saved Filters, one Clear action, and sort and export in the toolbar. The same SAP user cannot be selected on both sides of a comparison.
+
+## Completed reviews and the active queue
+
+Three things are kept apart: the **finding** (`findings`, recomputed from evidence and never edited by a decision), the **review decision**
+(`review_state`, the immutable decision history) and the **workflow status** (`workflow_status`: `open` or `completed`). A review is *completed* when
+the latest decision is *No action required* and nothing asks for reassessment. *Investigating* and *Approved for deactivation* stay open because follow-up
+is outstanding. Completed reviews are hidden from the default list; no parallel status model was added.
+
+- `include_completed=true` (checkbox *Include completed reviews*, or *Show reviewed* in the results line) includes them. Choosing the decision *No action
+  required* or the finding *Completed reviews* shows them without the checkbox.
+- A completed review reopens only when its evidence version changes (a new or different finding, changed identity or directory data), or a new
+  position change, manager change or Functional Group reconfirmation is open. Nothing else reopens it.
+- Total, pagination, sorting and the review CSV export all use the same filter. The response carries `completed_hidden` and `summary.completed`.

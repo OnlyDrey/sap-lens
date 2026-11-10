@@ -1,4 +1,4 @@
-# Architecture and performance
+# Architecture overview
 
 ```mermaid
 flowchart LR
@@ -41,7 +41,7 @@ Pydantic schema-versioned settings separate organization metadata, import mappin
 
 A synthetic 10,000-row / 1,000-root load took 6.47 seconds with 21.66 MiB peak Python-traced allocations while tracemalloc was enabled in this Linux workspace. This is one diagnostic observation, not an end-user speed guarantee or a measured improvement over the earlier implementation.
 
-## Desktop UX 1.2
+## Desktop startup and window
 
 The WebView starts with a trusted in-memory branded document before starting the API in its callback worker. Readiness verifies the owned instance over the prebound listener before navigation. Closing invalidates startup waits. The React configuration gate and actual loader status handle the remaining startup states and recovery. Settings is an in-app workspace that preserves the mounted dashboard. Central palette tokens derive appearance, independent of SAP area colors. Theme and diagnostics behavior is documented in [Appearance](APPEARANCE.md).
 
@@ -69,3 +69,9 @@ uses a separate directory and a process-held lease. Browser uploads stage inputs
 for the existing CSV validation/confirmation lifecycle. Desktop startup and its
 release pipeline remain independent. See [deployment modes and operations](../deployment/README.md)
 and [access-boundary assumptions](../deployment/SECURITY.md).
+
+## Storage, revisions and consistency
+
+Source storage (immutable snapshots, the optional SQLite store, fingerprints and staged activation), the data revision token and review decision integrity are described in
+[Storage, source revisions and data consistency](STORAGE_AND_REVISIONS.md). Measurements are in [Performance](../development/PERFORMANCE.md); retention and recovery in
+[Data retention](../operations/DATA_RETENTION.md) and [Backup and restore](../deployment/BACKUP_RESTORE.md).

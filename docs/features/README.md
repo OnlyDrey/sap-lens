@@ -7,6 +7,7 @@
 - [Account Review](ACCOUNT_REVIEW.md): evidence-based findings and persistent review decisions.
 - [Release Roles](RELEASE_ROLES.md): PR/PO assignments, filters and distinct-user matrix.
 - [Segregation of Duties](SOD.md): matrices, review workflow, remediation, frozen periods and reports.
+- [Functional Groups](FUNCTIONAL_GROUPS.md): reviewer-maintained business functions, review integration, filters, access analysis and backup behavior.
 - [Saved Filters](SAVED_FILTERS.md): reuse named investigations without storing result datasets.
 - [Shared Filters](FILTERS.md): transaction operators, assignment dates and scoped clearing.
 

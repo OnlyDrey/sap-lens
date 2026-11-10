@@ -18,17 +18,24 @@ download software or bypass enterprise controls. The application remains unsigne
 ## Obtain and verify the package
 
 Build `Windows Desktop` or `All` with **Build Deployment Packages** after approval,
-or use the documented [local build](BUILD.md). The output is:
+or use the [installer/deployment build](../BUILD.md#commands). For local portable EXE
+development, the canonical [Windows Build mode](../BUILD.md#commands)
+uses the authoritative version without `-Version`; its output is a portable ZIP,
+not this installer-first archive. Neither build path grants production acceptance.
+The installer deployment output is:
 
-`SAP-Lens-Windows-Desktop-x64-<version>.zip` and its SHA-256 sidecar.
+`sap-lens-win-desktop-x64-v<version>.zip`. GitHub Releases publish only the
+archive, not loose checksum sidecars. Actions retain their checksum internally for
+distribution round-trip verification. The standard ZIP has one launch choice:
 
-After extracting GitHub's download wrapper, verify that sidecar before opening
-the inner ZIP. It contains:
+- `SAP-Lens-Windows-Desktop-x64-<version>-Setup.exe` — per-user Setup.
+- A short README and application/Inno Setup licenses.
+- `metadata/` with the exact package manifest and native installer receipt.
 
-- The existing portable `SAP-Lens.exe` and checksum.
-- `SAP-Lens-Windows-Desktop-x64-<version>-Setup.exe` and checksum.
-- Application and Inno Setup licenses, this guide, exact package manifest and
-  native installer validation report.
+The portable application EXE is retained internally for installer construction,
+canonical PE/privacy checks and native smoke tests. It is not duplicated in this
+ZIP. The legacy **Build Windows Application** workflow still provides its explicit
+portable distribution with the unchanged exactly-two-file verification contract.
 
 Installer binary file/product versions use the four numeric components from the
 validated build identity. Displayed versions retain the full version string,
@@ -89,7 +96,7 @@ Keep backups until the new version starts, reads its sources and preserves saved
 state. Binary replacement alone does not reverse a future storage migration.
 For recovery, use the verified portable executable's local maintenance command to
 restore a compatible archive into **empty** destinations; see
-[backup/recovery semantics](../archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md). Review paths and
+[deployment validation status](README.md#validation-status). Review paths and
 permissions before selecting restored data. Do not extract a backup over a live
 store or delete the prior valid data as a shortcut.
 
@@ -118,14 +125,14 @@ installation's `unins000.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART`.
 Uninstall removes managed program files, shortcuts and registration. It preserves
 application data, imported snapshots, external CSVs and private backups.
 
-For intentional private-data removal, first uninstall/close the application and
-take a backup. The verified **portable** executable remains available in the
-deployment package and supports a separate, explicit command:
+For intentional private-data removal, close the application and take a backup.
+Before uninstalling, the installed executable supports an explicit maintenance
+command. An independently obtained legacy portable distribution also supports it:
 
 ```powershell
 $data = Join-Path $env:LOCALAPPDATA 'SAP Lens' # Use the actual configured data root.
 $report = Join-Path $env:TEMP 'SAP-Lens-data-removal.json'
-$cleanup = Start-Process '.\SAP-Lens.exe' -ArgumentList @(
+$cleanup = Start-Process (Join-Path $env:LOCALAPPDATA 'Programs\SAP Lens\SAP-Lens.exe') -ArgumentList @(
   '--maintenance','purge','--mode','desktop','--data',('"'+$data+'"'),
   '--confirm-purge','--report',('"'+$report+'"')
 ) -Wait -PassThru
@@ -165,9 +172,10 @@ PowerShell parsing and Python recipe checks alone do not compile Inno's `[Code]`
 section; that section uses Pascal comments (`//` or braces), not INI `;` comments.
 
 The deployment pipeline keeps the canonical portable verifier's exactly-two-file
-ZIP rules. Its outer deployment ZIP adds an explicit manifest and installer assets;
-after download, it rechecks exact contents, hashes, identity, unsigned installer
-resources and the canonical portable payload. The native acceptance definition
+ZIP rules for the internal portable input. The installer-only outer ZIP groups
+its manifest and receipt under `metadata/`. After download, CI rechecks exact
+contents, hashes, identity, unsigned installer resources and the retained internal
+portable payload; it does not need to ship that second copy to users. The native acceptance definition
 refuses an existing registered installation and uses isolated data to test install,
 repeat installation, installed-EXE lifecycle, uninstall and data preservation.
 On failure, the native test reports its current phase and retains its isolated

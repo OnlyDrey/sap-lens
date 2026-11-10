@@ -69,7 +69,7 @@ class SodAnalysisApiTests(unittest.TestCase):
         self.assertEqual(self.get(search='SYN*')['total'],2)
         self.assertEqual(self.get(risk='MISSING')['total'],0)
         self.assertEqual(self.get(criticality='C')['total'],0)
-        self.assertEqual(self.get(risk_type='S',group='SYN*',composite_role='ROLE_A',single_role='SINGLE_ROLE_A',tcode='X1')['total'],2)
+        self.assertEqual(self.get(risk_type='S',group='SYNTHETIC',composite_role='ROLE_A',single_role='SINGLE_ROLE_A',tcode='X1')['total'],2)
         self.assertEqual(self.get(group='OTHER')['total'],0)
         self.assertEqual(self.get(sort='subject',descending=True)['items'][0]['subject'],'SYN_B')
         serialized=json.dumps(result)

@@ -8,7 +8,7 @@ const testOrigin = `http://127.0.0.1:${process.env.SAP_LENS_BROWSER_TEST_PORT ||
 // and the native picker itself remains on the manual Windows checklist.
 test('first launch, native picker contract, invalid CSV, persistence and private session reload', { tag: '@smoke' }, async ({ page, request }) => {
   expect((await request.post('/api/configuration/reset', {headers: {'X-SAP-Lens': 'browser-test-session'}})).ok()).toBeTruthy()
-  const file = path.resolve('tests/fixtures/synthetic.csv')
+  const file = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   const errors: string[] = []
   const external: string[] = []
   page.on('pageerror', error => errors.push(error.message))
@@ -24,14 +24,14 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   expect(new URL(page.url()).hash).toBe('#/dashboard')
   expect(page.url()).not.toContain('browser-test-session')
   expect(await page.evaluate(()=>JSON.stringify(history.state))).not.toContain('browser-test-session')
-  await expect(page.getByRole('button', { name: 'Browse CSV' })).toBeEnabled()
-  await page.getByRole('button', { name: 'Browse CSV' }).click()
+  await expect(page.getByRole('button', { name: 'Browse / Upload file' })).toBeEnabled()
+  await page.getByRole('button', { name: 'Browse / Upload file' }).click()
   await expect(page.getByLabel('CSV file location', {exact:true})).toHaveValue(file)
   await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
   await page.getByLabel('CSV file location', {exact:true}).fill(path.resolve('tests/fixtures/missing.csv'))
   await page.getByLabel('CSV file location',{exact:true}).press('Enter')
   await expect(page.getByRole('alert')).toContainText('CSV file not found')
-  await page.getByRole('button', { name: 'Browse CSV' }).click()
+  await page.getByRole('button', { name: 'Browse / Upload file' }).click()
   await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
   await page.getByRole('button', { name: 'Back to SAP Lens',exact:true }).click()
   await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
@@ -46,7 +46,7 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   await expect(page.getByRole('dialog').locator('.ui-metadata-list>div').filter({has:page.getByText('Configured file',{exact:true})}).locator('dd')).toHaveText(file)
   await page.keyboard.press('Escape')
   await page.evaluate(() => { window.pywebview!.api.choose_csv = async () => null })
-  await page.getByRole('button', { name: 'Browse CSV' }).click()
+  await page.getByRole('button', { name: 'Browse / Upload file' }).click()
   await expect(page.getByLabel('CSV file location', {exact:true})).toHaveValue(file)
   await page.getByRole('button', { name: 'Back to SAP Lens' }).click()
   await page.getByRole('button', { name: 'Refresh role data from CSV' }).click()
@@ -61,7 +61,7 @@ test('first launch, native picker contract, invalid CSV, persistence and private
 test('application information displays the resolved API identity for beta stable and development builds', async ({ page, request }) => {
   expect((await request.post('/api/configuration/reset', {headers})).ok()).toBeTruthy()
   const settings = (await (await request.get('/api/configuration', {headers})).json()).settings
-  settings.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
+  settings.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   expect((await request.post('/api/configuration', {headers, data:settings})).ok()).toBeTruthy()
   const actual = await (await request.get('/api/version', {headers})).json()
   const health = await (await request.get('/health')).json()
@@ -70,22 +70,23 @@ test('application information displays the resolved API identity for beta stable
   expect((await request.get('/api/version')).status()).toBe(403)
   let identity = {app:'SAP Lens',version:'0.1.0-beta-1',mode:'beta'}
   await page.route('**/api/version', route => route.fulfill({json:identity}))
+  const footerVersion = page.getByRole('contentinfo').getByLabel('Application version', {exact:true}) // the footer; Settings also shows the version
   for (const [version, mode] of [['0.1.0-beta-1','beta'],['0.1.0','stable'],['0.1.0-dev.123.2','build'],['0.0.0-dev.local','local'],['0.1.0-beta-4+local.aaaaaaaaaaaa','local-build']]) {
     identity = {app:'SAP Lens',version,mode}
     await page.goto('/#session=browser-test-session')
     await page.reload() // A running app's version is immutable; simulate a fresh process for each identity.
-    await expect(page.getByLabel('Application version', {exact:true})).toContainText(`SAP Lens v${version}`)
-    if (mode === 'local-build') await expect(page.getByLabel('Application version')).toContainText('Local build')
-    if (mode === 'build' || mode === 'local') await expect(page.getByLabel('Application version')).toContainText('Development build')
-    else await expect(page.getByLabel('Application version')).not.toContainText('Development build')
+    await expect(footerVersion).toContainText(`SAP Lens v${version}`)
+    if (mode === 'local-build') await expect(footerVersion).toContainText('Local build')
+    if (mode === 'build' || mode === 'local') await expect(footerVersion).toContainText('Development build')
+    else await expect(footerVersion).not.toContainText('Development build')
     await page.reload()
-    await expect(page.getByLabel('Application version')).toContainText(version)
+    await expect(footerVersion).toContainText(version)
   }
   identity = {app:'SAP Lens',version:'0.1.0-beta-1',mode:'beta'}
   for (const theme of ['light','dark']) {
     expect((await request.post('/api/configuration/theme',{headers,data:{theme}})).ok()).toBeTruthy()
     await page.reload()
-    await expect(page.getByLabel('Application version')).toContainText('0.1.0-beta-1')
+    await expect(footerVersion).toContainText('0.1.0-beta-1')
     await page.screenshot({path:test.info().outputPath(`version-${theme}.png`), fullPage:true, animations:'disabled'})
   }
 })

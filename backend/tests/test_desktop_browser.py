@@ -47,3 +47,27 @@ class DesktopBrowserTests(unittest.TestCase):
         self.assertNotEqual(first.text,second.text)
         app=main.create_app(origin='http://127.0.0.1:18743',session_token='synthetic-launch-capability')
         self.assertNotIn('synthetic-launch-capability',TestClient(app).get('/',headers=headers).text)
+
+    def test_restart_rejects_old_capability_and_guarded_root_supplies_new_one(self):
+        changed=main.create_app(origin='http://127.0.0.1:18743',session_token='synthetic-restarted',instance_id='new-instance',browser_access=True)
+        client=TestClient(changed,base_url='http://127.0.0.1:18743',client=('127.0.0.1',1234))
+        for method in ('get','post'):
+            response=getattr(client,method)('/api/configuration',headers={'X-SAP-Lens':'synthetic-launch-capability'})
+            self.assertEqual(response.status_code,403)
+            self.assertEqual(response.json()['code'],'stale_session')
+        self.assertEqual(client.get('/health').json()['instance_id'],'new-instance')
+        document=client.get('/',headers={'Sec-Fetch-Mode':'navigate','Sec-Fetch-Dest':'document','Sec-Fetch-Site':'same-origin'})
+        self.assertIn('synthetic-restarted',document.text)
+        self.assertNotIn('synthetic-launch-capability',document.text)
+        self.assertEqual(client.get('/api/configuration',headers={'X-SAP-Lens':'synthetic-restarted'}).status_code,200)
+
+    def test_supported_nested_routes_redirect_to_hash_router_without_api_fallback(self):
+        for host in ('127.0.0.1','localhost'):
+            client=self.client(host)
+            for path in ('/user-access/user/SYN_TEST','/sod/reviews','/role-lookup','/dashboard'):
+                response=client.get(path,follow_redirects=False)
+                self.assertEqual(response.status_code,307)
+                self.assertEqual(response.headers['location'],'/#'+path)
+            self.assertEqual(client.get('/api/not-a-route',headers={'X-SAP-Lens':'synthetic-launch-capability'}).status_code,404)
+            self.assertEqual(client.get('/unknown-route').status_code,404)
+            self.assertNotIn('stale_session',client.get('/api/configuration',headers={'Origin':'https://attacker.example.test'}).text)

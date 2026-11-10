@@ -24,7 +24,7 @@ async function geometry(page: Page) {
   }))
 }
 
-for (const theme of ['light', 'dark']) for (const width of [320, 375, 800, 1280, 1600]) test(`Role Lookup: headers are one centered line with an ellipsis and the full text on demand in ${theme} at ${width}px`, async ({ page, request }) => {
+for (const theme of ['light', 'dark']) for (const width of [320, 375, 800, 1280, 1600]) test(`Role Lookup: headers are one centered line with an ellipsis and the full text on demand in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {
   await setTheme(request, theme)
   await page.setViewportSize({ width, height: 900 })
   await page.goto('/#session=browser-test-session')
@@ -67,7 +67,7 @@ for (const theme of ['light', 'dark']) for (const width of [320, 375, 800, 1280,
   if (process.env.SHOTS && [320, 1280].includes(width)) await page.screenshot({ path: `${process.env.SHOTS}/lookup-${theme}-${width}.png` })
 })
 
-for (const theme of ['light', 'dark']) test(`Component Library: the category tabs keep their underline, an 8px gap and the application scrollbar in ${theme}`, async ({ page, request }) => {
+for (const theme of ['light', 'dark']) test(`Component Library: the category tabs keep their underline, an 8px gap and the application scrollbar in ${theme}`, { tag: '@visual' }, async ({ page, request }) => {
   await setTheme(request, theme)
   await page.setViewportSize({ width: 375, height: 900 })
   await openSettings(page, 'Component Library')

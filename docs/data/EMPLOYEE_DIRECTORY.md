@@ -190,3 +190,13 @@ not saved until Apply settings succeeds. Imported data availability and current
 operational/dependency status describe persisted server state independently of that
 draft. Directory matching in SAP User Details opens its own compact evidence modal;
 no identity matching rule or source replacement semantics are changed.
+
+## Fingerprint, derived copy and shared identity matching
+
+* **Unchanged fast path.** A directory check computes the SHA-256 of the CSV and combines it with the digest of the parser code (the format is fixed, there is no import profile). If that fingerprint equals the one recorded for the active snapshot, the file is **not parsed,
+  not compared, not re-matched and no position-change pass runs**; the source is reported `unchanged` with `fast_path`. The fingerprint is a derived fact in the SQLite store; a missing or different fingerprint (first start after an upgrade, store rebuilt, parser changed) simply takes the full path once and records it.
+* **Changes are still detected exactly as before.** Any changed field (SamAccountName, UPN, Enabled, Department, Title, manager fields, e-mail) makes the file differ, so the full comparison runs, the snapshot is replaced through the normal compare-and-swap activation and position changes are recorded. A removed account stops matching immediately and matches again when it reappears.
+  There is no general historical directory versioning.
+* **Integrity.** The snapshot file is always read and verified against its content address; only parsing, validation and index building are skipped when an authenticated derived copy of exactly that snapshot and parser code exists (`kind: directory` in the signed derived cache). A damaged snapshot is still reported.
+* **Shared SAP-to-directory matching.** The match of every SAP user against the directory is computed once per (SAP dataset, directory) pair and shared by Data Health, Account Review, organization filters and the SoD analysis. It is held on the SAP dataset object, so a refresh that replaces either side
+  starts a new mapping and an old mapping can never serve a new dataset. Addresses shared by several SAP users stay ambiguous.

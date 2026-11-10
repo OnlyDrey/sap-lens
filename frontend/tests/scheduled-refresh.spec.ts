@@ -69,3 +69,15 @@ test('the runtime note says what each deployment needs', async ({ page }) => {
   await expect(section).toContainText('Windows Desktop: only while SAP Lens is running')
   await expect(section).toContainText('Windows Service, Linux Docker, Linux native or systemd')
 })
+
+
+test('daily time and timezone labels and controls align without helper-text offsets',async({page})=>{
+ await page.setViewportSize({width:1280,height:900})
+ const section=await open(page)
+ const time=section.getByLabel('Daily time',{exact:true}),zone=section.getByRole('combobox',{name:'Time zone',exact:true})
+ const a=await time.boundingBox(),b=await zone.boundingBox();expect(a).not.toBeNull();expect(b).not.toBeNull()
+ expect(Math.abs(a!.y-b!.y)).toBeLessThanOrEqual(1)
+ const labels=await section.locator('.schedule-grid label').evaluateAll(nodes=>nodes.map(n=>n.getBoundingClientRect().top))
+ expect(Math.abs(labels[0]-labels[1])).toBeLessThanOrEqual(1)
+ await expect(section.getByText('24-hour time (HH:mm)',{exact:true})).toBeVisible()
+})

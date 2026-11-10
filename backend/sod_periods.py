@@ -134,6 +134,7 @@ def capture(identifier,evaluation_date,legacy=False):
     return dict(version=1,source='sod-period',**marker,period_id=identifier,captured_at=now(),evaluation_date=evaluation_date.isoformat(),analysis=result,risks=risk_items,reviews=baseline,
                 source_versions=versions,source_metadata={name:dict(imported_at=ref.imported_at,checked_at=ref.checked_at) for name,ref in config.data_lifecycle.sources.items()},
                 source_counts=dict(users=len(state.users.users),roles=len(state.roles),matrix_records=len(state.sod['records'])),
+                catalogue_names=list(state.roles),assignment_source={user:dict(assignments=[{key:row.get(key) for key in ('role_name','valid_from','valid_to','user_group','catalogue_roles','match_status','tcodes')} for row in value['assignments']]) for user,value in state.users.users.items()},
                 complete_users=complete,metadata=described,organization=config.organization.model_dump(),logo_id=config.logo_id,
                 identity_notice=reviews.IDENTITY_NOTICE,limitation='Evaluation uses retained imported evidence at an explicit date; it does not reconstruct unexported historical SAP authorizations.')
 
@@ -154,24 +155,47 @@ def review_revision(saved):
 def outstanding(period):
     """Review-population gaps for a v2 period: undecided or outdated activities and risk acceptances."""
     import sod_scope as scope
-    import sod_governance as governance
-    bundle=scope.load(period.id);model=scope.model_for(bundle);state=governance.states(model,scope.latest_for(bundle))
+    bundle=scope.load(period.id);model=scope.review_model_for(bundle);state=scope.states_for(bundle,model)
     result={}
     for kind in ('activity','assignment','acceptance'):
         counts={}
         for life,_ in state[kind].values():counts[life]=counts.get(life,0)+1
         result[kind]=counts
+    result['review_coverage']={kind:dict(decided=sum(row['reviewed'] for row in state['coverage'][kind].values()),total=len(state['coverage'][kind])) for kind in ('activity','assignment','acceptance')}
     result['blocking']=sum(result[kind].get(name,0) for kind in ('activity','acceptance') for name in ('Pending','Outdated'))
     return result
 
+_progress_cache={}
+_progress_lock=threading.Lock()
+PROGRESS_CACHE_LIMIT=1024
+
 def progress(period):
-    """Review progress of a period for the list: decided of total activities and risk acceptances, or None when unavailable."""
+    """Canonical assessment coverage; formal approval blockers stay independent.
+
+    Listings and the Overview ask for every period on every request. Each computation reads the period index, the period snapshot
+    (twice), the decision history and the assignment lifecycle and derives the period's conflict model, so the cost grew with the
+    number of retained periods and with file-system latency. The result is memoized on all of its inputs: the immutable snapshot
+    identity, the period's state, approval date and modification time, the identities of the decision and lifecycle stores, and
+    today's date (acceptances expire). Any change to one of them computes it again; an unavailable snapshot is never cached."""
+    import assignment_lifecycle
+    key=(period.id,period.snapshot,period.state,period.approval_date,period.modified,decisions.fingerprint(),assignment_lifecycle.fingerprint(),date.today())
+    with _progress_lock:
+        hit=_progress_cache.get(key)
+    if hit is not None:return dict(hit)
+    result=_progress(period)
+    if result is not None:
+        with _progress_lock:
+            if len(_progress_cache)>=PROGRESS_CACHE_LIMIT:_progress_cache.clear()
+            _progress_cache[key]=dict(result)
+    return result
+
+def _progress(period):
     try:
         if snapshot(period).get('model')!=2:return None
         gaps=outstanding(period)
     except Exception:return None
-    decided=sum(count for kind in ('activity','acceptance') for name,count in gaps[kind].items() if name not in {'Pending','Outdated'})
-    return dict(decided=decided,total=sum(count for kind in ('activity','acceptance') for count in gaps[kind].values()),blocking=gaps['blocking'])
+    coverage=gaps['review_coverage']
+    return dict(decided=sum(row['decided'] for row in coverage.values()),total=sum(row['total'] for row in coverage.values()),blocking=gaps['blocking'])
 
 def details(identifier):
     with lock:
@@ -231,6 +255,9 @@ def _v2_transition(index,period,saved,state,expected_review_revision,reviewer,ap
     return actor.strip(),reason.strip()
 
 def transition(identifier,state,expected_revision,expected_review_revision,reviewer='',approver='',approval_date=None,confirm=False,actor='',reason=''):
+    from server_access import actor as authenticated_actor
+    actor = authenticated_actor(actor)
+    if state in {'Approved','Approved / closed'}: approver = authenticated_actor(approver)
     with lock,reviews.lock,decisions.lock:
         index=read();expect(index,expected_revision);period=find(index,identifier);saved=snapshot(period);previous=period.state
         if saved.get('model')==2:who=_v2_transition(index,period,saved,state,expected_review_revision,reviewer,approver,approval_date,confirm,actor,reason)
@@ -259,8 +286,8 @@ def save_review(identifier,finding_id,annotation,expected_revision,expected_revi
 
 def _decision_rows(period):
     import sod_scope as scope
+    bundle=scope.load(period.id);model=scope.review_model_for(bundle);state=scope.states_for(bundle,model)
     import sod_governance as governance
-    bundle=scope.load(period.id);model=scope.model_for(bundle);state=governance.states(model,scope.latest_for(bundle))
     return {(item['kind'],item['user'],item['ref']):item['lifecycle'] for item in governance.queue_items(model,state)}
 
 def compare(left_id,right_id):
@@ -271,7 +298,7 @@ def compare(left_id,right_id):
         a={row['finding_id']:row for row in left['analysis']['users']};b={row['finding_id']:row for row in right['analysis']['users']}
         previous=set()
         for period in index.items:
-            if not period.deleted_at and period.created<left_period.created and period.state in FROZEN and period.modified<left_period.created:
+            if not period.deleted_at and period.id!=left_period.id and period.created<=left_period.created and period.state in FROZEN and period.modified<=left_period.created:
                 previous.update(row['finding_id'] for row in snapshot(period)['analysis']['users'])
         risk_a={item['risk_id']:item['definition_version'] for item in left['risks']};risk_b={item['risk_id']:item['definition_version'] for item in right['risks']}
         enabled={item['risk_id'] for item in right['risks'] if item['local']['enabled'] and item['source']['supported']}
@@ -313,6 +340,8 @@ def deletion_impact(identifier):
                 consequences=text,warnings=warnings,requires_reason=frozen,requires_history_confirmation=history,model=2 if v2 else 1,revision=index.revision)
 
 def delete(identifier,expected_revision,confirm_name,confirm_impact,actor,reason='',confirm_history=False):
+    from server_access import actor as authenticated_actor
+    actor = authenticated_actor(actor)
     with lock,reviews.lock,decisions.lock:
         index=read();expect(index,expected_revision);period=find(index,identifier)
         impact=deletion_impact(identifier)

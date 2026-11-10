@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { cleanup, createPeriod, openSod, seedGovernance } from './sod-fixture'
+import { cleanup, createPeriod, openSod, seedGovernance, uniqueName } from './sod-fixture'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -7,7 +7,7 @@ test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
 const icon = (button: ReturnType<Page['locator']>) => expect(button.locator('svg').first()).toBeVisible()
 
-for (const width of [375, 800, 1280]) test(`Create review period uses a responsive two-column grid with icons on its actions (${width}px)`, async ({ page }) => {
+for (const width of [375, 800, 1280]) test(`Create review period uses a responsive two-column grid with icons on its actions (${width}px)`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   await openSod(page, 'Review Periods')
   await page.getByRole('button', { name: 'Create review period', exact: true }).click()
@@ -35,8 +35,8 @@ for (const width of [375, 800, 1280]) test(`Create review period uses a responsi
   await expect(page.getByRole('dialog', { name: 'SoD period', exact: true }).getByRole('heading', { name: `Grid period ${width}` })).toBeVisible()
 })
 
-for (const width of [375, 1280]) test(`Delete review period: confirmation fields share a grid, consequences stay full width, actions carry icons (${width}px)`, async ({ page, request }) => {
-  const draft = `Empty draft ${width}`
+for (const width of [375, 1280]) test(`Delete review period: confirmation fields share a grid, consequences stay full width, actions carry icons (${width}px)`, { tag: '@visual' }, async ({ page, request }) => {
+  const draft = uniqueName(`Empty draft ${width}`)
   await createPeriod(request, draft)
   await page.setViewportSize({ width, height: 900 })
   await openSod(page, 'Review Periods')
@@ -77,10 +77,29 @@ test('the toolbar explains a disabled Compare periods through a tooltip and show
   await expect(page.getByRole('button', { name: 'Hide archived periods', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'Hide archived periods', exact: true }).click()
   await expect(toggle).toHaveAttribute('aria-pressed', 'false')
-  await page.unroute('**/api/sod/periods')
+  // The page loads the period list from more than one component; wait for a trimmed response that is still in flight, otherwise unrouting
+  // continues that request underneath its handler and the handler's fulfill fails with "Route is already handled!".
+  await page.unrouteAll({ behavior: 'wait' })
   await createPeriod(request, 'Period one'); await createPeriod(request, 'Period two')
   await page.reload()
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'SoD', exact: true }).click()
   await page.getByRole('link', { name: 'Review Periods', exact: true }).click()
   await expect(page.getByRole('button', { name: 'Compare periods', exact: true })).toBeEnabled() // available once two eligible periods exist
+})
+
+test('Capture works before the period list has loaded and keeps optimistic concurrency', async ({ page, request }) => {
+  await createPeriod(request, 'Existing period for capture') // the period index revision is no longer 0
+  let release = () => {}
+  const held = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/api/sod/periods', async (route) => { if (route.request().method() === 'GET') await held; await route.fallback() })
+  await openSod(page, 'Review Periods')
+  await page.getByRole('button', { name: 'Create review period', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'Create SoD review period', exact: true })
+  await dialog.getByRole('textbox', { name: 'Review period name', exact: true }).fill('Captured while loading')
+  await expect(page.getByRole('table', { name: 'SoD review periods' })).toHaveCount(0) // the list is still loading
+  await dialog.getByRole('button', { name: 'Capture review period', exact: true }).click()
+  release()
+  await expect(page.getByRole('dialog', { name: 'SoD period', exact: true }).getByRole('heading', { name: 'Captured while loading' })).toBeVisible()
+  await expect(page.getByRole('alert')).toHaveCount(0) // no "Review periods changed" conflict from an unknown revision
+  await page.unrouteAll({ behavior: 'wait' })
 })

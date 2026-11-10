@@ -95,9 +95,9 @@ def _table(header,rows):
     return [header,*rows] if rows else []
 
 
-DESCRIPTION_SOURCES={'imported':'Imported','local':'Local fallback',None:'Not available'}
-DESCRIPTION_LEGEND=('Sources: Imported = text supplied in the SoD Matrix CSV when the evidence was captured; Local fallback = business description maintained in SAP Lens, '
-                    'used only where the import has none; Not available = no description exists. SAP Lens does not write descriptions from identifiers.')
+DESCRIPTION_SOURCES={'imported':'Imported','local':'Local override','reference':'Curated reference library',None:'Not available'}
+DESCRIPTION_LEGEND=('Sources: Imported = text supplied in the SoD Matrix CSV when the evidence was captured; Local override = business description maintained in SAP Lens, '
+                    'takes priority over imported metadata; Curated reference library = non-authoritative business guidance used when neither has text; Not available = no description exists. SAP Lens does not write descriptions from identifiers.')
 BASIS_NOTES={'captured':'These descriptions were frozen with this review period and do not change when data is imported or edited later.',
              'legacy':'This review period was captured before imported descriptions were retained. Only business descriptions maintained in SAP Lens at capture time are shown; no imported descriptions are available for this period.',
              'current':'Current evidence: descriptions reflect the data loaded now and can change after the next import. A review period freezes them.'}
@@ -109,7 +109,7 @@ def _described(entry):
     parts={field:DESCRIPTION_SOURCES[origins.get(field)] for field in ('name','description') if entry.get(field)}
     labels=set(parts.values())
     label='Not available' if not parts else next(iter(labels)) if len(labels)==1 else ' · '.join(f'{field.capitalize()}: {value}' for field,value in parts.items())
-    if origins.get('description')=='imported' and (entry.get('alternate') or {}).get('description'):label+=' (a different local description exists)'
+    if (entry.get('alternate') or {}).get('description'):label+=' (a different '+DESCRIPTION_SOURCES[entry['alternate']['description']['origin']]+' description exists)'
     return entry.get('name') or '—',entry.get('description') or '—',label
 
 
@@ -138,7 +138,9 @@ def _status_table(state):
             ['Reviewed, no action required',count('activity','Approved','Conditional'),count('assignment','Keep'),count('acceptance','Accepted')],
             ['Reviewed, removal recommended',count('activity','Removal required'),count('assignment','Removal required'),'—'],
             ['Reviewed, risk rejected','—','—',count('acceptance','Rejected')],
-            ['Under investigation (not a final decision)','—',count('assignment','Investigate'),'—']]
+            ['Under investigation (not a final decision)','—',count('assignment','Investigate'),'—'],
+            ['Access assessment covered (manual or derived)',*[str(sum(item['reviewed'] for item in state['coverage'][kind].values())) for kind in ('activity','assignment','acceptance')]],
+            ['Removal plan breaks conflict (not verified remediation)','—','—',str(sum(item['removal_planned'] for item in state['coverage']['acceptance'].values()))]]
 
 
 def _followup_table(rows):
@@ -175,7 +177,7 @@ def model(identifier,options):
         previous=periods.compare(options.previous_period_id,identifier)
     v2=details['model']==2
     limitation=LIMITATION
-    bundle=scope.load(identifier);view=scope.model_for(bundle);state=governance.states(view,scope.latest_for(bundle));actions=scope.actions_for(bundle)
+    bundle=scope.load(identifier);view=scope.review_model_for(bundle);state=scope.states_for(bundle,view);actions=scope.actions_for(bundle)
     frozen_verification=(bundle['frozen_decisions'] or {}).get('verification') or {}
     verify=(lambda user,aid:frozen_verification.get(aid,'Not assessed at approval')) if bundle['frozen_decisions'] is not None else scope.make_verifier()
     rows,summary=governance.remediation_rows(view,state,actions,verify,today=options.report_date) if v2 else ([],{})
@@ -195,16 +197,16 @@ def model(identifier,options):
     user_risk=len(findings)
     pending=dict(activity=_counts(state,'activity','Pending','Outdated'),assignment=_counts(state,'assignment','Pending','Outdated','Investigate'),acceptance=_counts(state,'acceptance','Pending','Outdated')) if v2 else {}
     review_items=sum(len(state[kind]) for kind in ('activity','assignment','acceptance')) if v2 else 0
-    open_items=sum(pending.values())
+    open_items=sum(not item['reviewed'] for values in state['coverage'].values() for item in values.values()) if v2 else 0
     if v2:
-        metrics=[['Measure','Count','Unit'],['SAP users evaluated',str(users_evaluated),'users'],['Users with detected potential conflicts',str(len(view)),'users'],['Detected potential conflicts',str(user_risk),'user-risk findings'],
+        metrics=[['Measure','Count','Unit'],['SAP users evaluated',str(users_evaluated),'users'],['Users with detected potential conflicts',str(len({row['subject'] for row in findings})),'users'],['Detected potential conflicts',str(user_risk),'user-risk findings'],
                  ['Activities in review scope',str(len(state['activity'])),'user-activity pairs'],['Activities approved',str(_counts(state,'activity','Approved')),'activities'],['Activities approved conditionally',str(_counts(state,'activity','Conditional')),'activities'],
                  ['Activities marked for removal',str(_counts(state,'activity','Removal required')),'activities'],['Activity reviews pending or outdated',str(pending['activity']),'activities'],
                  ['Role assignments to keep',str(_counts(state,'assignment','Keep')),'assignments'],['Role assignments marked for removal',str(_counts(state,'assignment','Removal required')),'assignments'],['Role assignments under investigation',str(_counts(state,'assignment','Investigate')),'assignments'],
                  ['Risks accepted',str(_counts(state,'acceptance','Accepted')),'user-risk findings'],['Risks rejected',str(_counts(state,'acceptance','Rejected')),'user-risk findings'],['Risk decisions pending or outdated',str(pending['acceptance']),'user-risk findings'],
                  ['Open remediation actions',str(len(open_actions)),'actions'],['Overdue remediation actions',str(len(overdue)),'actions'],['Removal recommendations without a tracked action',str(untracked),'assignments']]
         lead=['This report shows who holds SAP access that could let one person perform conflicting duties (segregation of duties) and how those findings were reviewed.',
-              f"{len(view)} of {users_evaluated} evaluated SAP users have {user_risk} potential conflicts across {len(enabled)} active risk rules.",
+              f"{len({row['subject'] for row in findings})} of {users_evaluated} evaluated SAP users have {user_risk} potential conflicts across {len(enabled)} active risk rules.",
               f"Review progress: {review_items-open_items} of {review_items} review items have a recorded decision and {open_items} are still open. Review period status: {period['state']}.",
               f"{len(open_actions)} remediation actions are open, {len(overdue)} of them overdue. A proposed removal is not completed remediation."]
     else:
@@ -213,7 +215,7 @@ def model(identifier,options):
     meta=saved['source_metadata'];names={'roles':'Role Catalogue','users':'User–Role Mapping','sod':'SoD Matrix','employees':'Employee Directory'}
     section('executive',[*lead,STATUS_STATEMENTS[options.status],limitation],[metrics,_status_table(state)] if v2 else [metrics])
     section('methodology',[f"Evaluation date: {localized_date(saved['evaluation_date'])}. Review period: {localized_date(period['start'])} - {localized_date(period['end'])}. Policy: {saved['analysis']['methodology']['policy']}.",
-        'Method: potential conflicts are calculated from imported role and transaction evidence and the enabled risk rules. Reviewers decide whether each user needs a conflict-relevant activity, whether each role assignment that supplies it is necessary, and separately whether each remaining risk is accepted. Review decisions never change the calculation.',
+        'Method: potential conflicts are calculated from imported role and transaction evidence and the enabled risk rules. Reviewers decide whether each user needs a conflict-relevant activity, whether each active imported role assignment is necessary, and separately whether each remaining risk is accepted. Review decisions never change the calculation.',
         saved['limitation'],'Unsupported and locally disabled risks are excluded; unknown assignment validity is not treated as active.'],[GLOSSARY,_table(['Scope','Count'],[[key,str(value)] for key,value in saved['source_counts'].items()])])
     described=sod_metadata.for_period(saved)
     scope_activities={mapping['activity'] for row in risks for rows_ in row['source']['activities'].values() for mapping in rows_}
@@ -297,7 +299,7 @@ class RemediationOptions(StrictModel):
 def remediation_model(context,options):
     """Operational report for one review context; independent of the formal approval document."""
     options=RemediationOptions.model_validate(options.model_dump() if isinstance(options,RemediationOptions) else options)
-    bundle=scope.load(context);view=scope.model_for(bundle);state=governance.states(view,scope.latest_for(bundle));actions=scope.actions_for(bundle)
+    bundle=scope.load(context);view=scope.review_model_for(bundle);state=scope.states_for(bundle,view);actions=scope.actions_for(bundle)
     frozen=bundle['frozen_decisions']
     verify=(lambda user,aid:(frozen.get('verification') or {}).get(aid,'Not assessed at approval')) if frozen is not None else scope.make_verifier()
     all_rows,summary=governance.remediation_rows(view,state,actions,verify,today=options.report_date,include_pending=True)

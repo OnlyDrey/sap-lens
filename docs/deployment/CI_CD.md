@@ -1,17 +1,17 @@
 # CI/CD architecture
 
-SAP Lens separates validation from packaging. Three levels exist, and only the first runs automatically.
+SAP Lens separates validation from packaging. Three levels exist, and only the first runs automatically, and only on a push to `main` (see the CI policy in [CI](../development/CI.md)). Local Fast Validation follows each development phase and a full local regression precedes every merge into `main`.
 
 | Level | Workflow | Trigger | Purpose |
 | --- | --- | --- | --- |
-| A. Fast Validation | `validate.yml` | push to `work` or `main`; pull request to `main` | Cheap, change-based feedback |
+| A. Fast Validation | `validate.yml` | push to `main` only (merges); never `work`, feature branches or pull requests | Cheap, change-based feedback |
 | B. Build & Release | `build-deployments.yml` (all targets), `build-windows.yml` (legacy Windows desktop) | `workflow_dispatch` only | Build, verify and optionally publish selected packages |
 | C. Full Regression | `full-validation.yml` | `workflow_dispatch` only | Complete backend and browser regression |
 
 ## Policy
 
 Full Regression is **never** a prerequisite for building or publishing. It has no push, pull request or schedule trigger,
-no workflow calls it, and neither the sealed validation receipt, the publish job, `release-windows.py` nor the build report
+no workflow calls it, and neither the sealed validation receipt, the publish job, `packaging/release-windows.py` nor the build report
 require its result. A passing run is evidence for milestones and troubleshooting, not a gate. Contract tests
 (`scripts/check-workflows.py`, `backend/tests/test_workflows.py`) reject any change that reintroduces such a dependency.
 
@@ -119,7 +119,7 @@ overwrite using local bytes, without a GitHub Actions build.
 Manual only. Runs `Backend & Repository` and `Frontend & Browser` in parallel: complete backend suite, workflow contracts,
 audits, type check, build, ESLint, the complete browser suite, with reports uploaded as 7-day artifacts. Use it before large
 merges, after shared or security-sensitive changes, or when diagnosing a regression. Local equivalent:
-`python scripts/run-tests.py regression --browser-jobs 3 --report <file>`.
+`python scripts/run-tests.py full --browser-jobs 3 --report <file>`.
 
 ## Caching and artifacts
 
@@ -171,10 +171,11 @@ Stable from any other ref, and a build-only run is unaffected.
 | Command | Use |
 | --- | --- |
 | `python scripts/check-workflows.py` | Workflow contracts |
-| `python scripts/ci.py lint` | actionlint |
+| `python scripts/testing/ci.py lint` | actionlint |
 | `python scripts/run-tests.py changed --plan` | Fast Validation selection |
 | `python scripts/run-tests.py targeted <feature>...` | Feature tests |
-| `python scripts/run-tests.py regression` | Full Regression |
+| `python scripts/run-tests.py regression` | Curated critical regression (about 5 minutes) |
+| `python scripts/run-tests.py full` | Full Regression |
 
 ## Runtime validation status
 
@@ -192,36 +193,7 @@ is recorded there. No workflow is dispatched and no test release is published wi
 | Publish skipped | `publish_release` false, a selected package failed, or the run was cancelled |
 | Receipt rejected | Older than 24 hours, or built from a different commit or run |
 
-## Package stabilization — 1 November 2026
-
-Run [41340859408](https://github.com/OnlyDrey/sap-lens/actions/runs/41340859408),
-source `513d388ea005abc5f60e8fa8dedaa0f760b298a8`, passed selection, shared
-validation and Docker. Three package-stage failures were repaired in `6f64b68`:
-
-| Target | Confirmed cause | Fix and retained verification |
-| --- | --- | --- |
-| Linux Native | The job interpreter had no `pip_audit` module; the audit did not run | Install the existing pinned `scripts/requirements-audit.txt` before the smoke test. Audit the complete generated hash-locked requirements; offline installation still checks wheel hashes. |
-| Windows Service | PyInstaller rebased relative data sources under `backend/build/server`, its spec directory | Root frontend, icon, image, identity, version resources and backend search paths at the repository root. Reuse the consumed frontend; no second Node build. |
-| Windows Desktop | The verifier received no `SAP_LENS_EXPECTED_BUILD_JSON` from the deployment job | Pass the shared validation job's resolved identity through the job environment. Keep exact schema/commit/run/version equality and all package checks. Missing or malformed expected identity now has a fixed privacy-safe diagnostic. |
-
-The native download's expected and actual digests matched. `digest-mismatch:
-error` in the log is the action's fail-closed configuration, not a detected
-mismatch. No digest, receipt, audit or package-identity check was relaxed.
-
-Local evidence: 127 targeted package/workflow/repository tests passed; actionlint,
-Ruff, PowerShell parsing and service-helper tests passed. A real Linux x86-64
-archive built through the canonical packager, passed its runtime audit and
-hash-checked offline installation, then passed user-mode start/restart, import,
-persistence, backup/restore, upgrade and data-preserving uninstall. Type checking,
-production frontend build and production JavaScript audit also passed.
-
-These results do **not** establish repaired GitHub jobs, native Windows packaging,
-SCM/WebView2 or real systemd acceptance. See the [runtime matrix](../validation/WORKFLOW_MATRIX.md).
-No complete backend/browser suite or workflow dispatch was required for this fix.
-
-For minimum-cost remote confirmation, manually dispatch **new** build-only runs
-on the repaired `work` SHA: `linux-native` and `windows-all`, with
-`publish_release=false`. This skips the already-successful Docker job. A single
-`all` run is an alternative that shares validation once but rebuilds Docker.
-Re-running the old failed run would test its original commit, not these fixes.
-Full Regression remains optional and is not a build/release prerequisite.
+Build, package, release adapters and CI timing runners use the shared
+`scripts/build.py` entry point with explicit non-interactive parameters. Setup
+Actions, runner ownership, trigger/permission/job graph, artifact provenance and
+release gates are unchanged. See the [authoritative build guide](../BUILD.md#release-preparation-and-ci).

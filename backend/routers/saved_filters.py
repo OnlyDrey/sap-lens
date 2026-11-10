@@ -28,7 +28,7 @@ class Saved(StrictModel):
         if len(json.dumps(value))>16000: raise ValueError('Filter definition is too large.')
         for k,v in value.items():
             if len(k)>64 or not (isinstance(v,(str,bool,int)) or isinstance(v,list) and all(isinstance(x,str) and len(x)<=512 for x in v) and len(v)<=100): raise ValueError('Only bounded scalar filters or string lists are supported.')
-            if isinstance(v,str) and len(v)>512: raise ValueError('Filter text is too long.')
+            if isinstance(v,str) and len(v)>(12000 if k=='usernames' else 512): raise ValueError('Filter text is too long.')
         return value
 
 
@@ -40,7 +40,7 @@ def listing():
 @router.post('')
 def save(request:Saved):
     allowed={
-      'users':{'search','group','groups','roles','sort','descending','role','tcodes','transactionMode','transactionExclude','excludeTcodes','excludeMode','missingRoles','missingMode','expired','assignmentBand'},
+      'users':{'search','group','groups','roles','sort','descending','role','tcodes','transactionMode','transactionExclude','excludeTcodes','excludeMode','missingRoles','missingMode','expired','assignmentBand','usernames'},
       'roles':{'search','activeModules','transactionMode','transactionExclude','transactionOperator','tcodes','notTcodes','excludeTcodes','excludeMode','sortBy'},
       'release':{'group','userGroups','kind','releaseGroup','releaseAreas','releaseGroups','strategy','strategies','username','role','status','sort','descending','valid_from_min','valid_from_max','valid_to_min','valid_to_max','include_missing_end'},
       'review':{'search','finding','license','state','findings','licenses','states','sort','descending'},
@@ -48,9 +48,12 @@ def save(request:Saved):
     for view in ('sod_users','sod_roles'):
         allowed[view]={'search','usernames','risks','criticalities','categories','groups','tcodes','risk','criticality','risk_type','category','username','group','composite_role','single_role','tcode','account_status','sort','descending','validity','as_of','selected_roles'}
     matrix={'search','risk','criticality','risk_type','category','username','usernames','role_suffixes','risks','activities','groups','roles','tcodes','categories','criticalities','group','composite_role','single_role','tcode','role','role_suffix','activity','account_status','multiple_risks','tracking',
-            'activity_decision','assignment_decision','review_status','acceptance','validity','as_of','sort','descending','group_by','table','kind','status'}
+            'activity_decision','assignment_decision','review_status','acceptance','validity','as_of','sort','descending','group_by','table','kind','status','queue_sort','role_match','assignment_scope','role_families','role_exact'}
     for view in ('sod_risk_matrix','sod_activity_matrix','sod_explorer','sod_queue'):
         allowed[view]=matrix
+    # Organizational filters: Functional Group and Manager (Account Review keeps its own `groups` key).
+    for view in ('users', 'review', 'sod_users', 'sod_roles', 'sod_risk_matrix', 'sod_activity_matrix', 'sod_explorer', 'sod_queue'):
+        if view in allowed: allowed[view] = set(allowed[view]) | {'functional_groups', 'managers', 'functional_group', 'manager'} | ({'groups', 'includeCompleted'} if view == 'review' else set())
     if not request.rename and set(request.filters)-allowed[request.view]: raise HTTPException(422,'Unsupported filter fields; result datasets cannot be saved.')
     return store.save(request.name,request.view,request.filters,request.id,request.expected,request.rename)
 

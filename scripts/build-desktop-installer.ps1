@@ -34,7 +34,11 @@ if ($CompileCheck) {
     # same pinned tool in a separate disposable check environment, never in the
     # application environment. Compilation alone cannot test the PE reader.
     $checkEnvironment = Join-Path $root 'backend/build/installer-check-env'
-    & python -m venv $checkEnvironment
+    $checkHost = 'python'
+    $launcher = Get-Command py -ErrorAction SilentlyContinue
+    $isBaseline = (& python -c 'import sys; print(sys.version_info[:2]==(3,12))' 2>$null) -eq 'True'
+    if ($launcher -and -not $isBaseline) { $checkHost = (& py -3.12 -c 'import sys; print(sys.executable)') }
+    & $checkHost -m venv $checkEnvironment
     if ($LASTEXITCODE -ne 0) { throw 'Installer check environment creation failed.' }
     $checkPython = Join-Path $checkEnvironment 'Scripts/python.exe'
     $pefilePin = @(Get-Content (Join-Path $root 'backend/requirements-build.txt') | Where-Object { $_ -match '^pefile==[0-9.]+$' })
@@ -53,7 +57,7 @@ if ($CompileCheck) {
             New-Item -ItemType Directory $destination | Out-Null
             Invoke-InstallerCompiler $payload $full $numeric $destination
             if (-not (Test-Path -LiteralPath (Join-Path $destination 'SAP-Lens-Setup.exe') -PathType Leaf)) { throw 'Inno Setup did not produce the compiler-check fixture.' }
-            & $checkPython (Join-Path $root 'scripts/verify-desktop-installer.py') --installer (Join-Path $destination 'SAP-Lens-Setup.exe') --compiler-fixture-channel $channel
+            & $checkPython (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer (Join-Path $destination 'SAP-Lens-Setup.exe') --compiler-fixture-channel $channel
             if ($LASTEXITCODE -ne 0) { throw 'Compiled installer fixture resource verification failed.' }
             Write-Host "Installer recipe compiled and PE resources verified: $channel. Application installation was not tested."
         }
@@ -73,6 +77,6 @@ Move-Item $installer $named
 $hash = (Get-FileHash $named -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText(($named+'.sha256'),($hash+'  '+[IO.Path]::GetFileName($named)+"`n"),[Text.Encoding]::ASCII)
 Copy-Item (Join-Path $toolRoot 'license.txt') (Join-Path $OutputDirectory 'LICENSE-Inno-Setup.txt')
-& $python (Join-Path $root 'scripts/verify-desktop-installer.py') --installer $named
+& $python (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer $named
 if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed.' }
 Write-Host 'Unsigned per-user installer compiled and metadata verified. Native installation/lifecycle acceptance is separate.'

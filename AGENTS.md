@@ -4,7 +4,7 @@
 - Each cloud task is isolated. Use the existing checkout; do not create a Git worktree unless requested.
 - SAP role exports, local settings, logs, .env files and credentials must not be committed or included in release artifacts.
 - The desktop server binds only to 127.0.0.1, preferring port 18743 and securely falling back to an OS-assigned port. Do not weaken local host/origin checks, expose the API to a LAN, or cache role data in a service worker.
-- Validate backend changes with `python -m unittest discover -s backend/tests -v`, and frontend changes with `npm ci` and `npm run build` from `frontend`.
+- Validate every change with the Progressive test validation policy below (Level 1 and 2 during development). `python -m unittest discover -s backend/tests -v` and the complete browser suite are explicit FULL checks, not automatic development steps. Keep frontend type/build checks proportional to affected code.
 - Windows packaging and desktop lifecycle checks run in `.github/workflows/build-windows.yml`.
 
 ## Stack and conventions
@@ -39,13 +39,15 @@ Verified against `backend/requirements*.txt`, `frontend/package.json` and config
 From the repository root (full list and risk-based selection:
 [Testing](docs/development/TESTING.md)).
 
-- Profiles: `python scripts/run-tests.py smoke | targeted <feature>... | regression | release`
+- Profiles: `python scripts/run-tests.py quick | targeted [feature...] | regression | full`; browser categories by tag
+  (`@visual`, `@a11y`, `@workflow`, `@component`, `@smoke`, `@regression`) and theme/viewport rules are in [Testing](docs/development/TESTING.md#test-architecture)
   (`list` shows features; ownership in `scripts/test-map.json`, see [Testing](docs/development/TESTING.md)).
-- Backend: `python -m unittest discover -s backend/tests -v` in a Python 3.12 venv
+- Backend: `python scripts/run-tests.py full --backend` (quiet, buffered; `--test NAME` for one test) or
+  `python -m unittest discover -s backend/tests -v` in a Python 3.12 venv
   with `backend/requirements-dev.txt`; one module with `-p test_<name>.py`.
 - Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run build`,
   `npm run test:browser`. Build first: Playwright serves `dist` through
-  `scripts/serve-browser-tests.py` on 127.0.0.1:18745, and a stale server on that
+  `scripts/testing/serve-browser-tests.py` on 127.0.0.1:18745, and a stale server on that
   port blocks the run. A prepared Chromium may need `PLAYWRIGHT_EXECUTABLE_PATH`;
   report the override. Target with `npm run test:browser -- tests/<file>.spec.ts --grep <name>`.
 - Static: `python -m ruff check backend scripts`, `python scripts/check-docs.py`, `python scripts/check-workflows.py`,
@@ -73,12 +75,25 @@ From the repository root (full list and risk-based selection:
   explicit authorization.
 - Deliver in logically complete, validated increments with conventional subjects
   (`feat(scope):`, `fix(scope):`, `docs:`). Push each phase to `origin/work` once its
-  Fast Validation passes (see Validation policy), never force-push or rewrite
-  history, and verify the result with `git ls-remote origin work`. Allow the
-  automatic Fast Validation workflow to run; do not tag, release or manually
-  dispatch workflows without authorization. A passing Fast Validation run is not
-  proof that deployment packages were built; report package availability only
-  after checking the workflow runs and artifacts.
+  Level 2 validation passes (see Progressive test validation), never force-push or rewrite
+  history, and verify the result with `git ls-remote origin work`. Do not tag,
+  release or manually dispatch workflows without authorization. A passing Fast
+  Validation run is not proof that deployment packages were built; report package
+  availability only after checking the workflow runs and artifacts.
+
+## GitHub Actions CI policy (permanent)
+
+- **CI runs only on push to `main`** (completed merges): `validate.yml` is the single automatic workflow and its only trigger is `push: branches: [main]`.
+  The trigger is the push to `main`, not `pull_request`. No workflow runs on `work`, feature branches or pull requests, and none may be triggered
+  indirectly from them (no `workflow_run`, `workflow_call`, `schedule`, `pull_request(_target)` or repository-event triggers anywhere).
+- Intermediate and final development pushes to `work` do not trigger CI. Do not run CI manually (`workflow_dispatch` of Full Validation, Build Windows
+  Application or Build Deployment Packages) unless the repository owner explicitly authorizes it for that run.
+- Validation moves local: run QUICK/TARGETED (`python scripts/run-tests.py quick|targeted`) during a phase, REGRESSION
+  (`python scripts/run-tests.py regression`) before pushing a finished phase, and FULL (`python scripts/run-tests.py full`) before merging into `main`.
+- Existing validation jobs, security checks and release protections stay in place; they only run on `main` pushes or on an authorized manual dispatch.
+  `scripts/check-workflows.py` and `backend/tests/test_workflows.py` enforce the trigger policy; changing a trigger requires updating those contracts deliberately.
+- Never merge into `main`, publish a release or tag without explicit authorization. When a commit that only changes workflows must be pushed to `work`,
+  `[skip ci]` in its message is an additional safeguard.
 
 ## Working efficiently (AI agents)
 
@@ -89,54 +104,62 @@ From the repository root (full list and risk-based selection:
   match the dense style of neighboring code.
 - Add no dependencies, frameworks or styling systems, and refactor nothing beyond the
   request. Update the canonical guide instead of writing new reports.
-- Run the smallest sufficient checks (see Validation policy and Efficiency below);
+- Run the smallest sufficient checks (see Progressive test validation and Efficiency below);
   documentation-only changes need `check-docs.py` and the affected documentation tests.
 
-## Validation policy (two levels)
+## Progressive test validation (mandatory default for every change)
 
-Applies to every task and every coding agent. Never report a check as passed unless
-it executed successfully; an interrupted or incomplete run is not a pass. Distinguish
-regressions, existing defects and environmental limitations, and never hide failures.
+Applies to every change: features, fixes, refactoring, UI, backend and test infrastructure. Agents apply it automatically; nobody
+has to ask for it. The normal loop is *change -> relevant tests -> fix -> affected tests -> continue*; broad regression happens at
+planned checkpoints, never after every correction. Commands and selection rules: [Testing](docs/development/TESTING.md#progressive-validation).
 
-**Level 1: Fast Validation, at every independently releasable phase.**
-1. Run the checks of the existing Fast Validation workflow
-   (`.github/workflows/validate.yml`, [CI](docs/development/CI.md)): backend and
-   repository tests, `python -m pip check`, workflow lint when workflows changed, and
-   `npm run check:types` in `frontend`. Run only what the phase can affect locally
-   (for example the touched backend modules plus any repository integrity/privacy
-   tests); the push runs the complete job. Add `git diff --check`, and
-   `python scripts/check-docs.py` when documentation changed.
-2. Add targeted tests only for new or changed behavior (affected browser specs after
-   `npm run build`, relevant backend modules). Keep them proportionate.
-3. Fix failures relevant to the phase, commit, push to `origin/work`, verify the
-   remote HEAD, check the Fast Validation workflow result, then continue to the next
-   phase automatically.
-Do not run the complete backend or browser suites, or full visual QA, after every
-phase unless asked. Never push known blocking defects or failed required checks.
+1. **Level 1, direct (seconds to minutes, always):** run only the tests of the changed code plus the matching static checks
+   (TypeScript, ESLint, ruff). Browser: `python scripts/run-tests.py targeted --spec NAME [--grep TEXT]`; backend:
+   `targeted --test module[.Class[.test]]`; type/lint: `npm run check:types`, `npx eslint <files>`, `python -m ruff check <files>`.
+   One browser process. After a fix, rerun only what failed or what the fix touches.
+2. **Level 2, affected functionality:** the complete affected spec files and backend modules plus direct dependents
+   (`python scripts/run-tests.py quick`, or `targeted` without features, selects them from the import graphs). No unrelated suites.
+3. **Level 3, stability and integration, when warranted:** repeat previously intermittent tests (`--repeat-each 3` to `5`), test the
+   integration boundary, and use several browser processes only when concurrency is part of the behaviour, with the smallest group.
+4. **Level 4, checkpoints:** TARGETED (`targeted <feature>...`) after Level 2 when the change crosses components; REGRESSION at the end
+   of a development phase or before delivering a substantial set of changes; FULL before a merge or release, or when explicitly asked,
+   never automatically. Passing small selections never replaces FULL before a merge or release.
 
-**Level 2: Full Validation, once after the final phase** (all phases committed and
-pushed):
-1. Complete backend suite; complete browser suite (`npm ci`, `npm run build` first);
-   `npm run check:types`; production build.
-2. Static, documentation and security checks: `python scripts/check-docs.py`,
-   `python scripts/check-workflows.py`, `node scripts/sync-lucide-catalog.mjs --check`,
-   `git diff --check`, `python -m pip check`, pip-audit, `npm audit --omit=dev`
-   (report development advisories separately, never suppress).
-3. Representative visual QA in light and dark at 375, 800, 1280 and 1600 px.
-4. Deployment packaging checks where the environment supports them.
-5. Document platform acceptance that could not be run.
-If the browser suite exceeds an execution limit, split it into deterministic batches
-(for example by sorted spec file) and make sure every spec executes. If Full
-Validation fails: classify each failure, fix confirmed defects, run targeted tests,
-repeat only the affected checks (a full restart is justified only for shared or
-critical changes), commit, push and report the final status.
+- **Fail fast:** when a test fails, stop widening the scope; find the root cause, fix it, rerun that test, then its group, and only then
+  continue. Never run a 20 to 40 minute suite to check a single correction, and never rerun FULL while known targeted tests fail.
+- Do not rerun passed tests unless a later change can affect them. Reuse build outputs (the runner rebuilds only stale assets).
+- Record which tests ran and why; when a change has no relevant automated test, say so and report the coverage gap.
+- Never substitute longer timeouts, sleeps, retries or weaker assertions for a fix. Isolation and correctness come before speed.
+- Commit and push validated, independently functional phases to `origin/work`; report targeted results separately from pending
+  REGRESSION/FULL and from GitHub Actions. Preserve user instructions that explicitly delay a push.
+- Test storage is disposable and isolated from production paths. One browser worker per Playwright process; parallelism uses
+  separate processes with their own server, port and storage. `python scripts/validate.py --level quick|targeted|regression|full`
+  runs the same profiles with isolated storage and keeps a log under `build/validation/`.
+- Native Windows/WebView2/SCM, real systemd, reboot/recovery and UNC acceptance are reported separately from Linux results. Never claim
+  Windows validation that did not run on Windows.
 
-**Platform limits.** Linux unit/browser tests are not Windows/WebView2, SCM, installer,
-systemd or UNC validation. When a user has authorized pushing validated phases, report
-that gap accurately and continue; without such authorization, request approval before
-pushing with incomplete native validation. Do not start remote Windows or deployment
-builds without explicit authorization. After changing Lucide or its catalog, run
-`node scripts/sync-lucide-catalog.mjs --check` following `npm ci`.
+## Test execution and output
+
+- Every run shows live progress in the terminal (profile header, stage start/end, each finished browser test or, with
+  `SAP_LENS_TEST_PROGRESS=summary`, only failures, a periodic `completed/total | passed | failed | skipped` summary per process, failures
+  as soon as they happen) and ends with `Summary`, `Result`, duration and exit code. Do not hide output to save it in a file.
+- Keep complete logs and machine-readable results: `--log FILE` (UTF-8 copy of everything printed), `--report FILE` (JSON), per-process
+  Playwright logs, JSON reports, traces and error contexts preserved under `build/test-artifacts/` for a failed run.
+- Exit codes: 0 passed, 1 tests failed, 2 infrastructure only. The runner prints only to stdout, so Windows PowerShell 5.1 shows no
+  `NativeCommandError` for ordinary subprocess stderr; a redirected Windows console gets readable ASCII while logs keep UTF-8. Use the
+  runner's `--log` instead of `*>`, `Out-File` or `Tee-Object` wrappers.
+- Status words are coloured on an interactive terminal only (green pass, red failure, yellow warning, gray skip); redirected output, logs
+  and reports stay plain, and `NO_COLOR` is respected. Never parse colours: the exit code and the JSON report are the results.
+- Same commands on Windows PowerShell 5.1, PowerShell 7 and Linux.
+
+## Failure investigation
+
+- Inspect the error and call log, the JSON report, the shard logs (including test-server lines), error contexts and traces before
+  changing code. A failure's page snapshot is taken after `afterEach` cleanup; judge it by the error, not by a cleanup banner.
+- Classify each failure as an application defect, a test defect (timing, isolation, wrong assumption) or infrastructure, with evidence.
+- Reproduce before changing assertions (single process first; for load-dependent failures CPU throttling or delayed responses), and
+  show the fix against the original reproduction. Never weaken a meaningful assertion or change an expected value to get green.
+- Keep diagnostic artifacts; record root causes in the canonical guide, not in new report files.
 
 ## Architecture and documentation map
 
@@ -156,14 +179,14 @@ builds without explicit authorization. After changing Lucide or its catalog, run
 - Server mode must use separate mutable storage, enforce its authentication and
   host/origin boundary, and keep browser uploads local to the configured server.
   Optional disabled/missing sources are not permission to erase valid snapshots.
-- `build.sh`/`build.ps1` delegate local orchestration; canonical packaging remains
-  in `scripts/`. Keep legacy desktop release behavior separate from deployment
+- `scripts/build.ps1`/`scripts/build.py` are the public build interfaces; canonical packaging remains
+  in specialized internal `scripts/` helpers. Keep legacy desktop release behavior separate from deployment
   publication. No automatic tags/releases/registry pushes from local builds.
 - Reuse frontend Shared components, semantic tokens and isolated Component Library
   previews. Navigation links, content tabs, filters and actions have distinct
   semantics; preserve keyboard focus and source evidence.
 - Start at [documentation index](docs/README.md), [deployment](docs/deployment/README.md),
-  [local builds](docs/deployment/BUILD.md),
+  [local builds](docs/BUILD.md),
   [design system](docs/architecture/DESIGN_SYSTEM.md) and
   [component APIs](docs/architecture/COMPONENTS.md). Update the canonical guide and index
   when behavior/commands change, rather than copying procedures into new reports.
@@ -177,7 +200,7 @@ builds without explicit authorization. After changing Lucide or its catalog, run
   authorization/license entitlement from role/T-code mappings.
 - Native Windows installer/SCM/WebView2, real systemd, reboot/recovery and UNC
   acceptance must be reported separately from Linux unit/browser/static checks.
-  Keep the Validation policy and its platform-limits rule in force.
+  Keep the Progressive test validation policy and its platform limits in force.
 
 ## Planning, continuous execution and progress reporting
 
@@ -201,8 +224,8 @@ builds without explicit authorization. After changing Lucide or its catalog, run
   **Status:** In progress / Completed / Blocked
   **Completed in this phase:** actual functionality and important corrections
   **Remaining in this phase:** specific unfinished requirements
-  **Validation:** Fast Validation Passed/Failed/Pending; targeted tests with results;
-  Full Validation deferred until the final phase
+  **Validation:** Level 1/2 (exact tests run) Passed/Failed/Pending; Level 3/4 results;
+  FULL pending unless explicitly requested or required for release
   **Git:** Commit SHA or Not committed; Push Verified/Pending; Branch `work`
   **Next:** next concrete milestone
 
@@ -217,8 +240,8 @@ builds without explicit authorization. After changing Lucide or its catalog, run
 
 ## Efficiency
 
-Use the smallest sufficient check while implementing, Fast Validation at phase
-boundaries and one comprehensive final regression. Never trade correctness, data
+Use Level 1 checks while implementing, Level 2 validation at phase
+boundaries; FULL only for an explicit request, release or major merge. Never trade correctness, data
 integrity, security or required functionality for speed.
 
 - Prefer scoped inspection, existing shared components, batched related edits, and
@@ -239,7 +262,7 @@ integrity, security or required functionality for speed.
   required checks and trust boundaries. Claim speed improvements only with comparable
   measurements. Avoid repeated installs, builds, large logs and screenshots of
   unchanged screens; capture affected screens at representative widths and themes
-  during development, with the full theme/breakpoint matrix in Full Validation.
+  during development, with the full theme/breakpoint matrix reserved for explicit FULL validation.
 - Controlled parallelism is fine for independent read-only inspections and checks.
 
 

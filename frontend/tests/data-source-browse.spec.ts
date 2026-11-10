@@ -17,25 +17,22 @@ const openSource = async (page: Page, label: string) => {
 }
 const settings = async (request: import('@playwright/test').APIRequestContext) => (await (await request.get('/api/configuration', { headers })).json()).settings
 
-test('Browse CSV is always available, with one label, even when a source is already configured', async ({ page }) => {
+test('Browse / Upload file is always available, with one label, even when a source is already configured', async ({ page }) => {
   for (const [label] of SOURCES) {
     const area = await openSource(page, label)
     await expect(area.getByRole('textbox').first()).not.toHaveValue('') // a file is configured
-    const browse = area.getByRole('button', { name: 'Browse CSV', exact: true })
+    const browse = area.getByRole('button', { name: 'Browse / Upload file', exact: true })
     await expect(browse).toBeEnabled()
   }
 })
 
-test('without native browsing Browse CSV opens the supported alternative with an explanation', async ({ page }) => {
+test('without native browsing the single primary action opens the browser file picker', async ({ page }) => {
   const area = await openSource(page, 'Role Catalogue')
-  const field = area.getByRole('textbox', { name: 'CSV file location' })
-  await area.getByRole('button', { name: 'Browse CSV', exact: true }).click()
-  const upload = area.getByRole('region', { name: /browser upload/ })
-  if (await upload.count()) await expect(upload).toBeVisible() // server mode: the upload chooser is the alternative
-  else {
-    await expect(area.getByRole('status').filter({ hasText: 'Native file browsing is only available in the desktop app' })).toBeVisible()
-    await expect(field).toBeFocused()
-  }
+  await expect(area.getByRole('button', { name: 'Browse / Upload file', exact: true })).toHaveCount(1)
+  const chooser = page.waitForEvent('filechooser')
+  await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
+  expect(await (await chooser).element().getAttribute('type')).toBe('file')
+  await expect(area.locator('details button').filter({hasText:'Browse'})).toHaveCount(0)
 })
 
 test.describe('with the desktop file dialog', () => {
@@ -49,17 +46,17 @@ test.describe('with the desktop file dialog', () => {
     const empty = path.join(directory, 'empty-replacement.csv'); writeFileSync(empty, 'AGR_NAME,TEXT,CHILD_AGR,TCODE\n')
     for (const file of [bad, empty]) {
       await page.evaluate((value) => { (window as any).selectedCSV = value }, file)
-      await area.getByRole('button', { name: 'Browse CSV', exact: true }).click()
+      await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
       await expect(area.getByRole('alert')).toContainText('No source data was replaced')
       await expect(area.getByRole('alert')).toContainText('The active file is unchanged')
       await expect(field).toHaveValue(file) // the attempted file stays visible for correction, the configured file stays active
-      await expect(area.getByRole('button', { name: 'Browse CSV', exact: true })).toBeEnabled() // and the next attempt is possible immediately
+      await expect(area.getByRole('button', { name: 'Browse / Upload file', exact: true })).toBeEnabled() // and the next attempt is possible immediately
     }
     const after = await settings(request)
     expect([after.data_csv_path, after.data_lifecycle.sources.roles?.snapshot, after.revision]).toEqual([before.data_csv_path, before.data_lifecycle.sources.roles?.snapshot, before.revision])
     const good = path.join(directory, 'good-replacement.csv'); writeFileSync(good, 'AGR_NAME,TEXT,CHILD_AGR,TCODE\nROLE_NEW,Synthetic ROLE_NEW,ZS:ROLE_NEW,X1\n')
     await page.evaluate((value) => { (window as any).selectedCSV = value }, good)
-    await area.getByRole('button', { name: 'Browse CSV', exact: true }).click()
+    await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
     await expect(area.getByRole('status').filter({ hasText: /Completed · 1 source records from good-replacement\.csv/ })).toBeVisible()
     await expect(field).toHaveValue(good)
     expect((await settings(request)).data_csv_path).toBe(good)
@@ -77,9 +74,9 @@ test.describe('SoD Matrix replacement with the desktop file dialog', () => {
     const empty = path.join(directory, 'sod-empty.csv'); writeFileSync(empty, HEADER)
     for (const file of [bad, empty]) {
       await page.evaluate((value) => { (window as any).selectedCSV = value }, file)
-      await area.getByRole('button', { name: 'Browse CSV', exact: true }).click()
+      await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
       await expect(area.getByRole('alert')).toContainText('No source data was replaced')
-      await expect(area.getByRole('button', { name: 'Browse CSV', exact: true })).toBeEnabled()
+      await expect(area.getByRole('button', { name: 'Browse / Upload file', exact: true })).toBeEnabled()
     }
     const after = await (await request.get('/api/data-sources/sod/inspection', { headers })).json()
     expect(after.counts).toEqual(before.counts)
@@ -92,7 +89,7 @@ test.describe('SoD Matrix replacement with the desktop file dialog', () => {
     const rows = [['R9', 'H', 'S', 'Synthetic', 'A', 'B', 'ACTVT1', 'A', 'X1', ''], ['R9', 'H', 'S', 'Synthetic', 'A', 'B', 'ACTVT2', 'B', 'X1', ''], ['R8', 'M', 'X', 'Other type', 'C', 'D', 'ACTVT1', 'C', 'X2', 'Described'], ['R8', 'M', 'X', 'Other type', 'C', 'D', 'ACTVT2', 'D', 'X3', 'Described']]
     const file = path.join(directory, 'sod-warnings.csv'); writeFileSync(file, HEADER + rows.map((row) => row.join(',')).join('\n') + '\n')
     await page.evaluate((value) => { (window as any).selectedCSV = value }, file)
-    await area.getByRole('button', { name: 'Browse CSV', exact: true }).click()
+    await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
     await expect(area.getByRole('status').filter({ hasText: /Completed · 4 source records from sod-warnings\.csv/ })).toBeVisible()
     await area.getByRole('button', { name: 'Preview data', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'SoD Matrix source inspection', exact: true })

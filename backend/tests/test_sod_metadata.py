@@ -152,23 +152,28 @@ class ResolutionTests(Case):
     def snapshot(self, extra=None):
         write(self.path, rows(extra)); return type('Snapshot', (), dict(sod=parse_sod(self.path)))()
 
+    def test_activity_reference_scope_is_exact_active_ids_without_local_history(self):
+        resolved=sod_metadata.lookup(self.snapshot(),self.local(activities={'HISTORICAL':dict(display_name='Synthetic historical')}))
+        self.assertEqual(resolved['active_activities'],['A','B','C','D','E'])
+        self.assertNotIn('HISTORICAL',resolved['active_activities'])
+
     def test_priority_and_provenance(self):
-        self.assertEqual(sod_metadata.resolve('Imported', 'Local'), dict(value='Imported', origin='imported', alternate='Local', alternate_origin='local'))
+        self.assertEqual(sod_metadata.resolve('Imported', 'Local'), dict(value='Local', origin='local', alternate='Imported', alternate_origin='imported'))
         self.assertEqual(sod_metadata.resolve('Same', 'Same')['alternate'], '')
         self.assertEqual(sod_metadata.resolve('', 'Local'), dict(value='Local', origin='local', alternate='', alternate_origin=None))
         self.assertEqual(sod_metadata.resolve('  ', None)['origin'], None)
         saved = self.local(risks={'R1': dict(display_name='Local name', explanation_en='Local words'), 'R3': dict(explanation_en='Local only')})
         found = sod_metadata.lookup(self.snapshot(described), saved)['risks']
-        self.assertEqual((found['R1']['name'], found['R1']['origin']['name']), ('Name R1', 'imported'))  # imported wins
-        self.assertEqual(found['R1']['alternate']['name'], dict(value='Local name', origin='local'))  # both values kept, origins identifiable
+        self.assertEqual((found['R1']['name'], found['R1']['origin']['name']), ('Local name', 'local'))  # explicit local override wins
+        self.assertEqual(found['R1']['alternate']['name'], dict(value='Name R1', origin='imported'))  # both values kept, origins identifiable
         self.assertEqual((found['R3']['description'], found['R3']['origin']['description']), ('Local only', 'local'))  # local fills an imported gap
         self.assertEqual(found['R1']['criticality'], 'H')
 
     def test_missing_metadata_is_neutral_and_nothing_is_generated(self):
         found = sod_metadata.lookup(self.snapshot(), self.local())
-        self.assertEqual(found['activities'], {})  # no description anywhere: no invented text
-        for entry in found['risks'].values():
-            self.assertEqual(entry, dict(origin={}, criticality='H', type='S'))  # only the factual context of the imported definition
+        self.assertTrue(all('name' not in entry and 'description' not in entry for entry in found['activities'].values()))  # contextual relationships are not invented descriptions
+        for key, entry in found['risks'].items():
+            self.assertEqual(entry, dict(origin={}, criticality='H', type='S', activities={'R1':['A','B'],'R2':['A','C'],'R3':['D','E']}[key]))  # only the factual context of the imported definition
 
     def test_local_text_alone_is_used_when_the_source_has_none(self):
         found = sod_metadata.lookup(self.snapshot(), self.local(risks={'R2': dict(display_name='Our name')}, activities={'A': dict(explanation_en='Our activity words')}))
@@ -186,6 +191,9 @@ class ResolutionTests(Case):
         self.assertEqual((by['activity_descriptions']['total'], by['activity_descriptions']['imported'], by['activity_descriptions']['local_fallback']), (5, 4, 1))  # five activities, however often they repeat
         self.assertEqual((by['transaction_descriptions']['total'], by['transaction_descriptions']['available']), (11, 11))  # distinct transaction codes
         self.assertEqual(by['risk_descriptions']['state'], 'complete')
+        # local text fills the gap for the effective description, but is never counted as imported SAP metadata
+        self.assertEqual((by['risk_descriptions']['source_state'], by['risk_descriptions']['imported_percent']), ('values_missing', 66.7))
+        self.assertEqual((by['risk_names']['source_state'], by['risk_names']['imported_percent']), ('complete', 100.0))
 
     def test_coverage_separates_absent_columns_from_missing_values(self):
         partial = sod_metadata.coverage(self.snapshot(lambda row: dict(RISK_DESCRIPTION='Words' if row['RISK'] == 'R1' else '')), self.local())
@@ -196,12 +204,38 @@ class ResolutionTests(Case):
         plain = sod_metadata.coverage(self.snapshot(), self.local())
         self.assertEqual(plain['optional_columns']['detected'], [])
         self.assertTrue(all(item['state'] in {'column_absent', 'complete'} for item in plain['indicators']))
+        self.assertEqual(by['risk_names']['source_state'], 'column_absent')   # absent stays absent, also when local text exists
 
 
 class LifecycleAndApiTests(Case):
     def setUp(self):
         super().setUp()
         self.client = TestClient(create_app(session_token=H['X-SAP-Lens']), base_url='http://127.0.0.1:18743')
+
+    def test_configuration_relationships_and_exact_entity_routes_use_imported_scope(self):
+        write(self.path,rows(described));self.activate()
+        risk=self.client.get('/api/sod/catalogue/R1',headers=H)
+        self.assertEqual(risk.status_code,200)
+        self.assertEqual(risk.json()['item']['risk_id'],'R1')
+        activity=self.client.get('/api/sod/catalogue-activities/A',headers=H).json()['item']
+        self.assertEqual(activity['current_risks'],['R1','R2'])
+        self.assertEqual(self.client.get('/api/sod/catalogue-activities',headers=H).json()['source_version'],cache.get_snapshot().sod['content_hash'])
+        descriptions=self.client.get('/api/sod/metadata',headers=H).json()
+        self.assertEqual(descriptions['risks']['R1']['activities'],['A','B'])
+        self.assertEqual(descriptions['activities']['A']['risk_ids'],['R1','R2'])
+        self.assertEqual(self.client.get('/api/sod/catalogue/R1_UNKNOWN',headers=H).status_code,404)
+        self.assertEqual(self.client.get('/api/sod/catalogue-activities/A_UNKNOWN',headers=H).status_code,404)
+
+    def test_effective_names_drive_catalogue_search_sort_and_export_without_overrides(self):
+        write(self.path,rows(described));self.activate()
+        result=self.client.get('/api/sod/catalogue',headers=H,params={'search':'Name R1','sort':'display_name'}).json()
+        self.assertEqual([row['risk_id'] for row in result['items']],['R1'])
+        self.assertEqual(result['items'][0]['display_name'],'Name R1')
+        self.assertEqual(result['items'][0]['local']['display_name'],'')
+        export=self.client.get('/api/sod/catalogue/export',headers=H,params={'search':'Name R1'})
+        self.assertIn('"R1";"Name R1"',export.text)
+        activities=self.client.get('/api/sod/catalogue-activities',headers=H,params={'search':'Activity A','sort':'display_name'}).json()
+        self.assertTrue(any(row['activity']=='A' and row['display_name']=='Activity A' for row in activities['items']))
 
     def test_local_descriptions_survive_refreshes_and_imports_never_overwrite_them(self):
         write(self.path, rows()); self.activate()
@@ -211,7 +245,7 @@ class LifecycleAndApiTests(Case):
         write(self.path, rows(described)); self.activate()  # the source now supplies its own descriptions
         self.assertEqual(catalogue.read().entries['R1'].metadata.model_dump(), before)  # local store untouched
         found = self.client.get('/api/sod/metadata', headers=H).json()['risks']['R1']
-        self.assertEqual((found['name'], found['origin']['name'], found['alternate']['name']['value']), ('Name R1', 'imported', 'Our name'))
+        self.assertEqual((found['name'], found['origin']['name'], found['alternate']['name']['value']), ('Our name', 'local', 'Name R1'))
         write(self.path, rows()); self.activate()  # the source drops them again
         found = self.client.get('/api/sod/metadata', headers=H).json()['risks']['R1']
         self.assertEqual((found['name'], found['origin']['name']), ('Our name', 'local'))

@@ -21,6 +21,20 @@ class DeploymentContracts(unittest.TestCase):
         self.assertIn('USER 10001:10001',docker);self.assertIn('backend/healthcheck.py',docker)
         self.assertNotIn('requirements-dev',docker);self.assertNotIn('requirements-desktop',docker)
         self.assertIn('STOPSIGNAL SIGTERM',docker)
+    def test_linux_native_files_are_started_through_the_interpreter_so_no_executable_bits_are_needed(self):
+        """The 0644 archive modes are intentional: nothing is executed directly, and the installer normalizes the installed tree."""
+        unit=(ROOT/'deploy/linux/sap-lens.service').read_text()
+        line=next(row for row in unit.splitlines() if row.startswith('ExecStart='))
+        self.assertTrue(line.startswith('ExecStart=/opt/sap-lens/.venv/bin/python /opt/sap-lens/backend/server.py'))  # script is an argument
+        for hardening in ('NoNewPrivileges=true','ProtectSystem=strict','PrivateTmp=true','User=saplens','UMask=0077'):
+            self.assertIn(hardening,unit)
+        installer=(ROOT/'scripts/install-linux-server.py').read_text()
+        self.assertIn("path.chmod(0o755 if path.is_dir() else 0o644)",installer)  # releases: root-owned, never group/world writable
+        self.assertNotIn('0o777',installer);self.assertNotIn('0o4755',installer)
+        for guide in ('docs/deployment/LINUX_NATIVE.md',):
+            text=(ROOT/guide).read_text()
+            self.assertNotIn('chmod +x',text);self.assertNotIn('\n./scripts/',text)  # direct execution is not part of the contract
+            self.assertIn('python3.12 scripts/install-linux-server.py',text)
     def test_server_has_no_desktop_imports_and_single_worker(self):
         tree=ast.parse((ROOT/'backend/server.py').read_text())
         imports=[node.module for node in ast.walk(tree) if isinstance(node,ast.ImportFrom)]

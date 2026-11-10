@@ -123,7 +123,7 @@ def configuration_router(loader, desktop_preferences=None):
         state = cache.get_snapshot()
         return {'settings':get_settings().model_dump(), 'notice':configuration_notice(),
                 'loading':loader.loading, 'progress':loader.progress, 'error':loader.error, 'analysis':state.analysis,
-                'data_revision':state.last_loaded.isoformat() if state.last_loaded else 'empty', 'instance_id':INSTANCE_ID}
+                'data_revision':state.last_loaded.isoformat() if state.last_loaded else 'empty', 'data_generation':cache.revision_token(), 'instance_id':INSTANCE_ID}
 
     @router.post('/configuration')
     async def write_config(config: AppConfig):

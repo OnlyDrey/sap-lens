@@ -1,5 +1,4 @@
 import { bootstrapDocument } from './bootstrap-fixture'
-import { contrast, onColor, themePresets, themeTokens, paletteErrors } from '../src/lib/theme'
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
 import { headers } from './support'
@@ -7,7 +6,7 @@ test.beforeEach(async({request})=>{expect((await request.post('/api/configuratio
 const settings=(page:import('@playwright/test').Page)=>page.getByRole('region',{name:'SAP Lens settings',exact:true})
 
 test('full-window navigation preserves draft and main analysis state and warns before discard',async({page,request})=>{
- await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/synthetic.csv')}})
+ await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/role-catalogue-minimal.csv')}})
  await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
  await page.getByRole('article').first().getByRole('button',{name:'Add to comparison',exact:true}).click()
@@ -32,7 +31,7 @@ test('full-window navigation preserves draft and main analysis state and warns b
  await expect(page.getByRole('tab',{name:'Appearance & Branding'})).toHaveAttribute('aria-selected','true')
 })
 
-test('theme preview, accessible validation, custom preset persistence, system appearance and cancel',async({page,request})=>{
+test('theme preview, accessible validation, custom preset persistence, system appearance and cancel',{ tag: '@a11y' }, async({page,request})=>{
  await page.emulateMedia({colorScheme:'dark'})
  await page.goto('/#session=browser-test-session')
  await page.getByRole('tab',{name:'Appearance & Branding'}).click()
@@ -49,7 +48,7 @@ test('theme preview, accessible validation, custom preset persistence, system ap
  await page.getByRole('button',{name:'Reset Primary text color',exact:true}).click()
  await page.getByLabel('Custom preset name',{exact:true}).fill('Synthetic theme')
  await page.getByRole('button',{name:'Save custom preset',exact:true}).click()
- await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+ await page.getByRole('button',{name:'Apply settings',exact:true}).click();await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
  await expect(page.locator('html')).toHaveCSS('--primary','#123456')
  await page.reload()
  await page.getByRole('tab',{name:'Appearance & Branding'}).click()
@@ -72,7 +71,7 @@ test('theme preview, accessible validation, custom preset persistence, system ap
  await expect(page.locator('html')).toHaveClass(/dark/)
 })
 
-test('empty organization fallback, icon search and keyboard selection', async ({ page }) => {
+test('empty organization fallback, icon search and keyboard selection', { tag: '@a11y' }, async ({ page }) => {
  await page.goto('/#session=browser-test-session')
  await page.getByRole('tab',{name:'Organization & SAP System'}).click()
  await page.getByLabel('Organization name',{exact:true}).fill('')
@@ -121,9 +120,9 @@ for (const theme of ['SAP Lens Default', 'Light']) {
 }
 
 test('startup connection failure has actionable recovery and configuration notices dismiss once',async({page})=>{
- await page.route('**/api/configuration',route=>route.abort())
+ await page.route('**/api/configuration',route=>route.fulfill({status:500,json:{detail:'Settings storage could not be opened.'}}))
  await page.goto('/#session=browser-test-session')
- await expect(page.getByRole('heading',{name:'Unable to connect to the local service'})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'SAP Lens could not load its configuration'})).toBeVisible()
  await expect(page.getByRole('button',{name:'Retry connection'})).toBeVisible()
  await page.unroute('**/api/configuration')
  await page.getByRole('button',{name:'Retry connection'}).click()
@@ -159,7 +158,7 @@ test('branded startup document displays real status messages and recovery withou
 })
 
 test('active role loading is explained and a subsequent CSV error opens source recovery',async({page,request})=>{
- await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/synthetic.csv')}})
+ await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/role-catalogue-minimal.csv')}})
  let phase='loading'
  await page.route('**/api/configuration',async route=>{const response=await route.fetch();const data=await response.json();await route.fulfill({json:{...data,loading:phase==='loading',error:phase==='error'?'Synthetic data read failed. Choose another file.':null}})})
  await page.goto('/#session=browser-test-session')
@@ -175,16 +174,3 @@ test('active role loading is explained and a subsequent CSV error opens source r
 })
 
 
-test('theme tokens keep primary controls readable across grayscale accents and presets',async()=>{
- for(let value=0;value<=255;value++) {
-  const channel=value.toString(16).padStart(2,'0');const color='#'+channel.repeat(3)
-  expect(contrast(color,onColor(color))).toBeGreaterThanOrEqual(4.5)
- }
- for(const preset of themePresets) {
-  expect(paletteErrors(preset.colors)).toEqual([])
-  const tokens=themeTokens(preset.colors)
-  expect(contrast(tokens['--text'],tokens['--surface2'])).toBeGreaterThanOrEqual(4.5)
-  expect(contrast(tokens['--text'],tokens['--hover'])).toBeGreaterThanOrEqual(4.5)
-  expect(contrast(tokens['--border'],tokens['--surface'])).toBeGreaterThanOrEqual(3)
- }
-})

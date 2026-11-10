@@ -27,7 +27,7 @@ class BuildVersionTests(unittest.TestCase):
             info = version.read_build_info(
                 Path(directory) / "absent.json", frozen=False
             )
-            self.assertEqual(info["version"], "0.0.0-dev.local")
+            self.assertEqual(info["version"], version.product_version())
             self.assertEqual(info["mode"], "local")
             self.assertEqual(info["source_sha"], "")
 
@@ -127,7 +127,7 @@ class BuildVersionTests(unittest.TestCase):
         for mode in ["beta", "stable", "build"]:
             info = self.make(mode)
             spec = importlib.util.spec_from_file_location(
-                "generated_windows_metadata", ROOT / "scripts/write-windows-metadata.py"
+                "generated_windows_metadata", ROOT / "scripts/packaging/write-windows-metadata.py"
             )
             writer = importlib.util.module_from_spec(spec)
             with patch.object(version, "VERSION", info["version"]), patch.object(
@@ -155,3 +155,27 @@ class BuildVersionTests(unittest.TestCase):
         self.assertIn("ensure-local-build", text)
         self.assertIn("backend/build/build-version.json", text)
         self.assertNotIn("1.2.0", (ROOT / "backend/version.py").read_text())
+
+
+class ProductVersionTests(unittest.TestCase):
+    def test_frontend_mirrors_product_source(self):
+        self.assertEqual(json.loads((ROOT/'frontend/package.json').read_text())['version'],version.product_version())
+        lock=json.loads((ROOT/'frontend/package-lock.json').read_text())
+        self.assertEqual(lock['version'],version.product_version())
+        self.assertEqual(lock['packages']['']['version'],version.product_version())
+
+    def test_mixed_legacy_and_semver_beta_numbers_share_one_sequence(self):
+        self.assertEqual(version.next_prerelease('1.0.0','beta',['v1.0.0-beta-1','v1.0.0-beta.3','v2.0.0-beta-99']),4)
+        self.assertEqual(version.next_prerelease('1.0.0','rc',['v1.0.0-rc.1','v1.0.0-beta.99']),2)
+
+    def test_product_resource_and_resolved_identity_have_one_base(self):
+        current=version.product_version()
+        self.assertEqual(version.local_build_info()['version'],current)
+        self.assertEqual(version.local_build_info()['base_version'],current.split('-',1)[0])
+
+    def test_local_desktop_identity_accepts_every_prerelease_channel(self):
+        for requested in ('1.0.0-alpha.1','1.0.0-beta.2','1.0.0-rc.3','1.0.0-beta-2'):
+            with self.subTest(requested=requested):
+                info=version.make_local_package_info(requested,'a'*40)
+                self.assertEqual(version.parse_build_info(info),info)
+                self.assertEqual(info['version'],requested+'+local.'+'a'*12)

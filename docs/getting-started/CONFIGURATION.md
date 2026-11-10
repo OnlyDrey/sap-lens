@@ -101,7 +101,7 @@ UI. Account Review CSV export is a separate explicit export containing identity
 and review information; do not confuse it with the redacted support report.
 
 See [Employee Directory](../data/EMPLOYEE_DIRECTORY.md), [Account Review](../features/ACCOUNT_REVIEW.md),
-and [local Windows testing](../deployment/BUILD.md).
+and [local Windows testing](../BUILD.md).
 
 ## Investigation filter storage and data coverage
 
@@ -140,3 +140,10 @@ snapshots are private application data (see [SoD architecture](../architecture/S
 They are not part of portable configuration or diagnostic exports. Include them in private
 backups; restoring only part of them can leave a period snapshot or retained decision
 evidence unavailable, which SAP Lens reports instead of silently changing history.
+
+## Full application data transfer
+
+Settings → Backup & Restore is separate from portable configuration export. It includes
+imported snapshots and review history and uses a coordinated restart rather than live
+replacement. See [Backup & Restore](../deployment/BACKUP_RESTORE.md) for administrator
+access, protected destination credentials, Static source recovery and unencrypted-archive handling.

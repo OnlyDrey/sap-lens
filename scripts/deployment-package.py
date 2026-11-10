@@ -17,9 +17,11 @@ import zipfile
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
-from version import make_build_info,make_local_package_info,parse_build_info,make_deployment_info
+from version import make_build_info,make_local_package_info,parse_build_info,make_deployment_info,sync_frontend_version,product_version
 # Lightweight package-integrity checks only. Neither the full backend suite nor the browser suite is a prerequisite for building or publishing; see docs/deployment/CI_CD.md.
 CHECKS={'types','build','catalog','python_audit','javascript_audit','pip_check','workflow_lint','powershell'}
+# Only a non-Windows local build may leave the PowerShell parse check unverified (recorded in the receipt); CI and Windows never may.
+LOCAL_OPTIONAL={'powershell'}
 
 
 def sha(path):
@@ -63,13 +65,13 @@ def privacy(names):
 
 def prepare(version):
     if os.environ.get('DEPLOYMENT_TARGET'):
-        release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
+        release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment/deployment-release.py')
         release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
         try:release.resolve(os.environ['DEPLOYMENT_TARGET'])
         except release.DeliveryError as error:raise ValueError(str(error)) from None
     if os.environ.get('GITHUB_ACTIONS')=='true':
         if os.environ.get('DEPLOYMENT_CHANNEL'):
-            release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment-release.py')
+            release_spec=importlib.util.spec_from_file_location('deployment_release',ROOT/'scripts/deployment/deployment-release.py')
             release=importlib.util.module_from_spec(release_spec);release_spec.loader.exec_module(release)
             value=make_deployment_info(version,release.channel(os.environ['DEPLOYMENT_CHANNEL']),
                 os.environ.get('DEPLOYMENT_SEQUENCE',''),git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
@@ -83,6 +85,7 @@ def prepare(version):
             value=make_build_info('build',version,git_sha(),os.environ['GITHUB_RUN_ID'],os.environ['GITHUB_RUN_NUMBER'],int(os.environ['GITHUB_RUN_ATTEMPT']))
     else:value=make_local_package_info(version,git_sha())
     write(ROOT/'backend/build/build-version.json',value)
+    if os.environ.get('GITHUB_ACTIONS')=='true': sync_frontend_version(value['version'])
     if os.environ.get('GITHUB_OUTPUT'):
         with open(os.environ['GITHUB_OUTPUT'],'a') as output:
             output.write('version='+value['version']+'\n')
@@ -149,7 +152,7 @@ def require_ci():
 
 
 def local_tools():
-    spec=importlib.util.spec_from_file_location('local_deployment_inputs',ROOT/'scripts/local-build.py')
+    spec=importlib.util.spec_from_file_location('local_deployment_inputs',ROOT/'scripts/packaging/local-build.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
     return module
 
@@ -161,11 +164,14 @@ def record_local():
         raise ValueError('Local validation requires a local identity for the clean source commit.')
     timings=Path(os.environ['RUNNER_TEMP'])/'sap-lens-ci-timings.jsonl'
     records={row['stage']:row for row in map(json.loads,timings.read_text().splitlines())}
-    if any(records.get(key,{}).get('status')!='passed' for key in CHECKS):
+    skipped=set(filter(None,os.environ.get('SAP_LENS_SKIPPED_CHECKS','').split(',')))&LOCAL_OPTIONAL
+    if sys.platform=='win32' and skipped:raise ValueError('Windows hosts must run every validation check.')
+    required=CHECKS-skipped
+    if any(records.get(key,{}).get('status')!='passed' for key in required):
         raise ValueError('Local deployment validation is incomplete.')
     frontend_licenses()
     privacy(files(ROOT/'frontend/dist'))
-    value=dict(schema=1,identity=info,host=sys.platform,checks=sorted(CHECKS),
+    value=dict(schema=1,identity=info,host=sys.platform,validation_scope=os.environ.get('SAP_LENS_BUILD_SCOPE','targeted'),checks=sorted(required),not_verified=sorted(skipped),
                validated_at=time.time(),inputs=tools.inputs(ROOT,allow_interpreter_links=True))
     write(ROOT/'backend/build/deployment-local-validation.json',value)
     return value
@@ -176,11 +182,13 @@ def require_inputs():
     tools=local_tools();tools.clean(ROOT)
     path=ROOT/'backend/build/deployment-local-validation.json'
     if path.is_symlink() or not path.is_file() or path.stat().st_size>16384:
-        raise ValueError('Run build.sh/build.ps1 without --reuse-validation first.')
+        raise ValueError('Run python scripts/build.py package without --skip-setup first.')
     receipt=json.loads(path.read_text());info=identity()
+    if os.environ.get('SAP_LENS_BUILD_SCOPE')=='full' and receipt.get('validation_scope','full')!='full':
+        raise ValueError('A targeted receipt cannot certify an explicitly requested full test scope.')
     if (info['schema']!=3 or receipt['identity']!=info or info['source_sha']!=git_sha()
             or receipt.get('schema')!=1 or receipt.get('host')!=sys.platform
-            or set(receipt.get('checks',[]))!=CHECKS
+            or set(receipt.get('checks',[]))!=CHECKS-(set(receipt.get('not_verified',[]))&LOCAL_OPTIONAL if sys.platform!='win32' else set())
             or not 0<=time.time()-receipt.get('validated_at',0)<=86400
             or receipt.get('inputs')!=tools.inputs(ROOT,allow_interpreter_links=True)):
         raise ValueError('Local validation is stale or inputs changed; rebuild without --reuse-validation.')
@@ -192,13 +200,19 @@ def finish(directory,platform,output):
     if output.resolve().is_relative_to(directory.resolve()):
         raise ValueError('Keep deployment archive output outside its input bundle.')
     output.mkdir(parents=True,exist_ok=True)
-    stem=f'SAP-Lens-{platform}-{info["version"]}'
+    platforms = {'Windows-Desktop-x64': 'win-desktop-x64', 'Windows-Service-x64': 'win-service-x64',
+                 'Linux-Docker-amd64': 'linux-docker-amd64', 'Linux-Native-x64': 'linux-native-x64'}
+    if platform not in platforms:
+        raise ValueError('Unknown deployment platform.')
+    stem=f'sap-lens-{platforms[platform]}-v{info["version"]}'
     archive=output/(stem+('.zip' if platform.startswith('Windows') else '.tar.gz'))
     checksum=archive.with_name(archive.name+'.sha256')
     if any(path.exists() or path.is_symlink() for path in (archive,checksum)):
         raise ValueError('Deployment output already exists; choose a new output directory. Existing packages were preserved.')
-    manifest=files(directory);manifest.pop('package-manifest.json',None);privacy(manifest)
-    write(directory/'package-manifest.json',dict(schema=1,platform=platform,identity=info,files=manifest))
+    manifest_name='metadata/package-manifest.json' if platform=='Windows-Desktop-x64' else 'package-manifest.json'
+    manifest=files(directory);manifest.pop(manifest_name,None);privacy(manifest)
+    layout={'layout':'installer-only-v1'} if platform=='Windows-Desktop-x64' else {}
+    write(directory/manifest_name,dict(schema=1,platform=platform,identity=info,files=manifest,**layout))
     if platform.startswith('Windows'):
         with zipfile.ZipFile(archive,'x',zipfile.ZIP_DEFLATED) as z:
             for path in sorted(directory.rglob('*')):
@@ -228,8 +242,13 @@ def verify_extract(archive,destination,expected):
                 if not i.isfile():raise ValueError('Archive contains a non-regular member.')
                 members.append((i.name,i.size,i.mode,lambda i=i:z.extractfile(i).read()))
             _extract(members,destination)
-    manifest=json.loads((destination/'package-manifest.json').read_text());parse_build_info(manifest['identity'])
-    actual=files(destination);actual.pop('package-manifest.json')
+    candidates=[name for name in ('package-manifest.json','metadata/package-manifest.json') if (destination/name).is_file()]
+    if len(candidates)!=1:raise ValueError('Exactly one package manifest is required.')
+    manifest_name=candidates[0]
+    manifest=json.loads((destination/manifest_name).read_text());parse_build_info(manifest['identity'])
+    desktop=manifest.get('platform')=='Windows-Desktop-x64'
+    if desktop != (manifest_name=='metadata/package-manifest.json') or desktop and manifest.get('layout')!='installer-only-v1':raise ValueError('Unexpected deployment layout.')
+    actual=files(destination);actual.pop(manifest_name)
     if manifest.get('schema')!=1 or actual!=manifest['files']:raise ValueError('Exact artifact contents or hashes differ.')
     privacy(actual)
     return manifest
@@ -272,6 +291,7 @@ def copy_source(target):
     for name in selected:
         path=target/name;path.parent.mkdir(parents=True,exist_ok=True);shutil.copyfile(ROOT/name,path)
     shutil.copytree(ROOT/'frontend/dist',target/'frontend/dist')
+    shutil.copytree(ROOT/'backend/resources',target/'backend/resources')
     write(target/'backend/build/build-version.json',identity())
     # Keep published bundle member names stable while repository guides move.
     documents = {
@@ -279,10 +299,7 @@ def copy_source(target):
         'SECURITY.md': 'deployment/SECURITY.md',
         'DEPLOYMENT_LINUX_NATIVE.md': 'deployment/LINUX_NATIVE.md',
         'DEPLOYMENT_SECURITY.md': 'deployment/SECURITY.md',
-        'DEPLOYMENT_PACKAGES.md': 'deployment/BUILD.md',
-        'PACKAGING_VALIDATION.md': 'archive/validation/PACKAGING_VALIDATION.md',
-        'LOCAL_BUILD_VALIDATION.md': 'archive/validation/LOCAL_BUILD_VALIDATION.md',
-        'INSTALLATION_LIFECYCLE_VALIDATION.md': 'archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md',
+        'DEPLOYMENT_PACKAGES.md': 'BUILD.md',
     }
     for name, source in documents.items():
         package_document(ROOT/'docs'/source, target/name)
@@ -320,7 +337,7 @@ def native(output):
 
 def main():
     p=argparse.ArgumentParser(description=__doc__);p.add_argument('operation',choices=['prepare','seal','consume','require-ci','require-inputs','record-local','native','finish','extract','readme'])
-    p.add_argument('--version',default='0.1.0');p.add_argument('--archive',type=Path);p.add_argument('--output',type=Path,default=ROOT/'dist/deployment')
+    p.add_argument('--version',default=product_version().split('-',1)[0]);p.add_argument('--archive',type=Path);p.add_argument('--output',type=Path,default=ROOT/'dist/deployment')
     p.add_argument('--directory',type=Path);p.add_argument('--platform');p.add_argument('--sha256')
     p.add_argument('--document',type=Path)
     a=p.parse_args()

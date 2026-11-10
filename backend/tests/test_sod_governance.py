@@ -105,6 +105,20 @@ class GovernanceCase(unittest.TestCase):
 
 
 class MatrixTests(GovernanceCase):
+    def test_effective_projections_agree_without_reinterpreting_formal_acceptance(self):
+        self.decide('assignment',[self.assignment_item('SYN_A','ROLE_A1')],'Keep')
+        activity=next(row for row in self.get('/api/sod/matrix/activity')['rows'] if row['user']=='SYN_A')['cells']['A']
+        self.assertEqual(activity['decision_summary']['label'],'Approved')
+        self.assertEqual(activity['decision'],'Pending') # Raw explicit decision is retained.
+        self.decide('risk',[self.acceptance_item('SYN_A','R1')],'Approved')
+        risk=next(row for row in self.risk_matrix()['rows'] if row['user']=='SYN_A')['cells']['R1']
+        self.assertEqual(risk['decision_summary']['label'],'Approved')
+        self.assertEqual(risk['acceptance'],'Pending')
+        for table,key,expected in [('user_risk','R1','Approved'),('user_activity','A','Approved')]:
+            rows=self.get('/api/sod/explorer/'+table)['items']
+            row=next(row for row in rows if row['user']=='SYN_A' and row.get('risk_id',row.get('activity'))==key)
+            self.assertEqual(row['decision_summary']['label'],expected)
+
     def test_risk_matrix_counts_distinct_users_and_user_risk_pairs(self):
         result = self.risk_matrix()
         self.assertEqual([row['user'] for row in result['rows']], ['SYN_A', 'SYN_B'])
@@ -438,6 +452,152 @@ class ImpactTests(GovernanceCase):
         self.assertEqual(self.get('/api/sod/queue')['total'], 0)
 
 
+class RoleAssignmentExportTests(GovernanceCase):
+    """The simplified Remediation export is one row per exact (username, role); the detailed export is unchanged."""
+    def rows(self, path='/api/sod/remediation/export', **params):
+        import csv, io
+        response = self.client.get(path, params=params, headers=H)
+        self.assertEqual(response.status_code, 200, response.text)
+        return response, list(csv.reader(io.StringIO(response.content.decode('utf-8-sig')), delimiter=';'))
+
+    def simplified(self, **params):
+        return self.rows(format='role-assignments', **params)
+
+    def setUp(self):
+        super().setUp()
+        for user in ('SYN_A', 'SYN_B'):                    # remediation lists only reviewed activities
+            for row in self.subject(user)['activities']:
+                self.decide('activity', [self.activity_item(user, row['activity'])], 'Approved')
+
+    def test_header_filename_and_one_row_per_user_and_role(self):
+        response, rows = self.simplified()
+        self.assertEqual(rows[0], ['USERNAME', 'ROLE', 'SAP User Group', 'Decision Status'])
+        self.assertRegex(response.headers['content-disposition'], r'sap-lens-sod-role-assignments-\d{4}-\d{2}-\d{2}\.csv')
+        pairs = [tuple(row[:2]) for row in rows[1:]]
+        self.assertEqual(len(pairs), len(set(pairs)))
+        self.assertEqual(pairs, sorted(pairs))                                           # deterministic order
+        _, detailed = self.rows()
+        detail_pairs = {(row[0], row[4]) for row in detailed[1:]}
+        self.assertEqual(set(pairs), detail_pairs)                                       # same assignments, nothing invented or lost
+        self.assertGreater(len(detailed) - 1, len(pairs))                                # the detailed export still repeats assignments per activity
+
+    def test_several_activities_and_risks_never_multiply_an_assignment(self):
+        _, detailed = self.rows()
+        per_pair = {}
+        for row in detailed[1:]:
+            per_pair.setdefault((row[0], row[4]), []).append(row)
+        repeated = [pair for pair, items in per_pair.items() if len(items) > 1]
+        self.assertTrue(repeated)
+        _, rows = self.simplified()
+        for pair in repeated:
+            self.assertEqual(sum(1 for row in rows[1:] if tuple(row[:2]) == pair), 1)
+        users_for_role = {}
+        for who, assigned in per_pair:
+            users_for_role.setdefault(assigned, set()).add(who)
+        for assigned, users in users_for_role.items():                                   # the same role for two users stays two rows
+            self.assertEqual(sum(1 for row in rows[1:] if row[1] == assigned), len(users))
+        roles_for_user = {}
+        for who, assigned in per_pair:
+            roles_for_user.setdefault(who, set()).add(assigned)
+        for who, roles in roles_for_user.items():                                        # two roles of one user stay two rows
+            self.assertEqual(sum(1 for row in rows[1:] if row[0] == who), len(roles))
+
+    def test_filters_are_those_of_the_remediation_view_and_export_is_not_paged(self):
+        remove = self.assignment_item('SYN_A', 'ROLE_A2')
+        self.decide('assignment', [remove], 'Remove')
+        _, everything = self.simplified()
+        _, only_a = self.simplified(username='SYN_A')
+        self.assertTrue(only_a[1:]); self.assertTrue(all(row[0] == 'SYN_A' for row in only_a[1:])); self.assertLess(len(only_a), len(everything))
+        _, removals = self.simplified(recommended='Remove assignment')
+        self.assertEqual({(row[0], row[1]) for row in removals[1:]}, {('SYN_A', 'ROLE_A2')})
+        self.assertEqual({row[3] for row in removals[1:]}, {'Removal required'})
+        view = [(item['user'], item['role']) for offset in range(0, 40) for item in self.get('/api/sod/remediation', limit=1, offset=offset)['items']]
+        self.assertTrue({tuple(row[:2]) for row in everything[1:]} >= set(view))          # export covers rows beyond any single page
+
+    def test_decision_status_is_the_authoritative_assignment_decision(self):
+        self.decide('assignment', [self.assignment_item('SYN_A', 'ROLE_A2')], 'Remove')
+        self.decide('assignment', [self.assignment_item('SYN_A', 'ROLE_A1')], 'Keep')
+        _, rows = self.simplified(username='SYN_A')
+        status = {row[1]: row[3] for row in rows[1:]}
+        _, detailed = self.rows(username='SYN_A')
+        assignment_review = {row[4]: row[9] for row in detailed[1:]}
+        self.assertEqual(status['ROLE_A2'], assignment_review['ROLE_A2'])
+        self.assertEqual(status['ROLE_A1'], assignment_review['ROLE_A1'])
+        self.assertNotEqual(status['ROLE_A1'], status['ROLE_A2'])
+
+
+class SodOrganizationFilterTests(GovernanceCase):
+    """Functional Group and Manager select SoD users by name; conflict evaluation and the approved CSV contract are untouched."""
+    rows, simplified = RoleAssignmentExportTests.rows, RoleAssignmentExportTests.simplified
+
+    def setUp(self):
+        super().setUp()
+        for user in ('SYN_A', 'SYN_B'):
+            for row in self.subject(user)['activities']:
+                self.decide('activity', [self.activity_item(user, row['activity'])], 'Approved')
+
+    def test_functional_group_filter_selects_users_without_changing_evidence(self):
+        import functional_groups as fg
+        group = fg.create_group('Purchasing')['id']
+        fg.classify('SYN_A', group, 'test', 0, 'Reviewer')
+        _, everyone = self.simplified()
+        _, only_group = self.simplified(functional_groups=group)
+        _, unassigned = self.simplified(functional_groups='unassigned')
+        self.assertEqual({row[0] for row in only_group[1:]}, {'SYN_A'})
+        self.assertNotIn('SYN_A', {row[0] for row in unassigned[1:]})
+        self.assertEqual(sorted(only_group[1:] + unassigned[1:]), sorted(everyone[1:]))  # the two selections partition the same evidence
+        self.assertEqual(only_group[0], ['USERNAME', 'ROLE', 'SAP User Group', 'Decision Status'])  # approved four-column contract
+        empty = fg.create_group('Nobody')['id']
+        self.assertEqual(self.simplified(functional_groups=empty)[1][1:], [])
+        self.assertEqual(self.simplified(functional_groups=group, username='SYN_B')[1][1:], [])  # AND with the existing user filter
+        self.assertEqual(self.simplified(managers='none')[1][1:], everyone[1:])  # no Directory manager links: everyone is "none"
+
+
+class RoleAssignmentRowTests(unittest.TestCase):
+    """Resolution rules of role_assignment_rows without the API."""
+    def row(self, **values):
+        return dict(dict(user='U1', role='R1', user_group='', assignment_decision='Pending', activity='A'), **values)
+
+    def run_rows(self, rows):
+        from routers.sod_governance import role_assignment_rows
+        return list(role_assignment_rows(rows))
+
+    def test_validity_periods_activities_and_risks_collapse_into_one_row(self):
+        rows = [self.row(activity='A', valid_from='2020'), self.row(activity='B', valid_from='2021'), self.row(activity='C', valid_from='2022')]
+        self.assertEqual(self.run_rows(rows), [['U1', 'R1', '', 'Pending']])
+
+    def test_only_the_exact_user_and_role_identify_a_row(self):
+        rows = [self.row(role='ZC:A:B:C'), self.row(role='ZC:A:B:C '), self.row(user='U2', role='ZC:A:B:C')]
+        self.assertEqual(len(self.run_rows(rows)), 3)
+
+    def test_missing_group_stays_empty_and_conflicting_groups_are_joined_in_sorted_order(self):
+        self.assertEqual(self.run_rows([self.row()])[0][2], '')
+        self.assertEqual(self.run_rows([self.row(user_group='P2P'), self.row(user_group='FIN'), self.row(user_group='')])[0][2], 'FIN, P2P')
+
+    def test_disagreeing_statuses_are_reported_not_hidden(self):
+        result = self.run_rows([self.row(assignment_decision='Keep'), self.row(assignment_decision='Removal required')])
+        self.assertEqual(result[0][3], 'Mixed (Keep / Removal required)')
+
+    def test_order_is_independent_of_input_order(self):
+        rows = [self.row(user='B', role='X'), self.row(user='A', role='Z'), self.row(user='A', role='Y')]
+        self.assertEqual(self.run_rows(rows), self.run_rows(list(reversed(rows))))
+        self.assertEqual([row[:2] for row in self.run_rows(rows)], [['A', 'Y'], ['A', 'Z'], ['B', 'X']])
+
+    def test_delimiters_quotes_and_unicode_survive_csv_serialization(self):
+        import csv, io
+        from routers.sod_governance import role_assignment_rows
+        rows = [self.row(user='Ålesund;1', role='ZC:"Q";ø', user_group='G"1;2')]
+        import asyncio
+        from routers.sod_governance import ROLE_ASSIGNMENT_COLUMNS, csv_response
+
+        async def collect(response):
+            return ''.join([chunk.decode() if isinstance(chunk, bytes) else chunk async for chunk in response.body_iterator])
+        text = asyncio.run(collect(csv_response(ROLE_ASSIGNMENT_COLUMNS, role_assignment_rows(rows), 'role-assignments')))
+        self.assertTrue(text.startswith('\ufeff"USERNAME";"ROLE";"SAP User Group";"Decision Status"\r\n'))
+        parsed = list(csv.reader(io.StringIO(text.lstrip('\ufeff')), delimiter=';'))[1]
+        self.assertEqual(parsed, ['Ålesund;1', 'ZC:"Q";ø', 'G"1;2', 'Pending'])
+
+
 class RemediationTests(GovernanceCase):
     def test_removal_decision_derives_rows_and_tracked_action_is_not_verification(self):
         self.decide('activity', [self.activity_item('SYN_A', 'A')], 'Approved')
@@ -508,6 +668,49 @@ class VerificationTests(GovernanceCase):
             settings.data_lifecycle.sources['users'] = SourceSnapshot(snapshot='c' * 64, path=str(self.root / 'u.csv'), imported_at=users_imported_at, checked_at=users_imported_at)
             config.save_configuration(settings, settings.revision)
 
+    def test_non_conflicting_and_expired_imported_assignments_are_still_present(self):
+        import sod_scope as scope
+        remove=self.assignment_item('SYN_A','ROLE_A2')
+        self.decide('assignment',[remove],'Remove')
+        # Conflict disappears because other roles were removed; this assignment remains.
+        changed=snapshot()
+        changed.users.users['SYN_A']['assignments']=[a for a in changed.users.users['SYN_A']['assignments'] if a['role_name']=='ROLE_A2']
+        cache._cache=changed
+        self.assertEqual(scope.make_verifier()('SYN_A',remove['key']),'Still present in current evidence')
+        self.assertEqual(scope.orphan_lifecycle('assignment',decisions.latest('current')['assignment'][remove['key']]),'Historical')
+        # Even an expired record absent from active analysis remains actual imported access.
+        expired=changed.users.users['SYN_A']['assignments'][0];expired['valid_to']='2020-12-31'
+        aid=scope.governance.assignment_id('SYN_A',dict(actual_assigned_role=expired['role_name'],role_valid_from=expired['valid_from'],role_valid_to=expired['valid_to'],user_group=expired['user_group']))
+        self.assertEqual(scope.make_verifier()('SYN_A',aid),'Still present in current evidence')
+
+    def test_remove_history_retains_decision_and_new_source_verification_provenance(self):
+        item=self.assignment_item('SYN_A','ROLE_A2');self.decide('assignment',[item],'Remove')
+        before=self.get('/api/sod/decisions/assignment/history',key=item['key'])
+        self.assertEqual(before['verification']['status'],'Not verified')
+        self.refresh_without_role('2099-01-01T00:00:00+00:00')
+        after=self.get('/api/sod/decisions/assignment/history',key=item['key'])
+        self.assertEqual(after['items'],before['items'])
+        self.assertEqual(after['items'][0]['decision'],'Remove')
+        self.assertEqual(after['verification']['status'],'Verified')
+        self.assertEqual(after['verification']['source_version'],'c'*64)
+        self.assertEqual(after['verification']['decision_event_id'],after['items'][0]['event_id'])
+        self.assertFalse(any(row['id']==item['key'] for row in self.subject('SYN_A')['overview']['assignments']))
+        cache._cache.users.report['errors']=['Synthetic incomplete import']
+        self.assertEqual(self.get('/api/sod/decisions/assignment/history',key=item['key'])['verification']['status'],'Not verified')
+        cache._cache.users.report={}
+        cache._cache.users.users['SYN_A']['assignments'][0]['match_status']='ambiguous'
+        self.assertEqual(self.get('/api/sod/decisions/assignment/history',key=item['key'])['verification']['status'],'Not verified')
+
+    def test_remediation_reuses_one_source_cut_for_rows_counters_and_actions(self):
+        from unittest.mock import patch
+        import sod_scope as scope
+        self.track_removal()
+        with patch.object(scope,'verification_population',wraps=scope.verification_population) as capture:
+            result=self.get('/api/sod/remediation')
+            self.assertEqual(capture.call_count,1)
+            self.assertEqual(capture.call_args.args[0],{'SYN_A'})
+            self.assertEqual(result['actions'][0]['verification'],'Still present in current evidence')
+
     def test_without_tracked_removals_verification_is_unavailable_with_a_reason(self):
         verification = self.get('/api/sod/overview')['governance']['remediation']['verification']
         self.assertEqual((verification['tracked'], verification['verified'], verification['available']), (0, 0, False))
@@ -550,15 +753,51 @@ class VerificationTests(GovernanceCase):
 
 
 class QueueTests(GovernanceCase):
+    def test_queue_groups_preserve_missing_and_multiple_source_values(self):
+        multi = user('ROLE_A1', group='FIN')
+        multi['assignments'].extend(user('ROLE_B', group='FIN-CHILD')['assignments'])
+        cache._cache = snapshot(extra_users={'SYN_MULTI': multi, 'SYN_MISSING': user('ROLE_AB', group='')})
+        rows = {row['user']: row for row in self.get('/api/sod/queue/users')['items']}
+        self.assertEqual(rows['SYN_MULTI']['groups'], ['FIN', 'FIN-CHILD'])
+        self.assertEqual(rows['SYN_MISSING']['groups'], [])
+        self.assertNotIn('SYN_MISSING', [row['user'] for row in self.get('/api/sod/queue/users', group='FIN')['items']])
+        self.assertEqual(next(row for row in self.get('/api/sod/queue/users', group='FIN')['items'] if row['user']=='SYN_MULTI')['groups'], ['FIN', 'FIN-CHILD'])
+        ordered = self.get('/api/sod/queue/users', queue_sort='group')['items']
+        self.assertEqual([row['groups'] for row in ordered], sorted([row['groups'] for row in ordered]))
+
+    def test_review_subject_capability_uses_exact_context_identities(self):
+        result = self.get('/api/sod/review-subjects', usernames=['SYN_A', 'SYN_B', 'SYN_C', 'SYN_A_SUFFIX', 'employee-only'])
+        self.assertEqual(result['users'], ['SYN_A', 'SYN_B', 'SYN_C'])
+        self.assertEqual(self.get('/api/sod/review-subjects')['users'], [])
+        self.assertEqual(self.get('/api/sod/review-subjects', usernames=['syn_a'])['users'], [])
+        self.assertEqual(self.client.get('/api/sod/review-subjects', headers=H, params=[('usernames', str(i)) for i in range(201)]).status_code, 422)
+        self.assertNotEqual(self.client.get('/api/sod/review-subjects', params={'usernames':'SYN_A'}).status_code, 200)
+
+    def test_historical_first_item_does_not_hide_current_user_groups(self):
+        self.decide('activity', [self.activity_item('SYN_A', 'A')], 'Approved')
+        changed = snapshot()
+        base = dict(RISK='R1', CRITICITY='H', TYPE='S', TEXT='Synthetic risk', ACTVT1='Z', ACTVT2='B', TTEXT='Synthetic')
+        changed.sod = build_sod([dict(base, ACTIVITY_SLOT='ACTVT1', ACTIVITY='Z', TCODE='X1'),
+                                 dict(base, ACTIVITY_SLOT='ACTVT2', ACTIVITY='B', TCODE='X2')])
+        cache._cache = changed
+        rows = {row['user']: row for row in self.get('/api/sod/queue/users')['items']}
+        self.assertGreater(rows['SYN_A']['historical'], 0)
+        self.assertEqual(rows['SYN_A']['groups'], ['FIN'])
+        self.assertEqual(rows['SYN_B']['groups'], ['P2P'])
+        filtered = self.get('/api/sod/queue/users', group='FIN')['items']
+        self.assertEqual([(row['user'], row['groups']) for row in filtered], [('SYN_A', ['FIN'])])
+        self.assertEqual(rows['SYN_A']['total'], filtered[0]['total'])
+        self.assertEqual(rows['SYN_A']['decided'], filtered[0]['decided'])
+
     def test_queue_status_filters_and_counts(self):
         queue = self.get('/api/sod/queue')
         self.assertEqual(queue['counts']['Pending'], queue['total'])
         self.decide('activity', [self.activity_item('SYN_A', 'A')], 'Remove')
         self.decide('activity', [self.activity_item('SYN_B', 'A')], 'Approved')
         counts = self.get('/api/sod/queue', kind='activity')['counts']
-        self.assertEqual((counts['Removal required'], counts['Reviewed']), (1, 1))
+        self.assertEqual((counts['Removal required'], counts['Reviewed']), (1, 2))  # Removal is assessed access, not activity approval.
         self.assertEqual(self.get('/api/sod/queue', status='Risk acceptance pending')['total'], 3)
-        self.assertEqual(self.get('/api/sod/queue', kind='assignment', status='Pending')['total'], 5)
+        self.assertEqual(self.get('/api/sod/queue', kind='assignment', status='Pending')['total'], 6)
         self.assertEqual(self.client.get('/api/sod/queue/export', headers=H).status_code, 200)
 
     def test_user_queue_has_one_row_per_user_with_independent_progress(self):

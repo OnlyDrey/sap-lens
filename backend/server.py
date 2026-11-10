@@ -11,6 +11,27 @@ from deployment import ServerSettings
 
 
 def run():
+    if sys.argv[1:] == ['--check-server-config']:
+        try:
+            ServerSettings.from_env()
+            return 0
+        except (ValueError, OSError, RuntimeError) as error:
+            # Names the failing validation step and the underlying error; configuration values and secrets are never printed.
+            step = getattr(error, 'step', 'configuration')
+            print(f'Invalid server configuration at step "{step}": {getattr(error, "detail", f"{type(error).__name__}: {error}")}', file=sys.stderr)
+            return 1
+    if sys.argv[1:2] == ['--manage-user']:
+        from server_access import manage_user
+        import json
+        try:
+            if len(sys.argv) != 3: raise ValueError('Specify an account file.')
+            raw = sys.stdin.buffer.read(4097)
+            if len(raw) > 4096: raise ValueError('Account input too large.')
+            manage_user(Path(sys.argv[2]), json.loads(raw))
+            return 0
+        except (ValueError, OSError, KeyError, TypeError):
+            print('Account update failed. Check the username, role, password length and last administrator.', file=sys.stderr)
+            return 1
     if sys.argv[1:2] == ['--maintenance']:
         from maintenance import cli
         return cli(sys.argv[2:])
@@ -21,6 +42,15 @@ def run():
         # Created owner-only from the start (never briefly readable under a permissive umask) and never over an existing file.
         with os.fdopen(os.open(args.init_secret,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600),'w',encoding='ascii') as stream:
             stream.write(secrets.token_urlsafe(48)+'\n')
+        if sys.platform=='win32':
+            # os.open modes do nothing on Windows: the file would keep the folder's inherited ACL (often readable by Users). Make it private to the
+            # creating account and SYSTEM at once; if that fails the new secret is removed rather than left exposed (fail closed).
+            import windows_identity
+            try: windows_identity.make_private(args.init_secret)
+            except windows_identity.WindowsIdentityError as error:
+                args.init_secret.unlink(missing_ok=True)
+                print(f'The new secret was removed because its permissions could not be restricted: {error}',file=sys.stderr)
+                return 1
         return 0
     stage='configuration'
     try:
@@ -34,8 +64,12 @@ def run():
         from storage_lease import StorageLease
         lease=StorageLease(settings.data,'server').acquire()
         try:
+            from application_backups import startup
+            startup(lease,settings)
             from config import get_settings
             get_settings.cache_clear()
+            from storage_migration import run as migrate_storage
+            logging.info('SQLite store: %s', migrate_storage(lease,settings).get('state','unknown'))
             stage='application resources'
             from main import create_app, frontend_dir
             if not (frontend_dir/'index.html').is_file(): raise ValueError('Build the production frontend before starting the server.')
@@ -49,6 +83,7 @@ def run():
                 listener.bind((settings.host,settings.port));listener.listen(128)
                 logging.info('SAP Lens server starting (single worker, headless)')
                 config=uvicorn.Config(create_app(server=settings),workers=1,access_log=False,proxy_headers=False,
+                                      ssl_certfile=settings.tls_cert or None,ssl_keyfile=settings.tls_key or None,
                                       log_level=settings.log_level,timeout_graceful_shutdown=15)
                 stage='server runtime'
                 uvicorn.Server(config).run(sockets=[listener])

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { headers, openFilters, closeFilters } from './support'
+import { headers, openFilters, closeFilters, backendFixture } from './support'
 let directory = ''
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
@@ -11,7 +11,7 @@ test.beforeEach(async ({ request }) => {
   writeFileSync(source, 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:BUY,ME23N\nFI,ZC:FI:VIEW:*,Accounting,ZS:VIEW,FB03\n')
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = source
-  settings.user_csv_path = path.resolve('../backend/tests/fixtures/user-access.csv')
+  settings.user_csv_path = backendFixture('user-access.csv')
   expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
@@ -38,7 +38,7 @@ test('navbar retains lists, scoped detail boundaries and one assignment status f
   await expect(search).toHaveValue('DEMO_ALFA')
 })
 
-test('combobox keyboard, outside click, clearing, empty results and viewport anchoring', async ({ page }) => {
+test('combobox keyboard, outside click, clearing, empty results and viewport anchoring', { tag: '@a11y' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'Release Roles', exact: true }).click()
   const combo = page.getByRole('combobox', { name: 'Release SAP User Group', exact: true })
@@ -69,7 +69,7 @@ test('combobox keyboard, outside click, clearing, empty results and viewport anc
 })
 
 for (const theme of ['dark', 'light']) for (const width of [1280, 800]) {
-  test(`visual investigation surfaces ${theme} ${width}`, async ({ page, request }, info) => {
+  test(`visual investigation surfaces ${theme} ${width}`, { tag: '@visual' }, async ({ page, request }, info) => {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     settings.theme = theme
     await request.post('/api/configuration', { headers, data: settings })
@@ -214,7 +214,7 @@ test('mapping popup scrolls selected long options into view and reopens by mouse
   await expect(combo).toHaveValue(columns.at(-1)!)
 })
 
-for (const theme of ['dark', 'light']) test(`account evidence and keyboard comparison investigation ${theme}`, async ({ page, request }, info) => {
+for (const theme of ['dark', 'light']) test(`account evidence and keyboard comparison investigation ${theme}`, { tag: ['@visual', '@a11y'] }, async ({ page, request }, info) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.theme = theme
   settings.data_csv_path = path.join(directory, 'three-role-catalogue.csv')

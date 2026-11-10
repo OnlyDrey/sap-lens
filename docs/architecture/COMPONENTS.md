@@ -14,7 +14,7 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 
 | Component / canonical implementation | Real usage and variants | Styling / accessibility / migration decision |
 | --- | --- | --- |
-| `Shared/Button.tsx`: Button | Access exports/review, pagination, detail actions, library; primary/secondary/outline/ghost/destructive, default/compact/icon, loading/disabled | Central tokens; native button/default type=button, forwarded ref, disabled/aria-busy. Replaces duplicated routine action markup incrementally |
+| `Shared/Button.tsx`: Button | Access exports/review, pagination, detail actions, library; primary/secondary/outline/success/ghost/destructive, default/compact/icon, loading/disabled | Central tokens; native button/default type=button, forwarded ref, disabled/aria-busy. Replaces duplicated routine action markup incrementally |
 | IconButton / Tooltip, same file | Navbar utilities, comparison user links, library | Required label; focus/hover tooltip, Escape, disabled/loading states. No hidden text-only dependency |
 | ButtonGroup, same file | Release Table/Matrix, transaction AND/OR, library | Native pressed buttons, named group; this is a presentation/filter control, not page navigation |
 | `Shared/Controls.tsx`: Input / SearchInput | Library and shared form contract; legacy Settings/Access inputs use `controlClass` | IDs/ARIA forwarded; search icon space, invalid/disabled states; no copied theme color literals |
@@ -26,7 +26,7 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 | `Shared/NorwegianDateInput.tsx` | Assignment date controls, library | Existing localized portal calendar/manual entry, focus/keyboard behavior and maximum-date safety preserved |
 | `Shared/AssignmentDateFilters.tsx` | User/role/release assignment tables | Existing apply/cancel/date-bound semantics retained; chips now canonical |
 | `Shared/TransactionFilter.tsx` / useTransactionFilter | Role Lookup, User Directory/Details, library | Existing multi-code live/deferred state and AND/OR; operator group/chip reuse replaces repeated UI. This is the real multi-value selector showcased |
-| `Shared/MultiSelectFilter.tsx` | Release Area and Release Group, SoD SAP username and Role suffix, library | Searchable multi-select combobox whose list stays open while options are toggled (outside click, Escape, Tab or Close dismiss it); Select all acts on the listed options and states its scope, Clear selection and removable chips; selections survive searching. Values combine with OR, the caller combines filters with AND |
+| `Shared/MultiSelectFilter.tsx` | Release Area and Release Group, SoD SAP username and Role suffix, library | Searchable multi-select combobox whose list stays open while options are toggled (outside click, Escape, Tab or Close dismiss it); Select all acts on the listed options and states its scope, Clear selection and removable chips; below the chips a separate right-aligned ghost **Clear all (n)** action (with an `XCircle` icon and the live count) clears only that field and is hidden when nothing is selected; selections survive searching. While a server-backed search is pending (`loading`, including the caller's debounce), Enter toggles the highlighted value only when it matches the typed text, otherwise an exact match, never an unrelated earlier result. Values combine with OR, the caller combines filters with AND |
 | `Shared/BulkSelection.tsx` | SoD Access Explorer Assignments, library | `useBulkSelection` keeps an explicit snapshot keyed by stable identifiers; `RowCheckbox`, `PageCheckbox` (indeterminate) and the `BulkToolbar` with count and scope. DOM order equals reading order; the toolbar wraps |
 | `Shared/RoleEntry.tsx`, `RoleIdentifier.tsx`, `ConfirmDialog.tsx` | Role Lookup, Single Roles, Access Package, comparison, Release Roles, SoD lists, library | One role presentation (module badge, description, wrapping copyable identifier; compact, standard, detailed); confirmation dialog whose button names the action. The header is one centered line: pill, description (`Shared/TruncatedText`: ellipsis, and a button revealing the full text on hover, keyboard focus, click or tap only while it is cut off), actions that never shrink, one minimum header height |
 | `Shared/PackageToggle.tsx`, `Shared/AccessPackageBar.tsx` | Role Lookup cards, Release Roles rows and Matrix cells, floating access package action | One round Plus/Check toggle and one floating package action for catalogue and release roles; the package store is shared and unlimited |
@@ -57,9 +57,15 @@ Paths below are relative to `frontend/src/components/`. The inventory covers reu
 
 Native confirmation dialogs remain the existing deletion safeguard. There is no separate custom ConfirmationDialog or new toast service to showcase. Do not create a second abstraction simply to populate the library.
 
+## Decision controls
+
+`Shared/DecisionChoice` owns the three proposed assignment decisions. They are always presented in the order **Investigate, Keep, Remove** (`DECISION_ORDER`); the values, API payloads and stored records are unchanged and nothing is preselected by the component. Bulk Review starts with no decision (`value={null}`): the group says "No decision selected" (announced through `aria-describedby`), the Preview and Review actions stay disabled until a choice is made, and the choice is cleared when a finished operation is closed or Bulk Review is reopened. Unselected controls use the neutral `secondary` styling. Only the selected one takes its semantic styling through `decisionVariant`: Investigate the configurable primary theme color (`primary`), Keep the success tokens (`success` button variant) and Remove the danger tokens (`destructive`). Selection is also marked without color (`aria-pressed`, weight and an inner ring). Reuse `decisionVariant` for icon-only variants such as the role assignment row; do not add page-level color overrides.
+
+`Shared/ShortHash` shows a technical identifier (for example a source revision) on one line as a shortened value with a copy action; the full value stays in the title, the clipboard and the accessible text, and is never altered in the records.
+
 ## KPI
 
-`Shared/Kpi` is the one summary component: label, value, optional icon, note and progress (progress only where numerator and denominator are real data). `layout="compact"` is one line, `layout="expanded"` stacks icon and label above a larger value. Without `onClick` it is an informational group; with `onClick` it is a real button, `active` adds `aria-pressed` for filter KPIs, `navigates` adds the open arrow for KPIs that leave the view. Active states use a full primary border and tint, never a thick side bar. `FilterTile` and `MetricTile` are thin wrappers. Where KPI filters combine, values inside one dimension combine with OR and different dimensions with AND.
+`Shared/Kpi` is the one summary component: label, value, optional icon, note and progress (progress only where numerator and denominator are real data). `layout="compact"` is one line, `layout="expanded"` stacks icon and label above a larger value. Without `onClick` it is an informational group; with `onClick` it is a real button, `active` adds `aria-pressed` for filter KPIs, `navigates` adds the open arrow for KPIs that leave the view. Active states use a full primary border and tint, never a thick side bar. `FilterTile` is a thin wrapper. Where KPI filters combine, values inside one dimension combine with OR and different dimensions with AND.
 
 ## APIs and examples
 
@@ -83,7 +89,7 @@ Native confirmation dialogs remain the existing deletion safeguard. There is no 
 
 Search Shared, Access/Shared and Settings/Controls first. Add a variant when behavior is the same. Keep domain calculations outside presentation. Choose tokens instead of copying color/radius strings; preserve native form semantics and accessible names. Add a library example only after the actual shared component exists. Test keyboard/focus, loading/disabled/invalid states and both themes. Validate real callers as well as the showcase. Do not connect previews to production data APIs or settings mutations.
 
-See [Design system](DESIGN_SYSTEM.md), [Navigation patterns](NAVIGATION.md) and [validation report](../archive/validation/UI_CONSOLIDATION_VALIDATION.md).
+See [Design system](DESIGN_SYSTEM.md), [Navigation patterns](NAVIGATION.md) and [validation tracker](../validation/README.md).
 
 ## CSV lifecycle additions
 
@@ -102,7 +108,7 @@ Assignment dates use the shared Popover. Combobox/calendar portals register thei
 popover ownership so an inner selection does not dismiss its parent. Escape closes
 the inner popup first; the next Escape restores focus to the outer trigger. The
 Component Library uses these actual components with isolated synthetic state.
-See [the current refinement report](../archive/validation/UI_REFINEMENT_PHASE1.md) for scope and validation.
+See [validation tracker](../validation/README.md) for scope and validation.
 
 
 Navigation containers share the internal `NavigationStrip` in
@@ -279,3 +285,71 @@ components have isolated Component Library previews and are used by the SoD view
 | `lib/localPreference.ts` | Per-browser convenience preferences (for example the heatmap expanded state); never evidence or decisions. |
 | `Sod/SodGroupHeatmap.tsx` | The shared SAP User Group heatmap under the Review Context on every SoD page. |
 | `Settings/ComponentLibraryPatterns.tsx` | Library demonstrations of the above: compact KPI, information list, charts, health thresholds, table states, codeblock, validation badges, disclosure, multiselect toolbar, heatmap controls and a wide modal. |
+
+`Shared/SAPUserLink.tsx` renders a SAP username through the canonical
+`RoleIdentifier`, with the existing User Access route and an independent copy
+control. `username` is the actual SAP identity; optional `onOpen` isolates showcase
+navigation without changing the link target. Work Queue and Explorer use it;
+Component Library demonstrates it with synthetic state.
+
+`IconButton loading` replaces its child icon with the shared spinner (one icon),
+keeps its accessible label and exposes `aria-busy`; ordinary loading buttons retain
+their text. Review pending state is keyed by assignment ID and action, independently
+of confirmed decision styling.
+
+
+`SourceFileField` supports `hideBrowse` for the optional advanced path input. Data Sources
+owns one primary file action: native dialog on desktop or `BrowserSourceUpload` in a browser.
+The shared path component remains usable with a Browse button in isolated component previews;
+it does not add a second action to real source-management panels.
+
+`Shared/ApplicationFooter` renders the product version and fixed project link in application
+pages and Settings. Browser links retain ordinary external-link semantics; Desktop uses a
+capability-bound bridge with no caller-provided URL. `Popover.triggerLabel` optionally gives
+a compact status trigger a contextual accessible name without changing the panel label.
+The SoD review workspace reuses `ReviewState` for role, activity and risk access coverage;
+formal risk acceptance remains an explicitly separate lifecycle badge.
+
+
+`Settings/SodEntityNavigation` owns the shared compact `EntityHeader`, navigation toolbar
+and bounded collection of filtered entity IDs. `SodRiskSettings` retains one navigation
+history (20 locations), preserving the originating tab/list context. Editors guard unsaved
+changes and original revisions. The optional `SodEntityNavigation` context in
+`lib/sodAppearance` routes related pills through that workflow; outside it, pills retain
+the existing read-only popover behavior. No separate persistence or business model is added.
+
+`Sod/SodDecisionStatus` is the single decision-first badge/popover for role assignments,
+activities and normal Risk review, with formal acceptance as separate metadata. Its
+`PrimaryDecisionBadge` maps only the four primary labels to CheckCircle2/Trash2/Search/Clock3
+and existing semantic tones; business precedence stays in the backend. It consumes
+authoritative subject-row summaries, reuses
+Popover/StatusBadge/RoleIdentifier and noninteractive SoD pills, and omits unavailable
+metadata. `openListOwnsEscape` protects parent dialogs/panels when a portalled popover owns
+Escape or has already consumed the event; parent behavior no longer depends on listener order.
+
+### Optional identifier actions and SoD review navigation
+
+`RoleIdentifier.separateOpenAction` gives SAP usernames separate text and icon
+controls for the same direct user navigation. `RoleIdentifier.action` accepts an
+optional trailing control after exact Copy;
+identifier fitting includes that control. `SAPUserLink` adds the shared
+`PanelRightOpen` action with tooltip, username-specific accessible label and
+`aria-pressed` state. `reviewSupported={false}` disables capability registration
+in isolated previews and unsupported modal contexts. `routeLink={false}` preserves
+existing button-only navigation; `copyLabel` and `openLabel` retain caller labels.
+
+`SodReviewNavigationProvider` batches registered canonical SAP identities (200 per
+request) against `/api/sod/review-subjects` using the selected review context.
+It reuses React Query and view history rather than maintaining a second review
+store. The application owns one `SodInvestigation` panel, yielding to role details
+and Settings. Its panel and selected tab persist across user changes, while its
+content is keyed by context and user to isolate queries, forms, selections and
+pending callbacks. Decision changes do not refetch source-only eligibility;
+source publication does invalidate it. An open decision form protects user
+switching with explicit discard confirmation.
+
+## Session notice and bundle layout
+
+`Layout/SessionNotice` is the only component that renders session or connection state (see [session lifecycle](DESKTOP.md#session-lifecycle-and-recovery-states)). Settings and the SoD workspace and investigation panel are loaded on first use (`lazy` with `Suspense`; Settings then stays mounted so its drafts survive). Measured on the production build: largest chunk 909.5 kB to 361.6 kB, initial JavaScript 926.7 kB to 600.5 kB (gzip 261 kB to 192 kB), at the cost of about 58 more small shared chunks (hoisted lucide icons). Further splitting needs new evidence; do not raise `chunkSizeWarningLimit` or add manual chunks to hide the warning.
+
+`Shared/ExportMenu` is the export button for pages with several formats: an outline **Export CSV** trigger on the shared Popover listing options with a title and one-line description, arrow-key navigation, closing after a choice and Escape returning focus. A disabled menu renders the plain disabled `ExportCSVButton`. First use: SoD Remediation.

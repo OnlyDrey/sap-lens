@@ -9,6 +9,7 @@ import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
+import { layoutMatrix } from './matrix'
 const columns =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 let directory: string, csv: string
@@ -65,7 +66,7 @@ test.beforeEach(async ({ request }) => {
     'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_EMPLOYEE,ZC:FI:VIEW, EMPLOYEE@example.test ,DEMO,20200101,99991231,20200101,99991231\nDEMO_NO_EMAIL,,,DEMO,20200101,99991231,,\nSAP_MANAGER,,manager@example.test,DEMO,20200101,99991231,,\n',
   )
   const current = await settings(request)
-  current.data_csv_path = path.resolve('tests/fixtures/synthetic.csv')
+  current.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   current.user_csv_path = users
   expect(
     (await request.post('/api/configuration', { headers, data: current })).ok(),
@@ -94,6 +95,8 @@ test('automatic directory import, feature persistence, manager drill-down and fa
   await page
     .getByRole('button', { name: 'Apply settings', exact: true })
     .click()
+  // Settings count as unsaved until Apply completes: navigating or reloading earlier meets the discard prompt or cancels the save.
+  await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
   await page
     .getByRole('navigation', { name: 'Main navigation' })
     .getByRole('link', { name: 'User Access', exact: true })
@@ -206,9 +209,8 @@ test('search, manager navigation, clear confirmation and data preservation', asy
   expect((await settings(request)).features.employee_directory).toBe(true)
 })
 
-for (const theme of ['light', 'dark'] as const)
-  for (const width of [800, 1280]) {
-    test(`directory settings visual and keyboard QA ${theme} ${width}`, async ({
+for (const { theme, width } of layoutMatrix([800, 1280])) {
+    test(`directory settings visual and keyboard QA ${theme} ${width}`, { tag: ['@visual', '@a11y'] }, async ({
       page,
       request,
     }, info) => {
@@ -356,6 +358,8 @@ test('explicit import, independent feature toggles, retained data and Diagnostic
   await page.getByRole('switch',{name:'Employee Directory feature',exact:true}).click()
   await page.getByRole('switch',{name:'User–Role Mapping feature',exact:true}).click()
   await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+  // Settings count as unsaved until Apply completes: navigating or reloading earlier meets the discard prompt or cancels the save.
+  await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
   await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'User Access',exact:true})).toBeEnabled()
   await page.reload()
   await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'User Access',exact:true})).toBeEnabled()
@@ -374,6 +378,7 @@ test('explicit import, independent feature toggles, retained data and Diagnostic
   await page.getByRole('tab',{name:'Features',exact:true}).click()
   await page.getByRole('switch',{name:'User–Role Mapping feature',exact:true}).click()
   await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'User Access',exact:true}).click()
   await expect(page.getByRole('link', { name: 'DEMO_EMPLOYEE',exact:true})).toBeVisible()
   expect((await settings(request)).employee_snapshot_id).toBe(identity)
@@ -396,8 +401,8 @@ for (const [state,message] of [['unmatched','SAP user not found'],['ambiguous','
   })
 }
 
-for (const theme of ['light','dark'] as const) for (const width of [375,800,1280]) {
-  test(`employee profile and compact date calendar visual QA ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280])) {
+  test(`employee profile and compact date calendar visual QA ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
     await importDirectory(request); await enable(request)
     const current=await settings(request); current.theme=theme
     expect((await request.post('/api/configuration',{headers,data:current})).ok()).toBeTruthy()
@@ -406,7 +411,7 @@ for (const theme of ['light','dark'] as const) for (const width of [375,800,1280
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'User Access',exact:true}).click()
     await page.getByRole('link', { name: 'DEMO_EMPLOYEE',exact:true}).click()
     const profile=page.getByRole('region',{name:'Organization',exact:true})
-    await expect(profile).toContainText('Engineering'); await expect(page.getByRole('region',{name:'Account Status',exact:true})).toContainText('AD account status')
+    await expect(profile).toContainText('Engineering'); await expect(page.getByRole('region',{name:'Account Status',exact:true})).toContainText('AD account')
     await expect(profile).not.toContainText('Manager department')
     const button=page.getByRole('button',{name:'Assignment date filters',exact:true})
     const account=page.getByRole('region',{name:'Account Status'})
@@ -445,7 +450,7 @@ test('unified profile keeps SAP identity authoritative and directory fields in t
   const identity=page.getByRole('region',{name:'SAP Identity',exact:true}),account=page.getByRole('region',{name:'Account Status',exact:true}),organization=page.getByRole('region',{name:'Organization',exact:true})
   await expect(page.locator('.profile-identity-header')).toContainText('SAP Authoritative');await expect(page.locator('.profile-identity-header')).toContainText('employee@example.test')
   await expect(organization).toContainText('Engineering');await expect(organization).not.toContainText('Demo Employee')
-  await expect(organization).not.toContainText('employee@example.test');await expect(account).toContainText('AD account status')
+  await expect(organization).not.toContainText('employee@example.test');await expect(account).toContainText('AD account')
   await expect(organization).not.toContainText('Site');await expect(page.getByText('Exact email match',{exact:true})).toHaveCount(0)
   await organization.getByRole('link',{name:'View SAP user',exact:true}).click()
   await expect(identity).toContainText('SAP_MANAGER');await page.goBack();await expect(page.locator('.profile-identity-header')).toContainText('SAP Authoritative')

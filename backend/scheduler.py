@@ -46,6 +46,7 @@ class Scheduler:
         self.loader = loader
         self.cursor = datetime.now(timezone.utc)
         self.signature = None
+        self.backup_cursor = self.cursor
         self.task = None
 
     def runtime(self, server):
@@ -67,6 +68,8 @@ class Scheduler:
 
     async def tick(self, now=None):
         """Evaluate once; returns the outcome ('idle', 'skipped', 'succeeded', 'partial', 'failed')."""
+        from application_backups import pending
+        if pending(): return 'skipped'
         now = now or datetime.now(timezone.utc)
         settings = get_settings().refresh_schedule
         signature = settings.model_dump_json()
@@ -113,7 +116,19 @@ class Scheduler:
     async def loop(self):
         while True:
             try:
-                await self.tick()
+                from backup_schedule import tick as backup_tick
+                now=datetime.now(timezone.utc)
+                try:
+                    await asyncio.to_thread(backup_tick,now,self.backup_cursor,self.loader)
+                except (ValueError,OSError,KeyError,TypeError):
+                    log.warning('Backup schedule could not be evaluated; check its configuration and storage permissions.')
+                self.backup_cursor=now
+                try:
+                    from data_retention import tick as retention_tick
+                    await asyncio.to_thread(retention_tick,now,self.loader)
+                except Exception as error:  # noqa: BLE001 - retention never delays or stops the refresh schedule (CancelledError is not an Exception)
+                    log.warning('Data retention could not be evaluated (%s).',type(error).__name__)
+                await self.tick(now)
             except asyncio.CancelledError:
                 raise
             except Exception as error:  # noqa: BLE001

@@ -1,0 +1,218 @@
+{
+  "origin": "bundled",
+  "library_version": "1.0.1",
+  "source": "Curated business reference definitions; not verified SAP-standard content.",
+  "version": 1,
+  "risks": {
+    "F019": {
+      "display_name": "Payment Processing vs. Period Control",
+      "business_category": "Finance / Accounts Payable",
+      "explanation_en": "Combines the ability to execute vendor payments with control over posting periods.",
+      "consequence_en": "A user may process payments while also influencing when related transactions can be posted, increasing the risk of unauthorized transactions being concealed or shifted between periods.",
+      "mitigating_controls_en": "Independent review of payment runs; restricted period-opening authority; review of period changes and payment logs.",
+      "review_guidance_en": "Confirm whether the user genuinely requires both AP01 and FI06. Verify that payment execution and period control cannot reasonably be separated."
+    },
+    "M002": {
+      "display_name": "Production Confirmation vs. Production Order Management",
+      "business_category": "Manufacturing / Production",
+      "explanation_en": "Combines confirmation of production with creation, modification or release of production orders.",
+      "consequence_en": "A user may control both the production instruction and its reported execution, reducing independent verification of production quantities and activities.",
+      "mitigating_controls_en": "Independent review of production confirmations; variance monitoring; separate approval or release responsibility where feasible.",
+      "review_guidance_en": "Confirm whether the user must both manage production orders and confirm their execution. Check whether operational responsibilities justify PP01 + PP02."
+    },
+    "P003": {
+      "display_name": "Vendor Invoice Processing vs. Vendor Payments",
+      "business_category": "Finance / Accounts Payable",
+      "explanation_en": "Combines processing of vendor invoices with execution or clearing of vendor payments.",
+      "consequence_en": "A user could enter or modify a vendor invoice and subsequently initiate or complete payment, enabling unauthorized or fraudulent disbursements.",
+      "mitigating_controls_en": "Payment approval workflow; independent payment release; invoice approval controls; periodic exception review.",
+      "review_guidance_en": "High-priority SoD conflict. Challenge any requirement for AP01 + AP02. Verify that invoice entry and payment execution are independently controlled."
+    },
+    "P005": {
+      "display_name": "Goods Movements vs. Purchase Order Processing",
+      "business_category": "Procurement / Materials Management",
+      "explanation_en": "Combines execution of inventory movements with creation or modification of purchase orders.",
+      "consequence_en": "A user may influence purchasing documentation and related inventory movements, reducing independent control over ordered and received goods.",
+      "mitigating_controls_en": "Independent PO approval; goods-receipt monitoring; three-way matching; review of PO and goods-movement exceptions.",
+      "review_guidance_en": "Confirm whether MM05 + PR02 is required by the user's role. Determine whether ordering and goods movement responsibilities can be separated."
+    },
+    "P013": {
+      "display_name": "Material Master Maintenance vs. Purchase Order Processing",
+      "business_category": "Procurement / Master Data",
+      "explanation_en": "Combines maintenance of material master data with creation or modification of purchase orders.",
+      "consequence_en": "A user could change material-related master data and subsequently use that data in purchasing transactions, increasing the risk of manipulated or inappropriate purchases.",
+      "mitigating_controls_en": "Controlled master-data workflow; independent master-data approval; PO approval; monitoring of sensitive material changes.",
+      "review_guidance_en": "Verify the business need for MM06 + PR02. Pay particular attention to users responsible for both master data and operational purchasing."
+    },
+    "P019": {
+      "display_name": "Goods Movements vs. Purchase Order Release",
+      "business_category": "Procurement / Materials Management",
+      "explanation_en": "Combines execution of goods movements with authority to release purchase orders.",
+      "consequence_en": "A user may approve purchasing activity and perform related inventory movements, weakening independent control over procurement and receipt activities.",
+      "mitigating_controls_en": "Independent purchasing review; release strategy; goods-receipt exception monitoring; periodic access review.",
+      "review_guidance_en": "Confirm whether the same user requires MM05 + PR04. Evaluate whether PO approval and goods-movement execution can be segregated."
+    },
+    "P036": {
+      "display_name": "Material Master Maintenance vs. Purchase Requisition Processing",
+      "business_category": "Procurement / Master Data",
+      "explanation_en": "Combines maintenance of material master data with creation or modification of purchase requisitions.",
+      "consequence_en": "A user may manipulate material data and initiate purchasing demand based on those changes, reducing independent oversight of procurement initiation.",
+      "mitigating_controls_en": "Master-data approval; requisition approval workflow; monitoring of sensitive master-data changes.",
+      "review_guidance_en": "Confirm whether MM06 + PR07 is necessary. Review users who both maintain material data and initiate purchasing requirements."
+    },
+    "P059": {
+      "display_name": "Purchase Order Processing vs. Purchase Order Release",
+      "business_category": "Procurement",
+      "explanation_en": "Combines creation or modification of purchase orders with authority to release those same purchase orders.",
+      "consequence_en": "A user may create or change a purchase order and independently approve it, bypassing the maker-checker principle.",
+      "mitigating_controls_en": "SAP release strategy; approval by an independent approver; release and change monitoring; approval thresholds.",
+      "review_guidance_en": "High-priority SoD conflict. Users should normally not hold both PR02 + PR04 unless an effective independent control exists."
+    },
+    "S003": {
+      "display_name": "Customer Confirmation vs. Sales Order Processing",
+      "business_category": "Sales / Order-to-Cash",
+      "explanation_en": "Combines customer-related confirmation activities with sales-order creation or modification.",
+      "consequence_en": "A user may control multiple steps of customer transaction processing, increasing the risk of unauthorized or inappropriate sales transactions.",
+      "mitigating_controls_en": "Independent sales review; transaction monitoring; approval for sensitive customer transactions.",
+      "review_guidance_en": "Confirm whether the user's responsibilities genuinely require SD01 + SD05 and whether an independent downstream review exists."
+    },
+    "S004": {
+      "display_name": "Customer Receivables Processing vs. Customer Confirmation",
+      "business_category": "Finance / Sales",
+      "explanation_en": "Combines customer receivables or document processing with customer confirmation activities.",
+      "consequence_en": "A user may influence both financial customer documents and related confirmation activities, increasing the risk of unauthorized adjustments or concealed transactions.",
+      "mitigating_controls_en": "Independent review of receivable adjustments; approval of sensitive customer changes; periodic exception reporting.",
+      "review_guidance_en": "Verify the business requirement for AR07 + SD01. Review whether customer accounting and confirmation responsibilities can be separated."
+    },
+    "S028": {
+      "display_name": "Customer Receivables Processing vs. Sales Order Processing",
+      "business_category": "Finance / Sales",
+      "explanation_en": "Combines customer accounting or document processing with creation or modification of sales orders.",
+      "consequence_en": "A user may influence both the commercial transaction and related financial records, increasing the risk of inappropriate or concealed customer transactions.",
+      "mitigating_controls_en": "Independent review of sales and receivables adjustments; approval controls; exception monitoring.",
+      "review_guidance_en": "High-priority cross-functional conflict. Confirm why the user requires both AR07 + SD05 and identify the independent control covering the combination."
+    },
+    "P001": {
+      "display_name": "Vendor Master Maintenance vs. Vendor Invoice Processing",
+      "business_category": "Finance / Accounts Payable",
+      "explanation_en": "Combines the ability to create or change vendor master records with the ability to create or process vendor invoices.",
+      "consequence_en": "A user could create or modify a fictitious vendor and enter invoices for that vendor, enabling fraudulent or unauthorized liabilities to be introduced into the payment process.",
+      "mitigating_controls_en": "Independent vendor-master approval; vendor bank-detail change controls; invoice approval workflow; duplicate and exception monitoring; periodic review of newly created vendors and invoices.",
+      "review_guidance_en": "Confirm whether the user genuinely requires both AP02 and PR01. Verify that vendor creation or maintenance and vendor invoice processing are independently approved and monitored.",
+      "notes": "Normalized from the internal risk narrative for P001. Validate PR01 transaction and authorization mapping against the active SAP SoD ruleset before production use."
+    },
+    "P002": {
+      "display_name": "Vendor Master Maintenance vs. Vendor Payments",
+      "business_category": "Finance / Accounts Payable",
+      "explanation_en": "Combines the ability to create or change vendor master records with the ability to execute or direct vendor payments.",
+      "consequence_en": "A user could create or modify a fictitious vendor, change payment details and direct disbursements to an unauthorized account.",
+      "mitigating_controls_en": "Independent vendor-master and bank-detail approval; dual payment authorization; payment-run review; change-log monitoring; periodic review of new or changed vendors receiving payments.",
+      "review_guidance_en": "High-priority SoD conflict. Confirm why the user requires both AP01 and PR01. Verify maker-checker controls for vendor changes and payment release.",
+      "notes": "Normalized from the internal risk narrative for P002. Validate PR01 transaction and authorization mapping against the active SAP SoD ruleset before production use."
+    },
+    "P008": {
+      "display_name": "Vendor Master Maintenance vs. Purchase Order Processing",
+      "business_category": "Procurement / Accounts Payable",
+      "explanation_en": "Combines the ability to create or change vendor master records with the ability to create or modify purchase orders.",
+      "consequence_en": "A user could create or modify a fictitious vendor and place purchase orders with that vendor, enabling unauthorized procurement and potential diversion of funds.",
+      "mitigating_controls_en": "Independent vendor onboarding and approval; restricted bank-detail maintenance; purchase-order approval workflow; monitoring of purchases from new or recently changed vendors; periodic vendor and PO exception review.",
+      "review_guidance_en": "Confirm whether the user genuinely requires both PR01 and PR02. Review purchase orders issued to vendors created or changed by the same user and verify independent approval.",
+      "notes": "Normalized from the internal risk narrative for P008. Validate PR01 and PR02 transaction and authorization mapping against the active SAP SoD ruleset before production use."
+    }
+  },
+  "activities": {
+    "AP01": {
+      "display_name": "Vendor Payments & Clearing",
+      "business_category": "Finance / Accounts Payable",
+      "explanation_en": "Ability to execute and manage outgoing vendor payments, payment runs, clearing and related settlement activities.",
+      "review_guidance_en": "Grant only to users responsible for payment execution or clearing. Review carefully together with invoice processing and other activities capable of creating or modifying liabilities."
+    },
+    "AP02": {
+      "display_name": "Vendor Invoice & Document Processing",
+      "business_category": "Finance / Accounts Payable",
+      "explanation_en": "Ability to create, change, park, post or otherwise process vendor invoices, credit memos and related financial documents.",
+      "review_guidance_en": "Confirm that vendor invoice processing is part of the user's responsibilities. Review especially when combined with payment execution."
+    },
+    "AR07": {
+      "display_name": "Customer Invoicing & Receivables Processing",
+      "business_category": "Finance / Accounts Receivable",
+      "explanation_en": "Ability to process customer invoices, credit memos, clearing and other accounting documents related to customer receivables.",
+      "review_guidance_en": "Confirm that the user requires operational access to customer accounting. Review combinations with sales-order or customer-related processing."
+    },
+    "FI06": {
+      "display_name": "Period Closing Control (MM/FI)",
+      "business_category": "Finance / Period Close",
+      "explanation_en": "Ability to control posting periods relevant to logistics and financial postings.",
+      "review_guidance_en": "Restrict to users responsible for period-close activities. Verify that operational transaction processing is appropriately separated from period control."
+    },
+    "MM05": {
+      "display_name": "Goods Movements",
+      "business_category": "Materials Management / Inventory",
+      "explanation_en": "Ability to execute inventory movements such as goods receipts, goods issues and stock transfers.",
+      "review_guidance_en": "Confirm that inventory posting is required for the user's operational role. Review combinations with purchasing creation or approval activities."
+    },
+    "MM06": {
+      "display_name": "Material Master Maintenance",
+      "business_category": "Materials Management / Master Data",
+      "explanation_en": "Ability to create, change, delete or otherwise maintain material master and batch-related information.",
+      "review_guidance_en": "Restrict maintenance access to authorized master-data responsibilities. Review combinations that allow the user to initiate or approve transactions using the maintained data."
+    },
+    "PP01": {
+      "display_name": "Production Confirmation",
+      "business_category": "Manufacturing / Production",
+      "explanation_en": "Ability to record confirmations against production or process orders, including reported production activities and quantities.",
+      "review_guidance_en": "Confirm that the user is responsible for recording production execution. Review combinations with production-order creation, modification or release."
+    },
+    "PP02": {
+      "display_name": "Production Order Management",
+      "business_category": "Manufacturing / Production",
+      "explanation_en": "Ability to create, change, release or perform mass processing of production and process orders.",
+      "review_guidance_en": "Confirm that production-order management is part of the user's responsibilities. Review carefully when the user can also confirm execution."
+    },
+    "PR02": {
+      "display_name": "Purchase Order Processing",
+      "business_category": "Procurement",
+      "explanation_en": "Ability to create or change purchase orders and perform related purchase-order processing.",
+      "review_guidance_en": "Confirm that the user requires operational purchasing access. Review combinations with PO release, material-master maintenance and goods movements."
+    },
+    "PR04": {
+      "display_name": "Purchase Order Release",
+      "business_category": "Procurement / Approval",
+      "explanation_en": "Ability to release or approve purchase orders.",
+      "review_guidance_en": "Limit to authorized approvers. Verify appropriate approval authority and review users who can also create or modify purchase orders."
+    },
+    "PR07": {
+      "display_name": "Purchase Requisition Processing",
+      "business_category": "Procurement",
+      "explanation_en": "Ability to create or modify purchase requisitions and initiate purchasing demand.",
+      "review_guidance_en": "Confirm that requisition creation or maintenance is required. Review combinations with sensitive master-data maintenance."
+    },
+    "SD01": {
+      "display_name": "Customer Confirmation Activities",
+      "business_category": "Sales / Order-to-Cash",
+      "explanation_en": "Ability to perform defined customer confirmation and manual customer-document activities.",
+      "review_guidance_en": "Confirm the specific operational requirement for this access and review combinations with receivables or sales-order processing."
+    },
+    "SD05": {
+      "display_name": "Sales Order Processing",
+      "business_category": "Sales / Order-to-Cash",
+      "explanation_en": "Ability to create, change or otherwise process sales orders and related sales documents.",
+      "review_guidance_en": "Confirm that sales-order maintenance is required. Review combinations with customer receivables and customer confirmation activities."
+    },
+    "PR01": {
+      "display_name": "Vendor Master Maintenance",
+      "business_category": "Procurement / Accounts Payable Master Data",
+      "explanation_en": "Ability to create, change, block or otherwise maintain vendor or supplier master records, including payment-relevant supplier information where authorized.",
+      "review_guidance_en": "Restrict to authorized supplier-master-data responsibilities. Confirm independent approval of new vendors and sensitive changes, especially bank and payment details. Review combinations with invoice processing, payment execution and purchase-order processing.",
+      "notes": "The available internal documents contain conflicting labels for PR01. This definition is normalized from the P001, P002 and P008 risk narratives because those risks consistently concern fictitious or manipulated vendors. Validate against the active SAP SoD ruleset and underlying transaction codes."
+    }
+  },
+  "terms": {
+    "Activity": "A grouping of SAP transactions that represents a business capability or sensitive business function. An activity is not necessarily a risk by itself.",
+    "Segregation of Duties Risk": "A conflict created when a user has access to two or more incompatible activities that together provide excessive control over a business process.",
+    "Risk Consequence": "The business impact that could occur if the conflicting access is misused or an error is not independently detected.",
+    "Mitigating Control": "A documented and independently performed control that reduces the risk when conflicting access cannot reasonably be removed.",
+    "Review Guidance": "Practical guidance for the access reviewer describing what should be challenged or verified before the access or SoD conflict is accepted.",
+    "Local Notes": "Organization-specific information such as local process exceptions, system limitations, plant-specific responsibilities, compensating controls or documented rationale."
+  }
+}

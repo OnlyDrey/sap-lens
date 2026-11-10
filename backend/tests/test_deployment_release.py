@@ -25,7 +25,7 @@ def load(name, path):
     return module
 
 
-release = load('deployment_release_tests', 'scripts/deployment-release.py')
+release = load('deployment_release_tests', 'scripts/deployment/deployment-release.py')
 packages = load('deployment_package_tests', 'scripts/deployment-package.py')
 contracts = load('deployment_workflow_tests', 'scripts/check-workflows.py')
 SHA = 'a' * 40
@@ -45,7 +45,7 @@ def needs(info, chosen=None):
     for index, (name, (key, _label, stem, ext, *_rest)) in enumerate(release.PACKAGES.items(), 1):
         if name in chosen:
             result[key] = {'result': 'success', 'outputs': {
-                'artifact_id': str(index), 'package_name': f'SAP-Lens-{stem}-{info["version"]}{ext}',
+                'artifact_id': str(index), 'package_name': f'sap-lens-{stem}-v{info["version"]}{ext}',
                 'package_sha': hashlib.sha256(key.encode()).hexdigest()}}
         else:
             result[key] = {'result': 'skipped', 'outputs': {}}
@@ -89,6 +89,8 @@ class FakeGitHub:
                          digest='sha256:' + ('0' * 64 if self.corrupt_digest else release.sha(asset)))
             self.release['assets'].append(value)
             return value
+        if method == 'GET' and path.startswith('/git/tags/'):
+            return {'object':{'type':'commit','sha':SHA}}
         if method == 'POST' and path == '/git/tags':
             assert self.release['assets'], 'Never create a tag before uploading verified assets'
             assert payload['object'] == SHA
@@ -158,7 +160,7 @@ class DeploymentVersionTests(unittest.TestCase):
         env = dict(GITHUB_ACTIONS='true', GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1',
                    DEPLOYMENT_TARGET='all', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
         with patch.dict(os.environ, env, clear=True), patch.object(packages, 'git_sha', return_value=SHA), \
-                patch.object(packages, 'write') as write, patch('urllib.request.urlopen') as network:
+                patch.object(packages, 'write') as write, patch.object(packages,'sync_frontend_version'), patch('urllib.request.urlopen') as network:
             packages.prepare('0.1.0')
         self.assertEqual(write.call_args.args[1], identity())
         network.assert_not_called()
@@ -169,11 +171,11 @@ class DeploymentVersionTests(unittest.TestCase):
         self.assertIn('-Stage Package -ValidatedDeployment', orchestration)
         self.assertIn('if ($ValidatedDeployment)', canonical)
         self.assertIn('scripts/deployment-package.py require-inputs', canonical)
-        self.assertIn('scripts/release-windows.py ensure-local-build', canonical)
+        self.assertIn('scripts/packaging/release-windows.py ensure-local-build', canonical)
         self.assertNotIn('ValidatedDeployment', (ROOT / '.github/workflows/build-windows.yml').read_text())
 
     def test_channels_generate_exact_pe_strings_and_manifest_identity(self):
-        metadata = load('deployment_resource_tests', 'scripts/write-windows-metadata.py')
+        metadata = load('deployment_resource_tests', 'scripts/packaging/write-windows-metadata.py')
         for channel in ('alpha', 'beta', 'rc', 'stable'):
             info = identity(channel)
             with self.subTest(channel=channel), tempfile.TemporaryDirectory() as temporary:
@@ -194,7 +196,7 @@ class DeploymentVersionTests(unittest.TestCase):
 
     def test_publication_context_requires_manual_same_commit_run_and_attempt(self):
         env = dict(GITHUB_ACTIONS='true', GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_SHA=SHA,
-                   GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1',
+                   GITHUB_RUN_ID='123', GITHUB_RUN_NUMBER='12', GITHUB_RUN_ATTEMPT='1', GITHUB_REF='refs/heads/work',
                    DEPLOYMENT_IDENTITY=json.dumps(identity()))
         with patch.dict(os.environ, env, clear=True):
             self.assertEqual(release.context(), identity())
@@ -213,7 +215,7 @@ class DeploymentReleaseRefTests(unittest.TestCase):
 
     def test_stable_is_published_only_from_main_and_other_channels_from_any_branch(self):
         for channel, ref, allowed in [('stable', 'refs/heads/main', True), ('stable', 'refs/heads/work', False), ('stable', 'refs/tags/v1', False), ('stable', '', False),
-                                      ('beta', 'refs/heads/work', True), ('rc', 'refs/heads/feature/x', True), ('alpha', 'refs/heads/work', True)]:
+                                      ('beta', 'refs/heads/work', True), ('rc', 'refs/heads/feature/x', False), ('alpha', 'refs/heads/work', True)]:
             env = {**self.ENV, 'GITHUB_REF': ref, 'DEPLOYMENT_IDENTITY': json.dumps(identity(channel))}
             with self.subTest(channel=channel, ref=ref), patch.dict(os.environ, env, clear=True):
                 if allowed:
@@ -225,7 +227,7 @@ class DeploymentReleaseRefTests(unittest.TestCase):
         base = dict(DEPLOYMENT_TARGET='linux-native', DEPLOYMENT_CHANNEL='Stable / Production', BASE_VERSION='0.1.0', DEPLOYMENT_SEQUENCE='')
         with patch.dict(os.environ, {**base, 'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/work'}, clear=True):
             with self.assertRaises(release.DeliveryError): release.plan()
-        for extra in ({'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/main'}, {'PUBLISH_RELEASE': 'false', 'GITHUB_REF': 'refs/heads/work'}):
+        for extra in ({'PUBLISH_RELEASE': 'true', 'GITHUB_REF': 'refs/heads/main'}, {'PUBLISH_RELEASE': 'false', 'GITHUB_REF': 'refs/heads/main'}):
             with self.subTest(extra=extra), patch.dict(os.environ, {**base, **extra}, clear=True):
                 self.assertEqual(release.plan(), ['linux-native'])  # a build-only run from any branch is unaffected
 
@@ -252,7 +254,7 @@ class DeploymentCollectionTests(unittest.TestCase):
         for chosen in ([ALL[0]], ALL[:2], ALL[2:]):
             data = needs(info, chosen)
             rows = release.eligible(info, chosen, data)
-            self.assertEqual({row['package_name'] for row in rows}, {f'SAP-Lens-{release.PACKAGES[name][2]}-{info["version"]}{release.PACKAGES[name][3]}' for name in chosen})
+            self.assertEqual({row['package_name'] for row in rows}, {f'sap-lens-{release.PACKAGES[name][2]}-v{info["version"]}{release.PACKAGES[name][3]}' for name in chosen})
             for name in set(ALL) - set(chosen):
                 key = release.PACKAGES[name][0]
                 self.assertEqual(data[key]['result'], 'skipped')  # a skipped job is not a failure of verification or publication
@@ -308,9 +310,15 @@ class DeploymentCollectionTests(unittest.TestCase):
                 (directory / (name + '.sha256')).write_text(row['package_sha'] + '  ' + name + '\n')
             rows = release.eligible(info, ALL, data)
             assets = release.collect(directory, info, rows)
-            self.assertEqual(len(assets), 9)
+            self.assertEqual(len(assets), 5)
+            self.assertEqual({path.name for path in assets},
+                             {row['package_name'] for row in rows} | {'sap-lens-manifest.json'})
+            self.assertFalse((directory / 'SHA256SUMS.txt').exists())
+            self.assertTrue(all(not path.name.endswith('.sha256') for path in assets))
             manifest = assets[-1]
             self.assertEqual(json.loads(manifest.read_text())['identity'], info)
+            self.assertEqual(json.loads(manifest.read_text())['assets'], {
+                path.name: dict(sha256=release.sha(path), size=path.stat().st_size) for path in assets[:-1]})
             manifest.unlink()
             extra = directory / 'settings.json'; extra.write_text('{}')
             with self.assertRaises(release.DeliveryError): release.collect(directory, info, rows)
@@ -320,6 +328,21 @@ class DeploymentCollectionTests(unittest.TestCase):
             package.write_bytes(b'desktop')
             checksum = package.with_name(package.name + '.sha256'); checksum.write_text(rows[0]['package_sha'] + '  wrong.zip\n')
             with self.assertRaises(release.DeliveryError): release.collect(directory, info, rows)
+
+    def test_single_selected_package_has_only_its_archive_and_manifest(self):
+        info = identity()
+        for name in ALL:
+            with self.subTest(package=name), tempfile.TemporaryDirectory() as temporary:
+                directory = Path(temporary)
+                rows = release.eligible(info, [name], needs(info, [name]))
+                row = rows[0]
+                payload = release.PACKAGES[name][0].encode()
+                archive = directory / row['package_name']
+                archive.write_bytes(payload)
+                archive.with_name(archive.name + '.sha256').write_text(row['package_sha'] + '  ' + archive.name + '\n')
+                assets = release.collect(directory, info, rows)
+                self.assertEqual([path.name for path in assets], [archive.name, 'sap-lens-manifest.json'])
+                self.assertFalse((directory / 'SHA256SUMS.txt').exists())
 
     def test_workflow_contracts_reject_publication_bypasses(self):
         workflows = contracts.load_workflows(); contracts.validate(workflows)
@@ -405,3 +428,34 @@ class DeploymentPublicationTests(unittest.TestCase):
         with self.assertRaises(release.DeliveryError): release.publish(api, identity(), [self.asset])
         self.assertEqual(api.ref, 'c' * 40); self.assertIsNone(api.release)
         self.assertFalse(any(path.startswith('/git/refs/tags/') and method == 'DELETE' for method, path, _ in api.calls))
+
+
+class ProductReleasePolicyTests(unittest.TestCase):
+    def test_feature_branches_cannot_publish_any_channel_and_work_cannot_build_stable(self):
+        for mode in ('alpha','beta','rc','stable'):
+            with self.subTest(mode=mode), self.assertRaises(release.DeliveryError):
+                release.require_release_ref(mode,'refs/heads/feature/example')
+        with patch.dict(os.environ,dict(DEPLOYMENT_TARGET='all',BASE_VERSION='1.0.0',DEPLOYMENT_CHANNEL='Stable / Production',PUBLISH_RELEASE='false',GITHUB_REF='refs/heads/work'),clear=True):
+            with self.assertRaises(release.DeliveryError):release.plan()
+
+    def test_wrong_branch_commit_is_rejected_without_mutations(self):
+        api=release.GitHub('example/project','synthetic-token')
+        with patch.object(api,'request',return_value={'object':{'sha':'b'*40}}) as request:
+            with self.assertRaises(release.DeliveryError):api.verify_source('stable','refs/heads/main','a'*40)
+            self.assertEqual(request.call_args.args[0],'GET')
+
+    def test_annotated_tag_target_must_equal_validated_commit(self):
+        api=release.GitHub('example/project','synthetic-token')
+        with patch.object(api,'request',side_effect=[{'object':{'sha':'b'*40}}, {'object':{'type':'commit','sha':'c'*40}}]):
+            with self.assertRaises(release.DeliveryError):release.verify_tag(api,'v1.0.0','b'*40,'a'*40)
+
+    def test_planner_allocates_auto_once_from_both_tag_conventions(self):
+        from unittest.mock import Mock
+        api=Mock();api.version_tags.return_value=['v1.0.0-beta-1','v1.0.0-beta.2']
+        env=dict(DEPLOYMENT_TARGET='linux-native',BASE_VERSION='',DEPLOYMENT_CHANNEL='Beta',DEPLOYMENT_SEQUENCE='auto',PUBLISH_RELEASE='true',GITHUB_ACTIONS='true',GITHUB_REF='refs/heads/work',GITHUB_SHA=SHA,GITHUB_REPOSITORY='example/project',GITHUB_TOKEN='synthetic')
+        with patch.dict(os.environ,env,clear=True),patch.object(release,'GitHub',return_value=api),patch.object(release,'output') as output:
+            release.plan()
+            self.assertEqual(output.call_args.kwargs['sequence'],'3')
+            self.assertEqual(output.call_args.kwargs['base'],'1.0.0')
+            api.verify_source.assert_called_once_with('beta','refs/heads/work',SHA)
+            api.available.assert_called_once_with('v1.0.0-beta.3')

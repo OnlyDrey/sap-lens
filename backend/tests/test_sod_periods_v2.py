@@ -34,6 +34,24 @@ class PeriodV2Case(GovernanceCase):
 
 
 class WorkflowTests(PeriodV2Case):
+    def test_normal_risk_review_freezes_without_granting_formal_acceptance(self):
+        pid=self.new_period()
+        item=self.acceptance_item('SYN_A','R1',pid)
+        self.decide('risk',[item],'Approved',context=pid)
+        self.move(pid,'In review')
+        self.move(pid,'Ready for approval',status=409)
+        self.decide_everything(pid)
+        self.move(pid,'Ready for approval');self.approve(pid)
+        view=self.subject('SYN_A',context=pid)['overview']
+        row=next(row for row in view['risks'] if row['risk_id']=='R1')
+        self.assertEqual(row['risk_review_summary']['label'],'Approved')
+        self.assertEqual(row['acceptance'],'Accepted')
+        frozen=row['risk_review_event']
+        self.decide('risk',[self.acceptance_item('SYN_A','R1')],'Remove')
+        row=next(row for row in self.subject('SYN_A',context=pid)['overview']['risks'] if row['risk_id']=='R1')
+        self.assertEqual(row['risk_review_event'],frozen)
+        self.decide('risk',[item],'Remove',context=pid,status=409)
+
     def test_new_periods_use_the_v2_model_and_independent_decision_contexts(self):
         first, second = self.new_period('First'), self.new_period('Second')
         self.assertEqual(self.get(f'/api/sod/periods/{first}')['model'], 2)
@@ -163,7 +181,35 @@ class DeletionTests(PeriodV2Case):
         self.assertEqual(after['blocking'], before['blocking'] - 1)
         self.decide_everything(pid)
         done = next(item for item in self.get('/api/sod/periods')['items'] if item['id'] == pid)['progress']
-        self.assertEqual((done['decided'], done['blocking']), (done['total'], 0))
+        # Formal gates are satisfied, but untouched role assignments remain unreviewed.
+        self.assertEqual((done['decided'],done['total'],done['blocking']),(8,14,0))
+
+    def test_listing_progress_is_memoized_on_its_inputs_and_recomputed_when_one_changes(self):
+        import csv_lifecycle
+        import sod_periods
+        pid = self.new_period('Memoized progress')
+        progress = lambda: next(item for item in self.get('/api/sod/periods')['items'] if item['id'] == pid)['progress']
+        first = progress()
+        reads = []
+        original = csv_lifecycle.read_private
+        def counting(kind, identity):
+            reads.append(identity)
+            return original(kind, identity)
+        try:
+            sod_periods.read_private = counting
+            self.assertEqual(progress(), first)
+            self.assertEqual(reads, [], 'an unchanged period is not recomputed from its snapshot')
+            self.decide('activity', [self.activity_item('SYN_A', 'A', pid)], 'Approved', context=pid)
+            reads.clear()
+            decided = progress()
+            self.assertEqual(decided['decided'], first['decided'] + 1)   # a new decision is reflected at once
+            self.assertTrue(reads, 'a changed decision history computes progress again')
+            self.move(pid, 'In review')
+            reads.clear()
+            self.assertEqual(progress(), decided)                         # same coverage after a state change ...
+            self.assertTrue(reads, '... but computed again, because the state is an input')
+        finally:
+            sod_periods.read_private = original
 
     def test_period_with_recorded_work_is_archived_not_destroyed(self):
         pid = self.new_period('In progress')

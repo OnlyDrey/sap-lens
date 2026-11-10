@@ -53,9 +53,23 @@ test('Settings navigation: active item is one filled rounded surface with no und
     const heights = await page.getByRole('tab').evaluateAll(els => els.map(el => Math.round(el.getBoundingClientRect().height)))
     expect(new Set(heights).size, theme).toBe(1)
   }
+  // The geometry must not depend on the installed font: the longest label, selected (bold), stays one line at desktop and at the
+  // narrower sidebar breakpoint, and is shown whole at desktop in the brand font. Without Montserrat installed (the Linux runs) the
+  // fallback is measured with Montserrat's ~12% extra width, so the check does not depend on the machine's fonts.
+  await page.getByRole('tab', { name: 'Organization & SAP System', exact: true }).click()
+  for (const width of [1280, 1000]) {
+    await page.setViewportSize({ width, height: 800 })
+    const items = await page.getByRole('tab').evaluateAll(els => els.map(el => { const label = el.querySelector('span')!, c = document.createElement('canvas').getContext('2d')!, s = getComputedStyle(label)
+      const measure = (font: string) => { c.font = font; return c.measureText(label.textContent!).width }
+      const brand = measure(`600 ${s.fontSize} Montserrat, monospace`) !== measure(`600 ${s.fontSize} monospace`)
+      return { height: Math.round(el.getBoundingClientRect().height), room: label.clientWidth, needed: measure(`600 ${s.fontSize} ${s.fontFamily}`) * (brand ? 1 : 1.12), title: el.getAttribute('title') === label.textContent } }))
+    expect(new Set(items.map(item => item.height)).size, `${width}px heights`).toBe(1)
+    expect(items.every(item => item.title), `${width}px full label tooltip`).toBe(true)
+    if (width === 1280) expect(items.filter(item => item.needed > item.room + 1).map(item => item.needed), 'labels fit at desktop').toEqual([])
+  }
 })
 
-test('Settings navigation: keyboard focus is a separate outline and arrow keys move the selection', async ({ page }) => {
+test('Settings navigation: keyboard focus is a separate outline and arrow keys move the selection', { tag: '@a11y' }, async ({ page }) => {
   await openSettings(page, 'Features')
   const active = page.getByRole('tab', { name: 'Features', exact: true })
   await active.focus()
@@ -108,7 +122,7 @@ test('no rounded underlines or double borders on Settings sections and main scre
   expect(defects).toEqual([])
 })
 
-test('keyboard: identifiers are not tab stops, only their copy and open controls are, and small targets stay at least 24px', async ({ page, request }) => {
+test('keyboard: identifiers are not tab stops, only their copy and open controls are, and small targets stay at least 24px', { tag: '@a11y' }, async ({ page, request }) => {
   await seedGovernance(request, 'static', undefined, true)
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
@@ -128,7 +142,7 @@ test('keyboard: identifiers are not tab stops, only their copy and open controls
   }
 })
 
-test('keyboard focus is fully revealed inside scrolling navigation strips at 375px', async ({ page, request }) => {
+test('keyboard focus is fully revealed inside scrolling navigation strips at 375px', { tag: '@a11y' }, async ({ page, request }) => {
   await seedGovernance(request, 'static')
   await page.setViewportSize({ width: 375, height: 900 })
   await page.goto('/#session=browser-test-session')
@@ -150,7 +164,7 @@ test('keyboard focus is fully revealed inside scrolling navigation strips at 375
   expect(seen).toEqual(expect.arrayContaining(['Activity Matrix', 'Reviews', 'Reports']))
 })
 
-test('skip link is fully visible when focused', async ({ page }) => {
+test('skip link is fully visible when focused', { tag: '@a11y' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await page.keyboard.press('Tab')
   const skip = page.getByRole('link', { name: 'Skip to main content' })
@@ -158,7 +172,7 @@ test('skip link is fully visible when focused', async ({ page }) => {
   await expect.poll(async () => (await skip.boundingBox())!.y).toBeGreaterThanOrEqual(5)
 })
 
-test('access package panel takes focus when opened, stays non-modal, and returns focus to the trigger on Escape', async ({ page }) => {
+test('access package panel takes focus when opened, stays non-modal, and returns focus to the trigger on Escape', { tag: '@a11y' }, async ({ page }) => {
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
   await page.getByRole('article', { name: /Buyer plant/ }).getByRole('button', { name: 'Add to access package' }).click()
@@ -185,7 +199,7 @@ const contrastOf = (foreground: string, background: string) => {
   return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
 }
 
-test('selected Settings item and active role card toggles meet 4.5:1 text and 3:1 icon contrast in both themes', async ({ page, request }) => {
+test('selected Settings item and active role card toggles meet 4.5:1 text and 3:1 icon contrast in both themes', { tag: '@a11y' }, async ({ page, request }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' }) // the app zeroes transitions, so colors are final immediately
   for (const theme of ['light', 'dark']) {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
@@ -194,7 +208,14 @@ test('selected Settings item and active role card toggles meet 4.5:1 text and 3:
     await page.goto('about:blank'); await page.goto('/#session=browser-test-session')
     await page.getByRole('navigation', { name: 'Main navigation', exact: true }).getByRole('link', { name: 'Role Lookup', exact: true }).click()
     const card = page.getByRole('article', { name: /Buyer plant/ })
-    for (const name of ['Add to access package', 'Add to comparison']) if (await card.getByRole('button', { name, exact: true }).count()) await card.getByRole('button', { name, exact: true }).click()
+    for (const target of ['access package', 'comparison']) {
+      // The card renders its toggles once the catalogue has loaded; a toggle kept from the previous theme pass already reads "Remove from".
+      // Decide only after the toggle is there: a count taken earlier reads 0, adds nothing and leaves the contrast check waiting for a toggle that never appears.
+      await expect(card.getByRole('button', { name: new RegExp(`^(Add to|Remove from) ${target}$`) })).toBeVisible()
+      const add = card.getByRole('button', { name: `Add to ${target}`, exact: true })
+      if (await add.count()) await add.click()
+      await expect(card.getByRole('button', { name: `Remove from ${target}`, exact: true })).toBeVisible()
+    }
     await page.mouse.move(2, 2)
     for (const name of ['Remove from access package', 'Remove from comparison']) {
       const colors = await card.getByRole('button', { name }).evaluate(el => { const s = getComputedStyle(el); return [s.color, s.backgroundColor] })

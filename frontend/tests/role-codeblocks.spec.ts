@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, longRoleName, openSod, seedGovernance } from './sod-fixture'
-import { goTo, seedSources, type SeededSources } from './support'
+import { goTo, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
 
 /** A SAP role name is always one complete line: no wrapping, scrolling, clipping or ellipsis; the copy icon stays beside it. */
 const MEDIUM = 'ZC:SYN:LONG_ROLE_IDENTIFIER_FOR_LAYOUT:ENP'
@@ -68,7 +68,7 @@ test.describe('role codeblocks with synthetic names', () => {
   test.afterEach(async () => { await seeded.cleanup() })
 
   for (const width of [375, 800, 1280]) {
-    test(`Role Lookup cards, role details and the Access Package keep every name on one visible line at ${width}px`, async ({ page }) => {
+    test(`Role Lookup cards, role details and the Access Package keep every name on one visible line at ${width}px`, { tag: '@visual' }, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/#session=browser-test-session'); await goTo(page, 'Role Lookup')
       await expect(shown(page, MEDIUM)).toBeVisible()
@@ -91,12 +91,12 @@ test.describe('role codeblocks with synthetic names', () => {
     })
   }
 
-  test('copying still writes the exact role name', async ({ page, context }) => {
-    await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+  test('copying still writes the exact role name', async ({ page }) => {
+    await recordClipboard(page)
     await page.setViewportSize({ width: 375, height: 900 })
     await page.goto('/#session=browser-test-session'); await goTo(page, 'Role Lookup')
     await page.getByRole('button', { name: `Copy role identifier ${LONG}`, exact: true }).first().click()
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(LONG)
+    await expect.poll(() => copiedText(page)).toBe(LONG)
   })
 
   test('narrow containers scale the font instead of wrapping, and a wide container keeps the normal size', async ({ page }) => {
@@ -114,7 +114,7 @@ test.describe('role codeblocks with synthetic names', () => {
   })
 
   for (const width of [375, 1280]) {
-    test(`User Access and the role comparison keep names single-line at ${width}px`, async ({ page }) => {
+    test(`User Access and the role comparison keep names single-line at ${width}px`, { tag: '@visual' }, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await page.goto('/#session=browser-test-session'); await goTo(page, 'User Access')
       await page.getByRole('link', { name: 'U2', exact: true }).click()
@@ -131,7 +131,7 @@ test.describe('role codeblocks in the SoD workspace', () => {
   test.afterEach(async ({ request }) => { await cleanup(request, directory) })
 
   for (const width of [375, 800, 1280]) {
-    test(`Access Explorer and Reviews show ${longRoleName.length}-character names on one line at ${width}px`, async ({ page }) => {
+    test(`Access Explorer and Reviews show ${longRoleName.length}-character names on one line at ${width}px`, { tag: '@visual' }, async ({ page }) => {
       await page.setViewportSize({ width, height: 900 })
       await openSod(page, 'Access Explorer')
       await expect(page.locator('.role-identifier code').first()).toBeVisible()

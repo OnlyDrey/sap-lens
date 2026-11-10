@@ -133,7 +133,7 @@ test.describe('Role Lookup', () => {
     await expect(exclude.locator('.transaction-chip')).toHaveCount(0)
   })
 
-  test('keyboard: include, then exclude, are reachable in order and the layout fits narrow screens', async ({ page }) => {
+  test('keyboard: include, then exclude, are reachable in order and the layout fits narrow screens', { tag: '@a11y' }, async ({ page }) => {
     for (const width of [375, 800, 1280]) {
       await page.goto('about:blank')
       await page.setViewportSize({ width, height: 800 })
@@ -231,7 +231,7 @@ test.describe('User Access', () => {
     await expect.poll(() => listed(page)).toEqual(['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'U7'])
   })
 
-  test('CSV export matches the listing and the exclude group is keyboard operable', async ({ page }) => {
+  test('CSV export matches the listing and the exclude group is keyboard operable', { tag: '@a11y' }, async ({ page }) => {
     await openUsers(page)
     await userInclude(page).getByRole('textbox').focus()
     await page.keyboard.press('Tab')

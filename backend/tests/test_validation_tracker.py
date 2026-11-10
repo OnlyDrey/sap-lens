@@ -11,7 +11,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-spec = importlib.util.spec_from_file_location('validation_tracker', ROOT / 'scripts' / 'validation_tracker.py')
+spec = importlib.util.spec_from_file_location('validation_tracker', ROOT / 'scripts' / 'maintenance' / 'validation_tracker.py')
 tracker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(tracker)
 
@@ -44,6 +44,18 @@ class TrackerTests(unittest.TestCase):
             for path in re.split(r';\s*|,\s*', row['Implementation reference']):
                 if path and '/' in path:
                     self.assertTrue((ROOT / path).exists(), (row['ID'], path))
+
+    def test_no_column_or_workbook_cell_points_at_a_missing_repository_file(self):
+        """Documentation cleanup must update the tracker: every repository path named anywhere in the CSV or the shipped workbook exists."""
+        path = re.compile(r'(?:docs|backend|frontend|scripts|deploy|\.github)/[\w./@-]*\w\.(?:md|py|tsx|ts|yaml|yml|json|csv|ps1|sh|service|css)(?![\w])')
+        def missing(text):
+            return sorted({m for m in path.findall(text) if not (ROOT / m).exists()})
+        for row in self.rows:
+            for column, value in row.items():
+                self.assertEqual(missing(value or ''), [], (row['ID'], column))
+        with zipfile.ZipFile(ROOT / 'docs/validation/validation-tracker.xlsx') as book:
+            text = ' '.join(book.read(name).decode('utf-8', 'ignore') for name in book.namelist() if name.endswith('.xml'))
+        self.assertEqual(missing(text), [])
 
     def test_nothing_is_approved_or_dated_by_the_tooling(self):
         for row in self.rows:
@@ -117,7 +129,7 @@ class TrackerTests(unittest.TestCase):
 
     def test_the_committed_workbook_matches_the_csv(self):
         committed = ROOT / 'docs' / 'validation' / 'validation-tracker.xlsx'
-        self.assertTrue(committed.exists(), 'run: python scripts/validation_tracker.py export --output docs/validation/validation-tracker.xlsx')
+        self.assertTrue(committed.exists(), 'run: python scripts/maintenance/validation_tracker.py export --output docs/validation/validation-tracker.xlsx')
         fresh = zipfile.ZipFile(io.BytesIO(tracker.workbook(self.rows)))
         with zipfile.ZipFile(committed) as archive:
             self.assertEqual(sorted(archive.namelist()), sorted(fresh.namelist()))

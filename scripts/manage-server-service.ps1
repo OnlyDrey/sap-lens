@@ -1,7 +1,7 @@
 <# Windows SCM hosting using the pinned, externally supplied official WinSW wrapper. #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory=$true)][ValidateSet('Install','Uninstall','Start','Stop','Restart','Status','Upgrade','Backup','Restore')][string]$Action,
+    [Parameter(Mandatory=$true)][ValidateSet('Install','Uninstall','Start','Stop','Restart','Status','Upgrade','Backup','Restore','RepairSecret')][string]$Action,
     [string]$InstallDirectory = "$env:ProgramFiles\SAP Lens Server",
     [string]$DataDirectory = "$env:ProgramData\SAP Lens Server",
     [string]$SourceDirectory = "$env:ProgramData\SAP Lens Server\sources",
@@ -19,6 +19,7 @@ param(
     [string]$RestoreDataDirectory = '',
     [string]$RestoreConfigurationDirectory = '',
     [switch]$ConfirmRestore,
+    [switch]$ConfirmSecretRepair,
     [switch]$PurgeData,
     [switch]$ConfirmPurge
 )
@@ -87,6 +88,27 @@ function Read-ServiceConfiguration {
     if (-not $registered -or $registered.PathName -notmatch ('^\s*"?' + [regex]::Escape($wrapper) + '"?(?:\s|$)')) { throw 'The registered service belongs to another installation. No service was changed.' }
     return $values
 }
+# Runs the application's own configuration validation (including the secret-file permission policy) with the installed service environment.
+# Prints and returns only the validation message, never a configuration value or secret.
+function Test-InstalledConfiguration([string]$Executable, $Values) {
+    $saved = @{}
+    foreach ($name in $Values.Keys) { $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process'); [Environment]::SetEnvironmentVariable($name, [string]$Values[$name], 'Process') }
+    $previousPreference = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'    # Windows PowerShell 5.1 turns native stderr into a terminating error under 'Stop'
+    try {
+        $message = (& $Executable --check-server-config 2>&1 | Out-String).Trim()
+        return New-Object psobject -Property @{ Ok = ($LASTEXITCODE -eq 0); Message = $message }
+    } finally {
+        $ErrorActionPreference = $previousPreference
+        foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name, $saved[$name], 'Process') }
+    }
+}
+function Assert-RepairableSecretFile([string]$Path) {
+    if (-not $Path -or -not [IO.Path]::IsPathRooted($Path)) { throw 'The installed configuration has no absolute access-secret path; nothing to repair.' }
+    $item = Get-Item -LiteralPath $Path -Force -ErrorAction Stop
+    if ($item.PSIsContainer) { throw 'The configured access-secret path is a directory; nothing was changed.' }
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) { throw 'The configured access-secret path is a link; permissions are never changed through links. Nothing was changed.' }
+}
 function Assert-NewBundle([string]$Directory) {
     $report = Get-Content (Join-Path $Directory 'verification-report.json') -Raw | ConvertFrom-Json
     if ($report.verification -ne 'passed' -or $report.signing -ne 'disabled' -or $report.format -ne 'onedir-console-service') { throw 'Use a verified unsigned headless service package.' }
@@ -139,8 +161,32 @@ function Assert-ServiceReady($Values) {
     }
     throw 'The registered service did not own a ready listener. Inspect SCM and private logs.'
 }
+if ($Action -eq 'RepairSecret') {
+    # Explicit, elevated, one purpose: restore the private ACL of the access secret THIS service is configured with. The path comes from the installed
+    # service configuration, never from a parameter; the file content is never read or printed; other files and the service stay untouched.
+    $values = Read-ServiceConfiguration
+    if ($values.SAP_LENS_AUTH -eq 'local') { throw 'This service uses local authentication and has no access-secret file.' }
+    $secretPath = $values.SAP_LENS_AUTH_SECRET_FILE
+    Assert-RepairableSecretFile $secretPath
+    $check = Test-InstalledConfiguration (Join-Path $InstallDirectory 'app\SAP-Lens.exe') $values
+    if ($check.Ok) { Write-Host 'The access-secret permissions already satisfy the policy. Nothing was changed.'; return }
+    Write-Host ('Current policy result: ' + $check.Message)
+    if (-not $ConfirmSecretRepair) { Write-Host ('Review the message above. To restrict "' + $secretPath + '" to SYSTEM, Administrators and the service identity (read), rerun with -ConfirmSecretRepair. Nothing was changed.'); exit 3 }
+    & icacls.exe $secretPath /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' 'NT SERVICE\SAPLens:R' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot restrict access-secret permissions. The file content was not touched.' }
+    $after = Test-InstalledConfiguration (Join-Path $InstallDirectory 'app\SAP-Lens.exe') $values
+    if (-not $after.Ok) { throw ('Permissions were restricted but the policy still rejects the file: ' + $after.Message + ' Review other explicit entries (for example a named user group) with icacls.') }
+    Write-Host 'Access-secret permissions repaired. Start or restart the service when ready.'
+    return
+}
 if ($Action -in @('Upgrade','Backup','Restore')) {
     $values = Read-ServiceConfiguration
+    if ($Action -eq 'Upgrade' -and $values.SAP_LENS_AUTH -ne 'local') {
+        # An installation whose secret kept a permissive inherited ACL would fail to start after the swap; say so before anything is changed.
+        Assert-RepairableSecretFile $values.SAP_LENS_AUTH_SECRET_FILE
+        $preflight = Test-InstalledConfiguration (Join-Path $InstallDirectory 'app\SAP-Lens.exe') $values
+        if (-not $preflight.Ok) { throw ('The installed configuration is rejected by the current policy: ' + $preflight.Message + ' Run -Action RepairSecret (review first, then -ConfirmSecretRepair). No installed files were changed.') }
+    }
     $current = Get-Content (Join-Path $InstallDirectory 'verification-report.json') -Raw | ConvertFrom-Json
     $executable = Join-Path $InstallDirectory 'app\SAP-Lens.exe'
     if ($Action -eq 'Upgrade') {
@@ -171,7 +217,7 @@ if ($Action -in @('Upgrade','Backup','Restore')) {
     $previous = Join-Path $InstallDirectory ('app.previous.'+$suffix)
     Move-Item (Join-Path $InstallDirectory 'app') $previous
     Move-Item $staged (Join-Path $InstallDirectory 'app')
-    foreach ($name in @('manage-server-service.ps1','README.md','LICENSE-WinSW.txt','LICENSE.md','verification-report.json')) { Copy-Item (Join-Path $newRoot $name) (Join-Path $InstallDirectory $name) -Force }
+    foreach ($name in @('SAP-Lens-Service-Manager.exe','manage-server-service.ps1','README.md','LICENSE-WinSW.txt','LICENSE.md','verification-report.json')) { Copy-Item (Join-Path $newRoot $name) (Join-Path $InstallDirectory $name) -Force }
     try { Invoke-ServiceCommand 'start'; Assert-ServiceReady $values }
     catch {
         if ((Get-Service SAPLens).Status -ne 'Stopped') { Invoke-ServiceCommand 'stop' }
@@ -182,6 +228,9 @@ if ($Action -in @('Upgrade','Backup','Restore')) {
 }
 if ($Action -in @('Start','Stop','Restart','Uninstall')) { $installedValues = Read-ServiceConfiguration }
 if ($Action -eq 'Install') {
+    # Preflight: everything below only reads. Nothing is created, registered or copied until all of it passes.
+    if (-not [Environment]::Is64BitOperatingSystem -or [Environment]::OSVersion.Version.Major -lt 10) { throw 'The SAP Lens service requires 64-bit Windows 10, Windows Server 2016 or newer. Nothing was installed.' }
+    if (@(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue).Count) { throw "Port $Port is already in use by another program. Stop it or choose another -Port; nothing was installed." }
     if (Get-Service SAPLens -ErrorAction SilentlyContinue) { throw 'SAPLens already exists. Stop and upgrade it rather than overwriting its configuration.' }
     $report = Get-Content (Join-Path $InstallDirectory 'verification-report.json') -Raw | ConvertFrom-Json
     if ($report.verification -ne 'passed' -or $report.signing -ne 'disabled') { throw 'Missing approved server verification report.' }
@@ -192,6 +241,7 @@ if ($Action -eq 'Install') {
     if (-not (Test-Path (Join-Path $InstallDirectory 'app\SAP-Lens.exe'))) { throw 'Use the headless server bundle; the desktop EXE is not a service host.' }
     if ($Authentication -eq 'local' -and $ListenHost -notin @('127.0.0.1','::1')) { throw 'Network binding requires basic or proxy authentication.' }
     if ($Authentication -ne 'local' -and -not (Test-Path $SecretFile -PathType Leaf)) { throw 'Create an access secret file first; never supply domain credentials here.' }
+    if ($Authentication -ne 'local') { Assert-RepairableSecretFile $SecretFile }
     if (-not $PublicOrigin) { $PublicOrigin = "http://127.0.0.1:$Port" }
     foreach ($directory in @($DataDirectory,$SourceDirectory,$LogDirectory)) {
         if (-not [IO.Path]::IsPathRooted($directory)) { throw 'Use absolute directories; UNC source directories are supported.' }

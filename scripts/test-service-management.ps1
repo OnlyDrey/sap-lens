@@ -5,7 +5,7 @@ $tokens = $null; $errors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile((Join-Path $root 'scripts/manage-server-service.ps1'),[ref]$tokens,[ref]$errors)
 if ($errors.Count) { throw 'Service management syntax failed.' }
 # Load only the actual helper definitions, never the script's service operations.
-foreach ($name in @('Assert-NewBundle','Read-ServiceConfiguration','Wait-ServiceState','Invoke-ServiceCommand')) {
+foreach ($name in @('Assert-NewBundle','Read-ServiceConfiguration','Wait-ServiceState','Invoke-ServiceCommand','Assert-RepairableSecretFile','Test-InstalledConfiguration')) {
     $definition = $ast.FindAll({ param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name },$false)
     if ($definition.Count -ne 1) { throw 'Missing canonical helper.' }
     . ([scriptblock]::Create($definition[0].Extent.Text))
@@ -98,5 +98,22 @@ try {
     if ([IO.File]::ReadAllText($configuration) -ne $before) { throw 'Reading configuration modified administrator XML.' }
     [IO.File]::WriteAllText($configuration,'<!DOCTYPE service [<!ENTITY x SYSTEM "file:///not-read">]><service>&x;</service>')
     Assert-Rejected { Read-ServiceConfiguration }
+    # Secret repair guards: only an absolute, regular, non-link file qualifies; the configuration probe reports the message and restores the environment.
+    $secretFile = Join-Path $temporary 'access.secret'; [IO.File]::WriteAllText($secretFile, 'synthetic')
+    Assert-RepairableSecretFile $secretFile
+    Assert-Rejected { Assert-RepairableSecretFile 'relative.secret' }
+    Assert-Rejected { Assert-RepairableSecretFile '' }
+    Assert-Rejected { Assert-RepairableSecretFile $temporary }
+    if ($env:OS -ne 'Windows_NT') {
+        $link = Join-Path $temporary 'linked.secret'; New-Item -ItemType SymbolicLink -Path $link -Target $secretFile | Out-Null
+        Assert-Rejected { Assert-RepairableSecretFile $link }
+        $probe = Join-Path $temporary 'probe.sh'
+        [IO.File]::WriteAllText($probe, "#!/bin/sh`n[ -n `"`$SAP_LENS_AUTH_SECRET_FILE`" ] || exit 9`necho 'Invalid server configuration at step secret: is accessible to Users' >&2`nexit 1`n")
+        & chmod +x $probe
+        $result = Test-InstalledConfiguration $probe @{ SAP_LENS_AUTH_SECRET_FILE = $secretFile }
+        if ($result.Ok -or $result.Message -notmatch 'accessible to Users') { throw 'The configuration probe did not report the policy message.' }
+        if ($env:SAP_LENS_AUTH_SECRET_FILE) { throw 'The configuration probe leaked its environment into the caller.' }
+        if ($result.Message -match 'synthetic') { throw 'The configuration probe exposed secret content.' }
+    }
     Write-Output 'Service helper regressions passed: state transitions/timeouts/handle disposal, exact contents, checksums, configuration preservation and external-entity rejection. No SCM operations executed.'
 } finally { Remove-Item $temporary -Recurse -Force }

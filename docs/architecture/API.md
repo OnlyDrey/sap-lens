@@ -2,6 +2,14 @@
 
 Desktop: the owned `http://127.0.0.1:<selected-port>` origin, preferring `18743`. Development: Vite on `18743` proxies these routes to `127.0.0.1:18744`. Data/settings/health responses are `Cache-Control: no-store`.
 
+### Data revision (`X-Data-Revision`)
+
+Every `/api/` response carries `X-Data-Revision: <boot>.<publication>.<directory>` and `GET /api/configuration` repeats it as `data_generation`. `boot` is random per process (a restarted server is always newer), `publication` counts published SAP datasets, `directory` is the Employee Directory generation. The token is captured before the handler runs, so it is never newer than the data the response was built from. The frontend compares tokens per response: an older token on a GET is discarded and the request repeated once, a newer token invalidates the dataset queries and re-reads the configuration immediately instead of waiting for the 3 s poll. Responses without the header (older servers) are ignored by the client.
+
+### Concurrent review submissions
+
+Account Review decisions are rejected with `409` when the identity evidence changed since the user opened the review (`evidence_version`), when another user already saved a decision (`expected_decision`, enforced for authenticated users and for any client that sends it), or when a new dataset was published between validation and write (checked under the load lock). Nothing is written on `409`; the client reloads and the user decides again. SoD decisions keep their `expected_revision`/`expected_generation` and publication guard.
+
 | Method | Route | Purpose |
 | --- | --- | --- |
 | GET | `/health` | App/version/instance identity, load status, role count, last successful load |
@@ -59,7 +67,7 @@ All routes below use the same capability/origin protection and no-store policy. 
 
 Default POST limit is 16,384 bytes; full configuration allows 1,000,000, portable import 4,000,000 and classification preview 128,000. Limits apply to streamed bodies too. Role details/comparisons include analysis metadata; role details also expose original relationships and alternate descriptions. Native bridge additions `choose_logo`, `export_configuration` and `open_configuration_folder` require the same capability and fixed validated operations; they provide no arbitrary command execution.
 
-## UX and appearance additions (1.2)
+## UX and appearance additions
 
 GET `/api/diagnostics` exposes guarded local UI details, including source/application directory. GET `/api/diagnostics/export` exposes an allowlisted path-free, identity-free report with versions, platform, status and counts. Both use the existing API capability boundary and no-store responses.
 
@@ -105,7 +113,7 @@ are `group`, `document_type`, `release_group`, repeatable `release_areas` and `r
 
 Returns `items`, `total`, `has_more` and `selected_available`. The availability
 check is independent of the option search window. Facets use the hierarchy
-[documented with the investigation UI](../archive/implementation/ACCESS_INVESTIGATION.md#data-aware-release-filters-and-navigation).
+described in [Filters](../features/FILTERS.md).
 No role, user or transaction relationships are modified.
 
 Diagnostics now include a `sources` array for Role Catalogue and User Access:
@@ -135,7 +143,7 @@ selected user/view/status scope before the transaction filter), and `data_revisi
 CSV export uses these existing authenticated pages, checks generation/count/date
 consistency and runs locally. There is no new HTTP export/upload endpoint. Native
 CSV saving uses a separate capability-guarded Save dialog and does not enable
-unrestricted WebView2 downloads. See [User access](../archive/implementation/ACCESS_INVESTIGATION.md#user-role-views-transaction-search-and-csv-export).
+unrestricted WebView2 downloads. See [User Access](../features/USER_ACCESS.md).
 
 ### Multiple exact transaction filters
 
@@ -277,21 +285,25 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | POST | `/api/data-sources/sod/inspect` | Read-only inspection of a candidate SoD CSV with `{path, delimiter, encoding, mapping}`: detected header and format, per-column mapping state, parser errors (`valid: false`, never a 4xx for content problems), counts, checks and sample rows. Stores and imports nothing; includes `descriptions` (optional columns and metadata coverage) |
 | GET | `/api/data-sources/sod/inspection` | Read-only SoD source inspection: counts, column interpretation, validation checks, quality warnings, import metadata (`loaded: false` when no matrix is loaded) |
 | GET | `/api/sod/overview` | Catalogue counts plus a `governance` block: conflicts (including `concentration`: users with more than one risk and the roles behind the most distinct user-risk findings), decisions, remediation (including `verification`), open period progress, changes since the last refresh |
-| GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with local guidance; CSV |
+| GET | `/api/sod/catalogue`, `/catalogue/export` | Filtered risks with effective Display names and unchanged local fields; CSV |
+| GET | `/api/sod/catalogue/{risk_id}`, `/catalogue-activities/{activity}` | Exact current/retained entity and catalogue revision; 404 for an unknown ID |
 | POST | `/api/sod/catalogue/{risk_id}`, `/catalogue/bulk` | Edit local metadata (English text, color); confirmed bulk enablement |
 | GET/POST | `/api/sod/catalogue-activities`, `/catalogue-activities/{activity}` | Activities derived from the import with local English-only metadata; optimistic `expected_revision` |
 | GET | `/api/sod/appearance` | Display names and colors for risk and activity pills |
 | GET | `/api/sod/queue/users` | One row per SAP user with per-review-type progress |
 | GET/PUT/DELETE | `/api/sod/reports/branding` | Report-only logo (PNG/JPEG, validated and re-encoded) |
 | GET | `/api/sod/matrix/{risk,activity}` | User-by-risk and user-by-activity matrices, `sort=subject|findings|group` (group: first SAP User Group, users without one last), paged rows, (`limit` 1–5000, default 50; the UI's *All users* requests 5000), `group_by=group` (aggregate rows for the shared heatmap) or `group_by=user_group` (the same users ordered under one SAP User Group each, with `group_summaries` of distinct users, finding cells and first-row index per group), distinct totals and `status_counts` (cells per review status over the whole filtered matrix) |
-| GET | `/api/sod/metadata` | Resolved risk and activity descriptions for pills: imported value first, local business text as fallback, `origin` per field and `alternate` when both exist and differ |
+| GET | `/api/sod/metadata` | Resolved risk and activity descriptions for pills: non-empty local overrides, then imported metadata, then curated reference guidance; `origin` per field and the next differing `alternate` |
+| GET | `/api/sod/reference` | Private reference-library schema/revision, content digest, import time and record counts |
+| PUT | `/api/sod/reference` | Validate and atomically replace the private XLSX library (`expected_revision`, `workbook_base64`); 2 MB workbook, bounded request, exact IDs; never activates matrix elements or writes reviews |
 | GET | `/api/sod/matrix/{risk,activity}/group-export` | Long-format CSV of the SAP user group heatmap (`sap-lens-sod-group-{risk,activity}-heatmap-DATE.csv`), honoring the shared filters |
 | GET | `/api/sod/filter-options` | Searchable predefined filter values (`field`, `term`, `limit`) from the imported evidence of the context; unaffected by the other filters |
 | GET | `/api/sod/explorer/{user_risk,user_activity,access_list,lookup}` and `/export` | Explorer tables and filtered CSV; user rows carry `groups` (assignment rows `user_group`) and the user-activity, queue and remediation exports include the SAP User Group |
+| GET | `/api/sod/review-subjects` | Authenticated, read-only capability lookup: `context` and up to 200 repeated `usernames` return exact canonical SAP identities present in the same active-evidence model as the subject panel; independent of page filters, with normal context metadata. No employee/role inference or review writes. |
 | GET | `/api/sod/subject` | Investigation workspace: risk, activities, contributing assignments, decisions, removal impact, and an `overview` of all the user's activities, assignments and risks |
 | POST | `/api/sod/simulate` | Read-only what-if removal of assignments for one user |
 | GET | `/api/sod/queue`, `/queue/export` | Review work queue (`kind`, `status`) with status counts; CSV |
-| POST | `/api/sod/decisions/{activity,assignment,acceptance}` | Record one decision for explicitly listed items (max 100) |
+| POST | `/api/sod/decisions/{activity,assignment,risk,acceptance}` | Record one decision for explicitly listed items (max 100) |
 | GET | `/api/sod/decisions/{kind}/history`, `/evidence` | Event history and the evidence retained with an event |
 | GET | `/api/sod/remediation`, `/remediation/export` | Recommended handling per assignment, tracked actions with verification; CSV. `tracking=untracked` keeps removal recommendations without an action, `tracking=verified` lists tracked removals verified by newer evidence; scope filters also accept `multiple_risks=true` |
 | POST | `/api/sod/remediation/actions` | Create or update a tracked action (completion needs evidence) |
@@ -301,3 +313,80 @@ Evidence and exports are bounded; see [SoD architecture](SOD.md) and the
 | POST | `/api/sod/reports/{preview,docx,pdf}` | Formal review report; `expected_model` rejects changed evidence |
 | POST | `/api/sod/reports/remediation/{preview,csv,docx,pdf}` | Access remediation report for `current` or a period |
 | GET / POST | `/api/sod/analysis`, `/evidence`, `/export`, `/api/sod/reviews/*` | Original evidence investigation and legacy risk decisions (retained for compatibility) |
+
+## Application backups
+
+All `/api/backups` reads/downloads and writes require the desktop launch capability
+or an individual server administrator account; shared Basic/proxy access does not
+provide an application administrator identity.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| GET | `/api/backups` | Redacted current operation status |
+| POST | `/api/backups/create`, `/cancel` | Request restart backup or cancel pending operation |
+| POST | `/api/backups/upload` | Stream `application/gzip` (maximum 256 MiB); validate/preview only |
+| POST | `/api/backups/restore` | Confirm exact operation ID/archive digest and restart replacement |
+| GET | `/api/backups/{id}/download?kind=backup` | Download completed private archive; `destination-before-restore` selects recovery backup |
+
+Pending operations block unrelated POST writes and scheduled refresh. Actual backup
+or replacement runs under the process storage lease before HTTP/cache startup.
+No live-store restore endpoint exists. [Operational guide](../deployment/BACKUP_RESTORE.md).
+
+Unexpected API failures return controlled JSON with `request_id` and an ISO UTC
+`timestamp`; `X-Request-ID` correlates diagnostics. Logs record only the route
+**template**, exception category and generated reference, never exception payloads,
+raw SAP identifiers or credentials. Recoverable read deadlines are distinguished
+from connection failures in the client. A failed SoD metadata response preparation
+cannot advance the persisted revision; validation and response preparation precede
+the existing atomic file commit. Concurrent metadata writers retain CAS semantics.
+
+
+Browser CSV replacement: `POST /api/server/uploads/{roles|users|employees|sod}/activate`
+accepts authenticated multipart `file`, `revision` and optional JSON `profile` fields.
+Returns the canonical source-activation result plus `file_name`; clients never supply a
+server path. Existing raw `/api/server/uploads/{source}` staging remains compatible.
+
+
+`GET /api/sod/reference` additionally reports installation state, matched active counts,
+unmatched reference IDs and active IDs without definitions. `POST /api/sod/reference/upload`
+accepts one XLSX `file` and a `revision` in bounded authenticated multipart (2 MB workbook).
+Resolved entries from `/api/sod/metadata` carry `inherited`, `inherited_origin` and `reference`
+fields separately from effective text and its `origin`. Editors display those values without
+copying them into local annotations; immutable review snapshots retain the captured values.
+
+
+`POST /api/sod/reference/reset` takes `expected_revision` and atomically restores the
+bundled reference library only. The UI requires explicit confirmation. Reference status
+includes `origin`, `library_version`, `default_version`, `defaults_available` and any
+resource warning. Fresh installations resolve the bundled resource without a private copy;
+existing private libraries survive upgrades unchanged.
+
+
+Configuration lists expose effective `display_name`; search, name sorting and catalogue
+CSV use it without mutating `local.display_name`. Activity rows distinguish `current_risks`
+from retained `risks`, and carry `source_version` for consistent list navigation. Metadata
+includes factual `activities` and `risk_ids` relationships even when descriptions are absent;
+these UI context fields are excluded from description-only report snapshots.
+
+Subject overview rows additionally expose `decision_summary` (label, semantic tone,
+explicit/stale flags, basis and activity assignment-decision distribution). This is a pure
+presentation projection of the context-specific lifecycle and coverage, never a stored
+decision enum. The centralized effective resolver applies the approved role-to-activity
+rules, preserving explicit activity precedence and disagreement metadata. Normal risk
+review (`risk`) has independent events and `risk_review_summary`/`risk_review_event` beside
+formal `acceptance` fields. Matrices, Explorer and remediation add effective summaries while
+retaining their raw lifecycle/export fields. Approval gates and old report snapshots remain
+unchanged. Assignment rows/history additionally expose source-bound `remediation_verification`
+or `verification` metadata: status, safe reason, source snapshot/import time and original
+decision event ID. Verification never replaces the original Remove decision.
+
+SoD assignment queries accept `assignment_scope=all` for the validated imported
+population; the default conflict-analysis scope is unchanged. Bulk selection,
+rows and CSV share the existing scoped assignment predicates. `role_families`
+selects proven family identifiers, `role_exact` holds new exact choices, and
+legacy `role`/`roles` plus `role_match` retain their original behavior. Role filter
+options accept `group_roles=true` and return `family_values` for safe UI
+classification. Groups/suffixes remain exact selections. Atomic Keep, Remove and
+Investigate use the same per-assignment history service; separate remediation
+mutations cannot be mixed into the atomic write. The server validates assignment
+user, stable ID, exact role, evidence version, source generation and revision.

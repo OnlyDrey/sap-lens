@@ -37,6 +37,9 @@ export interface UserRow {
   account_status: string;
   lock_status: string;
   relevant_roles: number;
+  functional_group?: { id: string; name: string; status: string } | null;
+  functional_groups?: { id: string; name: string; status: string }[];
+  classification_status?: 'Unassigned' | 'Confirmed' | 'Needs review';
 }
 export interface UserDetail extends UserRow {
   data_revision: string;
@@ -85,6 +88,7 @@ export interface ReleaseRoleListItem { role_name: string; description: string; d
 export interface Page<T> {
   data_revision?:string;
   export_assignments?:number;
+  username_filter?: { requested: number; duplicates: number; invalid: string[]; found: number; matched: number; filtered_out: string[]; unmatched: string[]; limit: number; exceeds_limit: boolean } | null;
   items: T[];
   total: number;
   offset: number;

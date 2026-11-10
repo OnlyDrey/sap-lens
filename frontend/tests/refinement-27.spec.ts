@@ -2,7 +2,6 @@ import {test,expect,type Page,type APIRequestContext} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import {jaccard,containment} from '../src/lib/comparisonMetrics'
 import { headers, goTo } from './support'
 let directory:string,userPath:string
 const config=async(request:APIRequestContext)=>(await(await request.get('/api/configuration',{headers})).json()).settings
@@ -14,10 +13,7 @@ test.beforeEach(async({request})=>{
  const value=await config(request);value.data_csv_path=rolePath;value.user_csv_path=userPath;expect((await request.post('/api/configuration',{headers,data:value})).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
-test('comparison metric distinguishes symmetric similarity from directional containment',()=>{
- expect(jaccard(2,2,2)).toBe(100);expect(jaccard(1,1,2)).toBe(50);expect(jaccard(1,2,2)).toBe(33);expect(jaccard(0,2,3)).toBe(0);expect(jaccard(0,0,0)).toBe(0);expect(containment(1,1)).toBe(100);expect(containment(1,2)).toBe(50)
-})
-test('catalogue search visual order matches keyboard order and cards contain long identifiers',async({page})=>{
+test('catalogue search visual order matches keyboard order and cards contain long identifiers',{ tag: '@a11y' }, async({page})=>{
  await page.goto('/#session=browser-test-session');await goTo(page,'Role Lookup')
  const tc=page.getByRole('textbox',{name:'Filter catalogue by transaction',exact:true}),name=page.getByPlaceholder('Search roles by name or description...')
  await expect(tc).not.toBeFocused();expect((await tc.boundingBox())!.x).toBeLessThan((await name.boundingBox())!.x)
@@ -55,7 +51,7 @@ test('library categories remain isolated and anchored controls are measured befo
  await trigger.click();await expect.poll(()=>page.evaluate(()=>(window as any).visibleFrames.length)).toBeGreaterThanOrEqual(3);const anchor=(await trigger.boundingBox())!;for(const box of await page.evaluate(()=>(window as any).visibleFrames)){expect(box.x).toBeGreaterThanOrEqual(7);expect(Math.min(Math.abs(box.y-anchor.y-anchor.height),Math.abs(anchor.y-box.y-box.height))).toBeLessThan(10);expect(box.y).toBeGreaterThan(0)}
  await page.keyboard.press('Escape');await expect(trigger).toBeFocused();expect((await config(request)).revision).toBe(before.revision)
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`refinement visual ${theme} ${width}`,async({page,request},info)=>{
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`refinement visual ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await page.addInitScript(()=>{(window as any).pywebview={api:{choose_csv:async()=>null,desktop_runtime:async()=>({windows:true,startup_supported:true,tray_available:false,warning:null})}}})
  const value=await config(request);value.theme=theme;await request.post('/api/configuration',{headers,data:value});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session')
  const capture=async(name:string)=>{expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(name+'.png'),fullPage:true})}
@@ -65,9 +61,9 @@ for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(
 
 test('profile match placement and manual review wording preserve separate account evidence',async({page})=>{
  await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await page.getByRole('link', { name: 'SYN_REVIEW',exact:true}).click()
- const identity=page.getByRole('region',{name:'SAP Identity',exact:true});await expect(identity.getByRole('button',{name:/Directory matching details/})).toBeVisible()
+ const identity=page.getByRole('region',{name:'User profile',exact:true});await expect(identity.getByRole('button',{name:/Directory matching details/})).toBeVisible()
  await page.getByRole('button',{name:'Back to users',exact:true}).click();await page.getByRole('link',{name:'Account Review',exact:true}).click()
- const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_REVIEW',exact:true})});await expect(row).toContainText('No automated findings');await expect(row).not.toContainText('Pending manual review');await expect(row.getByRole('button',{name:'Needs review',exact:true})).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(3)).toContainText('Valid')
+ const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_REVIEW',exact:true})});await expect(row).toContainText('No automated findings');await expect(row).not.toContainText('Pending manual review');await expect(row.getByRole('button',{name:'Needs review',exact:true})).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(4)).toContainText('Valid')
 })
 
 test('release fields align and Data Health reuses canonical source state',async({page})=>{
@@ -87,7 +83,7 @@ test('Windows tray settings use the parent draft, persist and respond to native 
  const area=page.getByRole('region',{name:'Windows Desktop background operation',exact:true}),toggle=area.getByRole('switch',{name:'Minimize to System Tray on Close',exact:true})
  await expect(toggle).toHaveAttribute('aria-checked','false');await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).toBeDisabled()
  await toggle.click();await area.getByLabel('Start minimized to the system tray',{exact:true}).check();await area.getByLabel('Start SAP Lens at Windows sign-in',{exact:true}).check();expect((await config(request)).desktop.close_to_tray).toBe(false)
- await page.getByRole('button',{name:'Apply settings',exact:true}).click();expect((await config(request)).desktop).toEqual({close_to_tray:true,run_at_signin:true,start_minimized:true})
+ await page.getByRole('button',{name:'Apply settings',exact:true}).click();await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible();expect((await config(request)).desktop).toEqual({close_to_tray:true,run_at_signin:true,start_minimized:true})
  await page.reload();await settings(page,'Runtime & Scheduling');await expect(toggle).toHaveAttribute('aria-checked','true');await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).toBeChecked();await toggle.click();await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).not.toBeChecked()
 })
 test('Windows tray controls are unavailable without the native Windows capability',async({page})=>{

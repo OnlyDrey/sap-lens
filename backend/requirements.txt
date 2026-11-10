@@ -7,3 +7,8 @@ python-docx==1.2.0
 reportlab==5.1.0
 lxml==6.1.3
 charset-normalizer==3.5.2
+# Windows has no system IANA database; ship the same scheduling zones on every OS.
+tzdata==2026.6
+
+# Bounded authenticated browser CSV multipart uploads.
+python-multipart==0.0.32

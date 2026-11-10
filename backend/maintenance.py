@@ -4,7 +4,7 @@ Backups are private data, not distribution artifacts. Restore stages into empty
 operator-selected directories; it never overwrites a live or unknown data store.
 """
 import argparse
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from datetime import datetime, timezone
 import hashlib
 import json
@@ -12,7 +12,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
-import subprocess
+import stat
 import sys
 import tarfile
 import tempfile
@@ -41,9 +41,18 @@ def ensure_upgrade(installed, target):
     if version_key(target) < version_key(installed): raise MaintenanceError('Downgrades are not supported. Restore the matching application and a compatible backup explicitly.')
 
 
+def linked(path):
+    """Reject symbolic links and Windows reparse points, including junctions."""
+    try:
+        status=Path(path).lstat()
+    except FileNotFoundError:
+        return False
+    return stat.S_ISLNK(status.st_mode) or bool(getattr(status,'st_file_attributes',0)&getattr(stat,'FILE_ATTRIBUTE_REPARSE_POINT',0x400))
+
+
 def directory(value):
     value = Path(value).expanduser()
-    if not value.is_absolute() or any(part.is_symlink() for part in [value, *value.parents]):
+    if not value.is_absolute() or any(linked(part) for part in [value, *value.parents]):
         raise MaintenanceError('Use an absolute dedicated directory without links.')
     value = value.resolve()
     protected = {Path(p).resolve() for p in ('/', '/etc', '/var', '/var/lib', '/usr', '/opt', '/home', '/tmp')}
@@ -60,17 +69,20 @@ def digest(path):
 
 
 def private_file(path):
+    """Owner-only access. POSIX modes on Linux; on Windows a protected DACL for the effective user and SYSTEM, set in-process through the Windows security API (no external process)."""
     if os.name != 'nt':
         path.chmod(0o600)
         return
-    sid = subprocess.check_output(['powershell', '-NoProfile', '-Command', '[Security.Principal.WindowsIdentity]::GetCurrent().User.Value'], text=True).strip()
-    if not re.fullmatch(r'S-1-[0-9-]+', sid): raise MaintenanceError('Cannot resolve the current backup owner.')
-    subprocess.run(['icacls.exe', str(path), '/inheritance:r', '/grant:r', '*' + sid + ':F', '*S-1-5-18:F'], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    import windows_identity
+    try:
+        windows_identity.make_private(path)
+    except windows_identity.WindowsIdentityError as error:
+        raise MaintenanceError(f'Cannot make the backup file private: {error}') from error
 
 
 def owned(data, mode, allow_legacy=False):
     marker = data / 'deployment.json'
-    if marker.is_file() and not marker.is_symlink():
+    if marker.is_file() and not linked(marker):
         if json.loads(marker.read_text(encoding='utf-8')) == {'version': 1, 'mode': mode}: return
     if allow_legacy and mode == 'desktop' and (data / 'settings.json').is_file():
         settings = json.loads((data / 'settings.json').read_text(encoding='utf-8'))
@@ -81,7 +93,7 @@ def owned(data, mode, allow_legacy=False):
 @contextmanager
 def stopped(data, mode, allow_legacy=False):
     owned(data, mode, allow_legacy)
-    if (data / '.sap-lens-instance.lock').is_symlink(): raise MaintenanceError('Storage lock may not be a link.')
+    if linked(data / '.sap-lens-instance.lock'): raise MaintenanceError('Storage lock may not be a link.')
     instance = None
     lease = None
     try:
@@ -91,21 +103,33 @@ def stopped(data, mode, allow_legacy=False):
             if not instance.acquire(): raise MaintenanceError('Close SAP Lens before maintenance.')
         from storage_lease import StorageLease
         lease = StorageLease(data, mode).acquire()
-        yield
+        yield lease
     finally:
         if lease: lease.close()
         if instance: instance.close()
 
 
-def inventory(root, prefix):
+def walk_files(root, exclude=()):
+    """Prune private operational subtrees without traversing their archives/stages."""
+    for base, directories, files in os.walk(root, followlinks=False):
+        parent=Path(base)
+        if parent==root: directories[:]=[name for name in directories if name not in exclude]
+        for name in directories:
+            if linked(parent/name): raise MaintenanceError('Application storage cannot follow links.')
+        for name in sorted(files):
+            path=parent/name
+            if parent==root and name in exclude: continue
+            if linked(path): raise MaintenanceError('Application storage cannot follow links.')
+            if path.is_file(): yield path
+
+
+def inventory(root, prefix, exclude=()):
     result = {}
-    for path in sorted(root.rglob('*')):
-        if path.is_symlink(): raise MaintenanceError('Backups cannot follow links to external files.')
-        if not path.is_file() or path.name in VOLATILE or '.log' in path.suffixes: continue
+    for path in sorted(walk_files(root,{'.application-backups',*exclude})):
+        if path.name in VOLATILE or '.log' in path.suffixes: continue
         name = prefix + '/' + path.relative_to(root).as_posix()
-        safe_member(name)
-        stat = path.stat()
-        result[name] = (path, stat.st_size, stat.st_mtime_ns, stat.st_ino, digest(path))
+        before = path.stat()
+        result[name] = (path, before.st_size, before.st_mtime_ns, before.st_ino, digest(path))
     return result
 
 
@@ -121,20 +145,26 @@ def safe_member(name):
     return path
 
 
-def backup(data, output, mode, application_version, config=None, allow_legacy=False):
+def backup(data, output, mode, application_version, config=None, allow_legacy=False, *, _lease=None, _exclude=()):
     data, output = directory(data), Path(output).absolute()
     output = directory(output.parent) / output.name
     if not output.name.endswith('.tar.gz'): raise MaintenanceError('Choose a private .tar.gz backup file.')
     version_key(application_version)
-    if output.exists() or output.is_symlink() or output.is_relative_to(data):
+    inside_operation = _lease is not None and output.is_relative_to(data / '.application-backups') and '.application-backups' in _exclude
+    if output.exists() or linked(output) or output.is_relative_to(data) and not inside_operation:
         raise MaintenanceError('Choose a new backup file outside the application data directory.')
     output.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
     if config is not None:
         config = directory(config)
         if output.is_relative_to(config) or data.is_relative_to(config) or config.is_relative_to(data):
             raise MaintenanceError('Use separate dedicated data, configuration and backup locations.')
-    with stopped(data, mode, allow_legacy):
-        members = inventory(data, 'data')
+    if _lease is not None:
+        from storage_lease import StorageLease
+        if not isinstance(_lease, StorageLease) or not _lease.stream or _lease.stream.closed or _lease.directory.resolve()!=data or _lease.mode!=mode:
+            raise MaintenanceError('A matching live storage lease is required.')
+        owned(data,mode,allow_legacy)
+    with nullcontext(_lease) if _lease is not None else stopped(data, mode, allow_legacy):
+        members = inventory(data, 'data', _exclude)
         if config: members.update(inventory(config, 'config'))
         if len(members) > MAX_FILES or sum(row[1] for row in members.values()) > MAX_BYTES:
             raise MaintenanceError('Backup exceeds supported limits (100000 files / 4 GiB).')
@@ -170,9 +200,15 @@ def backup(data, output, mode, application_version, config=None, allow_legacy=Fa
 
 def verify(archive, mode, target_version):
     archive = Path(archive)
-    if archive.is_symlink(): raise MaintenanceError('Backup archives may not be links.')
+    if linked(archive): raise MaintenanceError('Backup archives may not be links.')
     with tarfile.open(archive, 'r:gz') as source:
-        members = source.getmembers()
+        members = []
+        total = 0
+        for member in source:
+            total += max(member.size,0)
+            if len(members) >= MAX_FILES+1 or total > MAX_BYTES+16*1024*1024:
+                raise MaintenanceError('Backup exceeds supported archive limits.')
+            members.append(member)
         names = [item.name for item in members]
         if (len(members) > MAX_FILES + 1 or len({name.casefold() for name in names}) != len(names)
                 or sum(item.size for item in members) > MAX_BYTES + 16*1024*1024):
@@ -199,7 +235,7 @@ def verify(archive, mode, target_version):
         return manifest
 
 
-def restore(archive, data, mode, target_version, config=None, confirm=False):
+def restore(archive, data, mode, target_version, config=None, confirm=False, *, _staging=False):
     if not confirm: raise MaintenanceError('Restore requires explicit --confirm-restore.')
     manifest = verify(archive, mode, target_version)
     data = directory(data)
@@ -212,7 +248,7 @@ def restore(archive, data, mode, target_version, config=None, confirm=False):
         if destination.exists() and any(path != data / '.sap-lens-instance.lock' for path in destination.iterdir()): raise MaintenanceError('Restore only into empty directories. Existing state is preserved; stop the application and review a directory switch explicitly.')
     for destination in destinations: destination.mkdir(parents=True, exist_ok=True, mode=0o700)
     created = []
-    with empty_store_lock(data, mode):
+    with empty_store_lock(data, mode, _staging=_staging):
         try:
             with tarfile.open(archive, 'r:gz') as source:
                 for name, expected in manifest['files'].items():
@@ -236,13 +272,13 @@ def restore(archive, data, mode, target_version, config=None, confirm=False):
 
 
 @contextmanager
-def empty_store_lock(data, mode):
-    if (data / '.sap-lens-instance.lock').is_symlink(): raise MaintenanceError('Storage lock may not be a link.')
+def empty_store_lock(data, mode, *, _staging=False):
+    if linked(data / '.sap-lens-instance.lock'): raise MaintenanceError('Storage lock may not be a link.')
     from storage_lease import StorageLease
     instance = None
     lease = None
     try:
-        if mode == 'desktop' and os.name == 'nt':
+        if mode == 'desktop' and os.name == 'nt' and not _staging:
             from instance import WindowsInstance
             instance = WindowsInstance()
             if not instance.acquire(): raise MaintenanceError('Close SAP Lens before restore.')
@@ -260,7 +296,7 @@ def purge(data, mode, confirm=False):
     data = directory(data)
     with stopped(data, mode):
         paths = list(data.rglob('*'))
-        if any(path.is_symlink() or not (path.is_file() or path.is_dir()) for path in paths):
+        if any(linked(path) or not (path.is_file() or path.is_dir()) for path in paths):
             raise MaintenanceError('Unrecognized links or file types; no private data was removed.')
         files = [path for path in paths if path.is_file() and path != data / '.sap-lens-instance.lock']
         for path in files: path.unlink()

@@ -6,7 +6,7 @@ import hashlib
 import json
 from datetime import date
 
-from employee_directory import match_sap_identity, sap_email_owners
+from employee_directory import identity_matcher
 from sod_import import EVALUATION_POLICY
 from user_access import interval_status, normalize_username, sap_date
 
@@ -94,7 +94,7 @@ def analyze(snapshot, metadata=None, as_of=None, validity='active', selected_rol
     user_results = []
     matched_assignments = eligible_assignments = 0
     directory = snapshot.directory if directory_enabled else None
-    owners = sap_email_owners(snapshot.users.users.values()) if directory else {}
+    matcher = identity_matcher(snapshot.users, directory) if directory else None
     if users_available:
         for key, user in sorted(snapshot.users.users.items()):
             paths = []
@@ -113,7 +113,7 @@ def analyze(snapshot, metadata=None, as_of=None, validity='active', selected_rol
                                       matching_status=assignment['match_status'],
                                       role_valid_from=assignment.get('valid_from'), role_valid_to=assignment.get('valid_to'),
                                       interval_status=status, user_group=assignment.get('user_group', '')))
-            match = match_sap_identity(directory, user, owners) if directory else {'status': 'directory_unavailable' if directory_enabled else 'directory_disabled', 'employee': None}
+            match = matcher(user) if directory else {'status': 'directory_unavailable' if directory_enabled else 'directory_disabled', 'employee': None}
             employee = match['employee']
             account = dict(accounts=_unique(user.get('accounts', [])), directory_match=match['status'],
                            ad_status=employee.get('account_status', 'Unknown') if employee else 'Unknown')

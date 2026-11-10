@@ -1,9 +1,19 @@
 <# Shared native orchestration: desktop packaging stays in build-windows.ps1. #>
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][ValidateSet('Desktop','Service')][string]$Target,[string]$OutputDirectory='')
+param([Parameter(Mandatory=$true)][ValidateSet('Desktop','Service')][string]$Target,[string]$OutputDirectory='',[switch]$NativeAcceptance)
 $ErrorActionPreference = 'Stop'
 $root=Split-Path $PSScriptRoot -Parent
 Set-Location $root
+# Packaging never installs or changes a Windows service. The privileged native SCM acceptance (scripts/test-server-service.ps1) runs only on request
+# (-NativeAcceptance) or on the CI runner, and its prerequisite is checked before the expensive build starts.
+$runAcceptance = $Target -eq 'Service' -and ($NativeAcceptance -or $env:GITHUB_ACTIONS -eq 'true')
+if ($runAcceptance) {
+    $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
+    if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+        [Console]::Error.WriteLine('ACCEPTANCE PREREQUISITE: the native service (SCM) acceptance needs an elevated PowerShell. Nothing was built. Run without -NativeAcceptance to package without it, or start an elevated shell.')
+        exit 3
+    }
+}
 function Checked([scriptblock]$Command) { & $Command; if ($LASTEXITCODE -ne 0) { throw 'Windows deployment packaging failed.' } }
 Checked { python scripts/deployment-package.py require-inputs }
 if (-not $OutputDirectory) { $OutputDirectory=Join-Path $root 'dist/deployment' }
@@ -24,21 +34,35 @@ if ($Target -eq 'Desktop') {
     $info=Get-Content backend/build/build-version.json -Raw | ConvertFrom-Json
     $bundle=Join-Path $root ('backend/build/deployment-desktop-'+[guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory $bundle | Out-Null
-    Copy-Item backend/dist/SAP-Lens.exe,backend/dist/SAP-Lens.exe.sha256 $bundle
     Copy-Item LICENSE.md $bundle
-    Copy-Item docs/deployment/WINDOWS_DESKTOP.md (Join-Path $bundle 'README.md')
-    Checked { & $python scripts/deployment-package.py readme --document docs/deployment/WINDOWS_DESKTOP.md --directory $bundle }
+    $readme=@"
+SAP Lens Desktop
+
+Run SAP-Lens-Windows-Desktop-x64-$($info.version)-Setup.exe to install for the current user under AppData. Administrator rights are not required. Microsoft Edge WebView2 Runtime is required.
+
+For upgrades, close SAP Lens and run Setup again. Existing application data is preserved. Uninstall through Windows Installed Apps; data is retained by default.
+
+The metadata directory contains integrity evidence, not launch choices. The portable EXE is an internal build input; this download contains only Setup.
+
+Instructions: https://github.com/OnlyDrey/sap-lens/blob/work/docs/deployment/WINDOWS_DESKTOP.md
+"@
+    [IO.File]::WriteAllText((Join-Path $bundle 'README.md'),$readme,[Text.UTF8Encoding]::new($false))
     & ./scripts/build-desktop-installer.ps1 -OutputDirectory $bundle
     $installer=Join-Path $bundle ("SAP-Lens-Windows-Desktop-x64-$($info.version)-Setup.exe")
-    & ./scripts/test-desktop-installer.ps1 -Installer $installer -Report (Join-Path $bundle 'installer-verification.json')
+    $evidence=Join-Path $bundle 'metadata'
+    New-Item -ItemType Directory $evidence | Out-Null
+    & ./scripts/test-desktop-installer.ps1 -Installer $installer -Report (Join-Path $evidence 'installer-verification.json')
+    # Compiler checksums remain internal; the bundle manifest binds shipped bytes.
+    Remove-Item ($installer+'.sha256')
     Checked { & $python scripts/deployment-package.py finish --directory $bundle --platform Windows-Desktop-x64 --output $OutputDirectory }
-    Checked { & $python scripts/verify-desktop-distribution.py --directory $bundle }
+    Checked { & $python scripts/packaging/verify-desktop-distribution.py --directory $bundle --payload-directory backend/dist }
 
 } else {
     $wrapper=Join-Path $root 'backend/build/WinSW-x64.exe'
-    Invoke-WebRequest 'https://github.com/winsw/winsw/releases/download/v2.12.0/WinSW-x64.exe' -OutFile $wrapper
+    Checked { & $python scripts/packaging/local-build.py winsw --output $wrapper }
     $bundle=Join-Path $root ('backend/build/deployment-service-'+[guid]::NewGuid().ToString('N'))
     & ./scripts/build-server-windows.ps1 -WinSW $wrapper -ValidatedDeployment -OutputDirectory $bundle
-    & ./scripts/test-server-service.ps1 -Bundle $bundle
+    if ($runAcceptance) { & ./scripts/test-server-service.ps1 -Bundle $bundle }
+    else { Write-Output "Native SCM acceptance NOT RUN (packaging only). Run it elevated: powershell -NoProfile -File scripts\test-server-service.ps1 -Bundle `"$bundle`"" }
     Checked { & $python scripts/deployment-package.py finish --directory $bundle --platform Windows-Service-x64 --output $OutputDirectory }
 }

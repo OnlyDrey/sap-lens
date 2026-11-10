@@ -1,9 +1,9 @@
-import { directoryDisplayName } from '../src/lib/directoryDisplayName'
 import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers, goTo, setDescending, sortDirection, openFilters } from './support'
+import { layoutMatrix } from './matrix'
 let directory: string, roles: string, users: string
 const roleCSV =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:DEMO:A,Demo purchasing,ZS:A,MIGO\n'
@@ -225,9 +225,8 @@ test('Dashboard is the default landing route and configuration links target thei
   ).toBeVisible()
 })
 
-for (const theme of ['light', 'dark'] as const)
-  for (const width of [375, 800, 1280])
-    test(`consolidated routes visual QA ${theme} ${width}`, async ({
+for (const { theme, width } of layoutMatrix([375, 800, 1280]))
+    test(`consolidated routes visual QA ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {
@@ -322,24 +321,6 @@ for (const theme of ['light', 'dark'] as const)
         ),
       ).toBe(true)
     })
-
-test('directory-only name formatting preserves compounds and ambiguous structures', () => {
-  for (const [input, output] of [
-    ['van der Berg, Anna Maria', 'Anna Maria van der Berg'],
-    ['O’Neill, Mary Anne', 'Mary Anne O’Neill'],
-    ['Jean-Luc Martin', 'Jean-Luc Martin'],
-    ['SMITH John', 'John SMITH'],
-    ['VAN DER BERG Anna Maria', 'Anna Maria VAN DER BERG'],
-    ['SMITH JOHN', 'SMITH JOHN'],
-    ['McDonald John', 'McDonald John'],
-    ['Smith, John, Jr.', 'Smith, John, Jr.'],
-    ['Team 2, Demo', 'Team 2, Demo'],
-    ['Demo (Group), Analyst', 'Demo (Group), Analyst'],
-    ['J, Smith', 'J, Smith'],
-    ['', ''],
-  ])
-    expect(directoryDisplayName(input)).toBe(output)
-})
 
 test('clear user filters resets all directory controls while evidence-only clear stays scoped', async ({
   page,

@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers, goTo, openFilters, closeFilters } from './support'
+import { layoutMatrix } from './matrix'
 let directory: string
 const roles =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:A,Demo purchasing,ZS:A,MIGO\nFI,ZC:FI:B,Demo finance,ZS:B,ME21N\nSD,ZC:SD:C,Demo sales,ZS:C,VA03\n'
@@ -194,9 +195,8 @@ test('Dashboard counts and KPI routes are meaningful, with browser Back and disa
   ).toHaveAttribute('aria-selected', 'true')
 })
 
-for (const theme of ['light', 'dark'] as const)
-  for (const width of [375, 800, 1280])
-    test(`Dashboard and compact search visual QA ${theme} ${width}`, async ({
+for (const { theme, width } of layoutMatrix([375, 800, 1280]))
+    test(`Dashboard and compact search visual QA ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {
@@ -248,7 +248,7 @@ for (const theme of ['light', 'dark'] as const)
       })
     })
 
-test('shared success and error notifications align with content and dismiss by keyboard', async ({
+test('shared success and error notifications align with content and dismiss by keyboard', { tag: '@a11y' }, async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1920, height: 1000 })

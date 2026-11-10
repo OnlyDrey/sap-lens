@@ -19,7 +19,7 @@ import test_local_build as legacy
 
 
 def load(name):
-    spec=importlib.util.spec_from_file_location(name.replace('-','_'),ROOT/'scripts'/f'{name}.py')
+    spec=importlib.util.spec_from_file_location(name.replace('-','_'),next((ROOT/'scripts').rglob(name+'.py')))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 
 
@@ -72,9 +72,9 @@ class LocalDeploymentTests(unittest.TestCase):
 
     def test_cli_rejects_bad_arguments_and_never_makes_remote_calls(self):
         for args in (['--platform','invalid','--version','0.1.0'],['--version','0.1.0','--clean','--reuse-validation']):
-            result=subprocess.run([sys.executable,str(ROOT/'scripts/build-deployments.py'),*args],capture_output=True,text=True)
+            result=subprocess.run([sys.executable,str(ROOT/'scripts/deployment/build-deployments.py'),*args],capture_output=True,text=True)
             self.assertNotEqual(result.returncode,0);self.assertIn('error:',result.stderr)
-        result=subprocess.run([str(ROOT/'build.sh'),'--help'],capture_output=True,text=True)
+        result=subprocess.run([sys.executable,str(ROOT/'scripts/build.py'),'--help'],capture_output=True,text=True)
         self.assertEqual(result.returncode,0);self.assertIn('--windows-host',result.stdout)
 
     def test_ci_admission_cannot_use_a_local_receipt(self):
@@ -88,7 +88,7 @@ class LocalDeploymentTests(unittest.TestCase):
             run.log=Path(temporary)/'build.log'
             run.env={'SAP_LENS_CONFIG_DIR':'isolated-validation','PATH':'kept'}
             with patch.object(builder.subprocess,'run') as command:
-                run.run('Native installation',['python','scripts/test-native-deployment.py','--artifacts','synthetic'])
+                run.run('Native installation',['python','scripts/testing/test-native-deployment.py','--artifacts','synthetic'])
                 self.assertEqual(command.call_args.kwargs['env'],{'PATH':'kept'})
                 run.run('Backend validation',['python','test.py'])
                 self.assertEqual(command.call_args.kwargs['env']['SAP_LENS_CONFIG_DIR'],'isolated-validation')
@@ -114,6 +114,7 @@ class LocalDeploymentReceiptTests(unittest.TestCase):
         self.context.start();self.addCleanup(self.context.stop)
         self.env=patch.dict(os.environ,{'GITHUB_ACTIONS':'false','RUNNER_TEMP':str(self.temporary)})
         self.env.start();self.addCleanup(self.env.stop)
+        os.environ.pop('SAP_LENS_SKIPPED_CHECKS',None)  # the builder sets it when pwsh is absent; tests declare it explicitly
 
     def test_builder_isolates_production_data_and_global_pip_destinations(self):
         args=SimpleNamespace(version='0.1.0-beta.1',output_dir=self.root/'backend/build/output',invocation='d'*32)
@@ -136,6 +137,21 @@ class LocalDeploymentReceiptTests(unittest.TestCase):
             with self.subTest(relative=relative),self.assertRaises(ValueError):pkg.require_inputs()
             target.write_bytes(original)
         self.assertEqual(pkg.require_inputs()['identity'],self.info)
+
+    def test_a_non_windows_receipt_may_leave_only_the_powershell_check_unverified_and_says_so(self):
+        records=[dict(stage=stage,status='passed') for stage in pkg.CHECKS-{'powershell'}]
+        (self.temporary/'sap-lens-ci-timings.jsonl').write_text('\n'.join(map(json.dumps,records)))
+        with patch.object(pkg.sys,'platform','linux'):
+            with self.assertRaises(ValueError):pkg.record_local()  # missing without the explicit declaration
+            with patch.dict(os.environ,{'SAP_LENS_SKIPPED_CHECKS':'powershell,types'}):
+                receipt=pkg.record_local()
+            self.assertEqual(receipt['not_verified'],['powershell']);self.assertNotIn('powershell',receipt['checks']);self.assertIn('types',receipt['checks'])
+            self.assertEqual(pkg.require_inputs()['identity'],self.info)
+            path=self.root/'backend/build/deployment-local-validation.json'
+            pkg.write(path,{**receipt,'not_verified':['types']})  # no other check may be declared unverified
+            with self.assertRaises(ValueError):pkg.require_inputs()
+        with patch.object(pkg.sys,'platform','win32'),patch.dict(os.environ,{'SAP_LENS_SKIPPED_CHECKS':'powershell'}),self.assertRaises(ValueError):
+            pkg.record_local()
 
     @unittest.skipUnless(sys.platform=='linux','POSIX virtualenv interpreter links')
     def test_only_standard_local_interpreter_and_lib_aliases_are_permitted(self):

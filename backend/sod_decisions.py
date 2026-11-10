@@ -27,13 +27,14 @@ MAX_ACTIONS = 20000
 MAX_REPORTS = 5000
 MAX_BATCH = 100
 DECISIONS = {
-    'activity': ('Pending', 'Approved', 'Conditional', 'Remove'),
+    'activity': ('Pending', 'Approved', 'Conditional', 'Remove','Investigate'),
     'assignment': ('Pending', 'Keep', 'Remove', 'Investigate'),
     'acceptance': ('Pending', 'Accepted', 'Rejected'),
+    'risk': ('Pending','Approved','Remove','Investigate'),
 }
 RECOMMENDED = ('Remove assignment', 'Investigate assignment', 'Maintain access', 'Apply compensating control', 'No action required')
 ACTION_STATUS = ('Open', 'In progress', 'Completed', 'Cancelled')
-Kind = Literal['activity', 'assignment', 'acceptance']
+Kind = Literal['activity', 'assignment', 'acceptance', 'risk']
 HEX64 = r'^[a-f0-9]{64}$'
 
 
@@ -48,6 +49,8 @@ def _clean(value):
 class Event(StrictModel):
     model_config = ConfigDict(extra='forbid', validate_default=True, frozen=True)
     event_id: str = Field(pattern=r'^[a-f0-9]{32}$')
+    bulk_operation_id: str = Field(default='',pattern=r'^([a-f0-9]{32})?$')
+    previous_decision: str = Field(default='',max_length=40)
     kind: Kind
     context: str = Field(pattern=CONTEXT_PATTERN)
     timestamp: str = Field(max_length=40)
@@ -180,6 +183,16 @@ def _path():
     return config_dir() / 'sod-decisions.json'
 
 
+def fingerprint():
+    """Identity of the stored decision history (directory, file modification time, size and inode); it changes with every write or restore."""
+    path = _path()
+    try:
+        stat = path.stat()
+    except OSError:
+        return (str(path), None)
+    return (str(path), stat.st_mtime_ns, stat.st_size, stat.st_ino)
+
+
 def read():
     path = _path()
     if not path.exists():
@@ -214,11 +227,15 @@ def check_context(value):
 
 
 def record(kind, context, items, decision, reviewer, justification, expected_revision,
-           approver='', controls='', expires=None, source_versions=None):
+           approver='', controls='', expires=None, source_versions=None, bulk_operation_id=''):
     """Append one event per item atomically; all items share one decision and justification."""
+    from server_access import actor
+    reviewer = actor(reviewer)
+    if approver: approver = actor(approver)
     context = check_context(context)
-    if not items or len(items) > MAX_BATCH or len({item['key'] for item in items}) != len(items):
-        raise HTTPException(422, f'Choose between 1 and {MAX_BATCH} distinct items.')
+    limit=1000 if bulk_operation_id else MAX_BATCH
+    if not items or len(items) > limit or len({item['key'] for item in items}) != len(items):
+        raise HTTPException(422, f'Choose between 1 and {limit} distinct items.')
     if expires is not None and expires < date.today():
         raise HTTPException(422, 'The expiration date cannot be in the past.')
     with lock:
@@ -233,7 +250,8 @@ def record(kind, context, items, decision, reviewer, justification, expected_rev
                 identity = write_private('snapshots', dict(version=1, source='sod-decision-evidence', kind=kind, evidence=item['evidence']))
             except (OSError, ValueError):
                 raise HTTPException(409, 'SoD decision evidence could not be staged. Previous decisions are retained.') from None
-            event = Event(event_id=uuid4().hex, kind=kind, context=context, timestamp=stamp, key=item['key'], user=item['user'], ref=item['ref'],
+            previous=subjects.get(item['key'],[])
+            event = Event(event_id=uuid4().hex,bulk_operation_id=bulk_operation_id,previous_decision=previous[-1].decision if previous else '', kind=kind, context=context, timestamp=stamp, key=item['key'], user=item['user'], ref=item['ref'],
                           decision=decision, reviewer=reviewer, approver=approver, justification=justification, controls=controls,
                           expires=expires, evidence_version=item['evidence_version'], evidence_snapshot=identity,
                           source_versions=source_versions or {})
@@ -272,7 +290,7 @@ def evidence_for(event):
         raise HTTPException(409, 'Retained decision evidence is unavailable or invalid. History is preserved; restore its snapshot from a private backup.') from None
 
 
-def lifecycle(kind, event, current_version, today=None):
+def lifecycle(kind, event, current_version, today=None, reappeared=None):
     """Lifecycle of one item. ``current_version`` is None when evidence no longer supports the item.
 
     Returns Pending, the decision itself (Approved, Keep, Accepted, Conditional, Rejected, Investigate), Removal required,
@@ -284,11 +302,15 @@ def lifecycle(kind, event, current_version, today=None):
         return 'Historical'
     if event.evidence_version != current_version or kind == 'acceptance' and event.expires and event.expires < (today or date.today()):
         return 'Outdated'
+    if reappeared and event.timestamp < reappeared:
+        return 'Outdated'  # the assignment left the imported data and came back: the earlier decision may concern a different identity
     return 'Removal required' if event.decision == 'Remove' else event.decision
 
 
 def save_action(context, payload, actor, expected_revision, action_id=''):
     """Create or update a remediation action; every change is appended to its history."""
+    from server_access import actor as authenticated_actor
+    actor = authenticated_actor(actor)
     context = check_context(context)
     with lock:
         data = read()
@@ -323,6 +345,8 @@ def actions_for(context, data=None):
 
 
 def log_report(period_id, kind, title, status, document_version, model_checksum, previous_period_id=None, prepared_by=''):
+    from server_access import actor
+    prepared_by = actor(prepared_by)
     with lock:
         data = read()
         if len(data.reports) >= MAX_REPORTS:

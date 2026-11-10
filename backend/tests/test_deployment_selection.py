@@ -22,7 +22,7 @@ def load(name, path):
     return module
 
 
-release = load('deployment_selection_release', 'scripts/deployment-release.py')
+release = load('deployment_selection_release', 'scripts/deployment/deployment-release.py')
 packages = load('deployment_selection_package', 'scripts/deployment-package.py')
 contracts = load('deployment_selection_contracts', 'scripts/check-workflows.py')
 WD, WS, LD, LN = 'windows-desktop', 'windows-service', 'linux-docker', 'linux-native'
@@ -35,9 +35,9 @@ EXPECTED = {  # build_target -> the packages it builds; the seven values of the 
 def run_plan(build_target, **extra):
     with tempfile.TemporaryDirectory() as directory:
         output, summary = Path(directory, 'output'), Path(directory, 'summary.md')
-        env = dict(BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
+        env = dict(GITHUB_ACTIONS='false', GITHUB_REF='refs/heads/work', BASE_VERSION='0.1.0', DEPLOYMENT_CHANNEL='Beta', DEPLOYMENT_SEQUENCE='1', PUBLISH_RELEASE='false')
         env.update(DEPLOYMENT_TARGET=build_target, GITHUB_OUTPUT=str(output), GITHUB_STEP_SUMMARY=str(summary), **extra)
-        done = subprocess.run([sys.executable, str(ROOT / 'scripts/deployment-release.py'), 'plan'], env={**os.environ, **env}, capture_output=True, text=True)
+        done = subprocess.run([sys.executable, str(ROOT / 'scripts/deployment/deployment-release.py'), 'plan'], env={**os.environ, **env}, capture_output=True, text=True)
         values = dict(line.split('=', 1) for line in output.read_text().splitlines()) if output.exists() else {}
         return done, values, summary.read_text() if summary.exists() else ''
 
@@ -78,7 +78,7 @@ class PlanningJobTests(unittest.TestCase):
     def test_stable_ignores_the_prerelease_field_as_the_dispatch_form_promises(self):
         for sequence in ('','0','01','65536','unused'):
             with self.subTest(sequence=sequence):
-                done,values,_=run_plan('windows-desktop',DEPLOYMENT_CHANNEL='Stable / Production',DEPLOYMENT_SEQUENCE=sequence)
+                done,values,_=run_plan('windows-desktop',DEPLOYMENT_CHANNEL='Stable / Production',DEPLOYMENT_SEQUENCE=sequence,GITHUB_REF='refs/heads/main')
                 self.assertEqual(done.returncode,0,done.stderr)
                 self.assertEqual(values['desktop'],'true')
                 info=packages.make_deployment_info('0.1.0','stable',sequence,'a'*40,'1','1',1)
@@ -159,14 +159,14 @@ class WorkflowWiringTests(unittest.TestCase):
             if target.startswith('windows'):
                 self.assertFalse([key for key in started if jobs[key]['runs-on'].startswith('ubuntu')], 'no Linux package runner for a Windows selection')
 
-    def test_publication_collects_only_planned_packages_and_artifact_names_are_unchanged(self):
+    def test_publication_collects_only_planned_packages_and_uses_compact_artifact_names(self):
         jobs = self.workflow()['jobs']; publish = jobs['publish']
         self.assertEqual(set(publish['needs']), {'plan', 'validation', 'desktop', 'service', 'docker', 'native'})
         self.assertIn("needs.plan.result == 'success'", publish['if'])
         self.assertEqual(publish['env']['DEPLOYMENT_PACKAGES'], '${{ needs.plan.outputs.packages }}')
         names = {key: next(step['with']['name'] for step in jobs[key]['steps'] if step.get('id') == 'distribution') for key in ('desktop', 'service', 'docker', 'native')}
-        self.assertEqual(names, {'desktop': 'SAP-Lens-Windows-Desktop-x64-${{ needs.validation.outputs.version }}', 'service': 'SAP-Lens-Windows-Service-x64-${{ needs.validation.outputs.version }}',
-                                 'docker': 'SAP-Lens-Linux-Docker-amd64-${{ needs.validation.outputs.version }}', 'native': 'SAP-Lens-Linux-Native-x64-${{ needs.validation.outputs.version }}'})
+        self.assertEqual(names, {'desktop': 'sap-lens-win-desktop-x64-v${{ needs.validation.outputs.version }}', 'service': 'sap-lens-win-service-x64-v${{ needs.validation.outputs.version }}',
+                                 'docker': 'sap-lens-linux-docker-amd64-v${{ needs.validation.outputs.version }}', 'native': 'sap-lens-linux-native-x64-v${{ needs.validation.outputs.version }}'})
         for name, (_key, _label, stem, *_rest) in release.PACKAGES.items():
             self.assertIn(stem, next(value for value in names.values() if stem in value), name)
 
@@ -177,7 +177,7 @@ class PublicationGatingTests(unittest.TestCase):
         info = make_deployment_info('0.1.0', 'beta', '1', 'a' * 40, '123', '12', 1)
         data = {'plan': {'result': 'success'}, 'validation': {'result': 'success'}}
         for index, (name, (key, _label, stem, ext, *_rest)) in enumerate(release.PACKAGES.items(), 1):
-            data[key] = ({'result': 'success', 'outputs': {'artifact_id': str(index), 'package_name': f'SAP-Lens-{stem}-{info["version"]}{ext}', 'package_sha': 'f' * 64}}
+            data[key] = ({'result': 'success', 'outputs': {'artifact_id': str(index), 'package_name': f'sap-lens-{stem}-v{info["version"]}{ext}', 'package_sha': 'f' * 64}}
                          if name in chosen else {'result': 'skipped', 'outputs': {}})
         return info, data
 
@@ -186,7 +186,7 @@ class PublicationGatingTests(unittest.TestCase):
             info, data = self.needs_for(expected)
             rows = release.eligible(info, release.resolve(target), data)
             self.assertEqual(len(rows), len(expected), target)
-            self.assertTrue(all(row['package_name'].startswith('SAP-Lens-') for row in rows))
+            self.assertTrue(all(row['package_name'].startswith('sap-lens-') for row in rows))
             for name in expected:  # one selected package failing blocks the whole release, skipped siblings do not
                 broken = copy.deepcopy(data); broken[release.PACKAGES[name][0]]['result'] = 'failure'
                 with self.subTest(target=target, failing=name), self.assertRaises(release.DeliveryError):
@@ -194,7 +194,7 @@ class PublicationGatingTests(unittest.TestCase):
 
     def test_an_artifact_from_a_package_nobody_selected_cannot_ride_along(self):
         info, data = self.needs_for([WD, WS])
-        data['docker'] = {'result': 'success', 'outputs': {'artifact_id': '9', 'package_name': f'SAP-Lens-Linux-Docker-amd64-{info["version"]}.tar.gz', 'package_sha': 'e' * 64}}
+        data['docker'] = {'result': 'success', 'outputs': {'artifact_id': '9', 'package_name': f'sap-lens-linux-docker-amd64-v{info["version"]}.tar.gz', 'package_sha': 'e' * 64}}
         with self.assertRaises(release.DeliveryError):
             release.eligible(info, release.resolve('windows-all'), data)
 

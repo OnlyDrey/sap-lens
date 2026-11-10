@@ -163,7 +163,24 @@ class RefreshMetadata(StrictModel):
     skipped: int = Field(ge=0, le=4)
 
 
+class ImportChecks(StrictModel):
+    """Thresholds for holding a suspicious (but valid) replacement source for explicit confirmation. Structurally invalid files are always rejected."""
+    enabled: bool = True
+    max_drop_percent: int = Field(default=30, ge=1, le=95)
+    min_previous_records: int = Field(default=20, ge=0, le=1_000_000)
+
+
+class ImportConfirmation(StrictModel):
+    source: Literal['roles', 'users', 'employees', 'sod']
+    confirmed_at: str = Field(max_length=40)
+    actor: str = Field(default='', max_length=120)
+    anomalies: list[str] = Field(default_factory=list, max_length=20)
+    old_records: int = Field(ge=0)
+    new_records: int = Field(ge=0)
+
+
 class DataLifecycle(StrictModel):
+    confirmations: list[ImportConfirmation] = Field(default_factory=list, max_length=100)
     sod_history: list[SourceSnapshot] = Field(default_factory=list, max_length=1000)
     history_metadata: dict[str, RefreshMetadata] = Field(default_factory=dict, max_length=5)
     last_successful_refresh: str | None = Field(default=None, max_length=40)
@@ -223,6 +240,7 @@ class AppConfig(StrictModel):
     refresh_schedule: RefreshSchedule = Field(default_factory=RefreshSchedule)
     source_modes: SourceModes = Field(default_factory=SourceModes)
     data_lifecycle: DataLifecycle = Field(default_factory=DataLifecycle)
+    import_checks: ImportChecks = Field(default_factory=ImportChecks)
     unlicensed_user_groups: list[str] = Field(default_factory=lambda: ['UNLICENSED'], max_length=100)
 
     @field_validator('unlicensed_user_groups')

@@ -1,6 +1,4 @@
 import {test,expect} from '@playwright/test'
-import {transactionMatches,matchingTransactions} from '../src/lib/searchMatching'
-import {presentRoleDescription} from '../src/lib/rolePresentation'
 import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
@@ -22,13 +20,6 @@ test.beforeEach(async({request})=>{
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.data_csv_path=roles;settings.user_csv_path=users;expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
-test('display descriptions and transaction matching preserve literal evidence semantics',()=>{
- expect(presentRoleDescription('BC - Batch Input Management',['BC'])).toEqual({description:'Batch Input Management',area:'BC'})
- expect(presentRoleDescription('UNKNOWN - Retain original',['BC']).description).toBe('UNKNOWN - Retain original')
- expect(presentRoleDescription('BC prose - Preserve',['BC']).description).toBe('BC prose - Preserve')
- expect(transactionMatches('sost',['SO*'])).toBe(true);expect(transactionMatches('SM35',['SO*'])).toBe(false);expect(transactionMatches('SOST',['SO'])).toBe(false)
- expect(matchingTransactions([{tcode:'SOST'},{tcode:'SO20'},{tcode:'SM35'}],['SO*']).map(row=>row.tcode)).toEqual(['SOST','SO20'])
-})
 test('sidebar wildcard filters rows as well as roles and restores the original collapsed state', { tag: '@smoke' },async({page,request})=>{
  await page.goto('/#session=browser-test-session');await page.getByRole('navigation',{name:'Main navigation',exact:true}).getByRole('link',{name:'Role Lookup',exact:true}).click();await page.getByRole('button',{name:'View details for Synthetic Alpha',exact:true}).click()
  const dialog=page.getByRole('dialog'),input=dialog.getByRole('textbox',{name:'Find transaction code',exact:true})
@@ -41,7 +32,7 @@ test('sidebar wildcard filters rows as well as roles and restores the original c
  await input.fill('');await expect(dialog.locator('.single-role-entry:visible')).toHaveCount(2);await expect(shared.getByRole('button',{name:'Expand single role ZS:SYN:SHARED',exact:true})).toHaveAttribute('aria-expanded','false')
  await shared.getByRole('button',{name:'Expand single role ZS:SYN:SHARED',exact:true}).click();await expect(shared.locator('tbody tr')).toHaveCount(3)
 })
-for(const theme of ['light','dark'])test(`restored shared surfaces spacing and navigation ${theme}`,async({page,request})=>{
+for(const theme of ['light','dark'])test(`restored shared surfaces spacing and navigation ${theme}`,{ tag: '@visual' }, async({page,request})=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.goto('/#session=browser-test-session')
  for(const name of ['Role Distribution','Assignment Distribution']){const card=page.getByRole('region',{name,exact:true});await expect(card).toHaveCSS('padding','16px');await expect(card).toHaveCSS('border-radius','12px');await expect(card).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)')}
  await expect(page.locator('.dashboard-section .info-row').first()).toHaveCSS('padding-left','8px')
@@ -71,7 +62,7 @@ test('comparison uses responsive tiles and shared transaction filtering without 
 })
 test('review validity stays status-only and Release Roles retains the chosen view through filters',async({page})=>{
  await page.goto('/#session=browser-test-session');const nav=page.getByRole('navigation',{name:'Main navigation',exact:true});await nav.getByRole('link',{name:'User Access',exact:true}).click();await page.getByRole('link',{name:'Account Review',exact:true}).click()
- const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_VIEW',exact:true})});await expect(row).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(3)).toContainText('Valid')
+ const row=page.getByRole('row').filter({has:page.getByRole('link', { name: 'SYN_VIEW',exact:true})});await expect(row).toBeVisible();await expect(row.locator('.review-account-dates')).toHaveCount(0);await expect(row.locator('td').nth(4)).toContainText('Valid')
  await nav.getByRole('link',{name:'Release Roles',exact:true}).click();const group=page.getByRole('group',{name:'Release results view',exact:true});await expect(group.getByRole('button').first()).toHaveText('Matrix');await expect(group.getByRole('button',{name:'Matrix',exact:true})).toHaveAttribute('aria-pressed','true');await group.getByRole('button',{name:'Table',exact:true}).click();await page.getByRole('combobox',{name:'Release assignment status',exact:true}).selectOption('all');await expect(group.getByRole('button',{name:'Table',exact:true})).toHaveAttribute('aria-pressed','true')
 })
 test('theme colors are an editable grid that shows every color together and edits, resets and syncs draft logos',async({page,request})=>{
@@ -98,7 +89,7 @@ test('theme colors are an editable grid that shows every color together and edit
  await colors.getByRole('button',{name:'Reset Primary color',exact:true}).click()
  const live=page.getByAltText('Header logo preview',{exact:true}),local=page.getByAltText('Selected header logo preview',{exact:true});await local.scrollIntoViewIfNeeded();await expect(local).toBeVisible();expect(await local.getAttribute('src')).toBe(await live.getAttribute('src'));expect((await(await request.get('/api/configuration',{headers})).json()).settings.theme_colors).toEqual(before.theme_colors)
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`stabilization visual ${theme} ${width}`,async({page,request},info)=>{
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`stabilization visual ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;appendFileSync(settings.user_csv_path,'SYN_VIEW,ZO:MM:M:PR_REL_ST_G1_N1:ALL,synthetic@example.test,20000101,99991231,20000101,99991231\nSYN_VIEW,ZO:MM:M:PO_REL_ST_G2_N2:ALL,synthetic@example.test,20000101,99991231,20000101,99991231\n');expect((await request.post('/api/data-sources/users/select',{headers,data:{path:settings.user_csv_path,revision:settings.revision,mode:'dynamic'}})).ok()).toBeTruthy();await page.setViewportSize({width,height:950});await page.goto('/#session=browser-test-session')
  const capture=async(name:string)=>{expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(`${name}-${theme}-${width}.png`)})}
  await expect(page.getByRole('region',{name:'Role Distribution',exact:true})).not.toHaveCSS('background-color','rgba(0, 0, 0, 0)');await capture('dashboard')

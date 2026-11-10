@@ -32,6 +32,7 @@ for (const kind of ['risk', 'activity'] as const) {
     await expect(groupBy(page).locator('option')).toHaveText(['No grouping', 'SAP User Group'])
     const matrix = grid(page, kind)
     await expect(matrix.locator('tr.matrix-group-row')).toHaveCount(0)
+    await expect(matrix.locator('tbody th.matrix-row-head code')).toHaveCount(2) // the baseline is read only once both users with findings are rendered
     const ungrouped = await matrix.locator('tbody th.matrix-row-head code').allInnerTexts()
     const columns = await matrix.locator('thead th.matrix-col').count()
     await groupBy(page).selectOption('group')

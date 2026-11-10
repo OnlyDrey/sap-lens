@@ -1,15 +1,18 @@
+import { ApplicationFooter } from '@/components/Shared/ApplicationFooter'
 import { IconButton } from '@/components/Shared/Button'
 import { ExportNotice } from '@/components/Shared/ExportNotice'
 import { RefreshBanner } from '@/components/Shared/RefreshReport'
 import { useApplicationData } from '@/state/ApplicationData'
 import { Notification } from '@/components/Shared/Notification'
 import { useHistoryValue } from '@/hooks/useViewHistory'
-import { type ReactNode, useState, useRef } from 'react'
+import { type ReactNode, lazy, Suspense, useEffect, useState, useRef } from 'react'
 import { RefreshCw, Sun, Moon, Settings, Loader2, Database } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { apiRequest } from '@/api/client'
+import { apiRequest, ApiError } from '@/api/client'
+import { useSession } from '@/api/session'
+import { SessionNotice } from './SessionNotice'
 import { fetchConfiguration } from '@/api/configuration'
-import { SettingsView } from '@/components/Settings/SettingsView'
+const SettingsView = lazy(() => import('@/components/Settings/SettingsView').then((module) => ({ default: module.SettingsView })))
 
 interface Props {
   navigation: ReactNode
@@ -27,6 +30,7 @@ export function AppLayout({
   onToggleTheme
 }: Props) {
   const dataState=useApplicationData()
+  const sessionIssue = ['manual', 'failed', 'reconnecting', 'disconnected'].includes(useSession().phase) // SessionNotice owns every connection or session message
   const configurationQuery = useQuery({
     queryKey: ['configuration'], queryFn: fetchConfiguration, retry:false
   })
@@ -46,6 +50,9 @@ export function AppLayout({
   })
   const [savedFeedback, setSavedFeedback] = useState(false)
   const [settingsOpen, setSettingsOpen] = useHistoryValue('settings')
+  // Settings is large but must exist early (it opens itself on first launch and listens for the native bridge). It loads as its own chunk right after the first render instead of inside the entry bundle, and then stays mounted so drafts survive.
+  const [settingsMounted, setSettingsMounted] = useState(false)
+  useEffect(() => { setSettingsMounted(true) }, [])
   const [dataSourceRequest, setDataSourceRequest] = useState(0)
   const reviewDataSource = () => {
     setDataSourceRequest((request) => request + 1)
@@ -63,7 +70,7 @@ export function AppLayout({
     try {
       await dataState.refresh()
     } catch (e) {
-      setErr(e instanceof Error ? e.message : 'Refresh failed')
+      setErr(e instanceof ApiError&&e.kind==='session'?null:e instanceof Error ? e.message : 'Refresh failed')
     } finally {refreshLock.current=false}
   }
 
@@ -132,7 +139,9 @@ export function AppLayout({
         {err && <Notification variant="error" onDismiss={()=>setErr(null)}>{err}</Notification>}
       </header>
 
+      {(settingsOpen || settingsMounted) && <Suspense fallback={null}>
       <SettingsView
+        applicationFooter={<ApplicationFooter version={application?.version} mode={application?.mode} note={organization?.footer}/>}
         open={settingsOpen}
         dataSourceRequest={dataSourceRequest}
         onOpen={() => setSettingsOpen(true)}
@@ -145,6 +154,7 @@ export function AppLayout({
         onSaved={() => setSavedFeedback(true)}
         onDataChanged={onDataChanged}
       />
+      </Suspense>}
       {configuration?.error && !configuration.loading && !settingsOpen && (
         <div className="w-full max-w-screen-2xl mx-auto px-4 sm:px-6 mt-4">
         <div
@@ -163,8 +173,9 @@ export function AppLayout({
         </div>
         </div>
       )}
-      {configurationQuery.isError && !settingsOpen && <div role="alert" className="service-notice">
-        <strong>Local service unavailable.</strong><span>The current view is retained. Retry the connection; navigation does not restart the backend.</span>
+      {!settingsOpen && <SessionNotice onRetry={() => void configurationQuery.refetch()} retrying={configurationQuery.isFetching} />}
+      {configurationQuery.isError && !settingsOpen && !sessionIssue && <div role="alert" className="service-notice">
+        <strong>{configurationQuery.error instanceof ApiError&&configurationQuery.error.kind==='session'?'Local session changed.':configurationQuery.error instanceof ApiError&&['authentication','permission'].includes(configurationQuery.error.kind)?'Access needs attention.':'Local service unavailable.'}</strong><span>{configurationQuery.error instanceof Error?configurationQuery.error.message:'The current view is retained. Retry the connection.'}</span>
         <button className="settings-secondary-button" onClick={() => void configurationQuery.refetch()} disabled={configurationQuery.isFetching}>Retry connection</button>
       </div>}
       {dataState.loading && !configurationQuery.isError && !settingsOpen && <div role="status" className="service-notice">
@@ -190,21 +201,8 @@ export function AppLayout({
           Ready
         </p>
       )}
-      <footer
-        className={settingsOpen ? 'hidden' : 'h-20'}
-        style={{
-          backgroundColor: 'var(--primary)',
-          color: 'var(--on-primary)'
-        }}
-      >
-        <p className="text-[11px] py-2.5 text-center font-medium">
-          <span>{organization?.footer ||
-            `© ${new Date().getFullYear()} ${organization?.name.trim() || 'SAP Lens'} — SAP Lens`}</span>
-          {application && <span className="block mt-1" aria-label="Application version">
-            SAP Lens v{application.version}{application.mode === 'local-build' ? ' · Local build' : application.mode === 'build' || application.mode === 'local' ? ' · Development build' : ''}
-          </span>}
-        </p>
-      </footer>
+      {!settingsOpen&&<ApplicationFooter version={application?.version} mode={application?.mode} note={organization?.footer}/>}
+
     </div>
   )
 }

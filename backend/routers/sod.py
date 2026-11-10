@@ -1,6 +1,6 @@
 """SoD catalogue endpoints; the shared application boundary protects all routes."""
 from typing import Literal
-from fastapi import APIRouter, Query,Depends
+from fastapi import APIRouter, Query,Depends, Request, HTTPException
 import csv
 import io
 import json
@@ -45,7 +45,7 @@ def catalogue_data(search='',enabled='',current='',status='',criticality='',type
         result = store.catalogue()
     def matches(item):
         local, source = item['local'], item['source']
-        return ((not search.strip() or search_fields(search.strip(), item['risk_id'], source['source_text'], local['display_name'], local['business_category'], local['explanation_en'], local['explanation_no']))
+        return ((not search.strip() or search_fields(search.strip(), item['risk_id'], source['source_text'], item['display_name'], local['business_category'], local['explanation_en'], local['explanation_no']))
                 and (not enabled or local['enabled'] == (enabled == 'enabled'))
                 and (not current or item['current'] == (current == 'current'))
                 and (not criticality or source['criticality'] == criticality)
@@ -58,7 +58,7 @@ def catalogue_data(search='',enabled='',current='',status='',criticality='',type
                      or status == 'unsupported' and not source['supported']))
     items = [item for item in result['items'] if matches(item)]
     def value(item):
-        selected = item['risk_id'] if sort == 'risk_id' else item['source']['criticality'] if sort == 'criticality' else item['modified'] if sort == 'modified' else item['local'][sort]
+        selected = item['risk_id'] if sort == 'risk_id' else item['source']['criticality'] if sort == 'criticality' else item['modified'] if sort == 'modified' else item['display_name'] if sort=='display_name' else item['local'][sort]
         return ((selected or '').casefold(), item['risk_id'])
     items.sort(key=value, reverse=descending)
     return {**result,'items':items}
@@ -80,7 +80,7 @@ def catalogue_export(filters:dict=Depends(catalogue_query)):
         buffer=io.StringIO();writer=csv.writer(buffer,delimiter=';',quoting=csv.QUOTE_ALL,lineterminator='\r\n')
         for row in result['items']:
             source,local=row['source'],row['local']
-            values=[row['risk_id'],local['display_name'],source['source_text'],source['criticality'],source['risk_type'],'Yes' if row['current'] else 'No','Yes' if local['enabled'] else 'No',row['description_review_status'],local['business_category']]
+            values=[row['risk_id'],row['display_name'],source['source_text'],source['criticality'],source['risk_type'],'Yes' if row['current'] else 'No','Yes' if local['enabled'] else 'No',row['description_review_status'],local['business_category']]
             values.extend(local[key] for key in ('explanation_en','explanation_no','consequence_en','consequence_no','mitigating_controls_en','mitigating_controls_no','review_guidance_en','review_guidance_no','notes'))
             values.extend([source['activity1'],source['activity2'],json.dumps(source['activities']['ACTVT1'],ensure_ascii=False),json.dumps(source['activities']['ACTVT2'],ensure_ascii=False),row['definition_version'],row['modified'] or ''])
             buffer.seek(0);buffer.truncate(0);writer.writerow([spreadsheet_cell(value) for value in values]);yield buffer.getvalue()
@@ -107,16 +107,17 @@ def activities(search: str = Query('', max_length=256), current: Literal['', 'cu
                offset: int = Query(0, ge=0), limit: int = Query(25, ge=1, le=100)):
     with store.lock, cache._load_lock:
         result = store.activity_catalogue()
+        source_version=cache.get_snapshot().sod.get('content_hash')
     needle = search.strip()
     items = [item for item in result['items']
              if (not current or item['current'] == (current == 'current'))
-             and (not needle or search_fields(needle, item['activity'], item['local']['display_name'], item['local']['business_category'],
+             and (not needle or search_fields(needle, item['activity'], item['display_name'], item['local']['business_category'],
                                               item['local']['explanation_en'], *item['risks'], *item['tcodes']))]
     key = {'activity': lambda item: item['activity'].casefold(), 'risks': lambda item: (len(item['risks']), item['activity'].casefold()),
-           'display_name': lambda item: (item['local']['display_name'].casefold(), item['activity'].casefold()),
+           'display_name': lambda item: (item['display_name'].casefold(), item['activity'].casefold()),
            'business_category': lambda item: (item['local']['business_category'].casefold(), item['activity'].casefold())}[sort]
     items.sort(key=key, reverse=descending)
-    return dict(items=items[offset:offset + limit], total=len(items), offset=offset, limit=limit, revision=result['revision'])
+    return dict(items=items[offset:offset + limit], total=len(items), offset=offset, limit=limit, revision=result['revision'],source_version=source_version)
 
 
 @router.post('/catalogue-activities/{activity:path}')
@@ -155,7 +156,8 @@ def governance_overview():
     import sod_scope as scope
     bundle=scope.load('current')
     if bundle['coverage']['status']!='available':return dict(available=False,reason=bundle['coverage'].get('reason'),missing=bundle['coverage'].get('missing',[]))
-    model=scope.model_for(bundle);change=scope.observe(bundle,model);state=governance.states(model,scope.latest_for(bundle))
+    conflicts=scope.model_for(bundle);change=scope.observe(bundle,conflicts)
+    model=scope.review_model_for(bundle);state=scope.states_for(bundle,model)
     def tally(kind):
         result={}
         for life,_ in state[kind].values():result[life]=result.get(life,0)+1
@@ -167,20 +169,105 @@ def governance_overview():
     progress=[]
     for period in sorted(index.items,key=lambda item:item.modified,reverse=True):
         if period.deleted_at or period.state in periods.FROZEN:continue
-        try:gaps=periods.outstanding(period) if periods.snapshot(period).get('model')==2 else None
-        except Exception:gaps=None
-        if gaps is None:continue
-        decided=sum(count for kind in ('activity','acceptance') for name,count in gaps[kind].items() if name not in {'Pending','Outdated'})
-        total=sum(count for kind in ('activity','acceptance') for count in gaps[kind].values())
-        progress.append(dict(id=period.id,name=period.name,state=period.state,decided=decided,total=total,blocking=gaps['blocking']))
+        assessment=periods.progress(period)
+        if assessment is None:continue
+        progress.append(dict(id=period.id,name=period.name,state=period.state,**assessment))
         if len(progress)>=5:break
     frozen=[item for item in index.items if not item.deleted_at and item.state in periods.FROZEN and item.approval_date]
     latest=max(frozen,key=lambda item:(item.approval_date,item.modified),default=None)
     latest_approval=dict(id=latest.id,name=latest.name,state=latest.state,approval_date=latest.approval_date.isoformat(),approver=latest.approver) if latest else None
-    return dict(available=True,latest_approval=latest_approval,users_with_conflicts=len(model),user_risk_findings=sum(len(entry['findings']) for entry in model.values()),
+    return dict(available=True,latest_approval=latest_approval,users_with_conflicts=len(conflicts),user_risk_findings=sum(len(entry['findings']) for entry in conflicts.values()),
                 activities=tally('activity'),assignments=tally('assignment'),acceptance=tally('acceptance'),
-                assignments_marked_remove=sum(1 for life,_ in state['assignment'].values() if life=='Removal required'),concentration=governance.conflict_concentration(model),
+                review_coverage={kind:dict(total=len(values),reviewed=sum(value['reviewed'] for value in values.values())) for kind,values in state['coverage'].items()},
+                assignments_marked_remove=sum(1 for life,_ in state['assignment'].values() if life=='Removal required'),concentration=governance.conflict_concentration(conflicts),
                 remediation=dict(open_actions=len(open_actions),overdue=sum(1 for item in open_actions if item.due_date and item.due_date<today),
                                  removal_without_action=len({(row['user'],row['assignment_id']) for row in rows if row['recommended']=='Remove assignment' and not row['action']}),
                                  verification=scope.removal_verification(actions)[0]),
                 periods=progress,change=change,as_of=bundle['as_of'])
+
+
+class ReferenceUpload(StrictModel):
+    expected_revision: int = Field(ge=0)
+    workbook_base64: str = Field(max_length=2800000)
+
+
+@router.get('/reference')
+def reference_library():
+    import sod_reference
+    return sod_reference.status()
+
+
+@router.put('/reference')
+def replace_reference(request: ReferenceUpload):
+    import base64
+    import binascii
+    import sod_reference
+    from fastapi import HTTPException
+    try:
+        raw = base64.b64decode(request.workbook_base64, validate=True)
+    except (ValueError, binascii.Error):
+        raise HTTPException(422, 'Workbook must be valid base64.') from None
+    return sod_reference.status(sod_reference.install(raw, request.expected_revision))
+
+
+@router.post('/reference/upload')
+async def upload_reference(request: Request):
+    from fastapi import HTTPException
+    from starlette.datastructures import UploadFile
+    from starlette.concurrency import run_in_threadpool
+    import sod_reference
+    async with request.form(max_files=1, max_fields=1, max_part_size=128) as form:
+        if set(form) != {'file', 'revision'} or any(len(form.getlist(key)) != 1 for key in form):
+            raise HTTPException(422, 'Choose one reference workbook and its current revision.')
+        file = form['file']
+        if not isinstance(file, UploadFile):
+            raise HTTPException(422, 'Choose an XLSX reference workbook.')
+        name = file.filename or ''
+        if not name.lower().endswith('.xlsx') or len(name.encode('utf-8')) > 200 or '..' in name or any(c in name for c in '/\\\x00<>:"|?*') or any(ord(c) < 32 for c in name):
+            raise HTTPException(422, 'Choose an XLSX filename without path components.')
+        if not file.size or file.size > sod_reference.MAX_BYTES:
+            raise HTTPException(413 if file.size else 422, 'Choose a non-empty reference workbook up to 2 MB.')
+        try:
+            revision = int(form['revision'])
+        except (TypeError, ValueError):
+            raise HTTPException(422, 'Choose the current reference revision.') from None
+        library = await run_in_threadpool(sod_reference.install, await file.read(sod_reference.MAX_BYTES + 1), revision)
+        return sod_reference.status(library)
+
+
+class ReferenceReset(StrictModel):
+    expected_revision: int = Field(ge=0)
+
+
+@router.post('/reference/reset')
+def reset_reference(request: ReferenceReset):
+    import sod_reference
+    return sod_reference.status(sod_reference.reset(request.expected_revision))
+
+
+@router.get('/reference/template')
+def reference_template():
+    from fastapi import HTTPException
+    from fastapi.responses import FileResponse
+    from sod_reference import default_path
+    path=default_path().with_name('sod-reference-template.xlsx')
+    if not path.is_file():raise HTTPException(503,'Reference template is unavailable; repair the application package.')
+    return FileResponse(path,filename='sap-lens-sod-reference-template.xlsx',media_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',headers={'Cache-Control':'no-store'})
+
+
+@router.get('/catalogue/{risk_id}')
+def risk_detail(risk_id:str):
+    with store.lock,cache._load_lock:
+        result=store.catalogue()
+    item=next((row for row in result['items'] if row['risk_id']==risk_id),None)
+    if item is None:raise HTTPException(404,'Risk is not available in the retained source definitions.')
+    return dict(item=item,revision=result['revision'])
+
+
+@router.get('/catalogue-activities/{activity:path}')
+def activity_detail(activity:str):
+    with store.lock,cache._load_lock:
+        result=store.activity_catalogue()
+    item=next((row for row in result['items'] if row['activity']==activity),None)
+    if item is None:raise HTTPException(404,'Activity is not available in the retained source definitions.')
+    return dict(item=item,revision=result['revision'])

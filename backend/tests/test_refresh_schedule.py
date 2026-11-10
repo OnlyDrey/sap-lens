@@ -21,6 +21,19 @@ utc = lambda *args: datetime(*args, tzinfo=timezone.utc)
 
 
 class CronRules(unittest.TestCase):
+    def test_iana_database_is_available_without_operating_system_zone_files(self):
+        import zoneinfo
+        original = zoneinfo.TZPATH
+        try:
+            zoneinfo.reset_tzpath([])
+            zoneinfo.ZoneInfo.clear_cache()
+            oslo = cron.zone('Europe/Oslo')
+            self.assertEqual(datetime(2026,1,15,12,tzinfo=oslo).utcoffset().total_seconds(),3600)
+            self.assertEqual(datetime(2026,7,15,12,tzinfo=oslo).utcoffset().total_seconds(),7200)
+        finally:
+            zoneinfo.reset_tzpath(original)
+            zoneinfo.ZoneInfo.clear_cache()
+
     def test_parser_accepts_lists_ranges_steps_names_and_rejects_bad_fields(self):
         rule = cron.parse_cron('0,30 6-8 * JAN,MAR MON-FRI')
         self.assertEqual((rule['minute'], rule['hour'], rule['month'], rule['dow']), ({0, 30}, {6, 7, 8}, {1, 3}, {1, 2, 3, 4, 5}))

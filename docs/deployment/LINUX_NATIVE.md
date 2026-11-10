@@ -16,7 +16,7 @@ a build-machine venv is never relocated. No compiler/Rust toolchain should be ne
 
 ## Download and install
 
-Build `Linux Native/systemd` or `All` using [manual packaging](BUILD.md).
+Build `Linux Native/systemd` or `All` using [manual packaging](../BUILD.md).
 Extract GitHub's download wrapper, verify the sidecar checksum, then extract the
 inner archive into a new staging directory:
 
@@ -56,6 +56,10 @@ create a private secret readable by the service and configure the exact public
 origin/allowed hosts/trusted proxy peers. Dynamic CSV paths must be under the
 configured source root; give `saplens` read access. Uploads become Static after
 confirmation and snapshots persist independently of the original client file.
+
+## Installer preflight
+
+Before the first file, user or unit is created, the installer checks Linux x86-64, glibc 2.35+, Python 3.12 with `venv` and `ensurepip` (on Debian or Ubuntu install `python3.12-venv`), root (or `--user`), a running systemd host for system mode, free disk space, an unmanaged existing unit, separate application, data and configuration directories and, for a fresh install, that port 18743 is free. If staging the new release fails afterwards, only the release directory created by that run is removed; an existing installation, the data and the configuration are left as they were. The packaged server needs no Node.js, npm or PyInstaller on the target.
 
 ## Upgrade, rollback and uninstall
 
@@ -110,10 +114,10 @@ not to downloaded native packages.
 
 CI's non-root install/start/import/synthetic-upgrade/persistence/uninstall smoke
 test does not certify systemd boot, journald, OS hardening or production permissions.
-Those require a real target host. See [actual validation](../archive/validation/PACKAGING_VALIDATION.md).
+Those require a real target host. See [deployment validation status](README.md#validation-status).
 
 Local lifecycle commands also support `start`, `stop`, `restart` and `status`
 with `--user` and the same explicit paths. `backup` stops the runtime and leaves
 it stopped until an explicit `start`. See
-[backup and recovery details](../archive/validation/INSTALLATION_LIFECYCLE_VALIDATION.md); native systemd
+[deployment validation status](README.md#validation-status); native systemd
 acceptance remains pending.

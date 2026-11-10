@@ -33,6 +33,17 @@ class WindowEvent:
         for handler in self.handlers: handler()
 
 
+def wait_until(condition, describe, limit=20.0):
+    """Condition wait for asynchronous shutdown. It returns as soon as the condition holds (a passing run is not slower) and only the
+    failure path waits up to `limit`; the old fixed 2 s / 5 s windows raced uvicorn shutdown on a loaded Windows host. Failure names the state."""
+    deadline = time.monotonic() + limit
+    while time.monotonic() < deadline:
+        if condition():
+            return True
+        time.sleep(.01)
+    raise AssertionError('Timed out waiting for ' + describe())
+
+
 class DesktopTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -262,9 +273,8 @@ class DesktopTests(unittest.TestCase):
             instance=original(*args);managed.append(instance);return instance
         def gui_session(**kwargs):
             managed[0].server.should_exit=True
-            managed[0].worker.join(2)
-            deadline=time.monotonic()+2
-            while not self.window.destroy.called and time.monotonic()<deadline: time.sleep(.01)
+            wait_until(lambda:not managed[0].worker.is_alive(),lambda:'the backend worker to stop after should_exit')
+            wait_until(lambda:self.window.destroy.called,lambda:'the owned window to be destroyed after the backend stopped unexpectedly')
         self.gui_session=gui_session
         with patch.object(desktop,'ManagedBackend',side_effect=factory):
             self.assertEqual(desktop.run(),1)
@@ -280,7 +290,7 @@ class DesktopTests(unittest.TestCase):
                 visible_error.set()
         self.window.evaluate_js.side_effect = record_script
         self.gui_session = lambda **kwargs: self.assertTrue(visible_error.wait(10))
-        with patch('urllib.request.OpenerDirector.open', side_effect=TimeoutError('synthetic connection timeout')):
+        with patch.dict(os.environ, {'SAP_LENS_DESKTOP_STARTUP_TIMEOUT':'1'}), patch('urllib.request.OpenerDirector.open', side_effect=TimeoutError('synthetic connection timeout')):
             self.assertEqual(desktop.run(), 1)
         self.window.load_url.assert_not_called()
         script=self.window.evaluate_js.call_args.args[0]
@@ -402,6 +412,22 @@ class DesktopTests(unittest.TestCase):
             self.assertTrue(bridge.save_sod_document('synthetic-capability',f'sap-lens-access-remediation-{context}-2026-10-27.pdf',encoded))
         with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability','sap-lens-access-remediation-other-2026-10-27.pdf',encoded)
 
+    def test_reference_template_and_repository_native_boundaries(self):
+        import base64
+        from sod_reference import default_path
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._window=self.window
+        target=self.root/'template.xlsx';self.window.create_file_dialog.return_value=[str(target)]
+        payload=default_path().with_name('sod-reference-template.xlsx').read_bytes()
+        name='sap-lens-sod-reference-template.xlsx'
+        self.assertTrue(bridge.save_sod_document('synthetic-capability',name,base64.b64encode(payload).decode()))
+        self.assertEqual(target.read_bytes(),payload)
+        with self.assertRaises(ValueError):bridge.save_sod_document('synthetic-capability',name,base64.b64encode(b'PKinvalid').decode())
+        with patch('webbrowser.open',return_value=True) as opened:
+            with self.assertRaises(ValueError):bridge.open_project_repository('wrong')
+            opened.assert_not_called()
+            self.assertTrue(bridge.open_project_repository('synthetic-capability'))
+            opened.assert_called_once_with('https://github.com/OnlyDrey/sap-lens')
+
     def test_sod_document_save_keeps_fixed_formats_and_capability_boundary(self):
         import base64
         from io import BytesIO
@@ -462,6 +488,204 @@ class DesktopTests(unittest.TestCase):
         self.assertNotIn('https://',document)
         self.assertNotIn('file://',document)
 
+    def probe_backend(self):
+        backend = desktop.ManagedBackend(MagicMock(), desktop.reserve_listener(0))
+        self.addCleanup(backend.listener.close)
+        backend.worker = MagicMock()
+        backend.worker.is_alive.return_value = True
+        return backend
+
+    def health_response(self, value=None):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.status = 200
+        response.read.return_value = json.dumps(value or {'app':'sap-lens','instance_id':'synthetic','status':'loading'}).encode()
+        return response
+
+    def test_readiness_retries_transient_failures_then_checks_owned_identity(self):
+        from urllib.error import URLError
+        backend = self.probe_backend()
+        canceled = threading.Event()
+        with patch('urllib.request.OpenerDirector.open', side_effect=[URLError('synthetic'), TimeoutError(), self.health_response()]) as probe:
+            backend.wait_ready('http://127.0.0.1:12345','synthetic',time.monotonic()+2,canceled,MagicMock())
+        self.assertEqual(probe.call_count,3)
+        self.assertTrue(all(call.kwargs['timeout'] <= .5 for call in probe.call_args_list))
+
+    def test_readiness_rejects_wrong_identity_and_malformed_content(self):
+        backend = self.probe_backend()
+        for value in ({'app':'other','instance_id':'synthetic'}, {'app':'sap-lens','instance_id':'other'}, ['not-health'], {'app':'sap-lens','instance_id':'synthetic','status':'unexpected'}):
+            with self.subTest(value=value), patch('urllib.request.OpenerDirector.open', return_value=self.health_response(value)):
+                with self.assertRaises(desktop.StartupFailure) as failure:
+                    backend.wait_ready('http://127.0.0.1:12345','synthetic',time.monotonic()+1,threading.Event(),MagicMock())
+                self.assertEqual(failure.exception.code,'UNEXPECTED_SERVICE')
+
+    def test_readiness_detects_worker_exit_before_during_and_after_probe(self):
+        from urllib.error import URLError
+        for alive,response in (([False],self.health_response()),([True,False],URLError('synthetic')),([True,False],self.health_response())):
+            backend=self.probe_backend();backend.worker.is_alive.side_effect=alive
+            with patch('urllib.request.OpenerDirector.open',side_effect=[response] if isinstance(response,Exception) else None,return_value=response):
+                with self.assertRaises(desktop.StartupFailure) as failure:
+                    backend.wait_ready('http://127.0.0.1:12345','synthetic',time.monotonic()+1,threading.Event(),MagicMock())
+                self.assertEqual(failure.exception.code,'BACKEND_EXITED')
+
+    def test_readiness_never_follows_redirect_to_another_service(self):
+        from http.server import BaseHTTPRequestHandler, HTTPServer
+        backend=self.probe_backend()
+        with socket.socket() as unrelated:
+            unrelated.bind(('127.0.0.1',0));unrelated.listen();unrelated.setblocking(False)
+            target=unrelated.getsockname()[1]
+            class Redirect(BaseHTTPRequestHandler):
+                def do_GET(self):
+                    self.send_response(302);self.send_header('Location',f'http://127.0.0.1:{target}/health');self.end_headers()
+                def log_message(self,*args):pass
+            server=HTTPServer(('127.0.0.1',0),Redirect)
+            worker=threading.Thread(target=server.serve_forever,daemon=True);worker.start()
+            try:
+                with self.assertRaises(desktop.StartupFailure) as failure:
+                    backend.wait_ready(f'http://127.0.0.1:{server.server_port}','synthetic',time.monotonic()+2,threading.Event(),MagicMock())
+                self.assertEqual(failure.exception.code,'UNEXPECTED_SERVICE')
+                with self.assertRaises(BlockingIOError):unrelated.accept()
+            finally:server.shutdown();server.server_close();worker.join(2)
+
+    def test_readiness_deadline_is_bounded_without_real_time_waits(self):
+        from urllib.error import URLError
+        backend=self.probe_backend();clock=[0.0];canceled=MagicMock();canceled.is_set.return_value=False
+        canceled.wait.side_effect=lambda seconds:clock.__setitem__(0,clock[0]+seconds)
+        with patch.object(desktop.time,'monotonic',side_effect=lambda:clock[0]), patch('urllib.request.OpenerDirector.open',side_effect=URLError('synthetic')) as probe:
+            with self.assertRaises(desktop.StartupFailure) as failure:
+                backend.wait_ready('http://127.0.0.1:12345','synthetic',.25,canceled,MagicMock())
+        self.assertEqual(failure.exception.code,'READINESS_TIMEOUT')
+        self.assertEqual(probe.call_count,3)
+        self.assertAlmostEqual(clock[0],.25)
+
+    def test_slow_initialization_and_early_exit_are_distinct(self):
+        backend=self.probe_backend();backend.server.started=False
+        clock=[0.0];canceled=MagicMock();canceled.is_set.return_value=False
+        def advance(seconds):
+            clock[0]+=seconds
+            if clock[0]>=.075:backend.server.started=True
+        canceled.wait.side_effect=advance
+        with patch.object(desktop.time,'monotonic',side_effect=lambda:clock[0]):backend.start(timeout=1,canceled=canceled)
+        self.assertTrue(backend.server.started)
+        backend=self.probe_backend();backend.worker.is_alive.return_value=False
+        with self.assertRaises(desktop.StartupFailure) as failure:backend.start()
+        self.assertEqual(failure.exception.code,'BACKEND_EXITED')
+
+    def test_startup_timeout_configuration_rejects_invalid_values(self):
+        for value in ('0','181','nan','inf','text'):
+            with self.subTest(value=value),patch.dict(os.environ,{'SAP_LENS_DESKTOP_STARTUP_TIMEOUT':value}):
+                with self.assertRaises(desktop.StartupFailure):desktop.startup_timeout()
+        with patch.dict(os.environ,{'SAP_LENS_DESKTOP_STARTUP_TIMEOUT':'42'}):self.assertEqual(desktop.startup_timeout(),42)
+
+    def test_retry_stops_old_backend_and_uses_fresh_owned_instance(self):
+        failed=threading.Event();real_start=desktop.ManagedBackend.start;attempts=[]
+        def start(backend,*args,**kwargs):
+            attempts.append(backend)
+            if len(attempts)==1:raise desktop.StartupFailure('SYNTHETIC_FAILURE','A recoverable synthetic startup failure.')
+            return real_start(backend,*args,**kwargs)
+        original=self.window.evaluate_js.side_effect
+        def evaluate(script):
+            original(script)
+            if 'Startup needs attention' in script:failed.set()
+        self.window.evaluate_js.side_effect=evaluate
+        def session(**kwargs):
+            self.assertTrue(failed.wait(5))
+            bridge=self.gui.create_window.call_args.kwargs['js_api']
+            self.assertTrue(bridge.retry_startup(bridge._token))
+            self.assertFalse(bridge.retry_startup(bridge._token))
+            wait_until(lambda:self.navigate.called,lambda:'navigation to the fresh backend after retry')
+            self.verify_session()
+            self.assertEqual(len(attempts),2)
+            wait_until(lambda:not attempts[0].worker.is_alive(),lambda:'the failed first backend worker to stop')
+        self.gui_session=session
+        with patch.object(desktop.ManagedBackend,'start',start):self.assertEqual(desktop.run(),0)
+        wait_until(lambda:all(not backend.worker.is_alive() and backend.listener.fileno()==-1 for backend in attempts),
+                   lambda:'every owned backend to stop and release its listener: '+repr([(backend.worker.is_alive(),backend.listener.fileno()) for backend in attempts]))
+
+    def test_initialization_failures_are_logged_without_sensitive_values(self):
+        import main
+        import scheduler
+        for target in ('configuration','storage','scheduler'):
+            with self.subTest(target=target):
+                self.navigate.reset_mock()
+                if target=='configuration':boundary=patch.object(config,'get_settings',side_effect=ValueError('synthetic-private-value'))
+                elif target=='storage':boundary=patch.object(main,'DataLoader',side_effect=OSError('synthetic-private-value'))
+                else:boundary=patch.object(scheduler,'Scheduler',side_effect=RuntimeError('synthetic-private-value'))
+                with boundary:self.assertEqual(desktop.run(),1)
+                text=(self.root/'sap-lens.log').read_text()
+                self.assertIn('desktop_startup',text)
+                self.assertNotIn('synthetic-private-value',text)
+                self.assertFalse((self.root/'runtime.json').exists())
+
+    def test_stopped_store_recovery_failure_never_starts_a_backend(self):
+        with patch('application_backups.startup',side_effect=OSError('synthetic-private-value')), patch.object(desktop,'ManagedBackend') as backend:
+            self.assertEqual(desktop.run(),1)
+        backend.assert_not_called()
+        self.gui.create_window.assert_not_called()
+        text=(self.root/'sap-lens.log').read_text()
+        self.assertIn('storage_recovery',text)
+        self.assertNotIn('synthetic-private-value',text)
+        self.assertFalse((self.root/'runtime.json').exists())
+
+    def test_scheduler_lifespan_failure_does_not_report_ready(self):
+        async def fail(_scheduler):raise RuntimeError('synthetic-private-value')
+        from scheduler import Scheduler
+        observed=[]
+        app=create_app(startup_observer=lambda *args:observed.append(args))
+        with patch.object(Scheduler,'loop',fail):
+            with self.assertRaises(RuntimeError):
+                with TestClient(app):pass
+        self.assertNotIn(('initialization','ready',None),observed)
+        self.assertTrue(any(event[0:2]==('initialization','failed') for event in observed))
+
+    def test_retry_is_disabled_when_owned_backend_shutdown_is_incomplete(self):
+        stopped=desktop.ManagedBackend.close
+        def incomplete(backend):
+            stopped(backend)
+            return False
+        def session(**kwargs):
+            bridge=self.gui.create_window.call_args.kwargs['js_api']
+            self.assertFalse(bridge.retry_startup(bridge._token))
+            script=self.window.evaluate_js.call_args.args[0]
+            self.assertIn('retry is disabled',script)
+            self.assertTrue(script.endswith(',false)'))
+        self.gui_session=session
+        with patch.object(desktop.ManagedBackend,'start',side_effect=desktop.StartupFailure('SYNTHETIC','Synthetic failure')), patch.object(desktop.ManagedBackend,'close',incomplete):
+            self.assertEqual(desktop.run(),1)
+
+    def test_retry_of_invalid_timeout_stays_recoverable_without_a_backend(self):
+        failures=[];second=threading.Event()
+        original=self.window.evaluate_js.side_effect
+        def evaluate(script):
+            original(script)
+            if 'INVALID_STARTUP_TIMEOUT' in script:
+                failures.append(script)
+                if len(failures)==2:second.set()
+        self.window.evaluate_js.side_effect=evaluate
+        def session(**kwargs):
+            bridge=self.gui.create_window.call_args.kwargs['js_api']
+            self.assertTrue(bridge.retry_startup(bridge._token))
+            self.assertTrue(second.wait(3))
+        self.gui_session=session
+        with patch.dict(os.environ,{'SAP_LENS_DESKTOP_STARTUP_TIMEOUT':'invalid'}),patch.object(desktop,'ManagedBackend') as backend:
+            self.assertEqual(desktop.run(),1)
+        backend.assert_not_called()
+        self.assertEqual(len(failures),2)
+
+    def test_scheduler_returning_early_never_passes_initialization(self):
+        async def stopped(_scheduler):return
+        from scheduler import Scheduler
+        with patch.object(Scheduler,'loop',stopped):
+            with self.assertRaisesRegex(RuntimeError,'Scheduler stopped'):
+                with TestClient(create_app()):pass
+
+    def test_retry_bridge_requires_launch_capability(self):
+        bridge=desktop.NativeDialogs('synthetic-capability');bridge._retry_startup=MagicMock(return_value=True)
+        for method in (bridge.retry_startup,bridge.startup_log_location):
+            with self.assertRaises(ValueError):method('wrong')
+        bridge._retry_startup.assert_not_called()
+        self.assertTrue(bridge.retry_startup('synthetic-capability'))
+
     def test_dynamic_origin_and_launch_capability(self):
         app = create_app(origin='http://127.0.0.1:41234', session_token='secret-session')
         with TestClient(app, base_url='http://127.0.0.1:41234') as client:
@@ -476,6 +700,19 @@ class DesktopTests(unittest.TestCase):
         for origin in ['*', 'https://example.com', 'http://127.0.0.1:41234/evil']:
             with self.assertRaises(ValueError):
                 create_app(origin=origin)
+
+    def test_custom_mutex_namespace_preserves_real_kernel_ownership_calls(self):
+        kernel = MagicMock()
+        kernel.CreateMutexW.return_value = 123
+        with patch('ctypes.get_last_error', return_value=0, create=True):
+            default = WindowsInstance(kernel)
+            self.assertTrue(default.acquire())
+            kernel.CreateMutexW.assert_called_with(None, False, 'Local\\SAPLensDesktop')
+            default.close()
+            isolated = WindowsInstance(kernel, name='Local\\SAPLensTest-synthetic')
+            self.assertTrue(isolated.acquire())
+            kernel.CreateMutexW.assert_called_with(None, False, 'Local\\SAPLensTest-synthetic')
+            isolated.close()
 
     def test_windows_mutex_new_duplicate_and_release(self):
         kernel = MagicMock()

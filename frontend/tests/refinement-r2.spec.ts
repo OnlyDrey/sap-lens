@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { goTo, seedSources, type SeededSources } from './support'
+import { goTo, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
 
 const LONG = 'ZC:SYN:A_VERY_LONG_ROLE_IDENTIFIER_FOR_LAYOUT_STRESS_TESTING:ABCDEFGHIJKLMNOP:0123456789:QRSTUV'
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
@@ -46,8 +46,8 @@ test('Single Roles alternate row backgrounds, keep independent expansion and use
   await expect(entries.nth(1).locator('.lucide-chevron-right')).toHaveCount(1)
 })
 
-test('SAP role identifiers never wrap and the copied value is the complete identifier', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('SAP role identifiers never wrap and the copied value is the complete identifier', async ({ page }) => {
+  await recordClipboard(page)
   await page.setViewportSize({ width: 800, height: 900 })
   await page.goto('/#session=browser-test-session'); await goTo(page, 'Role Lookup')
   const code = page.locator('.role-identifier code', { hasText: LONG }).first()
@@ -57,7 +57,7 @@ test('SAP role identifiers never wrap and the copied value is the complete ident
   expect((await code.boundingBox())!.height).toBeLessThan(32) // one line
   expect(await code.evaluate(element => element.textContent)).toBe(LONG)
   await page.getByRole('button', { name: `Copy role identifier ${LONG}`, exact: true }).first().click()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(LONG)
+  await expect.poll(() => copiedText(page)).toBe(LONG)
 })
 
 test('multi-select shows Select all, Clear and Close with icons, and Clear is visible but disabled without a selection', async ({ page }) => {
@@ -132,7 +132,7 @@ test('Directory match progress uses central health thresholds, shows the percent
   await page.setViewportSize({ width: 1280, height: 900 })
   const cases: [number, string, string][] = [[251, '95.1%', 'success'], [230, '87.1%', 'warning'], [100, '37.9%', 'error'], [264, '100.0%', 'success']]
   for (const [matched, percent, tone] of cases) {
-    await page.unroute('**/api/dashboard').catch(() => undefined)
+    await page.unrouteAll({ behavior: 'wait' })
     await mockDashboard(page, { matched, coverage: 264 })
     await page.goto('/#session=browser-test-session'); await page.reload()
     const directory = section(page, 'Directory & Data Health')
@@ -173,7 +173,7 @@ test('Role Distribution keeps five areas in the card, shows all in a dialog and 
 test('Review Progress segments are semantic at 0%, partial and complete', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 })
   const tones = async () => section(page, 'Review Progress').locator('.chart-stack-bar > span').evaluateAll(spans => spans.map(span => [span.getAttribute('data-tone'), Math.round(parseFloat((span as HTMLElement).style.width)), getComputedStyle(span).backgroundColor]))
-  const run = async (review: Overrides['review']) => { await page.unroute('**/api/dashboard').catch(() => undefined); await mockDashboard(page, { review }); await page.goto('/#session=browser-test-session'); await page.reload(); await expect(section(page, 'Review Progress').locator('.chart-stack-bar')).toBeVisible() }
+  const run = async (review: Overrides['review']) => { await page.unrouteAll({ behavior: 'wait' }); await mockDashboard(page, { review }); await page.goto('/#session=browser-test-session'); await page.reload(); await expect(section(page, 'Review Progress').locator('.chart-stack-bar')).toBeVisible() }
   await run({ reviewed: 0, pending: 8, outdated: 0, population: 8 })
   const zero = await tones()
   expect(zero.map(([tone, width]) => [tone, width])).toEqual([['neutral', 100]]) // nothing completed: no success or accent color
@@ -270,7 +270,10 @@ test('User Access role rows keep a compact module badge beside the description a
   await page.getByRole('link', { name: 'U2', exact: true }).click()
   const head = page.locator('.assigned-role-head').first()
   await expect(head).toBeVisible()
-  const badge = await head.locator('.module-badge').first().boundingBox(), description = await head.locator('.assigned-role-description').boundingBox(), cell = await head.locator('xpath=../..').boundingBox()
+  const measure = async () => ({ badge: await head.locator('.module-badge').first().boundingBox(), description: await head.locator('.assigned-role-description').boundingBox(), cell: await head.locator('xpath=../..').boundingBox() })
+  // the row can still reflow while the user's assignments finish loading; measure once badge and description share a line
+  await expect.poll(async () => { const m = await measure(); return m.badge && m.description ? Math.abs(m.badge.y - m.description.y) : Infinity }).toBeLessThan(14)
+  const { badge, description, cell } = await measure()
   expect(badge!.width).toBeLessThan(cell!.width * 0.4) // never a full-width badge
   expect(Math.abs(badge!.y - description!.y)).toBeLessThan(14) // description adjacent, same line
   expect(description!.x).toBeGreaterThanOrEqual(badge!.x + badge!.width - 1)

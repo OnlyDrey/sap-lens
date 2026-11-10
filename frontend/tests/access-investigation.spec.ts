@@ -2,8 +2,9 @@ import { test, expect } from "@playwright/test";
 import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
 import path from "node:path";
 import { tmpdir } from "node:os";
-import { headers } from './support'
-const fixture = path.resolve("../backend/tests/fixtures/user-access.csv");
+import { headers, backendFixture, saveConfiguration, recordClipboard, copiedText } from './support'
+import { DEFAULT_THEME_ONLY } from './matrix'
+const fixture = backendFixture("user-access.csv");
 const catalogue =
   "FUNCTION_KEY,AGR_NAME,CHILD_AGR,TCODE,CHILD_AGR_TEXT,TTEXT\nMM,ZC:MM:BUY:EN*,ZS:BUY,ME23N,Synthetic purchasing display role,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,ME23N,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display purchase order\nFI,ZC:FI:VIEW:*,ZS:VIEW,FB03,Synthetic accounting display role with a longer description that remains readable when the window is narrow,Display accounting document\n";
 let directory = "";
@@ -19,11 +20,7 @@ test.beforeEach(async ({ request }) => {
   ).settings;
   settings.data_csv_path = file;
   settings.user_csv_path = fixture;
-  expect(
-    (
-      await request.post("/api/configuration", { headers, data: settings })
-    ).ok(),
-  ).toBeTruthy();
+  await saveConfiguration(request, settings);
 });
 test.afterEach(async ({ request }) => {
   try {
@@ -38,7 +35,7 @@ test.afterEach(async ({ request }) => {
 test("user to role to transactions and reverse role or transaction investigation preserves evidence", { tag: '@smoke' }, async ({
   page,
 }) => {
-  await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
+  await recordClipboard(page);
   await page.goto("/#session=browser-test-session");
   const navigation = page.getByRole("navigation", { name: "Main navigation" });
   await expect(navigation.getByRole("link")).toHaveCount(4);
@@ -288,8 +285,8 @@ test("user CSV detection preview and independent custom preset create rename dup
   ).toBeVisible();
 });
 
-for (const theme of ["light", "dark"] as const) {
-  test(`access pages render with keyboard navigation in ${theme} at narrow desktop width`, async ({
+for (const theme of DEFAULT_THEME_ONLY) {
+  test(`access pages render with keyboard navigation in ${theme} at narrow desktop width`, { tag: '@a11y' }, async ({
     page,
     request,
   }, info) => {
@@ -387,8 +384,8 @@ test("a partial matrix never presents off-page cells as zero users", async ({
 });
 
 for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600]) {
-  test(`copyable users and compact role transactions in ${theme} at ${width}px`, async ({ page, request }, info) => {
-    await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  test(`copyable users and compact role transactions in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }, info) => {
+    await recordClipboard(page)
     expect((await request.post('/api/configuration/theme', { headers, data: { theme } })).ok()).toBeTruthy()
     await page.setViewportSize({ width, height: 1000 })
     await page.goto('/#session=browser-test-session')
@@ -411,7 +408,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
     await expect(copy.locator('svg.lucide-copy')).toBeVisible()
     await copy.focus(); await copy.press('Enter')
     await expect(identifier.getByRole('status')).toHaveText('Copied')
-    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('DEMO_ALFA')
+    await expect.poll(() => copiedText(page)).toBe('DEMO_ALFA')
     await expect(page.getByRole('region', { name: 'User details', exact: true })).toHaveCount(0)
     await page.screenshot({ path: info.outputPath('user-directory.png'), fullPage: true })
     await row.getByRole('link', { name: 'DEMO_ALFA', exact: true }).press('Enter')
@@ -474,7 +471,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 600])
 
 test('long username code wraps within its cell and copies without navigation', async ({ page }) => {
   const username = 'DEMO_' + 'LONG_USERNAME_'.repeat(8)
-  await page.context().grantPermissions(['clipboard-read', 'clipboard-write'])
+  await recordClipboard(page)
   await page.route('**/api/access/users?*', async route => {
     const response = await route.fetch(), body = await response.json()
     await route.fulfill({ json: { ...body, items: [{ ...body.items[0], username }], total: 1 } })
@@ -486,6 +483,6 @@ test('long username code wraps within its cell and copies without navigation', a
   await expect(identifier.locator('code')).toHaveText(username)
   expect(await identifier.evaluate(element => element.scrollWidth <= element.clientWidth)).toBeTruthy()
   await identifier.getByRole('button', { name: `Copy username ${username}`, exact: true }).click()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(username)
+  await expect.poll(() => copiedText(page)).toBe(username)
   await expect(page.getByRole('region', { name: 'User details', exact: true })).toHaveCount(0)
 })

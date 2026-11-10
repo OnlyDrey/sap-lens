@@ -23,7 +23,7 @@ test.beforeEach(async({request})=>{
  expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`shared layouts ${theme} ${width}`,async({page,request},info)=>{
+for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`shared layouts ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
  await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session');await expect(page.locator('html')).toHaveAttribute('data-theme',theme)
  const dashboard=page.getByRole('region',{name:'Dashboard',exact:true})
@@ -68,7 +68,7 @@ test('inline long-role comparison preserves all validity evidence and swap ident
  await expect(page.getByRole('combobox',{name:'User A',exact:true})).toHaveValue('SYN_B');await expect(page.getByRole('combobox',{name:'User B',exact:true})).toHaveValue('SYN_A')
  await capture(page,info,'inline-evidence.png')
 })
-test('release matrix preserves distinct counts with compact keyboard-accessible cells',async({page},info)=>{
+test('release matrix preserves distinct counts with compact keyboard-accessible cells',{ tag: '@a11y' }, async({page},info)=>{
  await page.goto('/#session=browser-test-session');await goTo(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
  const matrix=page.getByRole('table',{name:'PR release matrix',exact:true})
  await expect(matrix.getByRole('columnheader',{name:'N6',exact:true})).toBeVisible()
@@ -112,7 +112,7 @@ test('large matrix contains scrolling, empty cells and high counts in both theme
  }
 })
 
-test('compact evidence retains exact dates, horizontal identifiers and keyboard popover focus',async({page},info)=>{
+test('compact evidence retains exact dates, horizontal identifiers and keyboard popover focus',{ tag: '@a11y' }, async({page},info)=>{
  await page.setViewportSize({width:1280,height:1000});await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await mode(page,'Compare users')
  await choose(page,'User A','SYN_A');await choose(page,'User B','SYN_B');await page.getByLabel('Assignment validity',{exact:true}).selectOption('all')
  const panel=page.getByRole('complementary',{name:'Filters',exact:true})

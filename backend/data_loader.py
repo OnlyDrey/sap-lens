@@ -13,6 +13,9 @@ logger=logging.getLogger(__name__)
 class LoadCancelled(Exception): pass
 
 
+from import_checks import ImportHeld
+
+
 class DataLoader:
     def __init__(self):
         self.loading=False
@@ -36,7 +39,7 @@ class DataLoader:
         self._result=None
         self._cancel=None
 
-    async def load(self,path: str | None=None,persist: bool=False,configuration=None,commit=None,operation=None,force=()):
+    async def load(self,path: str | None=None,persist: bool=False,configuration=None,commit=None,operation=None,force=(),confirm=()):
         if self.loading: raise HTTPException(409,'A CSV is already loading. Wait or cancel it before trying another file.')
         self._workers=[worker for worker in self._workers if worker.is_alive()]
         if len(self._workers)>=2:
@@ -71,8 +74,9 @@ class DataLoader:
                 self.last_failed_load = datetime.now(timezone.utc).isoformat()
                 if source in attempted_paths:
                     self.source_attempts[source] = {'path': attempted_paths[source], 'error': category}
-                self.error=error
-                result.set_exception(HTTPException(400,error))
+                held = category == 'needs_confirmation'
+                self.error = error['message'] if held else error
+                result.set_exception(HTTPException(409 if held else 400, error))
             else:
                 self.last_report = report
                 failures = [r for r in (report or {}).get('sources', []) if r['status'] == 'failed']
@@ -92,13 +96,18 @@ class DataLoader:
             source=None
             category=None
             report=None
+            cause=''
             try:
                 from csv_lifecycle import load
                 report = load(settings, operation=operation, before_commit=before_commit,
-                              strict=operation == 'import', force=tuple(force) + (('roles',) if path is not None else ()), progress=progress)
+                              strict=operation == 'import', force=tuple(force) + (('roles',) if path is not None else ()), progress=progress, confirm=tuple(confirm))
             except LoadCancelled: return
+            except ImportHeld as held:
+                source, category, error = held.source, 'needs_confirmation', held.detail()
             except Exception as exc:
                 source = getattr(exc, 'sap_lens_source', None)
+                # Exception class and OS error codes only: never the path, a value or the message, which can carry file content.
+                cause = type(exc).__name__ + ''.join(f' {name}={getattr(exc, name)}' for name in ('errno', 'winerror') if getattr(exc, name, None) is not None)
                 if isinstance(exc, FileNotFoundError):
                     category='missing'; error='CSV file not found. Choose an existing file or reconnect the network share.'
                 elif isinstance(exc, PermissionError):
@@ -107,7 +116,7 @@ class DataLoader:
                 elif isinstance(exc, (OSError,ValueError,RuntimeError,csv.Error)):
                     category='invalid'; error='Could not load the CSV. Use a readable CSV with valid column mappings and dates.'
                 else: category='failed'; error='The CSV could not be loaded. Choose another file and try again.'
-            if error: logger.warning('CSV load unsuccessful; previous data retained')
+            if error: logger.warning('CSV load unsuccessful; previous data retained (operation=%s source=%s category=%s cause=%s)', operation, source or '-', category, cause or '-')
             try: loop.call_soon_threadsafe(finish,error,source,category,report)
             except RuntimeError: pass
 

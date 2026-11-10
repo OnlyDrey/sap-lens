@@ -1,0 +1,787 @@
+# Development progress
+
+Resume guide for a new session: read [AGENTS.md](../../AGENTS.md), this file, `git status` and `git log --oneline -15`; the repository state is authoritative, correct this file where it differs.
+CI policy: GitHub Actions runs only on push to `main` after an explicitly approved merge; all validation is local; `work` pushes never trigger it.
+
+**Last update:** 2026-11-05 (end of Phase F)
+
+## Plan and status
+
+| Phase | Scope | Status | Commit |
+| --- | --- | --- | --- |
+| Baseline and audit | Production path measured (`csv_lifecycle.load`), benchmark tool `scripts/benchmarks/data_benchmark.py` | Completed | `5a943c3` baseline, `dd55205` |
+| Import anomaly gate | Suspicious versus invalid imports, confirmation, configurable threshold | Completed | `0db6989` |
+| Step 1 | SQLite source store, schema ladder, verified pre-migration backup, signed derived cache | Completed | `7faf0e2` |
+| Step 2 | Source fingerprints, unchanged fast path, staged activation | Completed | `0ed713c` |
+| Staging ownership | Operation-scoped staging, orphan recovery | Completed | `9748044` |
+| Step 3 | Assignment lifecycle, reappearing assignments need a new review | Completed | `6067e35` |
+| Step 3 hardening | Identity evidence, fail-safe applicability, Data Health | Completed | `134d24b` |
+| CI policy | CI only on push to `main` | Completed | `2451753` |
+| Step 4 | Data retention (source), daily check, one-time approval | Completed | `8247da6` |
+| Retention completion | Separate source and review retention, logical timestamps, journalled recoverable review cleanup | Completed | `70ae519` |
+| A | Backup retention (automatic 90 days, migration and manual protected) | Completed | `2ab0b0d` |
+| B | Employee Directory fingerprint, derived copy, shared SAP/AD matcher | Completed | `eccc0b4` |
+| C | Backend/API performance (`/api/access/users`, dashboard, memory) | Completed | `21cc4f3` |
+| D | Frontend/API cache consistency (`X-Data-Revision`, stale-response repeat, atomic review saves) | Completed | see Git log |
+| E | Parallel browser test stabilization | Completed (findings in TESTING.md) | see Git log |
+| F | Final validation: full backend, browser, benchmarks, report | Completed | see Git log |
+
+## Local validation (latest)
+
+* Backend full run before the retention work: 1430 tests (3 failures were the workflow tests edited mid-run; re-run OK). Targeted suites for every phase pass.
+* Phase D: backend test_data_revision (15), account_review, application, server, workflows pass; unit tests 14; browser revision-consistency (3), dashboard-user-transactions, account-review-refinement, csv-lifecycle (41 total) pass; tsc and ruff clean. ESLint reports one pre-existing error (irregular whitespace in `tests/remediation-export.spec.ts`), unrelated.
+* Phase E hygiene: runner handles SIGTERM/SIGHUP, test server exits when its parent is killed (verified with a real SIGKILL of Playwright: server and Chromium gone), regression tests in test_test_profiles (25 pass); recovery, catalogue and metadata specs pass together (40/40).
+* Phase E: SoD browser feature passes with 2 and 3 processes (222/222); several workers on one server are not safe (shared global state).
+* Phase F full backend regression: 1522 tests, 0 failed, 6 skipped (PyInstaller and PowerShell only), 79 s on 3 processes.
+* Phase F full browser regression (2 isolated processes, 1 worker each): 872 of 872 passed in 1229 s, largest process 724 MB. The first run found two spec defects (global-navigation vs the import gate, sod-metadata position-based lookups), both fixed in tests, none in product code.
+* Static: ruff, docs links, workflow contracts, Lucide catalogue, `git diff --check`, `pip check`, `npm audit --omit=dev` (0 vulnerabilities), tsc, unit tests (16) pass; ESLint 0 errors (115 existing warnings).
+
+## Measured performance (192 000 assignment rows, synthetic, this container)
+
+| Scenario | Original | Step 2 |
+| --- | --- | --- |
+| Import | 20.2 s, peak 1017 MB | 16.4 s, peak 836 MB |
+| Dynamic start, unchanged | 27.8 s, peak 1164 MB | 2.2 s warm, peak 525 MB |
+| Static start | 9.8 s, peak 730 MB | 2.1 s, peak 525 MB |
+| Refresh, one source changed | 24.6 s, peak 1251 MB | 15.3 s, peak 1125 MB |
+
+### Employee Directory (100 000 employees, 20 000 SAP users, this container, fresh process per scenario)
+
+| Scenario | Before (`2ab0b0d`) | After |
+| --- | --- | --- |
+| Start, unchanged files (warm) | 8.0 s, peak 703 MB | 1.7 s, peak 460 MB |
+| Static start (warm) | 8.3 s | 1.7 s |
+| Refresh, only users changed | 8.9 s | 3.7 s |
+| Refresh, only the directory changed | 6.6 s | 7.1 s single run (see Phase F repeat below: median 5.1 s, no regression) |
+| Import | 12.3 s | 9.6 s (not attributed: the first import does the same work) |
+| Identity mapping of every SAP user, first call / repeat | 0.5 s each call | about 0.6 s first (about 10 to 15 % overhead), 0.04 s repeat |
+
+Component timings at 100 000 rows: parse 2.4 s, comparison 3.5 s, snapshot restore 1.8 s (derived copy: 0.8 s).
+
+### Backend and API (192 000 assignment rows, 16 000 users)
+
+| Measurement | Before | After |
+| --- | --- | --- |
+| `/api/access/users?limit=50` (median of 5) | 631 ms | 203 ms |
+| `/api/dashboard` | 734 ms | 151 ms |
+| Refresh, users changed (time / peak) | 15.3 s / 1164 MB | 11.2 s / 1071 MB |
+
+Matcher lifetime verified by test: repeated refreshes keep only the current (SAP dataset, directory) pair; replaced datasets and directories are collected.
+
+## Known limitations and risks
+
+* Resident memory ~525 MB, of which ~185 MB raw source records retained; changed-source refresh peaks above 1.1 GB (Phase C).
+* First start after a change derives the model once (~4 s).
+* Native Windows, WebView2 and systemd paths are not validated here.
+
+## Final-validation requirements added by the user
+
+* Verify and document how the automatic-backup count limit (`keep`) and the 90-day policy interact: 90 days is a maximum, not a guaranteed minimum. The Settings UI must state both mechanisms and the cleanup preview must say which rule makes each backup eligible. (Pending, scheduled with Phase F unless an integrity issue appears earlier.)
+
+* Phase C checks: (1) the shared SAP/AD matcher must not retain obsolete datasets or grow without bound after repeated refreshes (test with weak references); (2) repeat the changed-directory refresh benchmark in Phase F to decide whether 6.6 s to 7.1 s is noise or a regression; (3) profile before optimizing `/api/access/users`, Dashboard and changed-source refresh memory; (4) keep API contracts, filtering semantics, SoD behavior and review integrity.
+
+* Phase D priorities: data correctness over request count; expose/track the active source revision in source-dependent responses; invalidate caches only for the revision that changed; stale in-flight responses must not replace newer data; filters, sorting, pagination and selection stay consistent after refresh; multi-user correctness; review submissions validated server-side against the current source/review revision; no polling or broad invalidation where a targeted revision mechanism exists; keep API contracts.
+
+## Decisions requiring user approval
+
+None open.
+
+## Next actions
+
+Phase D: frontend and API cache consistency (revision-aware), then E (parallel browser tests), F (final validation; includes the backup count-versus-90-day requirement and the repeat of the changed-directory refresh benchmark).
+
+
+## Phase F: changed-directory refresh repeat (5 alternating runs each, identical data)
+
+Dataset: 100 000 employees, 20 000 SAP users, 400 roles, 10 assignments per user; fresh process per scenario; before = backend of `2ab0b0d`, after = current backend; machine otherwise idle.
+
+| Scenario | Before median [range] | After median [range] | Change |
+| --- | --- | --- | --- |
+| Refresh, only the directory changed | 6.61 s [5.95 to 6.95] | 5.08 s [4.29 to 5.49] | -23 % |
+| Refresh, only users changed | 21.5 s [21.3 to 22.1] | 12.9 s [12.1 to 13.4] | -40 % |
+| Start, unchanged files (warm) | 8.13 s [7.69 to 8.78] | 3.23 s [3.03 to 3.36] | -60 % |
+| Import | 20.7 s [19.6 to 21.3] | 19.4 s [18.6 to 19.6] | -6 % |
+
+The ranges for the changed-directory refresh do not overlap and the "before" median reproduces the earlier 6.6 s, so the earlier 7.1 s was a single noisy run, not a regression. A second dataset (16 000 users, 16 000 employees) shows the same direction (1.19 s to 0.54 s). Peak memory for that scenario: 1045 MB before, 1015 MB after.
+
+
+## Phase F: final measurements (192 000 assignment rows, 16 000 users, 16 000 employees, one run, this container)
+
+| Scenario | Original baseline | Final |
+| --- | --- | --- |
+| Import | 20.2 s, peak 1017 MB | 14.8 s, peak 802 MB |
+| Dynamic start, unchanged (cold / warm) | 27.8 s, peak 1164 MB | 5.5 s / 2.6 s, peak 607 / 524 MB |
+| Static start (cold / warm) | 9.8 s, peak 730 MB | 2.7 s / 2.5 s, peak 542 / 524 MB |
+| Refresh, one source changed (users) | 24.6 s, peak 1251 MB | 12.1 s, peak 1017 MB |
+| Refresh, only the directory changed | see repeat above | 0.74 s, peak 607 MB |
+| `/api/access/users` page / sorted / filtered | 631 ms | 162 / 165 / 39 ms |
+| `/api/dashboard` | 734 ms | 128 ms |
+| Resident memory after start | about 1.1 GB | 520 to 540 MB |
+| Data directory after the run | not measured | 332 MB (snapshots 181 MB, SQLite store 135 MB) |
+
+Review save and SoD evaluation timings are covered by the backend suite, not by this tool. Single-run figures; the repeat above shows the run-to-run spread is about 5 to 10 %.
+
+## Platform limitations
+
+Native Windows (process handling, WebView2, service control manager, UNC paths) and a real systemd boot/recovery are not testable in this Linux container; see [deployment validation status](../deployment/README.md#validation-status). Six backend tests skip here for that reason (PyInstaller, PowerShell).
+
+## Final phase list and commits
+
+A `2ab0b0d`, B `eccc0b4`, C `21cc4f3`, D `451874c` (+ `d8ca720`), E `f30bac4`, `f949d3c`, `3f4d931`, `ba1d4ca`, F `55376c6`, `563194a`, `9d82eaf` and the closing documentation commit. Earlier work: `5a943c3` to `70ae519`.
+
+
+## Repository audit and cleanup (started)
+
+| Phase | Scope | Status | Commit |
+| --- | --- | --- | --- |
+| 1 | Repository inventory and audit ([report](REPOSITORY_AUDIT.md)) | Completed | see Git log |
+| 2 | Structure and cleanup, scripts consolidation (`scripts/build.ps1`, `maintenance/`, `benchmarks/`, `scripts/README.md`, lint ceiling) | Completed | see Git log |
+| 3 | Build, test and workflow audit | Completed (no defect found; recorded in the audit report) | see Git log |
+| 4 | Documentation architecture (inventory in the audit report) | Completed | see Git log |
+| 5 | Documentation rewrite and consolidation | Completed | see Git log |
+| 6 | Dependencies, configuration, security hygiene (no change needed) | Completed | see Git log |
+| 7 | Final validation and audit report | Completed | see Git log |
+
+Phase 1 result: no tracked generated files, secrets or removable scripts; one gate failure found (`npm run lint` exceeds its warning ceiling, red since the original baseline). Details and decisions in the audit report.
+
+Phase 2 result: `build.ps1` moved to `scripts/build.ps1` (root no longer has a build entrypoint; the venv and `build.py` are resolved relative to the script, so any working directory works). `generate-examples.py`, `reference-template.py` and `validation_tracker.py` moved to `scripts/maintenance/`, `profile-sod.py` to `scripts/benchmarks/`; every reference (tests, docs, `test-map.json`, `check-powershell.ps1`) updated. All 54 scripts are classified in `scripts/README.md` and `docs/BUILD.md`; none is redundant or obsolete. The deployment and Windows packaging scripts stay where workflows, release tooling and bundles address them: they cannot be re-verified without a PowerShell host, and moving them would add nesting without removing duplication. The lint warning ceiling is now the measured 115 (the gate was red). Native Windows execution of `scripts/build.ps1` remains unverified.
+
+Phases 3 to 5 result: workflows, Docker files and scripts reference only existing files; native calls in the PowerShell scripts are guarded (`$ErrorActionPreference = 'Stop'` plus `Assert-Success`/`Checked`/`$LASTEXITCODE`); CI triggers unchanged. Documentation: new [storage and revisions](../architecture/STORAGE_AND_REVISIONS.md), [data retention](../operations/DATA_RETENTION.md) and [performance](PERFORMANCE.md) documents (content moved out of `SYSTEM.md` and `IMPORT_AND_REFRESH.md`, which now point to them), operations index, version stamps removed from four headings, a dated incident log removed from `CI_CD.md`, README gained architecture and security/operations sections, documentation indexes updated.
+
+Phase 7: backend regression 1522 passed (0 failed, 6 skipped), browser smoke 12/12, static checks green; see the final summary in the audit report.
+
+
+## Scripts architecture, second pass
+
+| Phase | Scope | Status | Commit |
+| --- | --- | --- | --- |
+| 1 | Call graph, disposition matrix, proposed architecture ([audit report](REPOSITORY_AUDIT.md#scripts-architecture-second-pass)) | Completed | see Git log |
+| 2 | PowerShell consolidation | Partly done: `validate.ps1`/`validate.sh` removed. The rest needs approval and a Windows host | |
+| 3 to 5 | Python orchestration, directory organization, consumer updates | Waiting for approval of the proposed architecture | |
+| 6 | Validation | Linux-side validation done for the completed part | |
+| 7 | Final report | After approval and the staged migration | |
+
+Scripts consolidation, approved plan: stage 1 done (`build-windows.ps1` to `build_system/windows/stages.py`, opt-in, 20 contract tests). Windows validation checklist in BUILD.md. Original kept as default.
+
+Stage 2 done: service manager, server bundle, desktop installer and deployment packaging ported (opt-in, 17 contract tests). Next: `build-local.ps1`.
+
+Stage 3 done: `build-local.ps1` ported (`local.py`, opt-in). All six build scripts have Python ports; Windows validation checklist covers all. Next: directory organization (approved decision 2, now unblocked because PowerShell consolidation is blocked on Windows validation).
+
+
+## Start-up session recovery
+
+Verified cause and fix are documented in [Local session lifecycle and start-up recovery](../architecture/SECURITY.md#local-session-lifecycle-and-start-up-recovery). Implemented: `startupRecovery.ts` (classification, bounded back-off, once-per-minute automatic restore), new `StartupGate`
+(Starting / Connecting / Restoring labels, one-action recovery screen, no "Reload trusted session"), automatic restore in `SessionNotice` when nothing would be lost, browser test server in desktop mode (`browser_access`), 21 unit tests, 13 new Playwright cases,
+9 backend boundary tests. Windows validation steps are in the security document; native Windows behavior is unverified.
+
+
+## User Directory and User Profile modernization (plan and status)
+
+Audit result. Reused, not duplicated: `directory_filters`/`directory_selection` (`backend/routers/access.py`) drive the listing, counts, paging, sorting and the CSV export, so the exact username list is one more parameter of that function;
+Functional Group storage, revisions, history and `classify` (`backend/functional_groups.py`); `MultiSelectFilter` (shared) for list filters; Saved Filters store the filter object; `InfoDisclosure` for secondary text.
+Missing before this round: an exact-username filter, a whole-filter selection endpoint, a bulk assignment path (only one-user `PUT /api/functional-groups/users/{u}` existed), table layout with sticky columns, selection UI, profile layout.
+
+| Step | Scope | Status |
+| --- | --- | --- |
+| A | Backend: `usernames` filter (`backend/username_filter.py`), feedback in `GET /api/access/users`, `GET /api/access/users-selection` | Done and tested (`test_username_filter`, 13 tests) |
+| B | Backend: `POST /api/functional-groups/bulk/preview` and `/bulk` (one store write, per-user applied/unchanged/conflict/rejected, replacement confirmation, revision and dataset-staleness checks, operation id, history events, administrators only) | Done and tested (`test_bulk_group_assignment`, 16 tests) |
+| C | Shared dropdown/multiselect: two-line role options (`optionDescription`), content-aware width (about 540 px, never wider than the viewport), accessible name and description | Done: `dropdown-layout.spec.ts` (6) and the 10 existing multiselect specs pass |
+| D | User Directory table: scroll container, sticky selection and username columns, Full Name, column order, toolbar | Done (table, sticky columns, toolbar, selection checkboxes; bulk actions in F) |
+| E | Paste box for username lists, feedback, chips, Saved Filters, export | Pending |
+| F | Selection model, bulk assignment dialog, results and retry of failures | Pending |
+| G | User Profile redesign (2x2 sections, Directory Match under Account Status) | Pending |
+| H | Browser tests, documentation, full regression | Pending |
+
+Design decisions already taken: selection across pages is an explicit username list fetched from `users-selection` (it cannot widen when data or filters change; the data revision is sent with the assignment and a different publication is refused); a replacement of an existing group is a per-user conflict
+until `replace_existing` is confirmed; partial outcomes are returned as `status: partial` with the failed users so only they are retried; Functional Groups remain local classifications and never touch SAP roles, authorizations, AD groups or imports.
+
+## Windows build stabilization (B01-B10)
+
+| Item | Cause | Fix | Status |
+|---|---|---|---|
+| B08 | `$PSScriptRoot` is empty in functions extracted into scriptblocks | `Get-RepositoryRoot` with explicit/validated script directory; tests for root resolution | Fixed, Linux-tested; native 5.1 pending |
+| B09 | Interpreter-protection check ran before the confirmation check; on Windows the test interpreter lives under a generated dir | Fixed validation order, each condition tested | Fixed |
+| B04-B05 | Python urllib got HTTP 403 | Local archive, persistent cache, headers, proxy, actionable BLOCKED failure (exit 2) | Fixed |
+| B01-B02 | Output ownership message lacked detail | Path, manifest metadata, suggested command; docs | Fixed |
+| B03/B07/B10 | Prerequisite clarity | Documented in BUILD.md (existing checks kept) | Documented |
+| B06 | Terse blocked message | Blocked rows carry error, log, hint; `prerequisite` class | Fixed |
+| Skips | Two tests required `pwsh` only | Windows PowerShell 5.1 accepted | Fixed |
+
+## B11: Browser smoke in the generated build workspace
+
+| Item | Detail |
+|---|---|
+| Root cause | The workspace mirror excluded all of `backend/tests`, so specs reading `../backend/tests/fixtures/user-access.csv` pointed at a missing file and `POST /api/configuration` was refused (the path is validated) in `beforeEach`. |
+| Fix | `frontend_workspace.mirror` copies only `backend/tests/fixtures` (data, links refused); specs use `backendFixture()` in `frontend/tests/support.ts`, resolved from the spec file location, with an error naming the searched path. `saveConfiguration()` reports HTTP status, a redacted body and the path existence. |
+| Other affected specs | `investigation-ux`, `data-aware-ux`. `sod-metadata` and `application-backups` import Python test helpers from the repository root; they are not `@smoke` and run from the checkout only. |
+| Validation | `test_build_diagnostics` (fixture resolution in checkout and workspace layout); 34 of 37 specs in the three affected files pass on Linux. Three `data-aware-ux` session-recovery tests (HTTP 401/403 messages, stale session) fail identically on the commit before this change and are tracked separately. Native Windows not validated. |
+
+## User Profile redesign
+
+One bordered container; header with name, email and the Directory match status at the far right (removed from SAP Identity); three equal columns (SAP Identity, Account Status, Organization) with vertical separators; full-width Functional Group section last with an `Assign group` button (users-round icon) and an `About Functional Groups` disclosure. Breakpoints: 3 columns above 1100 px, 2 columns (Organization full width) to 640 px, stacked below. Labels now read `SAP account` and `AD account`. Tests: `user-profile-layout.spec.ts` (equal columns, header match only, last/full-width Functional Group, icon, stacking at 375/800, light/dark, no overflow); affected specs updated.
+
+## Bulk Functional Group assignment (User Directory)
+
+- Selection: checkbox column keeps an explicit username set across pages; toolbar shows `N matching . M selected`, then, when users are selected, `Assign group` (primary, users-round), `Clear selection` (x, clears only the selection) and `Export CSV` (download), all the default button size.
+- Dialog (`BulkAssignDialog`): searchable group list from the group catalogue (active groups only), preview via `POST /api/functional-groups/bulk/preview` (current assignments per group, missing users), explicit confirmation before replacing existing groups, reviewer required, submit disabled until valid and while pending, one operation id per attempt (a repeat is refused with 409).
+- Persistence: `POST /api/functional-groups/bulk` writes all applied users in one store write with history events; per-user outcomes `applied`, `unchanged`, `conflicts` (changed since preview, replacement not confirmed) and `rejected` (not in the dataset). A result with any skipped user is `partial`, never full success; only failed users can be retried from the result view. A different data publication is refused (409).
+- Sync: queries `access-users`, `access-user`, classification, group options and account review are invalidated; filters, sorting and pagination are untouched. The filter sidebar Clear button now uses the eraser icon and shares the compact control height with the close button.
+- Tests: `bulk-group-assignment.spec.ts`, backend `test_bulk_group_assignment` (atomicity, replacement, stale, duplicate operation, failed write). Limitation: no "select all matching" action yet and no exact-username paste UI (phase E).
+
+## Phase E, data-aware UX fixes and workspace audit
+
+- **HTTP 401/403 (data-aware-ux):** the startup gate (added with startup recovery) replaced the service's reason with a generic text. A refusal now shows the service's own message (`Server access is not authorized.` or the permission text) before the generic guidance; session and unreachable-service states are unchanged.
+- **Stale desktop session:** the test expected a manual *Reconnect session* click, but recovery is now automatic when nothing typed would be lost; the test asserts the automatic path (no replayed write, route and filters kept). The manual path stays covered by `session-recovery.spec.ts`.
+- **Phase E:** exact username paste with feedback, Saved Filters integration, select all matching, selection cleared when the result set changes (`username-filter.spec.ts`, 24-name fixture including `KJØRGENSEN`).
+- **Workspace audit:** `application-backups` needs only mirrored `backend/` code and works in the workspace. The two `sod-metadata` tests that import Python test modules are tagged `@repository-only`; the workspace full run uses `--grep-invert @repository-only`, and the regression profile runs them from the checkout. A unit test enforces the tag.
+
+## Full regression round and Role Evidence review
+
+- Browser regression (2 processes, 899 tests): 14 failures, all project-owned and fixed: Saved Filters rejected the new `usernames` field (allow-listed, 12,000 characters); pinned username cells hid row tooltips (raised while a tooltip or focus is inside); the 503 startup rule treated an application error (503 with a detail) as a starting service, which blocked Backup & Restore (now a real failure); one spec asserted the old profile Directory match location. The backend suite is run separately.
+- Role Evidence: inline Investigate/Keep/Remove per assignment (`RoleEvidenceReview`, shared hook `useAssignmentQuickReview` extracted from the investigation panel). Tests: `sod-role-evidence-review.spec.ts`.
+
+## Packaging separated from native SCM acceptance
+
+- **Root cause:** `package-windows-deployment.ps1` ran `test-server-service.ps1` (a real SCM install/start/stop/backup/restore/uninstall) for every Service package, so an ordinary non-elevated `-Mode package` ended in `manage-server-service.ps1: Open an elevated PowerShell for SCM management` after the artifact had already been built.
+- **Change:** the acceptance runs only with `-NativeAcceptance` (or on the CI runner); elevation is checked first in the packaging script and inside the acceptance script (exit 3, `ACCEPTANCE PREREQUISITE`); the manifest gains `native_acceptance`; blocked prerequisites are `blocked`, not `failed`; release verification requires a passed acceptance. `test-server-service.ps1` now also runs standalone (temp directory default, repository root).
+- **Desktop lifecycle tests:** `test_unexpected_backend_exit_reports_error_and_closes_owned_window` and `test_retry_stops_old_backend_and_uses_fresh_owned_instance` used fixed 2 s/5 s waits for asynchronous uvicorn shutdown. They now wait on the actual conditions (stop and destroy) with a 20 s bound that only the failure path uses, and name the state on failure. Not reproduced on Linux (3 repeated passes); native Windows load behaviour is unverified.
+- **Tests:** `test_windows_acceptance_split.py`, updated `test_windows_ports.py` golden sequences.
+
+## Windows Desktop EXE smoke test (investigation, v1.0.0-beta.2)
+
+Native Windows has not yet confirmed the final cause. What the code proves:
+
+- **Product defect found (fixed):** the packaged Desktop runs the mandatory pre-migration backup, which on Windows calls a bare `powershell` (owner SID) and `icacls.exe`. The smoke test (correctly) launches the EXE with `PATH = System32;Windows`, and `powershell.exe` lives in `System32\WindowsPowerShell\v1.0`, so on that path the call cannot resolve (`FileNotFoundError`), which is consistent with the logged `storage_upgrade: backup_failed` (inferred from the code and the log line; the exception type was not logged, so this is not yet confirmed). The tools are now resolved to absolute paths under `%SystemRoot%\System32` (`maintenance.windows_tool`, `current_sid`), and a failed backup now logs its application-authored reason or the exception type with `errno`/`winerror` instead of the type alone. A hypothesis that the live `sap-lens.log` broke the backup was tested and rejected (the backup inventory already skips `*.log`); no change was made for it.
+- **Harness defect found:** the application allows one instance per Windows session (`Local\SAPLensDesktop`, independent of `SAP_LENS_CONFIG_DIR`). Any running SAP Lens, for example the isolated manual launch (PIDs 25812/42540) or an installed copy, makes every smoke launch exit with code 0 and no runtime, which the script reported as `Packaged application exited before readiness`. The script now checks the guard before the first launch and between scenarios and reports it as a prerequisite (nothing is terminated).
+- **Fixture:** the synthetic two-role CSV and `settings.json` were verified against the current import pipeline (Linux, app factory): `/health` returns `status=ok`, `cached_roles=2`. The fixture is not outdated.
+- **Diagnostics:** `test-windows-exe.ps1` now classifies failures (`process_exited_before_readiness`, `runtime_record_missing`, `runtime_not_owned`, `http_unavailable`, `instance_id_mismatch`, `health_status_incorrect`, `cached_roles_incorrect`, `window_initialization_failed`, `readiness_timeout`, `prerequisite_existing_instance`) and prints scenario, executable, PIDs and parent/child tree, exit code, `runtime.json` presence, last health versus expected, last condition, elapsed time and the redacted log tail. Ownership checks, the 60 s timeout and readiness assertions are unchanged.
+- **Still unverified on Windows:** whether the `PATH` backup failure or the single-instance guard (or both) caused the observed 60 s readiness timeouts. Re-run `scripts\test-windows-exe.ps1` after closing every SAP Lens window; the new report names the failing condition.
+
+### Smoke diagnostics hotfix
+
+`Format-Diagnostics` called `Join-Path $state.Directory 'runtime.json'`; the existing-instance preflight (and `instance_not_released`) throw before a scenario directory is assigned, so the state held an empty `Directory` and Windows PowerShell 5.1 raised a binding error that masked the real failure. Fixed with `Join-SafePath` (null for blank input, never an empty `Join-Path`), a guarded `Format-Diagnostics` wrapper (any reporter problem degrades to the plain `SMOKE FAILURE [class] detail`), and structural regression tests. Native Windows execution remains unverified.
+
+## Functional Group section on User Details (compact, single membership)
+
+Compact summary line: assigned group name in emphasis, classification badge, confirmation text, review and suggestion notes, a visible "business classification, does not change SAP access" line and the About disclosure. Confirmation text separates a missing date from a missing reviewer and never invents values (`lib/functionalGroupText.ts`, unit tests). Action labels: Assign group, Change group (confirmed), Assign / Confirm (assigned but not confirmed). This is the single-membership version; the multiple-membership extension is pending design decisions (see below).
+
+## 24-hour time in Backup & Restore (and elsewhere)
+
+The daily backup time is a fixed-format `HH:mm` text field (`TimeInput24`) instead of `<input type="time">`, which follows the browser locale and shows AM/PM. Backup & Restore timestamps (last recorded operation, archive preview, schedule, history), the Data Retention dates and the session notice use the shared `formatTimestamp`/`formatTime` (`dd.MM.yyyy HH:mm`, 24-hour, local zone); no `toLocaleString`/`toLocaleDateString` is left in rendered text except counts. Backend schedules and stored timestamps are unchanged. Tests: `tests/unit/time-format.test.ts` (00:00, 12:00, 14:30, 06:00, zone conversion and date change in Europe/Oslo, validation), `backup-time-format.spec.ts` (en-US locale, 24-hour control, invalid entry).
+
+## Windows Service Manager: connection modes and registration diagnostics
+
+- **Registration failure:** the generic `Invalid server configuration or TLS certificate/key.` hid the failing check. Backend configuration validation (`ServerSettings.from_env`) now raises `ConfigError` with the step and the underlying error, and `--check-server-config` prints it; the Service Manager already appended that text to its message. The exact failing step on the reporter's machine is not yet confirmed: the same configuration (`localhost,127.0.0.1`, listener `0.0.0.0`, port 18743, users authentication) validates on Linux with an OpenSSL certificate, and the Service Manager's DER/PEM key writer was reproduced byte-identically, so the remaining suspects are Windows-only (the .NET certificate/SAN output or the frozen runtime). The next registration attempt will name the step.
+- **Modes:** HTTP, HTTPS self-signed (default), HTTPS existing certificate. HTTP carries no certificate, needs the acknowledgement beyond loopback (`SAP_LENS_ALLOW_HTTP`, account authentication only), URLs use the configured scheme, existing HTTPS installations open in an HTTPS mode.
+- **Validation:** `test_server_connection_modes.py` (15 tests: SAN DNS/IPv4, wildcard listener, key mismatch, expired, missing files, invalid host, HTTP loopback/LAN/acknowledgement, certificate with HTTP, the check command output, static Service Manager contract). `ServiceManager.cs` could not be compiled here, and the Service Manager UI, service start/stop and PowerShell 5.1 behaviour are unverified on native Windows.
+
+## Repeated PowerShell processes from SAP-Lens.exe
+
+- **Root cause and caller chain:** the Windows branch of `maintenance.private_file()` ran `powershell -NoProfile -Command [Security.Principal.WindowsIdentity]::GetCurrent().User.Value` (then `icacls.exe`) on every call, and `application_backups.secure()` did the same per directory. `private_file` is called for each write of the backup/restore journal (`application_backups.write`), for the upload file (`routers/backups.upload`), for every member extracted by a restore (`maintenance.restore`, once per file), for the pre-migration backup, the storage-migration record and the desktop "save backup" temp file. A backup upload or restore therefore started one PowerShell (a console window from a GUI process) per file or state write, which matches 15 processes in 30 seconds. Nothing is polled; the multiplier is the per-file/per-write call.
+- **Fix:** `backend/windows_identity.py` reads the SID in-process (`OpenThreadToken` falling back to `OpenProcessToken`, `GetTokenInformation(TokenUser)`, `ConvertSidToStringSid`) and applies the private DACL with `SetNamedSecurityInfoW` (protected DACL, user and SYSTEM full control, directories also to children), the same result as the former `icacls /inheritance:r /grant:r`. No subprocess remains in the backend (the earlier absolute-path helper `windows_tool` was removed with it). Identity is looked up on every call and never cached (impersonation and service accounts differ); failures raise `WindowsIdentityError` naming the API and Windows error, surfaced as `MaintenanceError`, never a substitute identity.
+- **Tests:** `test_windows_identity.py` (13): SID format, thread-over-process token, service and desktop SIDs, no caching, handle release, explicit failures, exact SDDL, 200 repeated calls start no process, backup/restore path starts none, no backend module references PowerShell/icacls. Real Windows API behaviour (ctypes signatures, ACL result, impersonation) is not tested on Linux and needs a native Windows run: back up, upload and restore an archive with Process Monitor or the earlier trace and confirm no `powershell.exe` or `icacls.exe` child of `SAP-Lens.exe`, and check the resulting ACL with `icacls <file>`.
+
+## Functional Groups: multiple memberships, suggestion rules, members and analysis UI
+
+- Many-to-many users and groups (storage format 2, lossless migration, `.format1.bak`), membership endpoints, add-only bulk assignment, Department contains rules with compatibility mode, rule matches and assignment, member management, Access Analysis KPI tiles and drilldown, `Dialog` `footer={null}` to drop redundant Close.
+- Validation (Linux, targeted): backend functional_groups 48, bulk 18, backups 37, account review 30; Playwright 22 across functional-groups, members, bulk, profile layout and username filter; tsc, ESLint (115 warnings, unchanged), ruff, docs check. Full regression pending; native Windows unverified.
+
+## Prerequisites setup, check and repair
+
+- **Root cause:** `.venv` creation and test runners used whichever interpreter started them (`sys.executable`, bare `python`), so a 3.15 default ran the backend regression with no `.venv`; there was no read-only check, no repair path and no target-aware preflight.
+- **Change:** `build.ps1 -Mode prerequisites [-CheckOnly|-Repair|-Json]` (`build.py prerequisites`), `build_system/doctor.py` (report, repair by rename, preflight), 3.12 x64 discovery and venv inspection in `python_env.py`, engine re-exec under 3.12, `validate.py`/`run-tests.py` and `build-windows.ps1`/`build-desktop-installer.ps1` resolve 3.12 explicitly.
+- **Validation (Linux):** `test_prerequisites.py` (isolated temp roots, mocked Windows paths), real temp-root setup twice (second run installs nothing). Native Windows (`py -3.12` with a 3.15 default, `.cmd` npm) remains unverified.
+
+## Windows regression stabilization (cross-platform)
+
+- **Root causes (native Windows run: 5 failures, 3 errors):** backup rollback tests matched `'/stage/data/'` against Windows paths (test); two symlink tests raised WinError 1314 without symlink privilege (now `links.symlink` skips explicitly, a coverage gap on unprivileged Windows); the interpreter probe test used a `sh` stub (test; the probe is now one line so `.cmd` stubs work); `check_secret_permissions` returned immediately on Windows, so the secret-file test could not fail (product gap: the DACL is now checked, fail closed); Functional Group reconfirmation dropped a change stamped in the same clock tick as the confirmation (`<=`, product defect on coarse clocks, now `<`); SoD reopened classification required `modified < created` for the prior period (now `<=`).
+- **Verification:** the tie regression tests fail against the old code on Linux; the Windows ACL policy is verified with simulated DACLs. Native Windows re-run pending.
+- **PowerShell 7.6.9** installed on Ubuntu 24.04 from Microsoft's apt repository; `test_powershell.py` (13 tests) and `check-powershell.ps1` pass; a real `prerequisites --repair` through pwsh preserved the broken environment and recreated it. PSScriptAnalyzer unavailable (gallery 403).
+- **Playwright:** the 18 Windows failures did not reproduce on Linux: the 15 related specs (107 tests) pass with one worker and no retries. The Windows cause is unknown without the failing test names.
+
+## Final cross-platform stabilization
+
+- PowerShell 5.1: AST-based `check-powershell-compat.ps1` (no new dependency; wired into `check-powershell.ps1` and `test_powershell.py` with negative fixtures). Repository result: 0 errors, 9 warnings; static only.
+- Windows secret ACLs: `--init-secret` now restricts the new file on Windows (deleted if that fails); `manage-server-service.ps1` refuses link/directory secret paths, `Upgrade` checks the installed configuration before changing files, and `-Action RepairSecret [-ConfirmSecretRepair]` repairs only the configured secret. A mask bug (READ_CONTROL/SYNCHRONIZE counted as access) was found and fixed by the new lifecycle tests.
+- Backend regression on Python 3.12: 1,760 tests OK, 2 skipped. One intermediate failure (script inventory table missing the new script) was fixed and the whole suite rerun.
+- Playwright: Windows failure details were not recoverable from the repository or logs; nothing was changed speculatively.
+
+## Test architecture optimization (November 2026)
+
+- **Audit (measured unless noted):** 1,760 backend tests in 109 modules; 909 browser tests in 111 specs, no Playwright projects, so every theme/viewport
+  expansion lived inside specs: 62 generated groups, 295 executions, 31 of them (161 executions) without theme-dependent assertions; no pixel
+  comparison exists (screenshots are review artifacts only). A passing Linux backend run printed 250 lines from 111 tests (release/packaging
+  script output, expected `sap-lens` warnings, 2 ResourceWarnings).
+- **Backend:** `run-tests.py` workers buffer output per test (shown only on failure), print a heartbeat, list ResourceWarnings and the slowest
+  tests; `--verbose`, `--test NAME`, `--slowest N`, `--log FILE`. CSV preservation tests assert their warning with `assertLogs`. Two unclosed
+  pipes fixed. `test_source_refresh` readers yield the GIL: 27-30 s to 0.4 s, plus a guard that a dead reader fails the test (it previously
+  passed with crashed readers). `test_sod_reports.test_status_labels_*` (the interrupted Windows test) takes 0.8 s on Linux and has no
+  blocking code; the Windows traceback only shows where Ctrl+C landed, so no hang is claimed or fixed.
+- **Browser:** `tests/matrix.ts` (`layoutMatrix`, `THEMES`, `DEFAULT_THEME_ONLY`) for 25 theme-independent groups (909 to 857 executions;
+  every width kept, dark kept once per screen); tags `@visual` (298), `@a11y` (79), `@workflow` (9), `@component` (10), `@smoke` (12) with npm
+  scripts; Component Library previews for eight shared components and `component-library.spec.ts`.
+- **Full regression (Linux, 4 vCPUs, 18 min 11 s wall):** backend 1,763 OK, 2 skipped (92 s, 3 processes); browser 867 OK, 0 skipped (971 s, 3
+  processes, 2,811 process-seconds); build, docs, workflows, Lucide, ruff, ESLint (115 warnings), whitespace, `pip check`; unit 27 OK;
+  PowerShell check 0 errors. Earlier reference (1 Nov, same runner type, different test set): 731 browser tests in 4,265 process-seconds.
+  Backend log of a passing run: 40 lines, none of them test output.
+- **Not verified:** native Windows (backend and browser), Windows PowerShell 5.1 execution; Node 24 (the sandbox has Node 22).
+
+## Test suite consolidation and risk-based profiles (November 2026)
+
+- **Audit (measured):** backend 1,763 tests in 109 modules, 234.6 s on one process (92 s on three); browser 867 executions, 625 unique
+  scenarios, 2,811 process-seconds. No literal duplicates in either suite (AST and normalized-body comparison). Screenshots cost about
+  31 s per run (1%). Nine Playwright tests exercised pure `src/lib` functions without a page; two others checked only the API.
+- **Profiles:** `quick` (no browser, change-aware), `targeted` (import-graph selection), `regression` (curated, 1,431 backend + 123 browser
+  tests), `full` (everything, release checks included). `fast`/`release` remain aliases; CI `changed` is unchanged; `validate.py` delegates.
+  Coverage map fields (owner, criticality, platform) and a `profiles` block in `test-map.json`.
+- **Moved:** 9 Playwright tests to `frontend/tests/unit` with one-to-one assertions; `saved-filter-migration.spec.ts` removed.
+- **Fixed on the way:** Playwright imported and ran the `node:test` files (testMatch); `--log` missed stderr; parallel shard failures could
+  print no error (now taken from the JSON report); nine one-shot `count()` reads raced rendering under load (one confirmed failure).
+- **Measured (Linux, 4 vCPUs, 3 browser processes unless noted):** QUICK 11 to 50 s (old per-edit `fast`: 65 s, smoke only); TARGETED
+  2 min 27 s (backend change) and 5 min 24 s (SoD frontend change); REGRESSION 4 min 42 s (the old `regression` was the complete suite,
+  18 min 11 s); FULL 17 min 42 s, with one intermittent browser failure in each of three 3-process runs (different tests; one root-caused
+  and fixed, two not reproducible alone or under a 3-process stress run); browser half with 1 process after the fix: 858/858, 26 min.
+- **Open:** confirmation for removing two API-only browser tests with near-equivalent backend tests; 1600 px variants are only partly
+  redundant (Diagnostics changes layout at 1400 px); native Windows unverified.
+
+## Follow-up: integration tests, 3-process stability and SoD selection (November 2026)
+
+- `revision-consistency` (API revision through `/api/refresh`) and the SoD export group-column check stay: tagged `@integration`,
+  excluded from REGRESSION through `profiles.full_only_tags`, run by TARGETED and FULL.
+- 3-process intermittents: `release-roles` read the clipboard before the asynchronous copy finished (reproduced 4 of 6 runs with CDP
+  CPU throttling and random API latency; fixed by waiting for the application's announcement, 10 of 10 under the same load);
+  `sod-reviews-r6` counted tiles before they rendered (fixed earlier). `session-recovery` and `investigation-filter-refinement`
+  did not reproduce under x10 throttling and 1.5 s latency; no speculative change, and failures now print their error.
+- SoD TARGETED: page-level selection through the import graph (`profiles.page_specs`); Periods change 2 min 6 s, bulk review 4 min 11 s,
+  shared SoD files still all 31 specs.
+- FULL, one uninterrupted run with 3 browser processes: backend 1,776 OK (2 skipped), browser 858 OK, all static, unit, audit and
+  PowerShell checks OK, 18 min 11 s. Native Windows unverified.
+
+## Windows test infrastructure and regression stabilization (November 2026)
+
+- One interpreter: the test server and every spec subprocess use the runner's Python (`frontend/tests/python.ts`), never PATH's first
+  `python` (the Windows FULL had spawned a global Python 3.15).
+- Runner lifecycle: Windows-safe process-tree termination, handles closed before bounded cleanup retries, failed runs keep their
+  artifacts in `build/test-artifacts/`, stage/heartbeat/shard output, exit codes 0 (pass), 1 (tests failed), 2 (infrastructure only).
+- Root causes fixed: Capture sent `expected_revision` 0 while the period list was still loading (409, the created period never opened;
+  application fix plus regression test); clipboard read-backs returned an earlier test's copy (specs now assert the page's recorded
+  `writeText`); `page.unroute()` continued an in-flight request under an asynchronous handler ("Route is already handled!"; now
+  `unrouteAll({ behavior: 'wait' })`). Each was reproduced before and verified after its fix.
+- Verified on Linux with Chromium 1248: REGRESSION (3 processes) 1,566 passed, 2 skipped, 4 min 38 s; the 17 previously failing spec
+  files 161 passed in 3 processes; FULL 2,645 passed, 0 failed, 2 skipped, 15 min 45 s; `pip-audit` clean. Native Windows unverified.
+
+## Windows TARGETED follow-up: stale-row bulk selection (November 2026)
+
+- Windows TARGETED (5 features, 3 processes): 664 passed, 1 failed (`sod-bulk-review` "a rejected request never reports success").
+- Root cause, application: while a filter change loads, Access Explorer Assignments keeps the previous rows visible as placeholders and the
+  page and row checkboxes stayed enabled. "Select all assignments on this page" then selected rows outside the new filter (reproduced on
+  Linux with a delayed filtered response: 14 instead of 1, "Recommend removal for 14 assignments"). Selection is now disabled while rows
+  are placeholders; a regression test holds the filtered response and checks that nothing stale can be selected.
+- Slow SoD endpoints (Windows request log, single process, 24,942 requests): no 5xx and no unanswered requests. `GET /api/sod/periods`
+  p50 14 ms, p95 2.4 s; `GET /api/sod/overview` p50 240 ms, p95 3.1 s; the slow cases follow data changes (new seeds, decisions).
+  `GET /api/sod/filter-options` is the largest total (757 calls, 116 s). Performance, not faults; no further change without a profile.
+- `WinError 10054` (3 per run): asyncio's Proactor transport logs a `ConnectionResetError` when it shuts down a socket the client already
+  reset (pages closing, aborted requests). Every request in the log has a response, so these are expected client cancellations.
+
+
+### Windows regression handover: report persistence follow-up
+
+Resumed from synchronized `ef0c303`, preserving `935611b`, `3a79e41`,
+`deb84da` and terminal colours from `0de47c2`. No current final FULL log or
+JSON report was available in the accessible handover material; historical
+FULL counts above are not evidence for this checkout. Native Windows
+acceptance remains pending. No broad regression or CI dispatch was run.
+
+A focused run passed all 18 SoD metadata tests, but its JSON report failed
+because the requested parent directory did not exist. The runner printed a
+successful result before raising `FileNotFoundError`. Reporting now creates
+parent directories and handles destination I/O failures as infrastructure
+failures (exit 2), preserving exit 1 when tests actually failed. Final status
+is printed after report persistence. Three direct regression tests passed;
+18 terminal/logging tests passed. Search-matching unit tests: 3 passed.
+Focused ESLint: no errors, five existing warnings. Frontend production build
+including TypeScript passed. Period deletion browser test: 1 passed on Linux
+Chromium; two subsequent repeated-isolation executions also passed (2/2).
+Generated logs/reports stay under ignored `build/` and are not committed.
+
+Windows follow-up (PowerShell 5.1 or 7; stop if synchronization fails):
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+py -3.12 --version
+node --version
+.\.venv\Scripts\python.exe -m pip check
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec sod-periods --grep "period deletion requires the typed name" --repeat-each=2 --browser-jobs 1 --log build/test-logs/windows-periods.log --report build/test-artifacts/windows-periods.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --base ef0c303 --browser-jobs 3 --log build/test-logs/windows-targeted.log --report build/test-artifacts/windows-targeted.json
+```
+
+Use the equals form `--repeat-each=2` with this runner: the separated numeric
+value can be parsed as a feature name by argparse. TARGETED selects changes
+against the explicit baseline; inspect with `--plan` first. The three browser
+processes use the runner's separate ports and storage. These are follow-up
+commands, not a claim that Windows or broad TARGETED validation has passed.
+
+
+### Windows seven-spec follow-up: asynchronous completion assertions
+
+The supplied `windows-verification.zip` was extracted outside the repository,
+without changing the original evidence. Its latest seven-spec run reports
+78 passed / 2 failed / 0 skipped, build and TypeScript passed. The archive
+contains JSON, console/progress and server logs, but not the `trace.zip`,
+error-context or screenshot files referenced by the JSON. Their absolute
+Windows paths are not accessible here. Older `level1`, `level2` and broader
+TARGETED results in the same archive are separate runs, not current evidence.
+
+**Session Recovery:** the original assertion starts its five-second UI budget
+as soon as Retry's click completes, before the asynchronous configuration read
+has completed. It now waits for the successful GET configuration response,
+then retains the original notice-count, navigation and URL assertions. No
+notice is hidden and no timeout was increased. Individual Linux reproduction
+passed before changes. A controlled late-request experiment did not establish
+an application defect; no speculative session state-machine change was kept.
+Classification: test synchronization gap corrected; the precise Windows
+failure sequence remains unconfirmed without the original trace/native rerun.
+
+**Bulk Keep:** the failure was the final Work Queue navigation assertion, after
+all subject, assignment decision, history, queue API, coverage and remediation
+assertions had succeeded. This rules out failure to seed or save that assignment
+at the preceding API checks. The test now awaits the Work Queue response,
+asserts the expected user exists in that response, then retains the exact UI
+row assertion. The same check covers Keep, Remove and Investigate. No review
+rule, filter default, cache or application code changed. Classification: test
+synchronization gap corrected; Windows rendering/filter causality still needs
+native confirmation. Existing regression tests were strengthened, not skipped.
+
+Validation before the seven-spec checkpoint: both original tests passed
+individually on Linux; corrected tests passed three times each (6/6); both full
+specs passed (16/16); focused ESLint passed with no warnings/errors. No backend
+or production frontend source changed, so prior build/type evidence was reused.
+No FULL regression, package build or GitHub Actions dispatch was performed.
+
+**Performance:** Windows logs show successful but slow reads across all three
+servers, including `/health` (4730–5013 ms) and diagnostics (4211–5265 ms).
+The health handler reads the cache snapshot without a SQLite query or lock;
+those timings alone do not establish database contention or expensive SoD
+calculation. Single-process Linux endpoint measurements during the 16-test run:
+health 1 request, max 357 ms; diagnostics 28 requests, mean 16.5 / max 67 ms;
+filter-options 368 requests, mean 24 / max 54 ms; selection 36 requests,
+mean 14 / max 25 ms. Cross-OS numbers are not a controlled performance
+comparison. CPU/thread-pool contention, startup and host scheduling remain
+possible; no bottleneck was confirmed and no caching optimization was made.
+The Windows reset traceback is in asyncio Proactor connection shutdown,
+not an application route. No accompanying process termination or HTTP 500 is
+shown; remaining tests continued. No unsafe suppression or transport workaround
+was added. Its exact connection/request correlation is unavailable.
+
+Windows follow-up (PowerShell 5.1/7, existing prepared `.venv`): preserve the
+original files and use new output names. Run these progressively; stop at the
+first failure. Keep the request log to compare one versus three processes.
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+$env:SAP_LENS_TEST_REQUEST_LOG = Join-Path $PWD 'build/windows-followup-requests.log'
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec session-recovery --spec sod-complete-bulk --grep "a temporary connection loss|complete bulk Keep reviews active non-conflict" --repeat-each=3 --browser-jobs 1 --log build/windows-followup-repeat.log --report build/windows-followup-repeat.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec session-recovery --spec sod-complete-bulk --browser-jobs 1 --log build/windows-followup-specs.log --report build/windows-followup-specs.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec session-recovery --spec ui-polish-actions --spec employee-directory --spec sod-complete-bulk --spec sod-metadata --spec investigation-ux --spec data-aware-ux --browser-jobs 3 --log build/windows-followup-seven.log --report build/windows-followup-seven.json
+Remove-Item Env:SAP_LENS_TEST_REQUEST_LOG
+```
+
+Only after the seven-spec Windows group passes, proceed to the previously
+selected TARGETED feature group if broader verification is desired. Native
+Windows validation remains pending; Linux success does not close that gap.
+
+Seven-spec Linux checkpoint completed: **80 passed, 0 failed, 0 skipped**,
+188.5 seconds, three isolated Playwright processes. Both previously failing
+cases passed in this group. All original assertions remain. Documentation
+check: 62 Markdown files, zero broken internal links; `git diff --check` passed.
+Three-process request measurements (combined independent server logs):
+
+- `/health: n=4, mean=301.0 ms, max=447 ms`
+- `/api/diagnostics: n=178, mean=25.2 ms, max=108 ms`
+- `/api/sod/filter-options: n=464, mean=38.5 ms, max=138 ms`
+- `/api/sod/explorer/access_list/selection: n=35, mean=22.5 ms, max=51 ms`
+
+These are Linux observations, not a Windows benchmark or proof of native
+resolution. Uploaded artifacts and generated results remain outside Git.
+
+
+### Windows REGRESSION repair following the green 80-test verification
+
+The supplied Windows verification-3 reports 80/80 passed. The subsequent
+REGRESSION reports backend 1431 passed, 37 failed, 50 skipped; browser stages
+executed no tests because CMD treated regex pipes as commands. Static checks
+passed. Artifacts were inspected outside Git; original files were preserved.
+
+- **Invocation:** launching `npm.cmd` lets Windows CMD interpret unquoted
+  regex `|` operators. Browser stages now invoke the installed Playwright CLI
+  through Node directly, with an argv list and no shell. Selection, reporters,
+  isolated ports/storage and process cleanup are unchanged. The executable
+  lifecycle-test double remains supported. A new argv round-trip test includes
+  pipes, ampersands, spaces and parentheses and executes Node on either OS.
+- **Maintenance isolation:** desktop maintenance checks both the global session
+  mutex and the per-store lease. Separate temporary stores did not isolate the
+  global Windows mutex across test workers or an open desktop application.
+  Maintenance fixture families now select a UUID-scoped real Windows mutex.
+  Production retains `Local\SAPLensDesktop` by default and every per-store
+  lease check. No lock is bypassed. Tests cover default/custom kernel names and
+  existing running-store refusal. Native Windows contention still needs rerun.
+- **Console:** SafeConsole previously forced ASCII on every redirected Windows
+  stream, even an explicitly UTF-8 stream. UTF-8 streams now preserve Unicode;
+  legacy code-page streams retain ASCII fallback. Log/colour tests remain intact.
+- **Position Changes:** a fixed-clock reproduction confirmed reliance on strict
+  timestamp ordering. Windows can record a decision and the next change on the
+  same clock tick; sorting tied events by hash also loses publication order.
+  Stable timestamp sorting preserves append order. New Account Review decisions
+  capture the exact position/manager change IDs they reviewed; later IDs reopen
+  review even with equal timestamps. Old decisions keep their timestamp fallback.
+  No old decisions/history are rewritten. Tests freeze both clocks and verify
+  later-change reopening and expiry, plus reverse-hash equal-time ordering.
+
+Focused Linux checks: 81 affected tests passed; 160 direct-dependent tests
+passed, including runner, Account Review, position changes and desktop tests.
+The stricter equal-clock case passed separately after freezing both clocks.
+Ruff and whitespace checks passed. These counts overlap; they are not a unique
+combined test total. Native Windows verification remains pending.
+
+Windows PowerShell 5.1/7 follow-up, with the existing prepared `.venv`:
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_test_profiles --test test_application_backups --test test_maintenance --test test_storage_migration --test test_position_changes --test test_account_review --test test_desktop --jobs 1 --log build/windows-repair-focused.log --report build/windows-repair-focused.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_application_backups --test test_maintenance --test test_storage_migration --jobs 3 --log build/windows-repair-locks.log --report build/windows-repair-locks.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec session-recovery --grep "a clean start|a temporary connection loss" --browser-jobs 1 --log build/windows-repair-browser.log --report build/windows-repair-browser.json
+```
+
+Stop on any failure. After these pass, run the existing REGRESSION command with
+new log/report names. No FULL, CI dispatch, main change or release is required.
+
+
+The first local REGRESSION attempt exposed a source-contract dependency:
+`tests/instance_name.py` parsed the literal CreateMutexW call. It now reads the
+constructor's production default using AST, keeping the smoke-script match
+assertion intact. Its 13 tests passed. That run was interrupted before browser
+expansion and is not a passing REGRESSION result; its separate log is preserved.
+The final run uses `windows-regression-repair-final.log` and the matching JSON.
+
+
+After the focused Windows commands pass, the requested native checkpoint is:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run-tests.py regression --jobs 3 --browser-jobs 3 --log build/windows-repair-regression.log --report build/windows-repair-regression.json
+```
+
+The browser check includes a literal pipe expression to verify argument
+transport. No CMD quoting workaround or shell retry is needed. Original
+Windows artifacts stay outside Git and are not overwritten by these commands.
+
+
+Final local Linux REGRESSION completed successfully in **7:52**: backend
+**1472 passed**, critical browser **90 passed**, tagged browser **33 passed**;
+aggregate **1595 passed, 0 failed, 0 skipped**. Whitespace, documentation,
+workflow contracts, ownership map, Python/frontend lint, TypeScript and frontend
+unit checks all passed. A non-blocking ResourceWarning was recorded at
+`test_validation_entrypoint.py:60` for an unclosed text stream. No unrelated
+cleanup was added. FULL, dependency audits, packaging and native Windows
+acceptance were not executed. The PowerShell commands above remain required
+before declaring the Windows failures resolved on their target platform.
+
+
+### Native Windows follow-up: newline policy and history-transfer fixture
+
+Two remaining native Windows failures were traced to test fixtures, not to
+UTF-8 degradation or changed maintenance safety:
+
+- `PlaywrightCommandTests.test_utf8_pipe_on_windows_preserves_unicode` built
+  a UTF-8 TextIOWrapper with the default `newline=None`. Windows translated
+  the written LF into CRLF; the Unicode bytes were already correct. This test
+  calls SafeConsole directly, not a subprocess. It now explicitly exercises
+  both LF and CRLF output policies on every host and compares the complete
+  output bytes against the exact UTF-8 encoding, preserving the accents and
+  arrow assertion. Production stream/subprocess handling is unchanged.
+- `ReviewHistoryTransferTests` inherits `PeriodV2Case`, not `BackupTests`, so
+  the isolation added to BackupTests never ran for it. Its desktop backup
+  therefore used the production session mutex and could conflict with a running
+  desktop application or another maintenance fixture. Its own setUp now installs
+  the existing UUID-scoped real Windows mutex factory before parent setup.
+  A regression test verifies this fixture calls that factory with a test name
+  rather than the production name. The factory owns no persistent kernel
+  handles; maintenance's existing finally blocks close acquired handles, and
+  unittest cleanup restores the factory even on failure. Production mutex
+  defaults, per-store leases and live-store refusal checks are unchanged.
+
+Focused Linux checks: 3 tests passed (the Unicode case includes LF/CRLF
+subtests), including the byte-for-byte approved review history transfer.
+Focused Ruff and whitespace checks passed. Native Windows execution is still
+required; Linux uses the POSIX store lease rather than Windows kernel locking.
+
+Windows PowerShell 5.1/7, after synchronizing a clean `work` checkout:
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_test_profiles.PlaywrightCommandTests.test_utf8_pipe_on_windows_preserves_unicode --test test_application_backups.ReviewHistoryTransferTests --jobs 1 --log build/windows-newline-history-focused.log --report build/windows-newline-history-focused.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_application_backups --test test_maintenance --test test_storage_migration --test test_test_profiles.PlaywrightCommandTests --test test_test_profiles.TerminalOutputTests --test test_test_profiles.ColorOutputTests --jobs 1 --log build/windows-newline-history-dependent.log --report build/windows-newline-history-dependent.json
+```
+
+Stop at the first failure. These commands use new artifact names and do not
+run FULL, browser regression or GitHub Actions. Explicit `--test` selections
+are executed together in one backend process by the current runner.
+
+Direct-dependent Linux validation completed: **84 passed, 0 failed, 0 skipped**.
+Documentation links: 62 files, zero failures. No FULL, REGRESSION, production
+build or browser suite was rerun for these test-only changes.
+
+
+### Browser backup subprocess: Windows mutex isolation
+
+Native Windows REGRESSION isolated the remaining failure to the browser test's
+synthetic archive generator. Its separate Python interpreter called desktop
+`maintenance.backup()` with the production session mutex. A unittest patch in
+the parent process cannot cross that process boundary, so a real desktop or
+another default-mutex helper could make `acquire()` return false. This is a
+test-process isolation defect; production refusal to back up a live instance
+remains intentional. The browser-helper audit found no other maintenance
+backup/restore call sites under `frontend/tests`.
+
+The UUID-scoped patch mechanism is now shared in
+`scripts/testing/desktop_test_mutex.py`. Existing backend fixtures delegate to
+it, retaining their cleanup and real Windows acquire/close semantics. The
+browser invokes `scripts/testing/synthetic-backup.py`, which uses that same
+mechanism inside the child interpreter and explicitly points configuration and
+data storage at a fresh temporary synthetic store. The chosen interpreter and
+other process environment are inherited as before. Each invocation generates
+its own namespace; no environment option bypasses production locking.
+
+The scripts/testing location is already mirrored into isolated frontend build
+workspaces; importing a backend Python test module here would have broken that
+layout. No build/packaging implementation change was needed. All original
+browser assertions and backup semantics remain intact. The new backend test
+runs the actual generator as a child; on native Windows it holds a production
+mutex handle during that operation, including when another desktop already
+owns that name. Maintenance still closes its own handles in existing finally
+blocks. Production lock defaults, storage leases and safety gates are untouched.
+
+Linux validation: original browser test passed before the change (the native
+mutex branch is Windows-only); corrected individual test passed; complete
+backup spec 9/9 passed; direct-dependent backup/maintenance/migration tests
+65/65 passed; focused Ruff and ESLint passed. Native Windows execution of the
+held-production-mutex branch and the three-browser-process scenario remains
+required before claiming native resolution.
+
+PowerShell 5.1/7 follow-up (prepared .venv; new artifact names):
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_application_backups.BackupTests.test_browser_archive_subprocess_is_isolated_from_the_production_mutex --jobs 1 --log build/windows-backup-child-kernel.log --report build/windows-backup-child-kernel.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec application-backups --grep "Settings backup requires restart" --browser-jobs 1 --log build/windows-backup-child-focused.log --report build/windows-backup-child-focused.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec application-backups --browser-jobs 1 --log build/windows-backup-child-spec.log --report build/windows-backup-child-spec.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_application_backups --test test_maintenance --test test_storage_migration --jobs 1 --log build/windows-backup-child-backend.log --report build/windows-backup-child-backend.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec application-backups --spec desktop --spec enterprise --browser-jobs 3 --log build/windows-backup-child-parallel.log --report build/windows-backup-child-parallel.json
+```
+
+Stop if a step fails. Only after these pass, run the existing REGRESSION command
+with new log/report names. An existing desktop can remain running for the
+focused child-generator test: its kernel handle is neither released nor
+modified by the test. No FULL, packaging, release or GitHub Actions run is needed.
+
+
+Final local Linux results: targeted three-process browser verification **15/15**
+passed. The subsequent requested REGRESSION passed in **8:02**: backend
+**1474/1474**, critical browser **90/90**, tagged browser **33/33**, including
+the failing backup workflow. Aggregate **1597 passed, 0 failed, 0 skipped**.
+All included static, lint, TypeScript, frontend unit, documentation and workflow
+checks passed. The known non-blocking unclosed-stream ResourceWarning at
+`test_validation_entrypoint.py:60` remains outside this fix. Native Windows
+kernel contention and the same three-process native run remain unexecuted
+here; no FULL, packaging, release or GitHub Actions workflow was run.
+
+
+### Functional Group reconfirmation and Windows server-fixture teardown
+
+The reported native run passed 1474 backend tests (50 skipped), 88/90 critical
+browser tests and 33/33 tagged tests. The current workspace did not contain its
+failure artifacts. The old synchronization warning deliberately omitted the
+exception: its exact native category cannot be recovered from that text. Logs
+and traces were requested; native failure correlation remains pending.
+
+**Functional Group storage:** public read() opened the JSON file without the
+RLock used by mutators. Windows read handles can prevent atomic os.replace,
+so concurrent request reads and review synchronization could conflict within
+the same backend even though the update itself is transactional. A new direct
+lock-ownership regression failed against the old code and passed after read()
+and write() were protected by the same reentrant lock, including handle close.
+Existing load/modify/write mutation boundaries remain protected. No blanket
+save retries or reconfirmation-rule change was introduced. This is a confirmed
+storage synchronization gap; matching it to the original native exception
+still requires the native diagnostic evidence.
+
+Synchronization failures now record only operation, root exception category,
+errno and winerror, including a wrapped I/O cause. Exception messages, paths,
+identities and payloads are excluded. A simulated sharing violation verifies
+that failed persistence changes neither classifications nor history, logs the
+safe category, and a later successful synchronization flags the Department
+change exactly once. The browser test now also asserts the classification API
+requires review before keeping all its original UI reconfirmation assertions.
+
+**Server cleanup:** the fixture previously sent SIGTERM to one spawned process,
+waited only for exit, then immediately called rmSync. On Windows this does not
+establish descendant termination (notably with a Python venv launcher), close
+completion or file-handle release. The new test-only server-process helper
+observes close from spawn time and terminates the owned Windows PID tree with
+bounded taskkill /PID /T /F before waiting for close. POSIX uses an isolated
+process group, graceful termination and bounded force escalation. No process
+is selected by name. Windows directory deletion then uses Node's bounded
+transient-error handling (five retries, 100 ms linear backoff, at most 1.5 s
+added delay). Persistent EPERM still fails teardown and reports the retained
+temporary directory. Neither the error nor a leftover directory is suppressed.
+The original native EPERM handle owner cannot be proven without its artifacts;
+no Defender/permission-policy cause is assumed.
+
+Four node tests cover owned PID targeting, exit versus close ordering, already
+closed children, termination errors, shutdown deadlines and deletion failure
+propagation. The original server upload/metadata assertions are unchanged.
+Linux focused evidence: both original scenarios passed individually before the
+fixes; the lock regression reproduced the unprotected read; Functional Group
+backend module 53/53 passed; direct-dependent modules 94/94 passed; cleanup
+unit tests 4/4 passed. Complete browser specs passed independently (Functional
+Groups 9/9, server-deployment 5/5). Three-process relevant browser selection
+passed 7/7. Ruff passed; focused ESLint had no errors and one pre-existing any
+warning in server-deployment.spec.ts. No unrelated files were removed or edited.
+
+Native PowerShell 5.1/7 follow-up (prepared .venv; retain old artifacts):
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_functional_groups --test test_position_changes --test test_account_review --jobs 1 --log build/windows-fg-storage.log --report build/windows-fg-storage.json
+node --test frontend/tests/unit/server-process.test.ts
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec functional-groups --browser-jobs 1 --log build/windows-fg-spec.log --report build/windows-fg-spec.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec server-deployment --browser-jobs 1 --log build/windows-server-cleanup-spec.log --report build/windows-server-cleanup-spec.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec functional-groups --spec server-deployment --spec account-review-refinement --grep "Department|headless browser|browser uploads|review findings" --browser-jobs 3 --log build/windows-fg-cleanup-parallel.log --report build/windows-fg-cleanup-parallel.json
+```
+
+Stop at any failure and preserve the complete shard output/traces, including
+any new organizational_sync category/errno/winerror. Only after these pass,
+run the requested REGRESSION with fresh log/report names. Native kernel/file
+locking and three-process Windows cleanup remain unexecuted here. FULL,
+packaging, releases and GitHub Actions are excluded from this task.
+
+
+Requested final local Linux REGRESSION passed in **6:08**: backend **1476/1476**,
+critical browser **90/90**, tagged browser **33/33**; aggregate **1599 passed,
+0 failed, 0 skipped**. Both affected critical workflows and fixture teardown
+passed. All included static, documentation, workflow, lint, TypeScript and
+frontend unit checks passed. These are Linux results, not proof of native
+Windows file sharing or descendant termination. No FULL, packaging, release
+or GitHub Actions workflow was executed. Original native exception correlation
+and the PowerShell checks above remain outstanding.

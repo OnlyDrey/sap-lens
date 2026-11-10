@@ -382,3 +382,275 @@ class MultiSelectScopeTests(BulkCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class AtomicQueueReviewTests(GovernanceCase):
+    def selection(self,**filters):
+        return self.get('/api/sod/explorer/access_list/selection',review_status='all',**filters)
+    def body(self,selection,action='Keep',**extra):
+        return dict(context='current',expected_revision=selection['revision'],expected_generation=selection['generation'],atomic=True,action=action,
+                    reviewer='Synthetic Reviewer',justification='Synthetic atomic review',items=[{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selection['items']],**extra)
+    def test_explicit_role_modes_do_not_change_group_semantics(self):
+        self.assertEqual(self.selection(role='ROLE_A',role_match='exact')['total'],0)
+        self.assertEqual(self.selection(role='ROLE_AB',role_match='exact')['total'],1)
+        self.assertEqual(self.selection(role='ROLE_A',role_match='prefix',groups=['FIN'])['total'],2)
+        self.assertEqual(self.selection(role='ROLE_A*',role_match='wildcard',groups=['FIN'])['total'],2)
+        self.assertEqual(self.selection(role='ROLE_*',role_match='wildcard',groups=['FI*'])['total'],0)
+    def test_atomic_invalid_selection_has_no_partial_decisions(self):
+        selected=self.selection(usernames=['SYN_A']);body=self.body(selected)
+        body['items'][0]['key']='f'*64
+        self.post('/api/sod/decisions/assignment/bulk',body,409)
+        self.assertEqual(decisions.read().revision,0)
+    def test_operation_history_replay_and_explicit_overwrite(self):
+        selected=self.selection(usernames=['SYN_B']);body=self.body(selected)
+        first=self.post('/api/sod/decisions/assignment/bulk',body)
+        self.assertEqual(len(first['operation_id']),32)
+        self.post('/api/sod/decisions/assignment/bulk',body,409)
+        second_selection=self.selection(usernames=['SYN_B'])
+        self.post('/api/sod/decisions/assignment/bulk',self.body(second_selection,'Remove'),409)
+        second=self.post('/api/sod/decisions/assignment/bulk',self.body(second_selection,'Remove',replace_existing=True))
+        events=decisions.history('assignment','current',selected['items'][0]['key'])
+        self.assertEqual(len(events),2);self.assertEqual(events[1]['bulk_operation_id'],first['operation_id'])
+        self.assertEqual(events[0]['previous_decision'],'Keep');self.assertEqual(events[0]['bulk_operation_id'],second['operation_id'])
+    def test_large_atomic_operation_commits_one_revision_and_uses_bounded_body(self):
+        import test_sod_governance as core
+        from unittest.mock import patch
+        cache._cache=core.snapshot(extra_users={f'SYN_ATOMIC_{i:03}':core.user('ROLE_AB') for i in range(105)})
+        selected=self.selection(role='ROLE_AB',role_match='exact')
+        self.assertGreater(len(selected['items']),100)
+        with patch.object(decisions,'_write',wraps=decisions._write) as write:
+            result=self.post('/api/sod/decisions/assignment/bulk',self.body(selected))
+            self.assertEqual(write.call_count,1)
+        self.assertEqual(len(result['recorded']),len(selected['items']));self.assertEqual(result['revision'],selected['revision']+1)
+        response=self.client.post('/api/sod/decisions/assignment/bulk',headers=H,content=b'x'*2_000_001)
+        self.assertEqual(response.status_code,413)
+    def test_atomic_storage_failure_preserves_previous_review_index(self):
+        from unittest.mock import patch
+        from fastapi import HTTPException
+        selected=self.selection(usernames=['SYN_A'])
+        with patch.object(decisions,'_write',side_effect=HTTPException(409,'Synthetic storage failure')):
+            self.post('/api/sod/decisions/assignment/bulk',self.body(selected),409)
+        self.assertEqual(decisions.read().revision,0)
+        self.assertFalse(decisions.read().contexts)
+    def test_authenticated_actor_overrides_entered_bulk_reviewer(self):
+        from server_access import ACTOR
+        token=ACTOR.set('SyntheticAuthenticated')
+        try:
+            result=decisions.record('assignment','current',[dict(key='a'*64,user='SYN_AUTH',ref='ROLE_AUTH',evidence_version='b'*64,evidence={})],
+                'Keep','SpoofedReviewer','Synthetic authentication evidence',0,bulk_operation_id='c'*32)
+            self.assertEqual(result['events'][0]['reviewer'],'SyntheticAuthenticated')
+        finally:ACTOR.reset(token)
+    def test_atomic_investigation_requires_explicit_replacement(self):
+        self.decide('assignment',[self.assignment_item('SYN_B','ROLE_AB')],'Investigate')
+        selected=self.selection(usernames=['SYN_B'])
+        self.assertTrue(selected['items'][0]['has_review'])
+        self.assertEqual(selected['items'][0]['previous_decision'],'Investigate')
+        revision=decisions.read().revision
+        self.post('/api/sod/decisions/assignment/bulk',self.body(selected),409)
+        self.assertEqual(decisions.read().revision,revision)
+        self.post('/api/sod/decisions/assignment/bulk',self.body(selected,replace_existing=True))
+        self.assertEqual(decisions.history('assignment','current',selected['items'][0]['key'])[0]['previous_decision'],'Investigate')
+
+    def test_atomic_outdated_review_is_not_silently_overwritten(self):
+        self.decide('assignment',[self.assignment_item('SYN_B','ROLE_AB')],'Keep')
+        data=decisions.read();key=self.assignment_item('SYN_B','ROLE_AB')['key']
+        previous=data.contexts['current']['assignment'][key][-1]
+        data.contexts['current']['assignment'][key][-1]=previous.model_copy(update={'evidence_version':'f'*64})
+        decisions._write(data) # synthetic prior evidence version, never a production history edit
+        selected=self.selection(usernames=['SYN_B'])
+        self.assertEqual(selected['items'][0]['decision'],'Outdated')
+        self.assertTrue(selected['items'][0]['has_review'])
+        self.post('/api/sod/decisions/assignment/bulk',self.body(selected),409)
+        self.assertEqual(decisions.read().revision,data.revision)
+
+    def test_selection_rejects_revision_change_during_preview(self):
+        from unittest.mock import patch
+        import sod_scope as scope
+        with patch.object(scope,'revision',side_effect=[0,1]):
+            response=self.client.get('/api/sod/explorer/access_list/selection',headers=H)
+        self.assertEqual(response.status_code,409,response.text)
+
+
+class CompleteAssignmentReviewTests(BulkCase):
+    def setUp(self):
+        super().setUp()
+        fresh=suffix_snapshot()
+        fresh.roles['ZC:MM:READ:ENP']=role('ZC:MM:READ:ENP','X9')
+        fresh.users.users['U_ONLY']=person(('ZC:MM:READ:CDK','ZC:MM:READ:ENP'))
+        fresh.users.users['U1']['assignments'].append(held('ZC:MM:READ:CDK','ZC:MM:READ:ENP'))
+        fresh.users.users['U_EXPIRED']=person(('ZC:MM:READ:CDK','ZC:MM:READ:ENP'))
+        fresh.users.users['U_EXPIRED']['assignments'][0]['valid_to']='2000-01-01'
+        cache._cache=fresh
+
+    def all_selection(self,**params):
+        return self.selection(assignment_scope='all',**params)
+
+    def test_all_population_includes_active_assignments_without_conflicts(self):
+        before=self.get('/api/sod/matrix/risk')
+        selected=self.all_selection(role_suffix='CDK')
+        self.assertIn(('U_ONLY','ZC:MM:READ:CDK'),[(row['user'],row['ref']) for row in selected['items']])
+        self.assertIn(('U1','ZC:MM:READ:CDK'),[(row['user'],row['ref']) for row in selected['items']])
+        self.assertNotIn('U_EXPIRED',[row['user'] for row in selected['items']])
+        self.assertNotIn('U_ONLY',[row['user'] for row in before['rows']])
+        self.assertEqual(self.get('/api/sod/matrix/risk')['rows'],before['rows'])
+        listing=self.listing(assignment_scope='all',role_suffix='CDK')
+        self.assertEqual(listing['total'],selected['total'])
+        exported=self.client.get('/api/sod/explorer/access_list/export',headers=H,params={'assignment_scope':'all','role_suffix':'CDK'})
+        self.assertEqual(exported.status_code,200)
+        self.assertIn('U_ONLY',exported.text)
+
+    def test_atomic_keep_remove_investigate_preserve_individual_history(self):
+        selected=self.all_selection(role_exact=['ZC:MM:READ:CDK'])
+        for action in ('Keep','Remove','Investigate'):
+            result=self.bulk([{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']],action,atomic=True,replace_existing=True)
+            self.assertEqual(len(result['recorded']),2)
+            self.assertEqual((result['failed'],result['skipped']),([],[]))
+            history=self.get('/api/sod/decisions/assignment/history',key=selected['items'][0]['key'])['items']
+            self.assertEqual(history[0]['decision'],action)
+            self.assertEqual(history[0]['bulk_operation_id'],result['operation_id'])
+        subject=self.subject('U_ONLY')
+        self.assertEqual(subject['overview']['risks'],[])
+        self.assertEqual(subject['overview']['activities'],[])
+        self.assertEqual(subject['overview']['assignments'][0]['decision'],'Investigate')
+
+    def test_source_replacement_rejects_frozen_preview_atomically(self):
+        selected=self.all_selection(role_suffix='CDK')
+        before=decisions.read().model_dump()
+        cache._cache=copy.deepcopy(cache._cache)
+        self.bulk([{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']],'Remove',status=409,atomic=True,expected_generation=selected['generation'])
+        self.assertEqual(decisions.read().model_dump(),before)
+
+    def test_legacy_exact_filters_do_not_expand_to_a_family(self):
+        exact=self.all_selection(roles=['ZC:MM:BUY:CDK'],role_match='exact')
+        self.assertEqual({row['ref'] for row in exact['items']},{'ZC:MM:BUY:CDK'})
+        family=self.all_selection(role_families=['ZC:MM:BUY:*'])
+        self.assertGreater(family['total'],exact['total'])
+        self.assertNotIn('ZC:MM:BUY:EMS',{row['ref'] for row in family['items']}) # No organizational evidence for this suffix: retained as an exact option.
+
+    def test_base_role_or_suffix_or_and_filters_are_shared(self):
+        selected=self.all_selection(role_families=['ZC:MM:BUY:*','ZC:MM:SEL:*'],role_suffixes=['CDK','ENP'])
+        self.assertTrue(selected['items'])
+        self.assertTrue(all(row['ref'].endswith((':CDK',':ENP')) for row in selected['items']))
+        self.assertTrue(all(row['ref'].startswith(('ZC:MM:BUY:','ZC:MM:SEL:')) for row in selected['items']))
+        self.assertEqual({row['ref'] for row in self.all_selection(role_families=['ZC:MM:BUY:*'],role_suffix='CDK')['items']},{'ZC:MM:BUY:CDK'})
+        self.assertEqual(self.all_selection(role_families=['ZC:MM:BUY:*'],role_suffix='DK')['total'],0)
+        scoped=self.all_selection(role_families=['ZC:MM:BUY:*'],groups=['P2P'])
+        self.assertTrue(all(row['user_group']=='P2P' for row in scoped['items']))
+
+    def test_family_options_are_compact_but_opaque_and_unrecognized_roles_stay_exact(self):
+        options=self.get('/api/sod/filter-options',field='role',group_roles=True,assignment_scope='all')
+        self.assertIn('ZC:MM:BUY:*',options['items'])
+        self.assertNotIn('ZC:MM:BUY:CDK',options['items'])
+        self.assertIn('ZC:MM:BUY:XCDK',options['items'])
+        from access_package import role_families
+        self.assertEqual(role_families(['OTHER:ROLE:CDK','ZO:OPAQUE:CODE:CDK','NO_SUFFIX']),{})
+        self.assertEqual(role_families(['ZC:MM:READ:*','ZC:*:READ:CDK']),{'ZC:MM:READ:*':'ZC:MM:READ:*'})
+        self.assertEqual(self.all_selection(role_exact=['ZC:MM:BUY:XCDK'])['total'],1)
+
+    def test_selection_is_independent_of_display_pagination(self):
+        fresh=copy.deepcopy(cache._cache)
+        for index in range(65):fresh.users.users[f'U_PAGE_{index:03d}']=person(('ZC:MM:READ:CDK','ZC:MM:READ:ENP'))
+        cache._cache=fresh
+        selected=self.all_selection(role_exact=['ZC:MM:READ:CDK'])
+        response=self.get('/api/sod/explorer/access_list',assignment_scope='all',role_exact=['ZC:MM:READ:CDK'],limit=50)
+        self.assertEqual(len(response['items']),50)
+        self.assertEqual(selected['total'],67)
+        self.assertEqual(len(selected['items']),67)
+
+    def test_period_snapshot_isolated_from_later_imports_and_frozen_decisions(self):
+        revision=self.get('/api/sod/periods')['revision']
+        period=self.post('/api/sod/periods',dict(name='Synthetic complete scope',start='2026-01-01',end='2026-12-31',evaluation_date='2026-10-27',expected_revision=revision))['period']['id']
+        selected=self.get('/api/sod/explorer/access_list/selection',context=period,assignment_scope='all',role_exact=['ZC:MM:READ:CDK'])
+        self.assertEqual(selected['total'],2)
+        cache._cache=suffix_snapshot()
+        retained=self.get('/api/sod/explorer/access_list/selection',context=period,assignment_scope='all',role_exact=['ZC:MM:READ:CDK'])
+        self.assertEqual(retained['items'],selected['items'])
+        body=dict(context=period,expected_revision=selected['revision'],expected_generation=selected['generation'],items=[{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']],action='Keep',atomic=True,reviewer='Synthetic Reviewer',justification='Synthetic period review')
+        self.post('/api/sod/decisions/assignment/bulk',body)
+        self.assertEqual(self.get('/api/sod/explorer/access_list/selection',assignment_scope='all',role_exact=['ZC:MM:READ:CDK'])['total'],0)
+
+    def test_saved_exact_and_family_definitions_round_trip_without_conversion(self):
+        exact=dict(roles=['ZC:MM:BUY:CDK'],role_match='exact',assignment_scope='all')
+        family=dict(role_families=['ZC:MM:BUY:*'],role_suffixes=['CDK'],assignment_scope='all')
+        for index,definition in enumerate((exact,family)):
+            self.post('/api/saved-filters',dict(name=f'Synthetic scope {index}',view='sod_queue',filters=definition))
+        saved=self.get('/api/saved-filters')['items']
+        self.assertEqual([row['filters'] for row in saved],[exact,family])
+        for row in saved:
+            restored=self.get('/api/sod/explorer/access_list/selection',**row['filters'])
+            self.assertEqual({item['ref'] for item in restored['items']},{'ZC:MM:BUY:CDK'})
+
+    def test_assignment_identifier_cannot_be_relabeled_in_a_bulk_body(self):
+        selected=self.all_selection(role_exact=['ZC:MM:READ:CDK'])
+        items=[{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']]
+        items[-1]['ref']='SYN_UNRELATED_ROLE'
+        before=decisions.read().model_dump()
+        self.bulk(items,'Remove',status=409,atomic=True)
+        self.assertEqual(decisions.read().model_dump(),before)
+
+    def test_nonconflict_decision_synchronizes_queue_overview_remediation_and_export(self):
+        before=self.get('/api/sod/overview')['governance']
+        selected=self.all_selection(usernames=['U_ONLY'])
+        self.bulk([{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']],'Remove',atomic=True)
+        queue=self.get('/api/sod/queue/users',usernames=['U_ONLY'])['items']
+        self.assertEqual(len(queue),1)
+        self.assertEqual(queue[0]['assignment'],dict(total=1,decided=1))
+        self.assertEqual(queue[0]['activity'],dict(total=0,decided=0))
+        self.assertEqual(queue[0]['removal'],1)
+        after=self.get('/api/sod/overview')['governance']
+        self.assertEqual(after['users_with_conflicts'],before['users_with_conflicts'])
+        self.assertEqual(after['acceptance'],before['acceptance'])
+        self.assertEqual(after['review_coverage']['assignment']['reviewed'],before['review_coverage']['assignment']['reviewed']+1)
+        rows=self.get('/api/sod/remediation',usernames=['U_ONLY'])['items']
+        self.assertEqual(len(rows),1)
+        self.assertEqual((rows[0]['activity'],rows[0]['risks'],rows[0]['recommended']),('',[],'Remove assignment'))
+        self.assertIsNone(rows[0]['activity_summary'])
+        self.assertEqual(rows[0]['assignment_summary']['label'],'Remove')
+        for path in ('/api/sod/queue/export','/api/sod/remediation/export'):
+            response=self.client.get(path,headers=H,params={'usernames':'U_ONLY'})
+            self.assertEqual(response.status_code,200)
+            self.assertIn('U_ONLY',response.text)
+        tracked=self.post('/api/sod/remediation/actions',dict(context='current',expected_revision=decisions.read().revision,actor='Synthetic Reviewer',user='U_ONLY',assignment_id=selected['items'][0]['key'],role=selected['items'][0]['ref'],recommended='Remove assignment',reason='Synthetic follow-up',owner='Synthetic Owner'))
+        self.assertTrue(tracked)
+
+    def test_full_assignment_period_progress_and_report_retain_nonconflict_decisions(self):
+        import sod_periods as periods
+        import sod_reports as reports
+        revision=self.get('/api/sod/periods')['revision']
+        period=self.post('/api/sod/periods',dict(name='Synthetic assignment report',start='2026-01-01',end='2026-12-31',evaluation_date='2026-10-27',expected_revision=revision))['period']['id']
+        selected=self.get('/api/sod/explorer/access_list/selection',context=period,assignment_scope='all',usernames=['U_ONLY'])
+        body=dict(context=period,expected_revision=selected['revision'],expected_generation=selected['generation'],atomic=True,action='Remove',reviewer='Synthetic Reviewer',justification='Synthetic follow-up',items=[{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']])
+        self.post('/api/sod/decisions/assignment/bulk',body)
+        record=periods.read().items[0]
+        self.assertEqual(periods.outstanding(record)['assignment'].get('Removal required'),1)
+        report=reports.remediation_model(period,reports.RemediationOptions())
+        self.assertIn('U_ONLY',str(report))
+        self.assertIn('Remove assignment',str(report))
+        self.assertTrue(reports.render_docx(report).startswith(b'PK'))
+        self.assertTrue(reports.render_pdf(report).startswith(b'%PDF'))
+
+    def test_legacy_period_queue_keeps_retained_scope_without_using_current_assignments(self):
+        from unittest.mock import patch
+        import sod_scope as scope
+        revision=self.get('/api/sod/periods')['revision']
+        period=self.post('/api/sod/periods',dict(name='Synthetic legacy scope',start='2026-01-01',end='2026-12-31',evaluation_date='2026-10-27',expected_revision=revision))['period']['id']
+        retained=dict(scope.load(period),assignment_source=None)
+        with patch.object(scope,'load',return_value=retained):
+            queue=self.get('/api/sod/queue/users',context=period)
+            self.assertNotIn('U_ONLY',[row['user'] for row in queue['items']])
+            self.assertEqual(self.get('/api/sod/remediation',context=period)['items'],[])
+            response=self.client.get('/api/sod/explorer/access_list/selection',headers=H,params={'context':period,'assignment_scope':'all'})
+            self.assertEqual(response.status_code,409)
+
+
+    def test_eligibility_counts_cover_the_complete_scope_even_when_preview_is_truncated(self):
+        from unittest.mock import patch
+        selected=self.all_selection(usernames=['U_ONLY'])
+        self.bulk([{key:row[key] for key in ('key','user','ref','evidence_version')} for row in selected['items']],'Keep',atomic=True)
+        with patch('routers.sod_governance.SELECTION_LIMIT',1):
+            result=self.all_selection(role_exact=['ZC:MM:READ:CDK'])
+        self.assertEqual(result['total'],2)
+        self.assertTrue(result['truncated'])
+        self.assertEqual(len(result['items']),1)
+        self.assertEqual(result['eligible_counts']['Keep'],dict(unreviewed=1,include_reviewed=1))
+        self.assertEqual(result['eligible_counts']['Remove'],dict(unreviewed=1,include_reviewed=2))
+        self.assertEqual(result['eligible_counts']['Investigate'],dict(unreviewed=1,include_reviewed=2))

@@ -17,7 +17,7 @@ Accept or reject → Approve → Remediate → Verify → Report**
 | Risk Matrix | SAP users by risk. Cells show the risk-acceptance state; totals count distinct users and user-risk findings. Group rows by SAP user group. |
 | Activity Matrix | SAP users by activity with review state and the number of supplying roles (overlap flagged). The main entry point for reviewing. |
 | Access Explorer | Four modes: **Users** (grouped by risk or by activity), **Assignments**, **Roles** (role lookup with the users assigned to each role) and **Role conflicts** (catalogue roles). Identifiers are pills, evidence (roles, transactions, assigned users) expands per row, and CSV export covers the filtered rows. Trace user, risk, activity, transaction, role and assignment in both directions. |
-| Reviews | Work queue with one row per SAP user and a unified review workspace (Activity Review, Role Assignment Review, Risk Acceptance), and Remediation tracking. |
+| Reviews | Work queue with one row per SAP user and a unified review workspace (Activity Review, Role Assignment Review, Risk Review with separate formal acceptance), and Remediation tracking. |
 | Review Periods | Frozen snapshots, workflow, a per-row action menu, comparison in a dialog and audited deletion. |
 | Reports | Formal review report and access remediation report. |
 
@@ -25,16 +25,21 @@ Business matrices (for example Finance or P2P) are **Saved Filters** on the two 
 not separate pages. The risk catalogue stays in Settings → SoD Risk Configuration.
 One **review context bar** sits beneath the SoD navigation on every page: choose current evidence or a review period (frozen after approval) and see the evaluation date and whether the evidence is live or a frozen snapshot. Pages do not repeat this information.
 
-## Three separate decisions
+## Access decisions and formal acceptance
 
-1. **Activity review** (user + activity): Approved, Conditional (conditions required),
-   Remove or Pending. Reviewed once per user across all risks the activity contributes to.
-2. **Role assignment review** (the actual assignment): Keep, Remove or Pending. An approved
-   activity does not mean every role supplying it is needed. The panel shows all
-   contributing roles, duplicate coverage, other activities each role supplies, the risks it
-   contributes to and the effect of removing it.
-3. **Risk acceptance** (user + risk): Accepted, Rejected or Pending, with a named approver
-   who differs from the reviewer, optional compensating controls and an optional expiry.
+1. **Role assignment review** (user + exact assignment + period): Keep, Remove,
+   Investigate or Pending; Keep displays as Approved. One approved supplier can derive
+   Activity Approved without approving every other role supplying that activity.
+2. **Activity review** (user + activity): Approved, Remove, Investigate or Pending,
+   with the existing Approved with conditions option retained as a Conditional event.
+   The primary badge remains Approved and the recorded conditions remain visible.
+   Explicit current review takes precedence over derived supplier decisions.
+3. **Normal risk review** (user + risk + period): Approved, Remove, Investigate or
+   Pending. Risk Approved means acceptable for this review; it is not formal acceptance.
+   Risk Remove requires a specific remediation plan and never removes roles automatically.
+4. **Formal risk acceptance** (user + risk): Accepted, Rejected or Pending, with a named
+   approver different from the reviewer, justification, optional controls and expiry.
+   It remains independent of normal risk review and retains its approval gates.
 
 Decisions never change what is detected: an approved activity can still produce an active
 risk, and an accepted risk stays visible. Evidence that changes materially marks a
@@ -70,21 +75,59 @@ lines are not verified digital signatures.
 
 Source import: [Data & CSV](../data/IMPORT_AND_REFRESH.md), synthetic example
 [sod-matrix.example.csv](../../examples/sod-matrix.example.csv). API: [SoD API](../architecture/API.md#sod-api).
-Validation and open native acceptance items: [SoD validation](../archive/validation/SOD_VALIDATION.md)
-and [SoD 2.0 validation](../archive/validation/SOD2_VALIDATION.md).
+Validation and open native acceptance items: [validation tracker](../validation/README.md)
+and [validation tracker](../validation/README.md).
 
 ## SoD Risk Configuration (Settings)
 
-Settings → SoD Risk Configuration has two tabs, **Risks** and **Activities**, with compact tables and no copy buttons or code styling.
+Settings provides Risks and Activities tabs, server-side search and compact tables.
+Display name resolves non-empty local overrides, active import metadata, then curated
+reference guidance. **Missing display name** means none exists. Local storage/API fields
+remain compatible; displaying or saving untouched inherited text creates no override.
 
-- Editable, English only: display name, business area, explanation, consequence, mitigating controls, review guidance, notes, and a per-ID color from a fixed named palette. Risks also keep the enabled flag and description review status. Earlier Norwegian text is retained in storage untouched but no longer shown or edited.
-- Immutable (always from the import): risk and activity identifiers, risk/activity relationships, transaction mappings, criticality and type. Edit requests that include them are rejected.
-- Overrides are keyed by risk ID and activity name in `sod-catalogue.json` (`activities` is optional, so earlier files still load). Imports never touch them, and they never affect conflict detection.
-- Pills show the identifier text; the color only tints the pill. `GET /api/sod/appearance` supplies names and colors to the other SoD views. Activity endpoints: `GET /api/sod/catalogue-activities`, `POST /api/sod/catalogue-activities/{activity}` (optimistic `expected_revision`).
-- Edit dialogs have a header close button and only Cancel and Save changes in the footer.
+- Risks: identifier and Display name, Related Activities, Status, Description Review,
+  Modified and Edit. Criticality and Type stay compact metadata within the Risk cell.
+- Activities: identifier and Display name, Related Risks, Transactions, Modified and Edit.
+  A list icon marks the compact Transactions action in the table, modal and both source slots.
+- Relationships come from imported mappings, never description text. Current activity
+  relationships exclude historical-only risks; retained definitions remain inspectable.
+- Enabled/Disabled and description-review status retain their existing meaning. Description
+  review is independent of access review and formal risk acceptance.
 
+### Entity details and navigation
 
-In the Risks table a new risk (arrived with the latest import) shows a compact amber **New** badge beside its Risk ID; rows keep the normal background and consecutive rows stay apart through separators and spacing. Enabled and Disabled carry icons (the shared `EnabledBadge`). Source details are not repeated on every row: the Edit dialog carries them, together with the imported definition. The Activities table uses the same row rhythm (alignment, separators, a common minimum row height, compact buttons) and keeps its activity-specific risk pills and transactions button.
+Previous/Next follows the originating filtered, server-sorted list across table pages.
+Unavailable directions are disabled. Related pills navigate Risk ↔ Activity within the
+same detail workflow. The header contains only Previous, position and Next; internal history keeps
+at most 20 locations, and closing details preserves the originating tab and search.
+A changed revision/source invalidates list navigation rather than mixing generations.
+Very large navigation scopes are bounded; refine the filters if the guard reports one.
+
+Navigation, Cancel and window close protect unsaved edits. Cancel the discard prompt
+to keep the draft; confirm it to navigate without saving. Save still checks the original
+catalogue revision and definition identity. A missing/removed entity shows a controlled error.
+
+Both editors share a compact identifier/Display name header, related pills, contextual
+metadata and an imported-mappings information button. The body scrolls independently of
+Save/Cancel. English-only editable guidance, local colors and risk-specific settings remain;
+older Norwegian fields are preserved in storage. Immutable IDs, mappings, Type and
+Criticality are available through Source details and cannot be edited here.
+
+### References and descriptions
+
+The compact reference section shows library version and coverage with a confirmed Reset
+defaults action. Advanced reference settings contain custom workbook import, coverage-ID
+lists and **Download template**. The synthetic template follows the real importer schema;
+Desktop uses its Save dialog and hosted deployments download through the authenticated API.
+See [reference data, precedence and maintenance](../data/SOD_MATRIX.md#curated-reference-workbook).
+
+Pills use the same icons/colors and compact descriptions across configuration and review
+views. Exact active IDs in read-only guidance are not inferred relationships. Related
+pills in the Settings workflow use its navigation instead of nesting competing editors;
+standalone description popovers retain viewport bounds and scrolling. Full provenance and
+alternate text remain in Source details without repeating them beside every field.
+Source management remains under Data Sources; catalogue and investigation exports are
+preserved outside this configuration page. Original reference workbooks are not distributed.
 
 ## SoD feature toggle (Settings → Features)
 
@@ -94,6 +137,8 @@ In the Risks table a new risk (arrived with the latest import) shows a compact a
 - While disabled the SoD entry is hidden from the main navigation (direct visits show a short notice), analysis reports coverage reason `sod_disabled`, and dynamic SoD refreshes are skipped. Matrices, risk and activity configuration, review decisions, periods and reports are retained untouched and return when it is re-enabled, without re-importing.
 
 ## Deleting review periods
+
+Manual deletion archives a completed period and keeps everything. Separately, [review retention](../operations/DATA_RETENTION.md#review-retention) can permanently remove a completed period older than the retention period (default 24 months) and the records only it owns, after a preview and a one-time administrator approval; it never touches active or incomplete periods, the newest completed period or evidence another period shares.
 
 Every period status can be deleted from the row action menu or the period dialog. The delete dialog previews what is affected
 (decisions, actions, reports, comparison baselines, snapshots) and always needs the exact period name and who is deleting.
@@ -122,8 +167,8 @@ One shared heatmap, **Conflicts by SAP User Group**, sits directly under the Rev
 
 - Every SoD page (matrices, Access Explorer, Role Conflicts, User Conflicts) uses the same **Filters** sidebar: search, Saved Filters and all filters live there. The toolbar keeps only sort, direction, row mode, Export CSV and Reset.
 - Risk, activity, group, user, role, transaction and business area fields suggest values taken from the imported evidence (searchable, bounded). A typed value that is not suggested still filters.
-- Risk and Activity matrices show tiles for users, distinct user-risk or user-activity pairs and each review status (Pending, Accepted, Rejected, Outdated; Pending, Approved, Conditional, Removal required, Outdated). Counts cover the whole filtered matrix, not the visible page; a status tile toggles the matching filter.
-- A matrix cell opens the investigation drawer for that one user-risk or user-activity: only the matching activities, role assignments and risk acceptance are listed, with **Show all review items** to widen it. A user row opens everything. The business area reuses the configured module icon and color when it names a module.
+- Risk and Activity matrices show tiles for users, distinct user-risk or user-activity pairs and each explicit review status (formal Pending/Accepted/Rejected/Outdated; activity Pending/Approved/Conditional legacy/Removal required/Outdated). Counts cover the whole filtered matrix, not the visible page; a status tile toggles the matching filter.
+- A matrix cell opens the investigation drawer for that one user-risk or user-activity: only the matching activities, role assignments, normal Risk review and formal acceptance are listed, with **Show all review items** to widen it. The username and Open user icon navigate directly to User Details; the panel icon opens all review items. The business area reuses the configured module icon and color when it names a module.
 - CSV exports use exactly the filters shown, including assignment validity (active, expired, future, unknown, all).
 
 ## Shared SoD filters
@@ -146,8 +191,8 @@ Compatible filters follow the user from one SoD page to the next with no Apply s
 
 ## Review workspace
 
-- **Reviews → Work queue** lists one row per SAP user with overall progress and separate progress for activity review, role assignment review and risk acceptance. Filter by Needs review, Complete or Removal recommended. The queue CSV still exports every review item with its decision (`GET /api/sod/queue/users` feeds the table).
-- **Open Review** (also from a matrix cell or Explorer row) opens one panel with three independent sections: **Activity Review**, **Role Assignment Review** and **Risk Acceptance**. Each row has its own decision button; tick several rows of one section and use **Review selected** for a batch with a single justification. Decision history opens on demand per item. The panel footer shows overall progress.
+- **Reviews → Work queue** lists one row per SAP user with overall progress and separate progress for activity review, role assignment review, risk access coverage and formal acceptance. Filter by Needs review, Complete or Removal recommended. The queue CSV retains its existing raw review and formal-acceptance fields (`GET /api/sod/queue/users` feeds the table).
+- **Open Review** (also from a matrix cell or Explorer row) opens one panel with three sections: **Activity Review**, **Role Assignment Review** and **Risk Review**, with a separate Formal acceptance action inside Risks. Each row has its own decision button; tick several rows of one section and use **Review selected** for a batch with a single justification. Decision history opens on demand per item. The panel footer shows overall progress.
 - Supporting evidence (transactions, supplying roles, removal impact, what-if simulation) sits in a collapsible section, open when the panel was opened from a specific risk or activity. Names stay self-reported, every decision keeps its evidence version, and no decision changes detection or SAP.
 
 
@@ -166,8 +211,8 @@ The filter tiles of the Work Queue (review progress) and Remediation (recommende
 - **Report branding** (Settings → Organization & SAP System): an optional report-only logo. PNG or JPEG, up to 1 MB and 32 to 4096 pixels per side; SVG and WebP are rejected. Images are decoded, resized to at most 1024 px, stripped of metadata and stored privately with other branding assets (not in configuration packages or release artifacts). It is saved immediately, can be replaced or removed, and is used in PDF and DOCX reports (`GET/PUT/DELETE /api/sod/reports/branding`). Without it, reports use the application logo when one is set. The logo is not review evidence and is not part of a frozen period snapshot.
 - **Formal report** (English only, written for management readers): sections follow the reading order Executive Summary, Scope and Evaluation Period, Overall Findings and Risk Exposure, Review Progress (activity, role assignment and risk acceptance decisions), Compensating Controls, Outstanding Risks and Actions, Remediation Responsibilities and Status, Evidence Freshness and Limitations, Changes, Conclusion and Approval, Technical Appendices. SAP terms are explained in a short glossary, the body stays free of transaction codes, and individual decisions, evidence paths and checksums are in the appendices. Section selection, document metadata, management comments and DOCX/PDF export are unchanged. The executive summary and outstanding sections keep the states apart. Review status separates *not reviewed*, *reviewed, no action required*, *reviewed, removal recommended* and *reviewed, risk rejected*. Removal follow-up separates *removal recommended*, *action completed (manually recorded, not proof of removal)* and *removal verified in later source evidence*.
 - **Descriptions in reports.** The formal report and the access remediation report resolve risk and activity names and descriptions with the same resolver as the pills
-  (imported value, then the local business text as a labelled fallback, then "—"/"Not available"). Wherever any description exists they add a *Risk* table (Risk, Name, Description, Source)
-  to *Overall Findings and Risk Exposure* and, with the technical appendices, an *Activity* table; a source legend explains *Imported*, *Local fallback* and *Not available*, and an
+  (non-empty local override, then imported metadata, then curated reference guidance, then "—"/"Not available"). Wherever any description exists they add a *Risk* table (Risk, Name, Description, Source)
+  to *Overall Findings and Risk Exposure* and, with the technical appendices, an *Activity* table; a source legend explains *Imported*, *Local override*, *Curated reference library* and *Not available*, and an
   imported description that differs from a local one is marked, not mixed in. Reports for files without descriptions are unchanged. Transaction descriptions stay as supplied in the CSV.
   **Historical integrity:** a review snapshot stores its own copy of the resolved descriptions when it is captured, so a period's report (approved or still open) never shows
   descriptions imported or edited later; only a new period or a recapture sees them. A snapshot captured before R8.1 has no copy: its report shows only the local business text that was frozen with its
@@ -193,7 +238,7 @@ The filter tiles of the Work Queue (review progress) and Remediation (recommende
 
 - **Access Explorer evidence.** In the Users tab the evidence button of a row (for example "3 roles") opens a wide modal: a compact summary (SAP user, risk, activities, role count), a table of the roles that scrolls inside the dialog, and shortcuts to open the SAP user or investigate. In the Roles tab the users count opens the users behind that role (SAP username codeblocks with navigation, SAP User Group, assignment intervals, Investigate). Escape closes them.
 - **Potential SoD evidence.** The dialog for a finding starts with a summary (subject, risk with its source criticality, both required activities) and then one section per activity side, each with a scrollable table whose columns keep the kinds of evidence apart: Transaction (mapped to the activity), Single role, Assigned role (what the user actually has), Catalogue role or pattern (the match, exact or wildcard) and Assignment validity, plus Technical provenance. It describes potential conflicts and never effective SAP authorization.
-- **Risk Acceptance rows.** The primary row is checkbox, Risk ID, status and a right-aligned Decide; the description sits below and the decision history is collapsed behind the disclosure control. Bulk review, filters, decisions, removal recommendations and history are unchanged, and nothing changes in SAP.
+- **Risk Review rows.** The primary row is checkbox, Risk ID, normal decision and separate Review risk / Formal acceptance actions; the description sits below and the decision history is collapsed behind the disclosure control. Bulk review, filters, decisions, removal recommendations and history are unchanged, and nothing changes in SAP.
 
 ## SAP User Group column in SoD tables
 
@@ -203,7 +248,312 @@ SAP usernames are always one line (copy and open actions unchanged); the SAP Use
 
 Every risk and activity pill keeps its own color and shows, on hover, the identifier with its name and the start of its description (or "No description
 available"). A free-standing pill is also a button: Enter or Space opens a popover with the identifier, display name, description, impact, business process,
-source criticality (risks) or type and risk count (activities), each value marked as imported from the SoD CSV or local business text, with Escape closing it.
+source criticality (risks) or type and risk count (activities), each value marked as imported from the SoD CSV, local business text or curated reference guidance, with Escape closing it.
 Pills inside controls that already have an action (matrix column headers, heatmap headings, source-detail buttons) keep the tooltip and add no second control.
-Descriptions come from one resolver: the imported value first, the local business text as a labelled fallback, never a generated one. See
+Descriptions come from one resolver: non-empty local overrides first, imported metadata second, curated reference guidance third, never generated text. See
 [optional descriptive columns](../data/SOD_MATRIX.md#optional-descriptive-columns).
+
+### Access review completion and sidebar tabs
+
+Open a user's review to work through **Roles → Activities → Risks**. One Reviewer
+field applies across the tabs and retains unsaved work when switching. Individual
+server accounts use the authenticated reviewer; Desktop names remain self-reported.
+
+Current role decisions can cover an activity when every relevant supplying
+assignment is reviewed. Current activity/role evidence can then cover the risk's
+access assessment, without creating a formal acceptance. The panel shows the
+coverage provenance. The queue reports the same unique completion across the
+selected scope, separately from formal acceptance. “Reviewed — removal planned”
+means the explicit proposed removals break the risk in simulation; the imported
+conflict remains present until refreshed evidence verifies removal.
+
+### Work Queue sorting and user navigation
+
+Click a column heading to sort the complete filtered queue before pagination;
+click again to reverse it. Progress categories sort by reviewed/total, with an
+empty category treated as 0% and SAP username as the stable tie-break. The default
+puts users requiring review first, then username ascending (regardless of their outstanding item counts). Sort state is retained
+in navigation history and Saved Filters. Formal acceptance stays distinct from
+risk access-review completion.
+
+Clicking a SAP username opens its User Access profile, while **Open review**
+continues to open the SoD workspace. Copy remains independent; route links retain
+normal modified-click behavior.
+
+The Work Queue keeps removal recommendations in its KPI/filter and exports, rather than
+repeating them in a table column or beneath each progress bar. Progress calculations,
+formal acceptance and review decisions remain unchanged.
+
+### Work Queue bulk assignment review
+
+**Bulk review**, beside Export CSV, reuses the assignment review store. Choose exact
+role names (default), explicit role prefixes or wildcard patterns; suffixes and
+users remain multi-selectable. SAP User Groups always match exactly. Select all
+uses the complete server-filtered scope, not just the visible preview page;
+explicit selections are retained when filters change, but out-of-filter selections
+are disclosed and excluded from execution. Scopes above 5000 preview
+records must be narrowed, and each confirmed operation is limited to 1000 changes.
+
+Preview shows current/proposed decisions and excluded assignments. Previously recorded decisions, including outdated and Investigate decisions, are
+excluded by default. Including them requires the
+additional overwrite confirmation; unchanged decisions are not written. Keep
+approves retention; Remove recommends removal, without modifying SAP. A rationale
+and reviewer are required. Authenticated server reviewers use their actual account.
+
+Queue operations are atomic: invalid IDs, stale source/revision, a finalized period
+or a failed storage write rejects the entire operation. Each event retains its
+previous decision and common bulk operation ID in immutable history and the queue
+CSV. The queue, matrices and individual review panels refresh after success.
+Activity coverage and risk access assessment may derive from assignment review;
+formal risk acceptance remains a separate decision.
+
+### Review feedback and recovery
+
+Only the clicked assignment action shows its loading icon; competing actions on
+that assignment are disabled while other rows remain usable. Writes stay serialized
+against the shared revision. A stale revision may be refreshed for an unrelated
+change, but a competing decision on the same assignment is never silently retried.
+The authoritative subject is refreshed first; other active progress/KPI views update
+in the background. Source-only filter choices are not re-requested after a decision;
+review-dependent option scopes still refresh. Source imports retain full invalidation.
+No decision is shown as saved before the backend confirms it.
+
+Configuration failures retain the draft and support retry. Unexpected backend errors
+return a safe request reference for diagnostics, not a requirement to restart. Local
+metadata response preparation completes before its atomic commit, preventing a
+failed response dependency from silently saving an unreported edit. Storage uses
+private JSON/content-addressed snapshots with locks and revision checks, not SQLite.
+
+Review method popovers separate current access-review coverage (including supported derived
+coverage) from formal acceptance. Stale decisions require review; formal-acceptance reviewers
+are never attributed as derived access reviewers. Remediation expands only current-page
+assignment identities beside the role. Usernames remain copyable; detailed recommendations,
+reasons, controls and verification remain in that assignment's expanded rows.
+
+### Decision-first review statuses
+
+Four primary badges describe access decisions consistently: **Approved** (green check),
+**Remove** (red trash), **Investigate** (amber search), **Pending** (neutral clock).
+Review completion, actual SAP access, formal acceptance and removal verification remain
+supporting concepts, not alternative primary decisions.
+
+| Context | Effective primary decision |
+|---|---|
+| Role assignment | Explicit Keep → Approved, Remove → Remove, Investigate → Investigate, otherwise Pending; scoped to user, exact assignment interval and period |
+| Activity | Current explicit review wins. Otherwise any approved supplying role → Approved; all suppliers Remove → Remove; otherwise any Investigate → Investigate; otherwise Pending |
+| Risk review | Only the explicit normal Risk review decides Approved/Remove/Investigate/Pending; access coverage cannot grant risk approval |
+
+Approved + Remove suppliers therefore produce Activity Approved. No current suppliers does
+not imply Remove. Derived activity decisions create no synthetic activity events. Explicit
+activity disagreement is disclosed with both results; legacy Conditional events are retained
+and presented as Approved with their recorded conditions shown in the popover/history.
+The Approved with conditions form option preserves the existing conditional-review service. Outdated approval
+never grants current approval. A retained Remove may stay visible with evidence needing
+review, without counting as current approval/coverage.
+
+**Review risk** records a normal risk decision with reviewer and justification. Risk Approved
+means acceptable for that review; it does not create **Formal acceptance**, which retains
+its separate approver, justification, controls and approval gates. Risk Remove requires
+remediation planning; it never removes every related role automatically. The popover shows
+when specific removal actions still need selection. Both histories are retained separately.
+
+The shared compact popover shows identity, effective Display name, user/period, decision,
+completion, source/method, available reviewer/time, evidence and supporting role distribution.
+Related role badges explain approval/removal providers; disagreements remain visible.
+Assignment ID and validity prevent equal role names from sharing decisions accidentally.
+Risk popovers expose normal review and formal acceptance separately. Related pills are
+read-only inside the popover. Remove is a recommendation until a later complete SAP import
+verifies disappearance; immutable event values and old report snapshots are never rewritten.
+Escape closes the popover first, restores its trigger and leaves the review open.
+
+### Revalidation against new source revisions
+
+Every activated users revision is compared with the assignments that have at least one decision (`assignment-lifecycle.json`, a small validated store included in backups; nothing else is tracked):
+
+| Case | Result |
+|---|---|
+| Unchanged | The decision stays current. |
+| Changed (other validity, group or role) | A different assignment identity: it starts Pending and never inherits the old decision. Evidence that changes materially still marks a decision Outdated, as before. |
+| Removed | Recorded as absent when absence is verifiable: the user is fully mapped and the assignment is missing, or the user is no longer in the source at all. The decision and its history are kept. |
+| Reappearing | **Outdated** with the reason *Assignment reappeared after it was removed from the SAP import; review it again.* until a new decision is recorded after the reappearance. Outdated approvals grant no activity or risk coverage. |
+| Ambiguous | A user who is present but only partly mapped, a failed or unavailable source, or unavailable SoD/mapping: nothing is marked in either direction. |
+
+A user that disappears and later returns does not inherit decisions (the username may belong to someone else). The status is derived at read time: decision events, retained evidence and
+frozen review periods are never rewritten, and frozen assessments ignore later reappearance. Installations upgraded from an earlier version start with no lifecycle memory, so nothing changes
+until a verified absence is observed. If the file is unreadable it is ignored with a warning (behaviour as before) until restored from a backup.
+
+#### Identity continuity and fail-safe applicability
+
+* **Identity evidence.** The imports provide nothing more reliable than the username except the SAP e-mail address and name in the User–Role Mapping file (the Employee Directory is matched through that
+  same address, so it adds no independent evidence). Hashed tokens of them are kept per tracked assignment; addresses used by several SAP users are ignored, as in the directory matching. If both the recorded
+  and the current user carry evidence and share none of it, the username probably belongs to someone else and the earlier decision reads **Outdated** (*SAP user identity evidence … changed*). A changed mailbox
+  with the same name, or a changed surname with the same mailbox, is continuity. Missing evidence on either side proves nothing and changes nothing.
+* **Fail safe.** If the lifecycle memory is damaged or fails its checksum, is missing although it was established before (for example a backup from before this feature restored over an established installation),
+  or is older than the newest state this installation wrote (an old backup restored), no assignment decision can be confirmed for the same identity: all assignment decisions read Outdated with the reason
+  *Review continuity data is unavailable or cannot be trusted …*. Imports, source availability, activity/risk reviews, events, evidence and frozen periods are unaffected. A fresh or upgraded installation with no
+  memory at all starts a baseline silently, as before.
+* **Visibility.** Data Health lists *Review decision continuity cannot be confirmed* (warning, with the affected assignments) and *Assignments needing a new review after reappearing* (information); the storage status
+  and diagnostics export carry `review_continuity` (`ok`, `corrupt`, `missing`, `stale`).
+* **Recovery.** An administrator confirms *Re-baseline* (`POST /api/storage/lifecycle/rebaseline`): the current imported data becomes the continuity baseline, the damaged file is kept as
+  `assignment-lifecycle.json.before-rebaseline-<time>`, the baseline is attributed to the administrator and decisions apply again. Nothing is repaired automatically.
+* **Exports.** CSV and report schemas are unchanged: the status value stays `Outdated`; the reason is in the decision explanation shown by the API and the status popover.
+
+### SAP import verification and history
+
+Removal checks use every actual imported assignment, including expired and non-conflicting
+records. A role disappearing from the active SoD finding list does not prove it was removed.
+Current role popovers and assignment history retain the original Remove event and show
+separate verification metadata. Verified absence requires a newer validated User–Role source
+revision, the same exact user/role/validity/group identity, available source coverage and
+unambiguous mapping for the user. Failed refresh, rejected/error-bearing data, unavailable
+sources and ambiguous mapping cannot verify absence. Frozen periods retain their captured
+evidence and do not use later imports to rewrite historical results.
+
+Verification describes the supplied validated export scope, not effective SAP authorization
+or proof that the exporter included the whole organization. Administrators must provide a
+complete full-replacement export; silent truncation outside the application cannot be
+established from CSV columns alone. If the user disappears or matching coverage is uncertain,
+verification stays unassessable. Immutable review events and retained source/report snapshots
+remain the audit evidence; no synthetic approval/removal review event is written.
+
+Matrix and Explorer primary badges use effective decisions, including derived Activity
+approval and explicit normal Risk review. Formal acceptance and coverage are supporting
+information. Existing explicit-review filters, status counters and raw export lifecycle
+columns retain their meanings; a derived badge does not turn an explicit Pending event into
+an explicit Approved event. Remediation uses the same effective badge projection, while
+recommendations and actual SAP verification remain separate.
+
+### Shared username review action
+
+Supported SAP username codeblocks contain four independent interactions: username
+and Open user icon navigate directly to User Details, Copy copies the exact
+identifier, and **Open in SoD Review** opens or switches the review sidebar.
+There is no intermediate username popover.
+The action is available only when that SAP identity has detected conflict evidence
+in the selected review context. It opens the same non-modal panel from SoD and
+User Access, including Account Review and release assignment tables. Employee-only
+records, isolated Component Library previews and modal contexts without sidebar
+navigation do not offer it.
+
+Selecting another user updates the existing panel and preserves its Roles,
+Activities or Risks tab. User-specific selections, forms and simulation state are
+isolated; an open decision form requires confirmation before switching users.
+Only the current exact user's action is highlighted. Page filters and scroll are
+unchanged; copy does not open the panel.
+
+Risk Review rows place selection, risk identifier, decision, **Review**, formal
+acceptance action and details toggle before a separate description. Controls wrap
+on narrow screens. Formal acceptance remains a separate action and popover value;
+it is not repeated inline in every description.
+
+### SAP User Group provenance
+
+User Access and SAP Identity summarize imported `USER_GROUP` values. SoD shows the
+groups from the contributing assignment evidence for its review context and
+validity scope. Different scopes can legitimately differ. Work Queue aggregation
+uses current scoped items even when retained historical reviews sort first;
+historical-only items cannot erase or supply current groups. Missing groups stay
+missing, and multiple source groups are preserved. Groups are never inferred from
+role suffixes, AD membership or related usernames.
+
+### Reviews navigation
+
+Reviews contains **Work queue → Bulk Review → Remediation**. Bulk Review embeds
+the same assignment selector and confirmation component used by the existing
+review tools. Work queue's Bulk review action opens that tab. Direct routes are
+`#/sod/reviews`, `#/sod/reviews/bulk` and `#/sod/reviews/remediation`; reload and view
+history retain the chosen tab. Access Explorer remains the analysis workspace.
+The confirmation freezes its context, source generation and decision revision
+with the selected assignments; background reads cannot silently refresh a preview
+into permission to overwrite a newer decision.
+
+### Complete Bulk Role Review and base-role filters
+
+Bulk Review defaults to all active imported user–role assignments matching its
+filters, including users/roles without detected conflicts. Choose Keep, Remove or
+Investigate, explicitly select assignments (or all matching across pages), inspect
+the preview and continue to the final confirmation. Remove is a recommendation,
+never an SAP operation. Reviewer and rationale follow the existing review policy.
+Previously reviewed assignments are excluded by default; including them requires
+an additional replacement confirmation. The preview shows selected users, roles,
+assignments, excluded/unchanged rows and current/proposed decisions. Selection
+outside current filters is counted explicitly. Context, generation and revision
+are frozen; stale or protected atomic submissions save nothing.
+
+The shared Assigned role selector groups only recognized business-role families
+using the existing naming evidence or an explicit catalogue `:*` pattern. New
+family choices and new exact fallback choices are stored separately from legacy
+role/search selections. Multiple choices are OR; exact suffix choices are OR;
+role and suffix categories combine with AND. Unproven suffixes, opaque identifiers,
+release-role tokens and interior wildcard patterns stay exact rather than being
+silently grouped. The current CSV assignment parser remains unchanged; catalogue
+wildcards are not treated as direct transaction assignments.
+
+Saved exact filters are not converted or broadened. Clear/reset removes the new
+family/exact fields as well. Explicit prefix/wildcard modes expose a separate
+pattern input; SAP User Group selections remain exact. All-page previews are
+bounded to 5000 assignments and atomic submissions to 1000: narrow larger scopes
+before confirming. No truncated set is silently applied.
+
+New review periods capture the full assignment cut and catalogue naming evidence
+privately. Current imports never replace that period's evidence. Older immutable
+periods without a full assignment cut retain their original conflict evidence;
+the full-population preview reports that limitation rather than using current
+records. Non-active validity views are for inspection; decisions require active
+reviewable evidence and an editable period.
+
+In Access Explorer → Roles, **Review matching assignments** opens Bulk Review
+with the effective role, suffix, user and group scope and selects the complete
+matching set across pages. This includes assignments without a detected conflict.
+The shortcut never records a decision; inspect the frozen preview and confirm
+explicitly. Returning to Explorer preserves its filters.
+
+The review queue, Dashboard review coverage, review-period progress, remediation
+and reports use the same complete assignment population. An assignment with no
+linked conflict activity can be approved, recommended for removal or investigated;
+it has no invented activity or risk decision. Remediation labels these rows
+**No linked SoD activity**. Conflict counts and formal risk acceptance remain
+independent. Existing immutable periods without a complete assignment snapshot
+continue to use their retained scope.
+
+
+### Compact Bulk Review selection
+
+The shared sidebar owns the scope. Recognized base-role families and exact suffixes
+combine as before; legacy prefix/wildcard/search modes remain under **Advanced role
+matching** without changing saved filters or Explorer handoff.
+
+**Users** and **Assignments** count all current matches; **Eligible** counts those
+that can change under the proposed decision and inclusion policy. These totals
+are calculated server-side, before the bounded preview. Previously reviewed
+assignments are hidden by default. **Include previously reviewed** reveals them
+without selecting them; switching it off clears their selections. Unchanged
+decisions remain non-executable.
+
+The header checkbox selects eligible assignments on the current page, including
+an indeterminate state. When additional pages exist, **Select all N matching
+eligible assignments** selects the complete loaded eligible scope. Selections
+survive pagination. Out-of-filter selections have a separate disclosure and clear
+action; they never enter the operation. A truncated scope cannot be selected all
+at once; narrow it for a complete preview.
+
+Keep, Remove and Investigate change only the proposed decision. The table action
+bar shows the executable selected count. **Preview** and **Review N assignments**
+open the same frozen confirmation with current/proposed assignments, reviewer,
+rationale, filters, period and source/review revisions. **Mark N role assignments
+for removal** records a recommendation, never a SAP change. Reconsidering prior
+decisions requires the additional replacement checkbox. Atomic validation, source
+checks, period gates and per-assignment immutable history are unchanged.
+
+## Remediation CSV exports
+
+**Export CSV** on Remediation is a menu with two formats, both honoring every active Remediation filter (SAP User Group, username, risk, activity, assigned role, role suffix, transaction code, business area, assignment validity, recommended handling and tracking) across all pages, independent of expanded rows:
+
+- **Role Assignments** (`sap-lens-sod-role-assignments-YYYY-MM-DD.csv`): columns `USERNAME;ROLE;SAP User Group;Decision Status`, one row per exact SAP username and assigned role, sorted by username then role. Several activities, risks or validity intervals of the same pair never add rows; display names and descriptions are not used to merge anything. Where one pair has several values the result is deterministic and visible: the SAP User Group is the distinct non-empty groups joined with `, ` (empty when none exists, never invented), and the Decision Status is the authoritative assignment decision when all intervals agree, otherwise `Mixed (A / B)` listing the distinct decisions. It reports the review decision only; remediation actions and verification stay in the detailed export.
+- **Detailed Remediation** (`sap-lens-sod-access-remediation-YYYY-MM-DD.csv`): unchanged columns and activity-level rows for evidence and investigation.
+
+Both use the established CSV conventions (semicolon delimiter, all fields quoted, UTF-8 with BOM, spreadsheet-formula protection).
+
+## Role Evidence: inline Role Assignment Review
+
+The Role Evidence modal of Access Explorer lists every role supplying a risk's activities with its **Status** and **Review actions** (Investigate, Keep, Remove, in that order). The actions use the same service as the Role Assignment Review in the investigation panel (`POST /api/sod/decisions/assignment`), keyed by the assignment id of that SAP user, so a decision never reaches other users with the same role. A role with several assignment intervals shows one row per interval. The reviewer is the authenticated user or a self-reported name entered above the table; an optional rationale is stored with the decision. A row changes only after the server confirmed the save, loading and errors belong to the row, and decisions are not offered where the context is not reviewable (for example frozen periods). Remove records a removal recommendation only: SAP assignments, mappings and evidence snapshots are not modified, and the risk still needs its own approval and formal acceptance. After a save the shared SoD queries (explorer tables, matrices, overview) are refreshed.

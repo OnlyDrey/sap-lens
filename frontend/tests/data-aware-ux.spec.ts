@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { bootstrapDocument } from './bootstrap-fixture'
-import { headers } from './support'
+import { headers, backendFixture, recordClipboard, copiedText } from './support'
 let directory = '', userSource = ''
 const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact:true }).click()
 test.beforeEach(async ({ request }) => {
@@ -13,14 +13,14 @@ test.beforeEach(async ({ request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = path.join(directory, 'catalogue.csv')
   writeFileSync(settings.data_csv_path, 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:BUY,ME23N\n')
-  userSource = path.resolve('../backend/tests/fixtures/user-access.csv')
+  userSource = backendFixture('user-access.csv')
   settings.user_csv_path = userSource
   expect((await request.post('/api/configuration', { headers, data:settings })).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive:true, force:true }) })
 
-test('Back and Forward preserve meaningful views and detail state without reloading startup', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read','clipboard-write'])
+test('Back and Forward preserve meaningful views and detail state without reloading startup', async ({ page }) => {
+  await recordClipboard(page)
   const documents:string[] = []
   page.on('request', request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents.push(request.url()) })
   await page.goto('/#session=browser-test-session')
@@ -37,7 +37,7 @@ test('Back and Forward preserve meaningful views and detail state without reload
   await expect(detail.getByText('Unlocked', {exact:true})).toHaveCount(1)
   await detail.getByRole('button',{name:'Copy username DEMO_OTHER',exact:true}).click()
   await expect(detail.getByText('Copied',{exact:true})).toBeVisible()
-  expect(await page.evaluate(()=>navigator.clipboard.readText())).toBe('DEMO_OTHER')
+  await expect.poll(() => copiedText(page)).toBe('DEMO_OTHER')
   await expect(page.getByRole('navigation', {name:'Account evidence pages'})).toHaveCount(0)
   await expect(detail.locator('details').filter({ hasText: 'User validity and account evidence' })).toHaveCount(0)
   await page.goBack()
@@ -90,8 +90,11 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   await page.goto('/#session=browser-test-session')
   await navigate(page,'User Access')
   let failed = false
+  // While failed, the service stays unreachable until the person clicks Retry: the application's own poll (every 3 s) would
+  // otherwise reconnect first on a slow machine and remove the button under the click, so the recovery is the click's doing.
+  const retried = () => page.evaluate(() => (window as unknown as { retriedConnection?: boolean }).retriedConnection === true).catch(() => false)
   await page.route('**/api/configuration', async route => {
-    if (failed) return route.abort()
+    if (failed) return (await retried()) ? route.fallback() : route.abort()
     try { const response = await route.fetch(); const data = await response.json(); await route.fulfill({json:{...data,loading:true}}) }
     catch { await route.abort().catch(() => {}) } // the request belonged to a page that was navigating away
   })
@@ -103,16 +106,18 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   await expect(page.locator('.startup-screen')).toHaveCount(0)
   failed = true
   // The application-scoped poll detects service loss even while refresh is busy.
-  await expect(page.getByText('Local service unavailable.',{exact:true})).toBeVisible()
+  await expect(page.locator('.session-notice')).toContainText('Connection lost') // the shared session notice replaces the old banner
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toHaveCount(0)
   await expect(page.locator('.startup-screen')).toHaveCount(0)
-  await page.unroute('**/api/configuration')
+  await page.evaluate(() => document.addEventListener('click', event => {
+    if ((event.target as Element | null)?.closest('button')?.textContent?.includes('Retry connection')) (window as unknown as { retriedConnection?: boolean }).retriedConnection = true
+  }, { capture: true }))
   await page.getByRole('button',{name:'Retry connection',exact:true}).click()
-  await expect(page.getByText('Local service unavailable.',{exact:true})).toHaveCount(0)
+  await expect(page.locator('.session-notice')).toHaveCount(0)
   await expect(page.getByRole('heading',{name:'User Access',exact:true})).toBeVisible()
 })
 
-for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data-aware visual QA ${theme} ${width}`, async ({page,request}, info) => {
+for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data-aware visual QA ${theme} ${width}`, { tag: '@visual' }, async ({page,request}, info) => {
   const settings = (await (await request.get('/api/configuration',{headers})).json()).settings
   settings.theme = theme; await request.post('/api/configuration',{headers,data:settings})
   await page.setViewportSize({width,height:900})
@@ -217,4 +222,65 @@ test('bootstrap Unicode survives legacy Python stdout and explicit UTF-8 HTTP de
   await expect(page.getByRole('status')).toHaveText('Starting backend…')
   await page.evaluate(() => (window as unknown as {sapLensStartup:{setState:(label:string)=>void}}).sapLensStartup.setState('Connecting to local service…'))
   await expect(page.getByRole('status')).toHaveText('Connecting to local service…')
+})
+
+test('stale desktop session recovers through a trusted document without replaying failed writes',async({page})=>{
+ await page.goto('/#session=browser-test-session')
+ await navigate(page,'Role Lookup')
+ await page.evaluate(()=>history.replaceState({...history.state,sapLensView:{...history.state.sapLensView,sodFilters:{shared:{groups:['SYN_GROUP']}}}},''))
+ let changed=true,posts=0,newReads=0
+ await page.route('**/api/**',async route=>{
+  const request=route.request(),offered=request.headers()['x-sap-lens']
+  if(request.method()==='POST')posts++
+  if(changed&&offered!=='synthetic-rotated')return route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({detail:'Application request is not authorized.',code:'stale_session'})})
+  if(offered==='synthetic-rotated'){newReads++;return route.continue({headers:{...request.headers(),'x-sap-lens':'browser-test-session'}})}
+  await route.continue()
+ })
+ await page.route('**/',async route=>{
+  if(!route.request().isNavigationRequest())return route.continue()
+  const response=await route.fetch(),body=(await response.text()).replace('<head>',`<head><script nonce="synthetic-recovery">sessionStorage.setItem('sap-lens-session','synthetic-rotated')</script>`)
+  const headers={...response.headers(),'content-security-policy':response.headers()['content-security-policy'].replace("script-src 'self'","script-src 'self' 'nonce-synthetic-recovery'")}
+  await route.fulfill({response,headers,body})
+ })
+ await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
+ // Nothing typed would be lost and no restore ran lately, so the session is re-established automatically through the guarded document; the manual
+ // button (covered by session-recovery.spec.ts) is only offered when that is not safe. The failed write is never replayed.
+ await expect(page.getByRole('heading',{name:'Role Lookup',exact:true})).toBeVisible()
+  await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toHaveCount(0)
+ expect(await page.evaluate(()=>history.state.sapLensView.sodFilters.shared.groups)).toEqual(['SYN_GROUP'])
+ expect(newReads).toBeGreaterThan(0)
+ expect(posts).toBe(1)
+ await expect(page).toHaveURL(/#\/role-lookup/)
+ changed=false
+})
+
+test('asset replacement offers an explicit bounded reload preserving the route',async({page})=>{
+ await page.goto('/#session=browser-test-session')
+ await navigate(page,'User Access')
+ await page.evaluate(()=>window.dispatchEvent(new Event('vite:preloadError',{cancelable:true})))
+ await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toBeVisible()
+ await expect(page).toHaveURL(/#\/user-access/)
+ await page.getByRole('button',{name:'Reload application',exact:true}).click()
+ await expect(page.getByRole('heading',{name:'User Access',exact:true})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toHaveCount(0)
+})
+
+test('a failed optional icon chunk does not replace the application, but any other failed chunk still offers recovery',async({page})=>{
+ await page.goto('/#session=browser-test-session')
+ await navigate(page,'User Access')
+ const handled=await page.evaluate(()=>{const event=Object.assign(new Event('vite:preloadError',{cancelable:true}),{payload:new Error('Failed to fetch dynamically imported module: http://127.0.0.1/assets/IconCatalog-abc123.js')});window.dispatchEvent(event);return event.defaultPrevented})
+ expect(handled).toBe(false) // left to the local fallback
+ const picker=await page.evaluate(()=>{const event=Object.assign(new Event('vite:preloadError',{cancelable:true}),{payload:new Error('Failed to fetch dynamically imported module: http://127.0.0.1/assets/IconPicker-abc123.js')});window.dispatchEvent(event);return event.defaultPrevented})
+ expect(picker).toBe(false) // the picker has its own alert and keeps the saved icon
+ await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toHaveCount(0)
+ await page.evaluate(()=>window.dispatchEvent(Object.assign(new Event('vite:preloadError',{cancelable:true}),{payload:new Error('Failed to fetch dynamically imported module: http://127.0.0.1/assets/Settings-abc123.js')})))
+ await expect(page.getByRole('heading',{name:'Application recovery',exact:true})).toBeVisible()
+})
+
+for(const status of [401,403])test(`HTTP ${status} is access failure, not an unreachable backend`,async({page})=>{
+ await page.route('**/api/configuration',route=>route.fulfill({status,contentType:'application/json',body:JSON.stringify({detail:status===401?'Server access is not authorized.':'Your account does not have permission for this operation.'})}))
+ await page.goto('/#session=browser-test-session')
+ await expect(page.getByRole('alert')).toContainText(status===401?'Server access is not authorized.':'does not have permission')
+ await expect(page.locator('.session-notice')).toHaveCount(0)
+ await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toHaveCount(0)
 })

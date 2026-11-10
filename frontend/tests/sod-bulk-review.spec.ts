@@ -4,6 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { enableSod, headers } from './sod-fixture'
+import { recordClipboard, copiedText } from './support'
 
 /** Suffix CDK, EMS, ES2, ENO, ESH and ENP are all catalogue roles of the same two families, so a pattern-level filter would mix them. */
 const SUFFIXES = ['CDK', 'EMS', 'ES2', 'ENO', 'ESH', 'ENP']
@@ -171,7 +172,7 @@ test('a selection is an explicit list: changing filters never adds assignments t
   await expect(table(page).getByRole('checkbox', { name: /^Select assignment ZC:MM:BUY:EMS/ })).not.toBeChecked()
 })
 
-test('batch Keep is confirmed with a summary, persists per assignment and keeps individual history', async ({ page }) => {
+test('batch Keep is confirmed with a summary, persists per assignment and keeps individual history', { tag: '@workflow' }, async ({ page }) => {
   const before = sourceHashes()
   await openAssignments(page)
   await pick(page, 'Role suffix', 'CDK')
@@ -193,7 +194,8 @@ test('batch Keep is confirmed with a summary, persists per assignment and keeps 
   await expect(toolbar(page)).toHaveCount(0) // saved assignments leave the selection
   await expect.poll(() => roles(page)).toHaveLength(0) // completed decisions leave the default working view
   await reviewStatus(page, 'Reviewed assignments')
-  await expect(table(page).locator('tbody tr').filter({ hasText: 'Keep' })).toHaveCount(3)
+  // A Keep decision is displayed as Approved (the stored and API value stays Keep, asserted below).
+  await expect(table(page).locator('tbody tr').filter({ hasText: 'Approved' })).toHaveCount(3)
   // Each assignment has its own history event.
   const response = await page.request.get('/api/sod/explorer/access_list', { headers, params: { role_suffix: 'CDK', limit: '50' } })
   const items = (await response.json()).items as { id: string; decision: string }[]
@@ -286,10 +288,32 @@ test('partial failures are reported accurately and failed assignments stay selec
   await expect(toolbar(page)).toContainText('2 assignments selected')
 })
 
+test('rows of the previous filter cannot be selected while the filtered rows load', async ({ page }) => {
+  await openAssignments(page)
+  const before = await roles(page)
+  expect(before.length).toBeGreaterThan(1)
+  let release = () => {}
+  const held = new Promise<void>((resolve) => { release = resolve })
+  await page.route('**/api/sod/explorer/access_list?*', async (route) => { if (new URL(route.request().url()).searchParams.toString().includes('ENO')) await held; await route.fallback() })
+  await pick(page, 'Role suffix', 'ENO')
+  await page.keyboard.press('Escape')
+  // the unfiltered rows stay visible while the filtered page loads, but none of them can be selected
+  expect(await roles(page)).toEqual(before)
+  await expect(page.getByRole('checkbox', { name: 'Select all assignments on this page' })).toBeDisabled()
+  await expect(table(page).getByRole('checkbox', { name: /^Select assignment / }).first()).toBeDisabled()
+  await expect(toolbar(page)).toHaveCount(0) // nothing was selected
+  release()
+  await expect.poll(() => roles(page)).toHaveLength(1)
+  await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
+  await expect(toolbar(page)).toContainText('1 assignment selected') // exactly the filtered assignment
+  await page.unrouteAll({ behavior: 'wait' })
+})
+
 test('a rejected request never reports success', async ({ page }) => {
   await openAssignments(page)
   await pick(page, 'Role suffix', 'ENO')
   await page.keyboard.press('Escape')
+  await expect.poll(() => roles(page)).toHaveLength(1) // select the filtered page, not rows of the previous filter
   await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
   await page.route('**/api/sod/decisions/assignment/bulk', (route) => route.fulfill({ status: 409, json: { detail: 'SoD evidence changed. Reload before reviewing.' } }))
   await toolbar(page).getByRole('button', { name: 'Recommend removal', exact: true }).click()
@@ -325,12 +349,12 @@ test('the bulk toolbar stays usable with the filter sidebar open at 800 px and w
     if (width < 1024) await page.keyboard.press('Escape')
     await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
     await expect(toolbar(page)).toBeVisible()
-    for (const name of ['Keep', 'Investigate', 'Recommend removal', 'Clear selection']) await expect(toolbar(page).getByRole('button', { name, exact: true })).toBeVisible()
+    for (const name of ['Investigate', 'Keep', 'Recommend removal', 'Clear selection']) await expect(toolbar(page).getByRole('button', { name, exact: true })).toBeVisible()
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   }
 })
 
-test('multi-select and bulk selection are keyboard operable with visible focus', async ({ page }) => {
+test('multi-select and bulk selection are keyboard operable with visible focus', { tag: '@a11y' }, async ({ page }) => {
   await openAssignments(page)
   const box = page.getByRole('combobox', { name: 'Role suffix', exact: true })
   await box.focus()
@@ -349,9 +373,42 @@ test('multi-select and bulk selection are keyboard operable with visible focus',
   await row.focus(); await page.keyboard.press('Space')
   await expect(toolbar(page)).toContainText('1 assignment selected')
   await expect(row).toHaveCSS('outline-style', 'solid')
-  const names = ['Select all 1 matching', 'Clear selection', 'Keep', 'Investigate', 'Recommend removal']
+  const names = ['Select all 1 matching', 'Clear selection', 'Investigate', 'Keep', 'Recommend removal']
   await toolbar(page).getByRole('button').first().focus()
   const seen: string[] = []
   for (let step = 0; step < names.length; step++) { seen.push(await page.evaluate(() => (document.activeElement as HTMLElement).textContent?.trim() || '')); await page.keyboard.press('Tab') }
   expect(seen).toEqual(names)
+})
+
+test('the removal recommendation modal is compact: four metrics, a details line and a short copyable source revision', async ({ page }) => {
+  await recordClipboard(page)
+  for (const width of [1280, 375]) {
+    await page.setViewportSize({ width, height: 800 })
+    await openAssignments(page)
+    await pick(page, 'Role suffix', 'CDK')
+    await page.keyboard.press('Escape')
+    await expect.poll(() => roles(page)).toHaveLength(3)
+    await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
+    await toolbar(page).getByRole('button', { name: 'Recommend removal', exact: true }).click()
+    const dialog = page.getByRole('dialog', { name: 'Recommend removal' })
+    const summary = dialog.getByRole('region', { name: 'Batch review summary' })
+    await expect(summary.locator('dl.bulk-dialog-summary > div')).toHaveCount(4)
+    await expect(summary.locator('dl.bulk-dialog-summary dt')).toHaveText(['Assignments affected', 'SAP users', 'Distinct roles', 'Role suffixes'])
+    const details = summary.getByRole('list', { name: 'Review details' }).or(summary.locator('dl.bulk-dialog-meta'))
+    await expect(details).toContainText('Proposed decision'); await expect(details).toContainText('Review period'); await expect(details).toContainText('Review revision')
+    const code = summary.locator('.short-hash code')
+    const full = await code.getAttribute('title')
+    expect(full && full.length).toBeGreaterThan(14)
+    const shown = (await code.textContent()) || ''
+    expect(shown).toContain('…'); expect(shown.length).toBeLessThan((full || '').length)
+    expect(await code.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThan(30) // one line
+    await summary.getByRole('button', { name: 'Copy source revision' }).click()
+    await expect.poll(() => copiedText(page)).toBe(full)   // the complete value is copied
+    await expect(summary.getByText('Full source revision:', { exact: false })).toBeAttached()
+    await expect(dialog).toContainText('no role is removed from SAP')
+    const overflow = await dialog.evaluate((element) => element.scrollWidth > element.clientWidth + 1)
+    expect(overflow).toBe(false)
+    await expect(dialog.getByRole('button', { name: /^Recommend removal for/ })).toBeVisible()
+    await dialog.getByRole('button', { name: 'Cancel' }).click()
+  }
 })

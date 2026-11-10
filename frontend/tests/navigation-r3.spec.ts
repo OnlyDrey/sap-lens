@@ -55,7 +55,7 @@ test('submenu and module links keep their real hrefs, and the SoD submenu lists 
   await expect(main(page).getByRole('link', { name: 'SoD', exact: true })).toHaveAttribute('aria-current', 'page')
 })
 
-test('the chevron is keyboard operable and the nav stays usable at 375 px', async ({ page }) => {
+test('the chevron is keyboard operable and the nav stays usable at 375 px', { tag: '@a11y' }, async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 800 })
   await page.goto('/#session=browser-test-session')
   const chevron = main(page).getByRole('button', { name: 'User Access pages' })
@@ -91,7 +91,7 @@ test('secondary navigation, explorer and SoD settings actions carry icons and re
   await expect(page.getByRole('dialog').getByRole('button', { name: /^Source details for risk / })).toBeVisible()
 })
 
-for (const width of [375, 800, 1280]) for (const theme of ['light', 'dark']) test(`submenu overlays the page without scrollbars, size changes or left borders (${theme} ${width})`, async ({ page, request }) => {
+for (const width of [375, 800, 1280]) for (const theme of ['light', 'dark']) test(`submenu overlays the page without scrollbars, size changes or left borders (${theme} ${width})`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
   expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
   await page.setViewportSize({ width, height: 800 })
@@ -115,7 +115,7 @@ for (const width of [375, 800, 1280]) for (const theme of ['light', 'dark']) tes
   await expect(menu).toHaveCount(0)
 })
 
-for (const width of [320, 375, 430, 480, 560, 640, 800, 1000, 1280]) test(`the main navigation never becomes a scroll container, opening a submenu changes nothing and the chevron shows its state (${width}px)`, async ({ page }) => {
+for (const width of [320, 375, 430, 480, 560, 640, 800, 1000, 1280]) test(`the main navigation never becomes a scroll container, opening a submenu changes nothing and the chevron shows its state (${width}px)`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 700 })
   await page.goto('/#session=browser-test-session')
   const scrollers = () => page.evaluate(() => [...document.querySelectorAll('header *')].filter((element) => {

@@ -52,18 +52,20 @@ test('matrix tiles count every review status over the whole filtered matrix and 
 
   await openSod(page, 'Activity Matrix')
   const activity = page.getByRole('region', { name: 'Activity matrix figures' })
-  for (const label of ['Pending activities', 'Approved activities', 'Conditional activities', 'Remove activities', 'Outdated activities']) await expect(activity.getByRole('button', { name: label })).toBeVisible()
+  for (const label of ['Pending activities', 'Approved activities', 'Conditional activities (legacy)', 'Remove activities', 'Outdated activities']) await expect(activity.getByRole('button', { name: label })).toBeVisible()
 })
 
 test('a matrix cell opens only that user-risk and can be widened to the whole user', async ({ page }) => {
   await openSod(page, 'Risk Matrix')
   await cellButton(page, names.a, 'R1').click()
   const panel = page.getByRole('dialog', { name: `${names.a} · R1` })
-  await expect(panel.getByRole('region', { name: 'Risk Acceptance', exact: true }).getByRole('listitem')).toHaveCount(1)
+  await panel.getByRole('tab', { name: /^Risks/ }).click()
+  await expect(panel.getByRole('region', { name: 'Risk Review', exact: true }).getByRole('listitem')).toHaveCount(1)
   await expect(panel).toContainText('Showing only risk R1')
   await panel.getByRole('button', { name: `Show all review items for ${names.a}` }).click()
   const all = page.getByRole('dialog', { name: names.a, exact: true })
-  await expect(all.getByRole('region', { name: 'Risk Acceptance', exact: true }).getByRole('listitem')).toHaveCount(2)
+  await all.getByRole('tab', { name: /^Risks/ }).click()
+  await expect(all.getByRole('region', { name: 'Risk Review', exact: true }).getByRole('listitem')).toHaveCount(2)
   await expect(all).not.toContainText('Showing only')
 })
 

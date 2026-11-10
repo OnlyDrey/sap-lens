@@ -72,6 +72,25 @@ class ConfigurationTests(unittest.TestCase):
         self.assertEqual(len(backups),1);self.assertEqual(backups[0].read_bytes(),raw)
         self.assertIn('migrated',config.configuration_notice())
 
+    def test_concurrent_configuration_reads_share_one_migration_and_notice(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from threading import Barrier
+        raw=b'{"data_csv_path":"C:/synthetic/concurrent.csv"}'
+        (self.root/'settings.json').write_bytes(raw);config.get_settings.cache_clear()
+        gate=Barrier(8)
+        def read(_):
+            gate.wait(timeout=5)
+            return config.get_settings()
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            results=list(pool.map(read,range(8)))
+        self.assertTrue(all(value is results[0] for value in results))
+        self.assertEqual(results[0].data_csv_path,'C:/synthetic/concurrent.csv')
+        self.assertEqual(config.get_settings.cache_info().misses,1)
+        copies=list((self.root/'configuration-backups').glob('migration-v1-*'))
+        self.assertEqual(len(copies),1)
+        self.assertEqual(copies[0].read_bytes(),raw)
+        self.assertIn('migrated',config.configuration_notice())
+
     def test_corruption_and_future_version_are_not_overwritten(self):
         for raw in [b'{invalid',b'{"schema_version":999,"private_field":"retained"}']:
             (self.root/'settings.json').write_bytes(raw);config.get_settings.cache_clear()

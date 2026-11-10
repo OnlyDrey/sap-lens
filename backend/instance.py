@@ -4,7 +4,8 @@ from ctypes import wintypes
 
 
 class WindowsInstance:
-    def __init__(self, kernel=None):
+    def __init__(self, kernel=None, *, name='Local\\SAPLensDesktop'):
+        self.name = name
         self.kernel = kernel or ctypes.WinDLL('kernel32', use_last_error=True)
         self.kernel.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
         self.kernel.CreateMutexW.restype = wintypes.HANDLE
@@ -13,7 +14,7 @@ class WindowsInstance:
         self.handle = None
 
     def acquire(self) -> bool:
-        self.handle = self.kernel.CreateMutexW(None, False, 'Local\\SAPLensDesktop')
+        self.handle = self.kernel.CreateMutexW(None, False, self.name)
         if not self.handle:
             raise OSError('Cannot create the application instance lock')
         # GetLastError must be read immediately after CreateMutexW.

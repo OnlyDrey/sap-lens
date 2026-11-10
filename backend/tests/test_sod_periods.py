@@ -4,6 +4,7 @@ from datetime import date
 from pathlib import Path
 import sys
 import unittest
+from unittest.mock import patch
 from fastapi.testclient import TestClient
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]))
 import cache
@@ -25,6 +26,24 @@ class SodPeriodTests(unittest.TestCase):
         data=periods.details(period['id'])
         for finding in data['snapshot']['analysis']['users']:
             periods.save_review(period['id'],finding['finding_id'],reviews.Annotation(decision='Accepted with mitigating controls',reviewer='Synthetic Reviewer',rationale='Synthetic review justification',mitigating_controls='Synthetic independent check'),periods.read().revision,reviews.read().revision,finding['evidence_version'])
+    def test_reopened_classification_survives_identical_timestamps(self):
+        # Coarse clocks (Windows) give periods created and closed in the same tick one identical stamp: closing at the moment the next period
+        # is created still counts as "closed before", so the earlier observation is not lost.
+        prior=self.create('Prior closed');self.decide_all(prior)
+        for state in ('In review','Ready for approval','Approved / closed'):
+            periods.transition(prior['id'],state,periods.read().revision,reviews.read().revision,reviewer='Synthetic Reviewer',approver='Synthetic Approver',approval_date=date(2026,10,27),confirm=True)
+        original=copy.deepcopy(cache._cache.users.users['SYN_A']['assignments'])
+        cache._cache=copy.deepcopy(cache._cache);cache._cache.users.users['SYN_A']['assignments']=original[:1]
+        left=self.create('Before return')
+        cache._cache=copy.deepcopy(cache._cache);cache._cache.users.users['SYN_A']['assignments']=original
+        right=self.create('After return')
+        index=periods.read()
+        frozen=periods.find(index,prior['id']);stamp=frozen.modified
+        for item in index.items:
+            if item.id in (left['id'],right['id']):item.created=item.modified=stamp   # one clock tick for everything
+        with patch.object(periods,'read',return_value=index):
+            self.assertEqual(periods.compare(left['id'],right['id'])['summary']['Reopened'],1)
+
     def test_snapshot_survives_refresh_and_closure_is_immutable(self):
         period=self.create();identity=period['snapshot'];self.decide_all(period)
         for state in ('In review','Ready for approval','Approved / closed'):

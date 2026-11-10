@@ -48,10 +48,11 @@ test('Remediation awaiting action opens the filtered list and the Overview no lo
 
 test('Conflicts, Reviews and Remediation rows share one height and spacing', async ({ page }) => {
   await openSod(page)
+  await expect(group(page, 'Conflicts').locator('.info-row').first()).toBeVisible() // rows render after the overview request
   const heights = new Set<number>(), tops: number[] = []
   for (const name of ['Conflicts', 'Reviews', 'Remediation']) {
     const rows = group(page, name).locator('.info-row')
-    expect(await rows.count()).toBeGreaterThanOrEqual(4)
+    await expect.poll(() => rows.count()).toBeGreaterThanOrEqual(4)
     for (const box of await rows.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height))) heights.add(Math.round(box))
     tops.push(Math.round((await rows.first().boundingBox())!.y))
   }

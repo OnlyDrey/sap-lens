@@ -1,8 +1,11 @@
 import { Button } from './Button'
 import { StatusPill } from './StatusPill'
 import {
+  createContext,
   forwardRef,
+  useContext,
   useId,
+  useState,
   Children,
   isValidElement,
   cloneElement,
@@ -23,6 +26,10 @@ export const Input = forwardRef<
 export const SearchInput = forwardRef<HTMLInputElement,InputHTMLAttributes<HTMLInputElement> & {onClear?:()=>void}>(function SearchInput({onClear,...props},ref) {
  return <span className="ui-search" data-clearable={!!onClear}><Search size={16} aria-hidden="true"/><Input {...props} ref={ref} type={props.type || 'search'}/>{onClear&&!!props.value&&<Button variant="ghost" size="icon" aria-label={`Clear ${props['aria-label'] || 'search'}`} onClick={event=>{const input=event.currentTarget.previousElementSibling;onClear();if(input instanceof HTMLInputElement)input.focus()}}><X size={14} aria-hidden="true"/></Button>}</span>
 })
+/** Slot at the right of a field's label row; controls (for example the multi-select Clear action) render into it through a portal. */
+const FieldActionSlot = createContext<HTMLElement | null>(null)
+export const useFieldActionSlot = () => useContext(FieldActionSlot)
+
 export function FormField({
   label,
   description,
@@ -33,7 +40,8 @@ export function FormField({
   children: ReactNode
 }) {
   const generated = useId(),
-    help = `${generated}-help`
+    help = `${generated}-help`,
+    [slot, setSlot] = useState<HTMLElement | null>(null)
   let linked = false,
     controlId = generated
   const content = Children.toArray(children).map((child) => {
@@ -55,7 +63,8 @@ export function FormField({
   return (
     <div className="ui-field">
       <label htmlFor={controlId}>{label}</label>
-      {content}
+      <span ref={setSlot} className="ui-field-action" />
+      <FieldActionSlot.Provider value={slot}>{content}</FieldActionSlot.Provider>
       {description && (
         <small id={help} className="ui-description">
           {description}

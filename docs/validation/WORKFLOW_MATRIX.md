@@ -5,7 +5,7 @@ What each workflow is expected to do, how it was validated offline, and what a c
 
 Status classes: Verified on GitHub, Verified offline only, Partially verified, Failed, Pending.
 
-Offline validation means `python scripts/check-workflows.py` (contracts), `python scripts/ci.py lint` (actionlint) and the tests in
+Offline validation means `python scripts/check-workflows.py` (contracts), `python scripts/testing/ci.py lint` (actionlint) and the tests in
 `backend/tests/test_workflows.py`, `test_deployment_selection.py`, `test_deployment_release.py`, `test_deployment_packaging.py`,
 `test_release_automation.py` and `test_test_profiles.py`.
 
@@ -74,22 +74,3 @@ pushed alone.
 
 Add a row or change a status only after a completed run (record its URL) or a new offline test. Never mark a runtime scenario
 verified from a local run.
-
-## Local repair evidence (not GitHub runtime acceptance)
-
-Implementation: `6f64b68`; 1 November 2026. Targeted command:
-`PYTHONPATH=backend:backend/tests .venv/bin/python -W error::DeprecationWarning -m unittest test_deployment_packaging test_windows_package test_deployment_selection test_deployment_release test_workflows test_artifact_zip test_release_automation test_repository_integrity test_repository_privacy -q`
-— **127 passed**. No complete backend or browser suite executed.
-
-Canonical native packager and `scripts/test-native-deployment.py` passed on Linux
-Python 3.12, using a receipt sealed from successful lightweight checks (not bypassed):
-production frontend/type checks, icon catalogue, pinned build-environment audit,
-production npm audit, `pip check`, actionlint and PowerShell parsing. The generated
-runtime lock was audited; exact wheels installed offline with hashes. User-mode
-install/reinstall, import, restart, persistence, backup/restore, upgrade and
-uninstall passed. Native Windows and real systemd were not run.
-
-The `digest-mismatch: error` line was configuration. Native artifact download
-reported identical expected/actual SHA-256 and succeeded. No retries or weaker
-integrity policies were introduced. No corrected GitHub package run has been
-started or marked passed.

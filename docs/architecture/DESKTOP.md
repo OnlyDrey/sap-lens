@@ -1,9 +1,9 @@
-# Windows Desktop 1.2
+# Windows Desktop
 
 ## Runtime scope
 
 For prerequisites, installation, upgrades and recovery use [Windows Desktop](../deployment/WINDOWS_DESKTOP.md).
-For local/Actions commands use [Build](../deployment/BUILD.md). This document owns
+For local/Actions commands use [Build](../BUILD.md). This document owns
 WebView2, listener, native-bridge and shutdown internals, plus native QA boundaries.
 The legacy portable ZIP and the multi-platform installer bundle are distinct
 formats; their exact contents are specified by their canonical packagers.
@@ -29,7 +29,7 @@ Shutdown requests graceful Uvicorn termination, bounds the wait, closes the owne
 | Share unavailable | Cancel the pending load and choose an accessible source; the app can close safely if the filesystem stalls |
 | Port `18743` occupied | No action is normally needed; the desktop automatically chooses another controlled loopback port |
 | Another instance already starting | Wait for its window or switch to it on the taskbar |
-| Other startup failure | Close and reopen; inspect `%LOCALAPPDATA%/SAP Lens/sap-lens.log` for the failed stage/category and check profile permissions |
+| Other startup failure | Use the displayed code and **Log location**, then **Retry startup** when offered. If shutdown is incomplete, close the process fully before restarting; see recovery below. |
 | Source-mode development | Activate `.venv`, install desktop requirements and build the frontend, then run `.\.venv\Scripts\pythonw.exe backend\desktop.py` from the repository root |
 
 Settings are stored per user, independently of the EXE. Logs omit source paths, data and launch capabilities. A normal exit removes `runtime.json`. Forced OS termination may leave this non-secret diagnostic file; the next owned launch replaces it. No service worker caches SAP responses.
@@ -40,7 +40,7 @@ Settings are stored per user, independently of the EXE. Logs omit source paths, 
 Deployment packaging wraps its verified portable payload with the per-user Setup
 and manifest; it does not implement a second desktop application build. UPX stays
 disabled. [CI](../development/CI.md) owns workflow orchestration and
-[Build](../deployment/BUILD.md) owns user commands.
+[Build](../BUILD.md) owns user commands.
 
 The packaged smoke test uses isolated synthetic settings and checks PE resources,
 GUI subsystem, instance identity, readiness, origin/capability enforcement, visible
@@ -57,7 +57,7 @@ Linux tests mock the native GUI, registry and mutex APIs; they do not establish 
 - Missing-runtime message on a PC without WebView2; organizational signing, SmartScreen, endpoint and filesystem policies.
 - Visual layout, comparison interactions, theme toggle and keyboard behavior in WebView2.
 
-See [validation record](../archive/validation/VALIDATION.md) for measured local results versus pending Windows results.
+See [validation tracker](../validation/README.md) for measured local results versus pending Windows results.
 
 The settings UI also supports native logo selection, portable configuration Save dialogs and opening the per-user configuration folder. Saved organization/theme/profile/logo settings survive upgrades; user assets are never bundled into later builds. Test these dialogs and persistence on actual Windows alongside the CSV picker. Unexpected owned-server death is reported and closes the window; a failed service is not left behind a seemingly working interface.
 
@@ -67,10 +67,10 @@ Version 1.2 introduces a responsive branded startup document, full-window settin
 
 `backend/requirements.txt` contains application/API dependencies. `requirements-desktop.txt` adds the native WebView runtime, `requirements-dev.txt` adds backend tests, and `requirements-build.txt` adds PyInstaller and pinned build pip to desktop runtime dependencies. `scripts/requirements-audit.txt` pins audit tooling for the separate host interpreter. The canonical build script installs build and test requirements into its isolated environment; normal source-mode desktop execution needs only desktop requirements. Node 24 LTS is recommended; the build toolchain accepts Node 24 or 25. User configuration is not a developer/build input.
 
-The canonical build also creates the SHA-256 manifest and runs `scripts/verify-windows-package.py` before delivery. The verifier checks the PE GUI subsystem, checksum, required bundled assets and absence of known private configuration/CSV/log entries. The GitHub workflow uploads the same verified output; it does not maintain a second checksum implementation.
+The canonical build also creates the SHA-256 manifest and runs `scripts/packaging/verify-windows-package.py` before delivery. The verifier checks the PE GUI subsystem, checksum, required bundled assets and absence of known private configuration/CSV/log entries. The GitHub workflow uploads the same verified output; it does not maintain a second checksum implementation.
 
 
-Role Lookup, User Access, Release Roles and legacy configuration compatibility are documented in [User Access](../features/USER_ACCESS.md). See [UI refinement](../archive/validation/UI_REFINEMENT.md) for data-source navigation, filter availability and area-color behavior.
+Role Lookup, User Access, Release Roles and legacy configuration compatibility are documented in [User Access](../features/USER_ACCESS.md). See [Filters](../features/FILTERS.md) for filter availability and [Navigation patterns](NAVIGATION.md) for data-source navigation.
 
 ## Download integrity and execution failures
 
@@ -217,3 +217,134 @@ ready; no timeout or page reload loses investigation context. Root/API host, ori
 CSP, session capability, loopback binding and selected-port rules remain unchanged.
 See the [desktop guide](../deployment/WINDOWS_DESKTOP.md#optional-system-tray-operation)
 for user options, startup cleanup and native acceptance criteria.
+
+## Startup investigation (2026-11-04)
+
+The launch path is `desktop.run` → exclusive storage lease → stopped-store
+backup/restore recovery → reserved socket → trusted startup HTML → `create_app`
+→ owned Uvicorn thread → ASGI lifespan → HTTP identity check → compiled frontend.
+Configuration uses versioned JSON recovery/migration. There is no database
+connection/migration stage in this launch path; individual persistent stores are
+opened by their existing services. Backup/restore recovery must finish under the
+lease before any scheduler or data writer starts. CSV restoration is background
+work and must not be confused with failure of the HTTP service.
+
+Confirmed gaps at the investigation baseline (`be6e6c6`): one failed HTTP probe
+aborts startup; the generic failure hides its stage/exception; file logging starts
+after storage recovery; no controlled retry exists. The Windows intermittent
+trigger has not been reproduced or established from a user runtime log.
+
+The launcher serves existing `frontend/dist`; it never invokes Node, Vite or a
+frontend build. Vite `PLUGIN_TIMINGS` measures the separate build command and is
+not evidence of desktop runtime startup latency. No build dependencies or timing
+constants were changed during this investigation.
+
+## Readiness, diagnostics and controlled recovery
+
+Readiness requires Uvicorn's ASGI initialization to complete **and** a successful
+HTTP `/health` response with `app=sap-lens`, the current attempt's instance identity
+and a recognized status. A TCP connection alone is insufficient. The launcher
+uses its reserved `127.0.0.1` listener, bypasses network proxies for that loopback
+probe and refuses redirects. It never probes, kills or attaches to an unrelated
+listener on the preferred port. An occupied preferred port falls back to an
+OS-assigned port.
+
+Each HTTP attempt is bounded to 0.5 seconds, with at most 0.1 seconds between
+failed probes. Worker termination is checked during polling. The initialization /
+readiness budget remains **15 seconds** by default; administrators can explicitly
+set `SAP_LENS_DESKTOP_STARTUP_TIMEOUT` to a number from 1 through 180 seconds for a
+measured slow machine. Invalid values fail with `INVALID_STARTUP_TIMEOUT`.
+This setting does not alter server deployments or the separate WebView loading
+budget, and cannot forcibly interrupt blocked OS filesystem calls.
+
+Configuration and stopped-store recovery remain correctness prerequisites.
+The scheduler starts once per app lifespan and is cancelled, together with the
+initial data-load task, on shutdown or lifespan failure. Background CSV loading
+may return `loading` or `needs_configuration`; neither means that the local HTTP
+service crashed. The normal frontend shows source progress/errors afterward.
+There is no separate SQL initialization/migration stage in this runtime.
+
+Startup logs are written to `config_dir()/sap-lens.log` (2 MB rotation, two
+backups), before backup/restore recovery. Normally this is
+`%LOCALAPPDATA%/SAP Lens` on Windows and the configured per-user application data
+folder on Linux; `SAP_LENS_CONFIG_DIR` selects the supported override. The native
+**Log location** action reveals the actual configured location on request. File
+logging failure is handled without crashing an otherwise usable runtime; check
+permissions if no current log can be written.
+
+Records include UTC timestamp, attempt ID, elapsed milliseconds, stage, host/port,
+PID and worker outcome. The backend shares the desktop PID: it is a thread, not a
+child process. Traceback records retain exception types and source file/line/
+function locations only, excluding exception values, source lines, locals,
+capabilities and imported records. Worker outcome is not an OS child exit code.
+A stale `runtime.json` is diagnostic only; ownership comes from the instance and
+storage leases, never from trusting a saved PID or contacting its recorded port.
+
+| Startup code | Meaning / recovery |
+| --- | --- |
+| `CONFIGURATION_FAILED` | Configuration could not initialize; inspect the sanitized trace and storage permissions, then retry. |
+| `APPLICATION_INIT_FAILED` | An application/loader/scheduler constructor failed; inspect the stage and trace. |
+| `BACKEND_EXITED` | The owned worker stopped before or during readiness; inspect initialization events. |
+| `INITIALIZATION_TIMEOUT` | ASGI startup exceeded its deadline; investigate initialization before extending the budget. |
+| `READINESS_TIMEOUT` | No valid HTTP readiness response arrived within the budget. |
+| `UNEXPECTED_SERVICE` | Wrong/malformed response or redirect; no other service is accepted. |
+| `ASSETS_MISSING` | Compiled frontend directory is missing; rebuild or reinstall the package. |
+| `WINDOW_TIMEOUT` | The startup document did not load; verify WebView2. |
+
+On a recoverable failure, **Retry startup** requests a real native restart attempt;
+it does not reload React. The same supervising thread first stops the owned
+backend and closes its listener. Only after confirmed shutdown can it reserve a
+fresh listener and identity and create one replacement app/scheduler. Duplicate
+retry clicks are rejected. Storage recovery is not rerun against live stores.
+If a backend thread cannot stop, retry is unavailable: fully exit SAP Lens (tray
+**Exit SAP Lens**, rather than just hiding the window) before relaunching. No
+remote server-restart endpoint or process-wide termination command was added.
+
+Targeted Linux HTTP and fault-injection tests establish these contracts. They do
+**not** establish that the reported intermittent Windows/WebView2 failure is
+resolved. Repeated source-mode and packaged EXE launches on the affected Windows
+machine, including recovery and explicit tray exit, remain required. Retain the
+new attempt diagnostics if the failure recurs. Vite timing findings remain
+separate from this runtime validation.
+
+## Session lifecycle and recovery states
+
+One shared state (`frontend/src/lib/sessionState.ts`, written only by the API client, read through `useSession`) tracks the local session:
+`connecting` (before the first answer), `connected`, `disconnected` (the service is unreachable; reads retry with the existing bounded
+query retries and the notice offers **Retry connection**), `manual` (the backend rejected the capability as `stale_session`),
+`reconnecting` and `failed`. A stale session is never cleared by a later success: only an explicit **Reconnect session** (a reload
+through the guarded root document) leaves `manual`. While the session is `manual`, `reconnecting` or `failed`, the client refuses
+every `/api` request locally, so a stale page cannot produce a request storm and no write is sent, queued or replayed.
+
+Presentation: one compact `SessionNotice` at application level (title, one sentence, the action that works for the state,
+expandable **Technical details** with state, category, failure count and time; never the capability). Pages show a compact
+contextual empty state ("Unable to load user details") through `QueryState` and `ErrorState` and do not repeat the message,
+the record-navigation note or the reconnect action. If open dialogs or forms hold typed text, Reconnect first asks for
+confirmation because the reload discards it; nothing is saved or resubmitted automatically, and stale-revision checks are unchanged.
+
+Cause: a desktop launch generates one capability per process and hands it over only through the guarded root document, so the warning
+can only appear when a page holds a capability that does not match the running backend (an old window or tab after a restart, or a
+second instance). A normal launch must not show it; if it does, record the Technical details and the startup log (Settings → Health &
+Diagnostics) and report them.
+
+## Open browser tabs after a restart
+
+The API capability is per launch; an old tab retains its previous capability until
+it navigates through the trusted root document. A rejected desktop capability now
+returns a safe `stale_session` classification, distinct from unreachable service,
+server sign-in (401), and permission/origin failures (403). The shared notice offers
+**Reconnect session** rather than claiming the backend is unavailable.
+
+Recovery is explicit: it reloads the same configured origin's root, retaining the
+hash route and existing safe view/filter history. It never fetches a capability
+through an unguarded API, switches host/port, loosens CORS, or replays a failed
+write. Unsaved form input may be lost, as the recovery notice explains. A temporary
+outage can use the existing bounded read/retry controls instead. Changed lazy
+assets show an explicit reload fallback; no automatic reload loop is introduced.
+
+Supported path-style entry points (`/dashboard`, `/role-lookup`, `/user-access`,
+`/release-roles`, `/sod` and their nested paths) redirect to the existing hash
+router. API, asset and unknown root paths retain their normal handlers/404s.
+Host/port, peer, Origin and document handoff checks still apply. `localhost` and
+`127.0.0.1` work only as explicitly permitted by the owned desktop listener;
+server authentication and configured trusted origins remain independent.

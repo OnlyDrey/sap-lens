@@ -21,7 +21,7 @@ spec=importlib.util.spec_from_file_location('deploy_packages',ROOT/'scripts/depl
 pkg=importlib.util.module_from_spec(spec);spec.loader.exec_module(pkg)
 
 
-@unittest.skipUnless(shutil.which('pwsh'), 'PowerShell 7 is required for HTTP exception regressions')
+@unittest.skipUnless(shutil.which('powershell' if os.name == 'nt' else 'pwsh') or shutil.which('pwsh'), 'Windows PowerShell 5.1 (Windows) or PowerShell 7 is required for HTTP exception regressions')
 class DesktopHttpTests(unittest.TestCase):
     def test_only_a_real_forbidden_response_passes_the_session_check(self):
         class Handler(http.server.BaseHTTPRequestHandler):
@@ -59,14 +59,14 @@ Assert-DesktopSessionDenied $env:SMOKE_TEST_ORIGIN
                 for code in (403, 200, 401, 500):
                     Handler.code = code
                     with self.subTest(status=code):
-                        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+                        result = subprocess.run([(shutil.which('powershell') if os.name == 'nt' else None) or shutil.which('pwsh'), '-NoProfile', '-Command', script],
                                                 env=env, capture_output=True, timeout=20)
                         self.assertEqual(result.returncode == 0, code == 403, result.stderr.decode(errors='replace'))
             finally:
                 server.shutdown()
                 thread.join(timeout=5)
         # A connection failure must never count as evidence of denied access.
-        result = subprocess.run(['pwsh', '-NoProfile', '-Command', script],
+        result = subprocess.run([(shutil.which('powershell') if os.name == 'nt' else None) or shutil.which('pwsh'), '-NoProfile', '-Command', script],
                                 env=env, capture_output=True, timeout=20)
         self.assertNotEqual(result.returncode, 0)
 
@@ -76,6 +76,39 @@ class PackagingTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
         self.info=pkg.make_build_info('build','0.1.0','a'*40,'123','9',1)
     def tearDown(self):self.temp.cleanup()
+    def test_all_platform_names_agree_with_publisher_and_local_builder(self):
+        def load(name):
+            spec=importlib.util.spec_from_file_location(name,next((ROOT/'scripts').rglob(name+'.py')))
+            value=importlib.util.module_from_spec(spec);spec.loader.exec_module(value);return value
+        release=load('deployment-release');builder=load('build-deployments')
+        cases=[('Windows-Desktop-x64','windows-desktop','desktop','sap-lens-win-desktop-x64-v'),
+               ('Windows-Service-x64','windows-service','service','sap-lens-win-service-x64-v'),
+               ('Linux-Docker-amd64','linux-docker','docker','sap-lens-linux-docker-amd64-v'),
+               ('Linux-Native-x64','linux-native','linux-native','sap-lens-linux-native-x64-v')]
+        for platform,package,target,prefix in cases:
+            with self.subTest(platform=platform):
+                source=self.root/platform;source.mkdir();(source/'README.md').write_text('synthetic')
+                with patch.object(pkg,'identity',return_value=self.info):
+                    archive=pkg.finish(source,platform,self.root/'out')
+                extension='.zip' if platform.startswith('Windows') else '.tar.gz'
+                self.assertEqual(archive.name,prefix+self.info['version']+extension)
+                self.assertEqual(release.PACKAGES[package][2:4],builder.STEMS[target])
+                self.assertEqual(archive.name,f'sap-lens-{builder.STEMS[target][0]}-v{self.info["version"]}{extension}')
+
+    def test_renamed_desktop_archive_still_runs_desktop_distribution_verifier(self):
+        spec=importlib.util.spec_from_file_location('download',ROOT/'scripts/deployment/check-deployment-download.py')
+        download=importlib.util.module_from_spec(spec);spec.loader.exec_module(download)
+        source=self.root/'source';source.mkdir();(source/'README.md').write_text('synthetic')
+        with patch.object(pkg,'identity',return_value=self.info):
+            pkg.finish(source,'Windows-Desktop-x64',self.root/'out')
+            with patch.object(download.importlib.util,'module_from_spec',return_value=pkg), \
+                    patch.object(download.importlib.util,'spec_from_file_location') as loader, \
+                    patch.object(subprocess,'run') as verifier:
+                loader.return_value.loader.exec_module.return_value=None
+                download.check(self.root/'out')
+            self.assertIn('verify-desktop-distribution.py',str(verifier.call_args.args[0]))
+            verifier.assert_called_once()
+
     def test_repeated_packaging_preserves_existing_archive_and_rejects_output_inside_bundle(self):
         for platform in ('Windows-Desktop-x64','Linux-Native-x64'):
             source=self.root/platform;source.mkdir();(source/'README.md').write_text('synthetic')
@@ -100,6 +133,15 @@ class PackagingTests(unittest.TestCase):
         with self.assertRaises(ValueError):pkg.verify_extract(self.root/'extra.tar.gz',self.root/'extra',pkg.sha(self.root/'extra.tar.gz'))
         for name in ['settings.json','records.csv','csv-data/snapshots/private.json','access.secret','../outside']:
             with self.subTest(name=name),self.assertRaises(ValueError):pkg.privacy([name])
+    def test_desktop_manifest_is_grouped_and_exact_contents_survive_roundtrip(self):
+        source=self.root/'installer';source.mkdir();(source/'Setup.exe').write_bytes(b'synthetic')
+        (source/'metadata').mkdir();(source/'metadata/installer-verification.json').write_text('{}')
+        with patch.object(pkg,'identity',return_value=self.info):archive=pkg.finish(source,'Windows-Desktop-x64',self.root/'out')
+        restored=self.root/'restored-desktop';manifest=pkg.verify_extract(archive,restored,pkg.sha(archive))
+        self.assertEqual(manifest['layout'],'installer-only-v1')
+        self.assertTrue((restored/'metadata/package-manifest.json').is_file())
+        self.assertFalse((restored/'package-manifest.json').exists())
+
     def test_zip_traversal_duplicates_and_symlinks_rejected(self):
         for names in [['../escape'],['same','SAME']]:
             archive=self.root/'bad.zip'
@@ -149,6 +191,21 @@ class PackagingTests(unittest.TestCase):
             with patch.object(pkg.subprocess,'run'),self.assertRaises(ValueError):pkg.require_ci()
 
 
+    def test_curated_defaults_survive_archive_roundtrip_and_all_runtime_copy_contracts(self):
+        resource=ROOT/'backend/resources/reference-defaults.json'
+        source=self.root/'defaults-source';destination=source/'backend/resources/reference-defaults.json'
+        destination.parent.mkdir(parents=True);destination.write_bytes(resource.read_bytes())
+        with patch.object(pkg,'identity',return_value=self.info):
+            archive=pkg.finish(source,'Linux-Native-x64',self.root/'default-output')
+        extracted=self.root/'defaults-extracted'
+        pkg.verify_extract(archive,extracted,pkg.sha(archive))
+        self.assertEqual((extracted/'backend/resources/reference-defaults.json').read_bytes(),resource.read_bytes())
+        self.assertIn('COPY backend/resources/',(ROOT/'Dockerfile').read_text())
+        self.assertIn("shutil.copytree(ROOT/'backend/resources',target/'backend/resources')",(ROOT/'scripts/deployment-package.py').read_text())
+        for script in ('build-windows.ps1','build-server-windows.ps1'):
+            self.assertIn("Join-Path $root 'backend/resources'",next((ROOT/'scripts').rglob(script)).read_text())
+
+
 class OrchestrationTests(unittest.TestCase):
     def test_native_installer_compiler_preflight_cannot_be_removed_skipped_or_delayed(self):
         spec=importlib.util.spec_from_file_location('installer_workflow_rules',ROOT/'scripts/check-workflows.py')
@@ -156,7 +213,7 @@ class OrchestrationTests(unittest.TestCase):
         current=rules.load_workflows();rules.validate(current)
         for change in ('removed','conditional','late','broad-diagnostics','always-diagnostics'):
             bad=copy.deepcopy(current);steps=bad['build-deployments.yml']['jobs']['desktop']['steps']
-            compiler=next(step for step in steps if 'build-desktop-installer.ps1 -CompileCheck' in step.get('run',''))
+            compiler=next(step for step in steps if 'build-desktop-installer.ps1 -CompileCheck' in rules.canonical_run(step.get('run','')))
             diagnostics=next(step for step in steps if step.get('name')=='Preserve isolated installer setup diagnostics on failure')
             if change=='removed':steps.remove(compiler)
             elif change=='conditional':compiler['if']='false'
@@ -203,17 +260,17 @@ class OrchestrationTests(unittest.TestCase):
         # Use the actual script's rooted variables and data arguments, not another packaging implementation.
         assignments=dict(re.findall(r"\$(\w+)=Join-Path \$root '([^']+)'",script))
         sources=re.findall(r'--add-data "\$(\w+);([^"\n]+)"',script)
-        self.assertEqual(len(sources),4)
+        self.assertEqual(len(sources),5)
         with tempfile.TemporaryDirectory(prefix='SAP Lens server ø ') as directory:
             root=Path(directory);spec=root/'backend/build/server';spec.mkdir(parents=True)
             for variable,destination in sources:
                 self.assertIn(variable,assignments)
                 source=root/assignments[variable]
-                if variable=='frontendDist':source.mkdir(parents=True);(source/'index.html').write_text('synthetic compiled frontend')
+                if variable in {'frontendDist','resources'}:source.mkdir(parents=True);(source/'synthetic.json').write_text('{}')
                 else:source.parent.mkdir(parents=True,exist_ok=True);source.write_bytes(b'synthetic asset')
                 self.assertTrue(source.is_absolute() and source.exists())
                 self.assertFalse((spec/assignments[variable]).exists())
                 windows_source=PureWindowsPath('D:/a/SAP Lens ø')/assignments[variable]
                 self.assertTrue(windows_source.is_absolute())
-                self.assertIn(destination,{'frontend/dist','assets','.'})
+                self.assertIn(destination,{'frontend/dist','assets','.','resources'})
             self.assertIn("--paths (Join-Path $root 'backend')",script)

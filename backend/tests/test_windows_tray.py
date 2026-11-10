@@ -199,7 +199,7 @@ class TrayPersistenceTests(unittest.TestCase):
                 async def load(configuration):
                     entered.set();await release.wait();config.save_configuration(configuration,configuration.revision)
                 app.state.loader.load=load
-                value=config.get_settings().model_dump(mode='json');value['data_csv_path']=str(Path(root)/'synthetic.csv');value['desktop']={'close_to_tray':True,'run_at_signin':True,'start_minimized':False}
+                value=config.get_settings().model_dump(mode='json');value['data_csv_path']=str(Path(root)/'role-catalogue.csv');value['desktop']={'close_to_tray':True,'run_at_signin':True,'start_minimized':False}
                 from fastapi import HTTPException
                 from configuration_routes import configuration_router
                 router=configuration_router(app.state.loader,desktop_preferences=change)

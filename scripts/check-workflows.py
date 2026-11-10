@@ -2,6 +2,7 @@
 
 actionlint supplies the independent GitHub schema/expression/shell validation.
 """
+import copy
 from fnmatch import fnmatchcase
 from pathlib import Path
 import re
@@ -63,7 +64,27 @@ def validate_graph(jobs):
         visit(name)
 
 
+def canonical_run(command):
+    """Expand only exact engine CI adapter spellings for contract inspection."""
+    aliases={('test','validation'):'python scripts/testing/ci.py', ('build','windows-stage'):'./scripts/build-windows.ps1', ('build','installer-check'):'./scripts/build-desktop-installer.ps1',
+             ('package','windows-package'):'./scripts/package-windows-deployment.ps1', ('package','native-package'):'python scripts/deployment-package.py',
+             ('package','docker-package'):'python scripts/deployment/package-docker.py', ('release','deployment-release'):'python scripts/deployment/deployment-release.py',
+             ('release','legacy-release'):'python scripts/packaging/release-windows.py'}
+    for (mode,tool),canonical in aliases.items():
+        prefix=f'python scripts/build.py {mode} --ci-tool {tool} --non-interactive'
+        command=command.replace(prefix+' -- ',canonical+' ')
+        if tool=='validation':command=command.replace(prefix+' --scope full -- ',canonical+' ')
+        if tool=='windows-stage':
+            command=command.replace(prefix+' --benchmark-packaging "$env:BENCHMARK_PACKAGING" -- ',canonical+' ')
+    return command
+
+
 def validate(workflows):
+    workflows=copy.deepcopy(workflows)
+    for workflow in workflows.values():
+        for job in workflow['jobs'].values():
+            for step in job['steps']:
+                if 'run' in step:step['run']=canonical_run(step['run'])
     def require(condition, message):
         if not condition:
             raise ValueError(message)
@@ -107,11 +128,12 @@ def validate(workflows):
     plan_commands='\n'.join(step.get('run','') for step in plan['steps'])
     require('needs' not in plan and plan['runs-on']=='ubuntu-22.04' and int(plan['timeout-minutes'])<=5, 'Selection must be resolved first by a lightweight job')
     require('deployment-release.py plan' in plan_commands and 'pip install' not in plan_commands and 'npm' not in plan_commands, 'The planning job may only run the stdlib planner')
-    require(set(plan['outputs'])=={'packages','desktop','service','docker','native'}, 'The plan must expose the resolved packages once')
+    require(set(plan['outputs'])=={'base','sequence','packages','desktop','service','docker','native'}, 'The plan must expose the resolved packages once')
     require(deployment['jobs']['validation']['needs']=='plan', 'Expensive validation may only start after a valid selection')
     require(plan['env']['DEPLOYMENT_TARGET']=='${{ inputs.build_target }}', 'The plan resolves exactly the dispatched build target')
     require(plan['env'].get('BASE_VERSION')=='${{ inputs.version }}' and plan['env'].get('DEPLOYMENT_CHANNEL')=='${{ inputs.release_channel }}'
             and plan['env'].get('DEPLOYMENT_SEQUENCE')=='${{ inputs.prerelease_number }}', 'Version inputs must be validated in the stdlib planning job')
+    require(deployment['jobs']['validation']['env']['BASE_VERSION']=='${{ needs.plan.outputs.base }}' and deployment['jobs']['validation']['env']['DEPLOYMENT_SEQUENCE']=='${{ needs.plan.outputs.sequence }}', 'Resolved version must be reused without reallocating')
     for key in ('desktop','service','docker','native'):
         job=deployment['jobs'][key]
         require(job['needs']==['plan','validation'], 'Platform jobs must depend only on the selection and shared validation')
@@ -144,40 +166,44 @@ def validate(workflows):
     require(isinstance(deployment_publish.get('environment'),dict),'Publication must run in a protected environment')
     require(deployment_publish['environment']['name']=="${{ inputs.release_channel == 'Stable / Production' && 'sap-lens-stable' || 'sap-lens-beta' }}", 'Stable release protection must be retained')
     commands=[s.get('run','') for s in deployment_publish['steps']]
-    require('python scripts/deployment-release.py preflight' in commands and 'python scripts/deployment-release.py publish --directory dist/publication' in commands, 'Publication eligibility and asset verification are mandatory')
+    require('python scripts/deployment/deployment-release.py preflight' in commands and 'python scripts/deployment/deployment-release.py publish --directory dist/publication' in commands, 'Publication eligibility and asset verification are mandatory')
     require(all('if' not in s for s in deployment_publish['steps']), 'Publication safeguards may not be conditionally skipped')
     download=next(s for s in deployment_publish['steps'] if s.get('uses','').startswith('actions/download-artifact@'))
     require(download['with']=={'artifact-ids':'${{ steps.eligible.outputs.artifact_ids }}','path':'dist/publication','merge-multiple':'true','digest-mismatch':'error'}, 'Collect only selected immutable same-run artifacts with strict digests')
     require(deployment_publish['env'].get('DEPLOYMENT_IDENTITY')=='${{ needs.validation.outputs.identity }}' and deployment_publish['env'].get('DEPLOYMENT_NEEDS')=='${{ toJSON(needs) }}' and deployment_publish['env'].get('PUBLISH_RELEASE')=='${{ inputs.publish_release }}', 'Publication context must come from validated job results')
-    require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') or ('deployment-release.py' in s.get('run','') and key!='publish' and not (key=='plan' and s.get('run','').strip()=='python scripts/deployment-release.py plan')) for key,j in deployment['jobs'].items() for s in j['steps']), 'Build jobs may not publish releases or images')
-    require(fast['on'] == {'push': {'branches': ['work', 'main']}, 'pull_request': {'branches': ['main']}}, 'Fast runs on pushes to work and main and on pull requests to main')
+    require(not any(s.get('uses','').startswith('actions/') and 'login' in s.get('uses','') or 'release-windows.py publish' in s.get('run','') or ('deployment-release.py' in s.get('run','') and key!='publish' and not (key=='plan' and s.get('run','').strip()=='python scripts/deployment/deployment-release.py plan')) for key,j in deployment['jobs'].items() for s in j['steps']), 'Build jobs may not publish releases or images')
+    require(fast['on'] == {'push': {'branches': ['main']}}, 'CI policy: Fast Validation runs on push to main only (merges); no work, feature-branch or pull_request trigger')
+    for name, workflow in workflows.items():
+        triggers = workflow['on']
+        require(not ({'pull_request', 'pull_request_target', 'workflow_run', 'workflow_call', 'schedule', 'release', 'create', 'delete', 'issue_comment', 'repository_dispatch'} & set(triggers)),
+                f'CI policy: {name} may not be triggered by pull requests, other workflows, schedules or repository events')
+        require(set(triggers) <= {'push', 'workflow_dispatch'} and ('push' not in triggers or name == 'validate.yml'), f'CI policy: only validate.yml may run on push; {name} is dispatched by hand only, with the repository owner\'s authorization')
+        require('work' not in str(triggers.get('push', {}).get('branches', [])), f'CI policy: {name} may not run on pushes to work')
     require(set(full['on']) == {'workflow_dispatch'}, 'Full Regression is manual only: no push, pull request, schedule or workflow_call trigger')
     require(int(fast['jobs']['fast']['timeout-minutes']) <= 15, 'Fast Validation must stay a short job')
     # Full Regression is evidence, never a prerequisite: nothing that builds or publishes may run the complete suites or consult a regression result.
     for name in ('build-deployments.yml', 'build-windows.yml'):
         text = '\n'.join(str(step) for job in workflows[name]['jobs'].values() for step in job['steps'])
-        require('run-tests.py regression' not in text and 'unittest discover' not in text and 'test:browser' not in text and '-Stage Backend' not in text and '-Stage Browser' not in text,
+        require('run-tests.py regression' not in text and 'run-tests.py full' not in text and 'unittest discover' not in text and 'test:browser' not in text and '-Stage Backend' not in text and '-Stage Browser' not in text and '--scope full' not in text and '--level full' not in text,
                 f'{name} may not run the complete backend or browser suites')
         require(all('workflow_run' not in job.get('if', '') and 'full-validation' not in str(job).lower() for job in workflows[name]['jobs'].values()), f'{name} may not depend on a Full Regression result')
         require('workflow_run' not in workflows[name]['on'] and 'workflow_call' not in workflows[name]['on'], f'{name} is dispatched by hand only')
     for script in ('deployment-release.py', 'release-windows.py', 'deployment-package.py'):
-        source = (ROOT / 'scripts' / script).read_text(encoding='utf-8').lower()
+        source = next((ROOT / 'scripts').rglob(script)).read_text(encoding='utf-8').lower()
         require('full-validation' not in source and 'full validation' not in source and "'backend', 'browser'" not in source, f'{script} may not require a Full Regression result or the complete suites')
     require(not ({'backend', 'browser'} & set(re.findall(r"CHECKS=\{([^}]*)\}", (ROOT / 'scripts/deployment-package.py').read_text(encoding='utf-8'))[0].replace("'", '').split(','))), 'The sealed validation receipt may not require the complete suites')
     require(set(windows['on']) == {'workflow_dispatch'}, 'Windows must be manual-only')
-    require(fast['concurrency']['cancel-in-progress'] == 'true' and
-            'github.event_name' in fast['concurrency']['group'] and
-            'github.event.pull_request.number' in fast['concurrency']['group'], 'Fast push and PR concurrency must be isolated')
+    require(fast['concurrency']['cancel-in-progress'] == 'false' and 'github.ref' in fast['concurrency']['group'] and 'pull_request' not in str(fast), 'Every push to main is validated; Fast Validation has no pull request context')
     require(full['concurrency']['cancel-in-progress'] == 'false' and 'github.ref' in full['concurrency']['group'], 'A manual Full Regression is never cancelled by another dispatch')
     require(windows['concurrency'] == {'group': 'sap-lens-windows-distribution', 'cancel-in-progress': 'false'}, 'Manual builds must be serialized without cancelling active builds')
     require(set(windows['jobs']) == {'reserve-version', 'windows-exe', 'publish-release'}, 'Keep the complete Windows build together; isolate publication')
     allocator = windows['jobs']['reserve-version']
     require(allocator['if'] == "${{ inputs.release_mode != 'build' }}", 'Build mode may not reserve tags')
     require(allocator['outputs'] == {'metadata':'${{ steps.allocate.outputs.metadata }}'}, 'Reservation must return its fixed identity')
-    require(any(s.get('run') == 'python scripts/release-windows.py allocate' and 'if' not in s for s in allocator['steps']), 'Version reservation must precede packaging')
+    require(any(s.get('run') == 'python scripts/packaging/release-windows.py allocate' and 'if' not in s for s in allocator['steps']), 'Version reservation must precede packaging')
     build = windows['jobs']['windows-exe']
     require(build['needs'] == 'reserve-version' and build['if'] == "${{ !cancelled() && (needs.reserve-version.result == 'success' || (inputs.release_mode == 'build' && needs.reserve-version.result == 'skipped')) }}", 'Windows cannot bypass failed release reservation')
-    require(any(s.get('run') == 'python scripts/release-windows.py prepare-build' and s.get('id') == 'build_identity' and s.get('env',{}).get('RELEASE_ALLOCATION_JSON') == '${{ needs.reserve-version.outputs.metadata }}' and 'if' not in s for s in build['steps']), 'Windows must embed the allocated identity')
+    require(any(s.get('run') == 'python scripts/packaging/release-windows.py prepare-build' and s.get('id') == 'build_identity' and s.get('env',{}).get('RELEASE_ALLOCATION_JSON') == '${{ needs.reserve-version.outputs.metadata }}' and 'if' not in s for s in build['steps']), 'Windows must embed the allocated identity')
     publisher = windows['jobs']['publish-release']
     require(publisher['needs'] == 'windows-exe' and publisher['if'] == "${{ needs.windows-exe.result == 'success' && inputs.release_mode != 'build' }}", 'Publication must depend on a successful non-build manual run')
     require(publisher['environment']['name'] == "${{ inputs.release_mode == 'stable' && 'sap-lens-stable' || 'sap-lens-beta' }}", 'Stable and beta publication environments must be isolated')
@@ -185,7 +211,7 @@ def validate(workflows):
     require(publisher['steps'][-1]['env'].get('BUILD_VERSION_JSON') == '${{ needs.windows-exe.outputs.metadata }}', 'Publication may not allocate a different version')
     inputs = windows['on']['workflow_dispatch']['inputs']
     require(inputs['release_mode'] == {'description': 'Build only, beta prerelease, or stable release', 'type': 'choice', 'options': ['build','beta','stable'], 'default':'build', 'required':'true'}, 'Release mode defaults/options changed')
-    require(inputs['version']['type'] == 'string' and inputs['version']['required'] == 'true', 'An explicit base version is required')
+    require(inputs['version']['type'] == 'string' and inputs['version']['required'] == 'false' and inputs['version']['default']=='', 'Version must default to the authoritative product resource')
     for name in ('benchmark_packaging','cold_cache'):
         require(inputs[name]['type'] == 'boolean' and inputs[name]['default'] == 'false', 'Benchmark defaults changed')
     publication_download = next(s for s in publisher['steps'] if s.get('uses','').startswith('actions/download-artifact@'))
@@ -196,7 +222,7 @@ def validate(workflows):
         matches = [i for i, command in enumerate(commands) if re.search(r'-Stage '+stage+r'\b', command)]
         require(len(matches) == 1, 'Each canonical Windows stage must run exactly once')
         require('if' not in steps[matches[0]], 'Windows validation stages cannot be conditionally skipped')
-    require(any(s.get('run') == 'python scripts/release-windows.py validate-inputs' and 'if' not in s for s in steps), 'Manual version preflight is mandatory')
+    require(any(s.get('run') == 'python scripts/packaging/release-windows.py validate-inputs' and 'if' not in s for s in steps), 'Manual version preflight is mandatory')
     require(windows['jobs']['windows-exe']['outputs'] == {'metadata':'${{ steps.build_identity.outputs.metadata }}', 'artifact_id': '${{ steps.executable.outputs.artifact-id }}', 'artifact_digest': '${{ steps.executable.outputs.artifact-digest }}'}, 'Release must consume only this verified artifact')
     upload = next(s for s in steps if s.get('id') == 'executable')
     require(upload['with']['path'].split() == ['backend/dist/SAP-Lens.exe', 'backend/dist/SAP-Lens.exe.sha256'], 'Unexpected distribution upload')
@@ -208,7 +234,7 @@ def validate(workflows):
     artifact_command = next(command for command in commands if '-Stage Artifact ' in command)
     require('-ArtifactDownloadDirectory' in artifact_command and '-ArtifactDigest' in artifact_command, 'Raw ZIP verification inputs are mandatory')
     fast_helpers = next((step for step in fast['jobs']['fast']['steps'] if step.get('id') == 'powershell'), {})
-    require(fast_helpers.get('run') == 'python scripts/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1'
+    require(fast_helpers.get('run') == 'python scripts/testing/ci.py run powershell -- pwsh -NoProfile -File scripts/check-powershell.ps1'
             and 'if' not in fast_helpers, 'Fast Validation must execute portable PowerShell regressions unconditionally')
     for workflow in (fast, full):
         steps = {step['id'] for job in workflow['jobs'].values() for step in job['steps'] if 'id' in step}

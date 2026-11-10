@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
+import { layoutMatrix } from './matrix'
 let directory: string
 const roles =
   'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nMM,ZC:MM:A,Alpha purchasing,ZS:A1,MM - Purchasing,MIGO,Goods movement\nMM,ZC:MM:A,Alpha purchasing,ZS:A2,MM - Purchasing,ME21N,Create purchase order\nFI,ZC:FI:B,Beta finance,ZS:B,FI - Finance,MIGO,Goods movement\nSD,ZC:SD:C,Gamma sales,ZS:C,SD - Sales,VA03,Display sales\n'
@@ -349,9 +350,8 @@ test('release date filters compose with matrix, counts and navigation, and retur
   ).toHaveCount(2)
 })
 
-for (const theme of ['light', 'dark'] as const)
-  for (const width of [800, 1280])
-    test(`filtered catalogue and assignment visual QA ${theme} ${width}`, async ({
+for (const { theme, width } of layoutMatrix([800, 1280]))
+    test(`filtered catalogue and assignment visual QA ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {

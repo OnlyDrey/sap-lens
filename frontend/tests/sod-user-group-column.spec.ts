@@ -49,7 +49,7 @@ for (const kind of ['risk', 'activity'] as const) {
   })
 }
 
-test('a user without a SAP User Group shows an accessible dash', async ({ page, request }) => {
+test('a user without a SAP User Group shows an accessible dash', { tag: '@a11y' }, async ({ page, request }) => {
   const users = `USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO\n${names.a},ROLE_A1,,20000101,99991231\n${names.a},ROLE_A2,,20000101,99991231\n${names.a},ROLE_B,,20000101,99991231\n${names.a},ROLE_C,,20000101,99991231\n${names.b},ROLE_AB,P2P,20000101,99991231\n`
   writeFileSync(`${directory}/users.csv`, users)
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
@@ -64,10 +64,10 @@ test('Access Explorer: Users, Assignments and the role views order and show the 
   await openSod(page, 'Access Explorer')
   const tabs = page.getByRole('tablist', { name: 'Access Explorer views' })
   const table = page.getByRole('table', { name: 'User risk table' })
-  expect(await headerTexts(table)).toEqual(['SAP user', 'SAP User Group', 'Risk', 'Activities', 'Evidence', 'Risk acceptance', 'Open'])
+  expect(await headerTexts(table)).toEqual(['SAP user', 'SAP User Group', 'Risk', 'Activities', 'Evidence', 'Risk decision', 'Open'])
   const row = table.getByRole('row', { name: new RegExp(names.b) }).first()
   await expect(row.locator('.user-group-text')).toHaveText('P2P')
-  await expect(row.locator('p.text-muted')).toHaveCount(0) // nothing beneath the username any more
+  await expect(row.locator('td').first().locator('p.text-muted')).toHaveCount(0) // nothing beneath the username any more
   await page.getByRole('combobox', { name: 'Group users by' }).selectOption('user_activity')
   expect((await headerTexts(page.getByRole('table', { name: 'User activity table' })))).toEqual(['SAP user', 'SAP User Group', 'Activity', 'Risks', 'Evidence', 'Review', 'Open'])
   await tabs.getByRole('tab', { name: 'Assignments', exact: true }).click()
@@ -85,7 +85,7 @@ test('Access Explorer: Users, Assignments and the role views order and show the 
 test('Reviews: the work queue and remediation show the group next to the user and keep their progress and decisions', async ({ page, request }) => {
   await openSod(page, 'Reviews')
   const queue = page.getByRole('table', { name: 'SoD review work queue' })
-  expect(await headerTexts(queue)).toEqual(['SAP user', 'SAP User Group', 'Progress', 'Activities', 'Role assignments', 'Risk acceptance', 'Open'])
+  expect(await headerTexts(queue)).toEqual(['SAP user', 'SAP User Group', 'Progress', 'Activities', 'Role assignments', 'Risk access review', 'Formal acceptance', 'Open'])
   const row = queue.getByRole('row', { name: new RegExp(names.a) }).first()
   await expect(row.locator('.user-group-text')).toHaveText('FIN')
   await expect(row.getByRole('progressbar').or(row.locator('progress'))).toHaveCount(1)
@@ -96,7 +96,8 @@ test('Reviews: the work queue and remediation show the group next to the user an
   expect((await request.get('/api/sod/queue/users', { headers })).ok()).toBeTruthy()
 })
 
-test('CSV exports carry the group whatever the page shows and keep the filters', async ({ request }) => {
+// API-level integration over every SoD export endpoint through the real test server; complements test_sod_governance, FULL only.
+test('CSV exports carry the group whatever the page shows and keep the filters', { tag: '@integration' }, async ({ request }) => {
   for (const [path, column, user] of [['/api/sod/explorer/user_risk/export', 'USER_GROUPS', 'USERNAME'], ['/api/sod/explorer/user_activity/export', 'USER_GROUPS', 'USERNAME'], ['/api/sod/explorer/access_list/export', 'USER_GROUP', 'USERNAME'], ['/api/sod/queue/export', 'USER_GROUPS', 'USERNAME']]) {
     const text = (await (await request.get(path, { headers, params: { groups: 'P2P', group_by: 'user_group', limit: '1', offset: '5' } })).text()).replace('﻿', '')
     const lines = text.trim().split('\r\n').map((line) => line.split(';').map((item) => item.replace(/^"|"$/g, '')))

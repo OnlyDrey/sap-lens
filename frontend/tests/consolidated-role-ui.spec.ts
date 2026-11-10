@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
+import { layoutMatrix } from './matrix'
 let directory: string
 const pattern = 'ZC:BC:DEMO:*'
 const catalogue = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n' +
@@ -132,7 +133,7 @@ test('All roles default, match codes only and one toolbar preserve search and CS
   const csv = readFileSync((await (await pending).path())!, 'utf8')
   expect(csv).toContain('ZC:BC:DEMO:ENP'); expect(csv).not.toContain('ZC:BC:EXACT')
 })
-for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`consolidated visual QA ${theme} ${width}`, async ({ page, request }, info) => {
+for (const { theme, width } of layoutMatrix([800, 1280])) test(`consolidated visual QA ${theme} ${width}`, { tag: '@visual' }, async ({ page, request }, info) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.theme = theme; await request.post('/api/configuration', { headers, data: settings })
   await page.setViewportSize({ width, height: 900 })

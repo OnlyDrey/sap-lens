@@ -5,8 +5,9 @@ import {
 } from '@/components/Shared/AccountStatus'
 import { UserRound, ShieldCheck, Building2 } from 'lucide-react'
 import type { UserDetail } from '@/api/access'
-import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
+import { SAPUserLink } from '@/components/Shared/SAPUserLink'
 import { formatDate } from '@/lib/dateFormat'
+import { FunctionalGroupPanel } from './FunctionalGroupPanel'
 import { useEmployeeMatch, ManagerSummary, DirectoryMatchDetails, ReturnToPreviousUser } from './EmployeeEnrichment'
 export function UserProfile({ user }: { user: UserDetail }) {
   const match = useEmployeeMatch(user.username),
@@ -18,9 +19,13 @@ export function UserProfile({ user }: { user: UserDetail }) {
   return (
     <section className="user-profile" aria-label="User profile">
       <header className="profile-identity-header">
-        <h2>{sapName || 'SAP name not provided'}</h2>
-        <p>{user.emails.join(', ') || 'SAP email not provided'}</p>
+        <div className="profile-identity-text">
+          <h2>{sapName || 'SAP name not provided'}</h2>
+          <p>{user.emails.join(', ') || 'SAP email not provided'}</p>
+        </div>
+        <div className="profile-identity-match"><DirectoryMatchDetails match={match.data}/></div>
       </header>
+      <div className="profile-columns">
       <section aria-label="SAP Identity" className="profile-group">
         <h2>
           <UserRound size={18} aria-hidden="true" />
@@ -30,7 +35,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
           <div>
             <dt>Username</dt>
             <dd>
-              <RoleIdentifier value={user.username} label="username" />
+              <SAPUserLink username={user.username} copyLabel="username"/>
             </dd>
           </div>
           <div>
@@ -50,7 +55,6 @@ export function UserProfile({ user }: { user: UserDetail }) {
             </dd>
           </div>
         </dl>
-        <div className="profile-matching-evidence"><DirectoryMatchDetails match={match.data}/></div>
       </section>
       <section aria-label="Account Status" className="profile-group">
         <h2>
@@ -75,7 +79,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
             </dd>
           </div>
           <div>
-            <dt>SAP account status</dt>
+            <dt>SAP account</dt>
             <dd>
               <AccountStatus value={user.account_status} />
             </dd>
@@ -87,7 +91,7 @@ export function UserProfile({ user }: { user: UserDetail }) {
             </dd>
           </div>
           <div>
-            <dt>AD account status</dt>
+            <dt>AD account</dt>
             <dd>
               <AccountStatus
                 value={employee?.account_status || 'Unknown'}
@@ -137,6 +141,8 @@ export function UserProfile({ user }: { user: UserDetail }) {
           </>
         )}
       </section>
+      </div>
+      <FunctionalGroupPanel username={user.username} />
 
       {employee?.account_status === 'Disabled' &&
         accountValidity(user.account_status) === 'Valid' &&

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { goTo, seedSources, type SeededSources } from './support'
+import { goTo, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
 
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
@@ -46,7 +46,7 @@ test('package rows show one codeblock, the suffix field right of it and a compac
   expect(await item.locator('.package-status').evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeLessThanOrEqual(14)
 })
 
-test('exact roles without suffix variants keep their name and disable suffix editing with an explanation', async ({ page }) => {
+test('exact roles without suffix variants keep their name and disable suffix editing with an explanation', { tag: '@a11y' }, async ({ page }) => {
   const panel = await open(page, ['Human resources exact', 'Buyer plant'])
   await panel.getByRole('combobox', { name: 'Package default suffix' }).fill('ens')
   const exact = row(panel, page, 'ZC:HR:MISC:XYZ')
@@ -60,8 +60,8 @@ test('exact roles without suffix variants keep their name and disable suffix edi
   await expect(eligible.locator('code')).toHaveText('ZC:MM:BUY:ENS')
 })
 
-test('names to check can be copied and exported with a warning, invalid names never are', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('names to check can be copied and exported with a warning, invalid names never are', async ({ page }) => {
+  await recordClipboard(page)
   const panel = await open(page, ['Finance view$', 'Long sales role', 'Human resources exact'])
   await panel.getByRole('combobox', { name: 'Package default suffix' }).fill('enq') // ZC:FI:VIEW:ENQ is valid but not in the catalogue
   const finance = row(panel, page, 'ZC:FI:VIEW:ENP')
@@ -72,7 +72,7 @@ test('names to check can be copied and exported with a warning, invalid names ne
   await expect(long).toContainText('Longer than 30 characters')
   await expect(panel.locator('.package-summary')).toContainText(/2 valid names.*1 to check.*1 not exportable/)
   await panel.getByRole('button', { name: 'Copy all names' }).click()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('ZC:FI:VIEW:ENQ\nZC:HR:MISC:XYZ')
+  await expect.poll(() => copiedText(page)).toBe('ZC:FI:VIEW:ENQ\nZC:HR:MISC:XYZ')
   await expect(page.getByText(/1 name is not confirmed as existing roles/).first()).toBeVisible()
   const download = page.waitForEvent('download')
   await panel.getByRole('button', { name: /Export CSV/ }).click()

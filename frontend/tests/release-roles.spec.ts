@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
-import { goTo, seedSources, type SeededSources } from './support'
+import { goTo, headers, seedSources, type SeededSources, recordClipboard, copiedText } from './support'
 let seeded: SeededSources
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:BUY:ENP,Buyer plant,ZS:SH,MM - Shared purchasing,MIGO,Goods movement
@@ -18,7 +18,14 @@ U3,ZO:UNKNOWN,G2,20200101,99991231
 U3,ZC:MM:BUY:ENP,G2,20200101,99991231
 `
 test.beforeEach(async ({ request }) => { seeded = await seedSources(request, { roles, users }) })
-test.afterEach(async () => { await seeded.cleanup() })
+// Saved filters are user data outside the seeded sources: remove the one this spec creates, so a retry or a later spec in the same
+// process starts without it (a duplicate name is rejected, and other specs expect an empty list).
+const savedName = 'East'
+test.afterEach(async ({ request }) => {
+  const items = (await (await request.get('/api/saved-filters', { headers })).json()).items as { id: string; name: string; view: string; modified: string }[]
+  for (const item of items.filter(entry => entry.view === 'release' && entry.name === savedName)) await request.post('/api/saved-filters/delete', { headers, data: { id: item.id, expected: item.modified } })
+  await seeded.cleanup()
+})
 
 const open = async (page: Page, view: 'Table' | 'Matrix' = 'Table') => {
   await page.goto('/#session=browser-test-session'); await goTo(page, 'Release Roles')
@@ -92,9 +99,12 @@ test('Saved Filters live in the sidebar and restore Release Area and Release Gro
   await pick(page, 'Release Area', 'E'); await pick(page, 'Release Group', 'E3')
   await toolbar.getByRole('button', { name: /Saved filters/ }).click()
   const dialog = page.getByRole('dialog', { name: 'release saved filters', exact: true })
-  await dialog.getByLabel('Saved filter name').fill('East')
+  await dialog.getByLabel('Saved filter name').fill(savedName)
   await dialog.getByRole('button', { name: 'Save as new', exact: true }).click()
-  await expect(toolbar).toContainText('East')
+  await expect(toolbar).toContainText(savedName)
+  // The non-modal panel grows after saving and, with less room below (a wider font), flips above its trigger over the sidebar
+  // controls; a person closes it before using them, so the test does too instead of relying on where it happened to open.
+  await page.keyboard.press('Escape'); await expect(dialog).toBeHidden()
   await page.getByRole('complementary', { name: 'Filters' }).getByRole('button', { name: 'Clear filters', exact: true }).click()
   await expect.poll(() => tableRoles(page)).toHaveLength(4)
   await toolbar.getByRole('button', { name: /Saved filters/ }).click()
@@ -104,8 +114,8 @@ test('Saved Filters live in the sidebar and restore Release Area and Release Gro
   await expect.poll(() => tableRoles(page)).toEqual([E3])
 })
 
-test('release roles join the shared access package with exact names next to catalogue roles', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('release roles join the shared access package with exact names next to catalogue roles', async ({ page }) => {
+  await recordClipboard(page)
   await open(page)
   const add = (role: string) => page.getByRole('button', { name: `Add ${role} to access package`, exact: true })
   await add(E2).click()
@@ -126,7 +136,7 @@ test('release roles join the shared access package with exact names next to cata
   await expect(row(E2).getByRole('textbox')).toHaveCount(0) // a package suffix never rewrites a release role
   await expect(row('ZC:MM:BUY:ENP')).toContainText('ZC:MM:BUY:ENS')
   await panel.getByRole('button', { name: 'Copy all names' }).click()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`ZC:MM:BUY:ENS\n${E2}`)
+  await expect.poll(() => copiedText(page)).toBe(`ZC:MM:BUY:ENS\n${E2}`)
   await page.keyboard.press('Escape')
   await page.getByRole('button', { name: `Remove ${E2} from access package`, exact: true }).click()
   await expect(page.getByRole('button', { name: 'Access package (1)' })).toBeVisible()
@@ -159,14 +169,16 @@ test('Table pagination offers 10, 20, 50 and 100 rows, resets to the first page 
   await expect(pager.getByRole('status')).toHaveText('1–25 of 25')
 })
 
-test('bulk actions add, copy and export distinct filtered roles without changing the assignment export', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write'])
+test('bulk actions add, copy and export distinct filtered roles without changing the assignment export', async ({ page }) => {
+  await recordClipboard(page)
   await open(page)
   await pick(page, 'Release Area', 'E')
   const actions = page.getByRole('group', { name: 'Release actions' })
   await expect(actions.getByRole('button', { name: 'Add filtered roles' })).toBeEnabled()
   await actions.getByRole('button', { name: 'Copy role names' }).click()
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${E3}\n${E2}`.split('\n').sort((a, b) => a.localeCompare(b)).join('\n'))
+  // Copying fetches the filtered roles and writes the clipboard asynchronously; read it only after the application reports completion.
+  await expect(page.getByRole('status').filter({ hasText: 'Copied 2 release role names.' })).toBeVisible()
+  await expect.poll(() => copiedText(page)).toBe(`${E3}\n${E2}`.split('\n').sort((a, b) => a.localeCompare(b)).join('\n'))
   await actions.getByRole('button', { name: 'Add filtered roles' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Added 2 release roles to the access package; 0 already selected.' })).toBeVisible()
   await page.getByRole('button', { name: `Remove ${E3} from access package`, exact: true }).click()
@@ -205,10 +217,13 @@ test('large bulk additions require confirmation and filters with no match disabl
   await expect(actions.getByRole('button', { name: 'Export role list' })).toBeDisabled()
 })
 
-test('Release Roles filters work from the keyboard and without horizontal scroll at 375 px', async ({ page }) => {
+test('Release Roles filters work from the keyboard and without horizontal scroll at 375 px', { tag: '@a11y' }, async ({ page }) => {
   await open(page)
   const area = page.getByRole('combobox', { name: 'Release Area', exact: true })
-  await area.focus(); await page.keyboard.press('ArrowDown'); await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter')
+  await area.focus(); await page.keyboard.press('ArrowDown')
+  // the options are read from the data; keyboard selection is checked once they are listed (Enter on an empty list selects nothing)
+  await expect(page.getByRole('listbox', { name: 'Release Area options' }).getByRole('option')).toHaveText(['E', 'N'])
+  await page.keyboard.press('ArrowDown'); await page.keyboard.press('Enter')
   await expect(page.getByRole('button', { name: /^Remove Release Area/ })).toHaveCount(1)
   await page.setViewportSize({ width: 375, height: 800 })
   await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()

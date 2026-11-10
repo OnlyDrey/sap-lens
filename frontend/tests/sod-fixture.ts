@@ -13,7 +13,7 @@ const users = () => 'USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO
 ].map(([user, role, group]) => `${user},${role},${group},20000101,99991231`).join('\n') + '\n'
 const header = 'RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\n'
 const risk = (id: string, a: string, b: string, first: string, second: string) => `${id},H,S,Synthetic ${id},${a},${b},ACTVT1,${a},${first},Synthetic\n${id},H,S,Synthetic ${id},${a},${b},ACTVT2,${b},${second},Synthetic\n`
-const matrix = header + risk('R1', 'A', 'B', 'X1', 'X2') + risk('R2', 'A', 'C', 'X1', 'X3')
+export const matrix = header + risk('R1', 'A', 'B', 'X1', 'X2') + risk('R2', 'A', 'C', 'X1', 'X3')
 
 /** Two risks sharing activity A, duplicate role coverage for SYN_A, a single-role conflict for SYN_B and a control user. */
 export const longRoleName = 'ZC:SYN:A_VERY_LONG_ROLE_IDENTIFIER_FOR_LAYOUT_STRESS_TESTING:ABCDEFGHIJKLMNOP:0123456789:QRSTUV'
@@ -41,7 +41,13 @@ export async function seedGovernance(request: APIRequestContext, sodMode: 'stati
   return directory
 }
 
+/** Review periods are immutable audit data that survive reset: a test names its periods uniquely so a repeat, a retry or another spec never finds them. */
+export const uniqueName = (label: string) => `${label} ${Math.random().toString(36).slice(2, 8)}`
+
 export async function cleanup(request: APIRequestContext, directory: string) {
+  // Saved filters are user data that survive reset; SoD specs create them under fixed names, so remove the SoD ones the test left.
+  const saved = (await (await request.get('/api/saved-filters', { headers })).json()).items as { id: string; view: string; modified: string }[]
+  for (const item of saved.filter(entry => entry.view.startsWith('sod_'))) await request.post('/api/saved-filters/delete', { headers, data: { id: item.id, expected: item.modified } })
   await request.post('/api/configuration/reset', { headers })
   rmSync(directory, { recursive: true, force: true })
 }

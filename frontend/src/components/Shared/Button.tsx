@@ -1,13 +1,16 @@
 import {
   forwardRef,
+  useEffect,
   useId,
+  useLayoutEffect,
+  useRef,
   useState,
   type ButtonHTMLAttributes,
   type ReactNode,
 } from 'react'
 import { Loader2 } from 'lucide-react'
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive'
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'success'
   size?: 'default' | 'compact' | 'icon'
   loading?: boolean
 }
@@ -42,6 +45,8 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
     )
   },
 )
+/** Hint for a control. The bubble is `position: fixed` and placed from the anchor's viewport rectangle, so scroll containers
+ *  (`overflow: auto` table regions) cannot clip it. It flips above the anchor when there is no room below and is kept inside the viewport. */
 export function Tooltip({
   label,
   children,
@@ -52,9 +57,29 @@ export function Tooltip({
   id?: string
 }) {
   const generated = useId(),
-    [open, setOpen] = useState(false)
+    [open, setOpen] = useState(false),
+    [place, setPlace] = useState<{ top: number; left: number } | null>(null),
+    anchor = useRef<HTMLSpanElement>(null),
+    bubble = useRef<HTMLSpanElement>(null)
+  const position = () => {
+    const a = anchor.current?.getBoundingClientRect(), b = bubble.current
+    if (!a || !b) return
+    const margin = 8, width = b.offsetWidth, height = b.offsetHeight
+    const below = a.bottom + margin, above = a.top - margin - height
+    const top = below + height <= window.innerHeight - margin || above < margin ? below : above
+    const left = Math.min(Math.max(a.right - width, margin), Math.max(margin, window.innerWidth - width - margin))
+    setPlace(previous => (previous && previous.top === top && previous.left === left ? previous : { top, left }))
+  }
+  useLayoutEffect(() => { if (open) position() }, [open, label]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!open) return
+    window.addEventListener('scroll', position, true)
+    window.addEventListener('resize', position)
+    return () => { window.removeEventListener('scroll', position, true); window.removeEventListener('resize', position) }
+  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
   return (
     <span
+      ref={anchor}
       className="ui-tooltip-anchor"
       data-open={open}
       onMouseEnter={() => setOpen(true)}
@@ -66,7 +91,7 @@ export function Tooltip({
       }}
     >
       {children}
-      <span id={id || generated} role="tooltip" className="ui-tooltip">
+      <span ref={bubble} id={id || generated} role="tooltip" className="ui-tooltip" style={place ? { top: place.top, left: place.left } : undefined}>
         {label}
       </span>
     </span>
@@ -76,13 +101,14 @@ export function IconButton({
   label,
   tooltip = label,
   children,
+  loading = false,
   ...props
 }: ButtonProps & { label: string; tooltip?: string }) {
   const id = useId()
   return (
     <Tooltip label={tooltip} id={id}>
-      <Button {...props} size="icon" aria-label={label} aria-describedby={id}>
-        {children}
+      <Button {...props} size="icon" loading={loading} aria-label={label} aria-describedby={id}>
+        {loading ? null : children}
       </Button>
     </Tooltip>
   )

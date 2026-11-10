@@ -3,6 +3,7 @@ import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
+import { layoutMatrix, DEFAULT_THEME_ONLY } from './matrix'
 let directory:string
 const matrix='RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\nSYN01,H,S,Synthetic incompatible activities,CREATE,APPROVE,ACTVT1,CREATE,X001,Synthetic creation\nSYN01,H,S,Synthetic incompatible activities,CREATE,APPROVE,ACTVT2,APPROVE,X002,Synthetic approval\n'
 test.beforeEach(async({request})=>{
@@ -15,7 +16,7 @@ test.beforeEach(async({request})=>{
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
 async function settings(page:any){await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'SoD Risk Configuration',exact:true}).click()}
 test('SoD source uses shared automatic import and snapshot preview controls',async({page,request})=>{
- await settings(page);await page.getByRole('button',{name:'Configure SoD source',exact:true}).click()
+ await settings(page);await page.getByRole('tab',{name:'Data Sources',exact:true}).click();await page.getByRole('tab',{name:'SoD Matrix',exact:true}).click()
  await expect(page.getByRole('tab',{name:'SoD Matrix',exact:true})).toHaveAttribute('aria-selected','true')
  const source=page.getByRole('region',{name:'SoD Matrix source management',exact:true});await expect(source.getByRole('textbox',{name:'SoD Matrix CSV location',exact:true})).toHaveValue(path.join(directory,'synthetic-sod.csv'))
  await source.getByRole('button',{name:'Preview data',exact:true}).click();const dialog=page.getByRole('dialog',{name:'SoD Matrix source inspection',exact:true});await expect(dialog.getByRole('columnheader',{name:'ACTIVITY_SLOT',exact:true}).first()).toBeVisible();await expect(dialog.getByRole('table',{name:'Imported source records'}).getByRole('cell',{name:'ACTVT1',exact:true}).first()).toBeVisible();await page.keyboard.press('Escape')
@@ -26,7 +27,7 @@ test('SoD source uses shared automatic import and snapshot preview controls',asy
 })
 test('SoD catalogue edits preserve imported definitions and bulk disable requires explicit confirmation',async({page,request})=>{
  await settings(page);await page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}).click();const dialog=page.getByRole('dialog',{name:'SoD risk SYN01',exact:true})
- await expect(dialog.getByRole('region',{name:'Imported risk definition',exact:true})).toContainText('Synthetic incompatible activities');// Imported mappings are read-only and open from the source details of the risk.
+ await expect(dialog.getByRole('region',{name:'Imported risk definition',exact:true})).toContainText('SYN01');// Imported mappings are read-only and open from the source details of the risk.
  await dialog.getByRole('button',{name:'Source details for risk SYN01',exact:true}).click();await page.getByRole('dialog',{name:'Source details for risk SYN01',exact:true}).getByRole('button',{name:/^Show \d+ transactions for /}).first().click()
  const mappings=page.getByRole('dialog',{name:/transactions \(ACTVT1\)$/});await expect(mappings.getByRole('table')).toContainText('X001');await mappings.getByRole('button',{name:'Close',exact:true}).click();await page.getByRole('dialog',{name:'Source details for risk SYN01',exact:true}).getByRole('button',{name:'Close',exact:true}).click()
  await dialog.getByRole('textbox',{name:'Display name',exact:true}).fill('Synthetic business review');await dialog.getByRole('textbox',{name:'Business explanation',exact:true}).fill('Synthetic explanation');await dialog.getByRole('combobox',{name:'Description review status',exact:true}).selectOption('Reviewed');await dialog.getByRole('button',{name:'Save changes',exact:true}).click();await expect(dialog).toHaveCount(0)
@@ -68,7 +69,7 @@ test('SoD catalogue is filtered by search only and the search is clearable',asyn
  await page.getByRole('button',{name:/^Clear .*Search SoD risks/}).click();await expect(search).toHaveValue('');await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible()
  await search.fill('SYN01');await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible()
 })
-for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`SoD settings responsive ${theme} ${width}`,async({page,request},info)=>{
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`SoD settings responsive ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
  await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:950});await settings(page);await expect(page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true})).toBeVisible();expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(`sod-catalogue-${theme}-${width}.png`)})
 })
 
@@ -93,4 +94,95 @@ test('risk and activity tables use icon Edit buttons and a consistent actionable
  expect(Math.abs((await transactions.boundingBox())!.height-(await editActivity.boundingBox())!.height)).toBeLessThan(1)
  await transactions.click()
  await expect(page.getByRole('dialog',{name:/transactions$/})).toBeVisible()
+})
+
+for (const theme of DEFAULT_THEME_ONLY)test(`transaction count icons stay consistent in Risk source and Activity views (${theme})`,async({page,request})=>{
+ await request.post('/api/configuration/theme',{headers,data:{theme}})
+ await settings(page)
+ await page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}).click()
+ const risk=page.getByRole('dialog',{name:'SoD risk SYN01',exact:true})
+ await risk.getByRole('button',{name:'Source details for risk SYN01',exact:true}).click()
+ const source=page.getByRole('dialog',{name:'Source details for risk SYN01',exact:true})
+ for(const [activity,slot,tcode] of [['CREATE','ACTVT1','X001'],['APPROVE','ACTVT2','X002']]){
+  const button=source.getByRole('button',{name:`Show 1 transactions for ${activity}`,exact:true})
+  await expect(button).toHaveClass(/ui-button-compact/)
+  const icon=button.locator('svg.lucide-list-tree');await expect(icon).toHaveCount(1);await expect(icon).toHaveAttribute('width','14');await expect(icon).toHaveAttribute('aria-hidden','true')
+  expect(await button.evaluate(element=>element.firstElementChild?.tagName.toLowerCase())).toBe('svg')
+  await button.click();const details=page.getByRole('dialog',{name:`${activity} transactions (${slot})`,exact:true});await expect(details.getByRole('table')).toContainText(tcode);await details.getByRole('button',{name:'Close',exact:true}).click()
+ }
+ await source.getByRole('button',{name:'Close',exact:true}).click();await risk.getByRole('button',{name:'Cancel',exact:true}).click()
+ await page.getByRole('tab',{name:'Activities',exact:true}).click()
+ const table=page.getByRole('table',{name:'SoD activity configurations',exact:true})
+ const tableButton=table.getByRole('button',{name:'Show 1 transactions for CREATE',exact:true})
+ await expect(tableButton.locator('svg.lucide-list-tree')).toHaveAttribute('width','14')
+ await page.getByRole('button',{name:'Edit SoD activity CREATE',exact:true}).click()
+ const activity=page.getByRole('dialog',{name:'SoD activity CREATE',exact:true})
+ const button=activity.getByRole('button',{name:'Show 1 transactions for CREATE',exact:true})
+ await expect(button.locator('svg.lucide-list-tree')).toHaveAttribute('width','14');await expect(button).toHaveClass(/ui-button-compact/)
+ expect((await button.boundingBox())!.height).toBe((await tableButton.boundingBox())!.height)
+ await button.click();await expect(page.getByRole('dialog',{name:'CREATE transactions',exact:true}).getByRole('table')).toContainText('X001')
+})
+
+test('entity navigation preserves filtered lists, boundaries, cross-entity history and unsaved drafts',async({page})=>{
+ await settings(page);await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('SYN01')
+ await page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}).click()
+ let risk=page.getByRole('dialog',{name:'SoD risk SYN01',exact:true})
+ await expect(risk.getByRole('button',{name:'Back',exact:true})).toHaveCount(0);await expect(risk.getByRole('button',{name:'Previous',exact:true})).toBeDisabled();await expect(risk.getByRole('button',{name:'Next',exact:true})).toBeDisabled()
+ const field=risk.getByRole('textbox',{name:'Display name',exact:true}),original=await field.inputValue()
+ await field.fill('Unsaved synthetic navigation draft')
+ page.once('dialog',dialog=>dialog.dismiss())
+ await risk.getByRole('button',{name:/^Activity CREATE(?: —|$)/}).click();await expect(field).toHaveValue('Unsaved synthetic navigation draft')
+ page.once('dialog',dialog=>dialog.accept())
+ await risk.getByRole('button',{name:/^Activity CREATE(?: —|$)/}).click()
+ let activity=page.getByRole('dialog',{name:'SoD activity CREATE',exact:true});await expect(activity).toBeVisible();await expect(page.getByRole('dialog')).toHaveCount(1)
+ await activity.getByRole('button',{name:/^Risk SYN01(?: —|$)/}).click();risk=page.getByRole('dialog',{name:'SoD risk SYN01',exact:true});await expect(risk).toBeVisible()
+ await risk.getByRole('button',{name:/^Activity APPROVE(?: —|$)/}).click();activity=page.getByRole('dialog',{name:'SoD activity APPROVE',exact:true});await expect(activity).toBeVisible()
+ await expect(activity.getByRole('button',{name:'Back',exact:true})).toHaveCount(0);await activity.getByRole('button',{name:/^Risk SYN01(?: —|$)/}).click();risk=page.getByRole('dialog',{name:'SoD risk SYN01',exact:true});await expect(risk.getByRole('textbox',{name:'Display name',exact:true})).toHaveValue(original)
+ await risk.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.getByRole('tab',{name:'Risks',exact:true})).toHaveAttribute('aria-selected','true')
+ await page.getByRole('tab',{name:'Activities',exact:true}).click();await page.getByRole('searchbox',{name:'Search SoD activities',exact:true}).fill('CREATE')
+ await page.getByRole('button',{name:'Edit SoD activity CREATE',exact:true}).click();activity=page.getByRole('dialog',{name:'SoD activity CREATE',exact:true})
+ await expect(activity.getByRole('button',{name:'Previous',exact:true})).toBeDisabled();await expect(activity.getByRole('button',{name:'Next',exact:true})).toBeDisabled();await expect(activity.getByRole('button',{name:'Back',exact:true})).toHaveCount(0)
+ await activity.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.getByRole('searchbox',{name:'Search SoD activities',exact:true})).toHaveValue('CREATE')
+})
+
+test('Previous and Next navigate the complete filtered catalogue across table pagination',async({page,request})=>{
+ const replacement=path.join(directory,'navigation.csv')
+ const lines=[matrix.split('\n')[0]]
+ for(let index=0;index<28;index++)lines.push(...matrix.trim().split('\n').slice(1).map(row=>row.replaceAll('SYN01',`NAV${String(index).padStart(2,'0')}`)))
+ writeFileSync(replacement,lines.join('\n')+'\n')
+ const configuration=(await(await request.get('/api/configuration',{headers})).json()).settings
+ expect((await request.post('/api/data-sources/sod/select',{headers,data:{path:replacement,revision:configuration.revision,mode:'static'}})).ok()).toBeTruthy()
+ await settings(page);await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('NAV')
+ await page.getByRole('button',{name:'Edit SoD risk NAV24',exact:true}).click();let dialog=page.getByRole('dialog',{name:'SoD risk NAV24',exact:true})
+ await expect(dialog.getByRole('toolbar').or(dialog.getByLabel('Entity navigation'))).toHaveCount(1)
+ await dialog.getByRole('button',{name:'Next',exact:true}).click();dialog=page.getByRole('dialog',{name:'SoD risk NAV25',exact:true});await expect(dialog).toContainText('26 of 28')
+ await dialog.getByRole('button',{name:'Previous',exact:true}).click();dialog=page.getByRole('dialog',{name:'SoD risk NAV24',exact:true});await expect(dialog).toBeVisible()
+ await dialog.getByRole('button',{name:'Cancel',exact:true}).click();await expect(page.getByRole('searchbox',{name:'Search SoD risks',exact:true})).toHaveValue('NAV')
+})
+
+for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`shared entity configuration layout ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
+ await request.post('/api/configuration/theme',{headers,data:{theme}});await page.setViewportSize({width,height:1000});await settings(page);await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('SYN01')
+ const risks=page.getByRole('table',{name:'SoD risk configurations',exact:true});await expect(risks.locator('thead th')).toHaveText(['Risk','Related Activities','Status','Description Review','Modified','Actions'])
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ await page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}).click();const dialog=page.getByRole('dialog',{name:'SoD risk SYN01',exact:true});await expect(dialog.getByRole('button',{name:'Save changes',exact:true})).toBeInViewport()
+ const bounds=await dialog.boundingBox();expect(bounds!.x).toBeGreaterThanOrEqual(0);expect(bounds!.x+bounds!.width).toBeLessThanOrEqual(width)
+ await dialog.getByRole('button',{name:/^Activity CREATE(?: —|$)/}).click();const activity=page.getByRole('dialog',{name:'SoD activity CREATE',exact:true});await expect(activity.getByRole('button',{name:'Save changes',exact:true})).toBeInViewport()
+ await page.screenshot({path:info.outputPath(`entity-${theme}-${width}.png`)});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ await activity.getByRole('button',{name:'Cancel',exact:true}).click();await page.getByRole('tab',{name:'Activities',exact:true}).click();await expect(page.getByRole('table',{name:'SoD activity configurations',exact:true}).locator('thead th')).toHaveText(['Activity','Related Risks','Transactions','Modified','Actions'])
+})
+
+for(const changed of ['revision','source'])test(`stale navigation ${changed} rejects a mixed list and keeps the editor draft`,async({page})=>{
+ await settings(page);await page.getByRole('searchbox',{name:'Search SoD risks',exact:true}).fill('SYN01')
+ await page.route(/\/api\/sod\/catalogue\?/,async route=>{
+  const response=await route.fetch(),body=await response.json()
+  if(new URL(route.request().url()).searchParams.get('limit')==='100'){
+   if(changed==='revision')body.revision+=1;else body.source.version='synthetic-changed-source'
+  }
+  await route.fulfill({response,json:body})
+ })
+ await page.getByRole('button',{name:'Edit SoD risk SYN01',exact:true}).click();const dialog=page.getByRole('dialog',{name:'SoD risk SYN01',exact:true})
+ await expect(dialog.getByRole('alert')).toContainText(changed==='revision'?'configuration list changed':'source changed')
+ await expect(dialog.getByRole('button',{name:'Previous',exact:true})).toBeDisabled();await expect(dialog.getByRole('button',{name:'Next',exact:true})).toBeDisabled()
+ await dialog.getByRole('textbox',{name:'Display name',exact:true}).fill('Unsaved draft remains available')
+ await expect(dialog.getByRole('textbox',{name:'Display name',exact:true})).toHaveValue('Unsaved draft remains available')
 })

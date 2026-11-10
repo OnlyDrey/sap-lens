@@ -9,6 +9,7 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
+import { layoutMatrix } from './matrix'
 const columns =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 let root: string, roles: string, users: string, directory: string
@@ -88,12 +89,13 @@ test.afterEach(async ({ request }) => {
   rmSync(root, { recursive: true, force: true })
 })
 
-test('refresh reports full removals, traps dialog focus and retains history after dismissal', async ({
+test('refresh reports full removals, traps dialog focus and retains history after dismissal', { tag: '@a11y' }, async ({
   page,
   request,
 }) => {
   await save(request, (c) => {
     c.source_modes.employees = 'dynamic'
+    c.import_checks.enabled = false // this test is about the removal report; holding suspicious shrinkage is covered by import-checks.spec.ts
   })
   await page.goto('/#session=browser-test-session')
   writeFileSync(directory, directoryCsv(16))
@@ -214,6 +216,7 @@ test('snapshot preview is paginated and filters quality warnings after automatic
   page,
   request,
 }) => {
+  await save(request, (c) => { c.import_checks.enabled = false }) // preview paging, not the shrink hold, is under test here
   await page.goto('/#session=browser-test-session')
   await source(page)
   await page
@@ -293,9 +296,8 @@ test('change CSV export uses the authenticated native save bridge without browse
   expect(downloads).toBe(0)
 })
 
-for (const theme of ['light', 'dark'])
-  for (const width of [375, 800, 1280])
-    test(`lifecycle visual ${theme} ${width}`, async ({
+for (const { theme, width } of layoutMatrix([375, 800, 1280]))
+    test(`lifecycle visual ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {

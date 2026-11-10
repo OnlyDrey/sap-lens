@@ -25,7 +25,7 @@ test.beforeEach(async ({ request }) => {
   writeFileSync(users, 'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\n' +
     'DEMO_MOVER,ZC:FI:VIEW,mover@example.test,DEMO,20200101,99991231,20200101,99991231\nDEMO_STAYER,ZC:FI:VIEW,stayer@example.test,DEMO,20200101,99991231,20200101,99991231\n')
   const current = await settings(request)
-  current.data_csv_path = path.resolve('tests/fixtures/synthetic.csv'); current.user_csv_path = users
+  current.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv'); current.user_csv_path = users
   current.features.employee_directory = true
   expect((await request.post('/api/configuration', { headers, data: current })).ok()).toBeTruthy()
   writeFileSync(csv, employees('Finance', 'Accountant'))

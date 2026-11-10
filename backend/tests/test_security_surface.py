@@ -111,11 +111,50 @@ class ServerBoundaryTests(Isolated):
                 self.assertEqual(refused.status_code, 405)  # the server API only reads and posts
 
     def test_a_secret_file_readable_by_other_users_is_rejected(self):
-        self.secret.chmod(0o604)
-        with self.assertRaises(ValueError):
-            ServerSettings.from_env()
-        self.secret.chmod(0o600)
+        if os.name == 'nt':      # POSIX modes do not exist; the DACL is what protects the secret
+            import windows_identity as win
+            sid = win.current_user_sid()
+            win.apply_sddl(self.secret, f'D:P(A;;FA;;;{sid})(A;;FA;;;SY)(A;;FR;;;WD)')
+            with self.assertRaises(ValueError) as caught:
+                ServerSettings.from_env()
+            self.assertIn('Everyone', str(caught.exception))
+            win.make_private(self.secret)
+        else:
+            self.secret.chmod(0o604)
+            with self.assertRaises(ValueError):
+                ServerSettings.from_env()
+            self.secret.chmod(0o600)
         self.assertEqual(ServerSettings.from_env().auth, 'basic')
+
+    def test_windows_acl_policy_is_enforced_with_a_simulated_dacl(self):
+        # Runs on every OS: the Windows branch is driven with a fake security API, so the policy (not the OS call) is what is verified here.
+        import deployment
+        import windows_identity as win
+        cases = {'D:P(A;;FA;;;S-1-5-21-1-2-3-1001)(A;;FA;;;SY)': None, 'D:P(A;;FA;;;SY)(A;;FA;;;BA)': None,
+                 'D:(A;;FA;;;SY)(A;;0x1200a9;;;BU)': 'Users', 'D:P(A;;FR;;;WD)': 'Everyone', 'D:(A;;GR;;;AU)': 'Authenticated Users',
+                 'D:(A;;FA;;;SY)(D;;FA;;;WD)': None, 'D:(A;OICI;FA;;;S-1-1-0)': 'Everyone', 'D:(A;;0x120089;;;S-1-5-32-545)': 'Users'}
+        for sddl, blocked in cases.items():
+            with patch.object(win, 'file_sddl', return_value=sddl):
+                if blocked:
+                    with self.assertRaises(ValueError) as caught:
+                        deployment.check_windows_secret_acl('C:/secret')
+                    self.assertIn(blocked, str(caught.exception), sddl)
+                else:
+                    deployment.check_windows_secret_acl('C:/secret')
+
+    def test_windows_acl_that_cannot_be_read_fails_closed(self):
+        import deployment
+        import windows_identity as win
+        with patch.object(win, 'file_sddl', side_effect=win.WindowsIdentityError('GetNamedSecurityInfoW failed (Windows error 5).')):
+            with self.assertRaises(ValueError) as caught:
+                deployment.check_windows_secret_acl('C:/secret')
+        self.assertIn('could not be checked', str(caught.exception))
+
+    def test_nt_branch_is_taken_on_windows_only(self):
+        import deployment
+        with patch.object(deployment.os, 'name', 'nt'), patch.object(deployment, 'check_windows_secret_acl') as acl:
+            deployment.check_secret_permissions('C:/secret', None)
+        acl.assert_called_once()
 
     def test_server_errors_are_generic(self):
         app = create_app(server=ServerSettings.from_env())

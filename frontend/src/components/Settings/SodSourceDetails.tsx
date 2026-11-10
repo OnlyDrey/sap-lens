@@ -1,11 +1,12 @@
 import { useState } from 'react'
+import { ListTree } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { Button } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
 import { SearchInput } from '@/components/Shared/Controls'
 import { DataTable, EmptyState, LoadingState, StatusBadge } from '@/components/Shared/Presentation'
-import { SodPill } from '@/lib/sodAppearance'
+import { SodPill, SodDescriptionDetails } from '@/lib/sodAppearance'
 
 export type Mapping = { activity?: string; tcode: string; ttext?: string }
 export type SourceRisk = {
@@ -49,14 +50,14 @@ export function RiskSourceDialog({ risk, onClose }: { risk: SourceRisk; onClose:
   return (
     <>
       <Dialog title={`Source details for risk ${risk.risk_id}`} onClose={onClose} footer={<Button onClick={onClose}>Close</Button>}>
-        <p>{risk.source.source_text}</p>
+        <p>{risk.source.source_text}</p><SodDescriptionDetails kind="risk" value={risk.risk_id}/>
         <div className="flex flex-wrap items-center gap-2"><SourceMeta criticality={risk.source.criticality} riskType={risk.source.risk_type} /><StatusBadge tone={risk.current ? 'success' : 'neutral'}>{risk.current ? 'Current source' : 'Historical source'}</StatusBadge>{!risk.source.supported && <StatusBadge tone="warning">Type not evaluated</StatusBadge>}</div>
         <p className="ui-description">Identifiers, relationships and transaction mappings come from the import and cannot be edited.</p>
         <ul className="grid gap-2" aria-label="Risk activities">
           {(['ACTVT1', 'ACTVT2'] as const).map(slot => (
             <li key={slot} className="ui-list-row flex flex-wrap items-center justify-between gap-2 p-3">
               <span className="flex min-w-0 items-center gap-2"><span className="text-xs font-semibold">{slot}</span><SodPill kind="activity" value={name(slot)} /></span>
-              <Button size="compact" aria-label={`Show ${risk.source.activities[slot].length} transactions for ${name(slot)}`} onClick={() => setSide(slot)}>{risk.source.activities[slot].length.toLocaleString()} transactions</Button>
+              <Button size="compact" aria-label={`Show ${risk.source.activities[slot].length} transactions for ${name(slot)}`} onClick={() => setSide(slot)}><ListTree size={14} aria-hidden="true"/>{risk.source.activities[slot].length.toLocaleString()} transactions</Button>
             </li>
           ))}
         </ul>
@@ -71,7 +72,7 @@ export function useSourceRisk(riskId: string | null) {
   return useQuery({
     queryKey: ['sod-source-risk', riskId],
     enabled: !!riskId,
-    queryFn: async () => (await apiRequest<{ items: SourceRisk[] }>(`/api/sod/catalogue?${new URLSearchParams({ search: riskId || '', current: '', limit: '25' })}`)).items.find(item => item.risk_id === riskId) || null,
+    queryFn: async () => (await apiRequest<{item:SourceRisk}>(`/api/sod/catalogue/${encodeURIComponent(riskId||'')}`)).item,
   })
 }
 

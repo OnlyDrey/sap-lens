@@ -39,7 +39,7 @@ test('every SoD page has the same toolbar and only the filters it needs', async 
   await expect(page.getByRole('combobox', { name: 'Sort', exact: true })).toBeVisible()
 })
 
-for (const width of [375, 800]) test(`narrow screens use a drawer without horizontal overflow at ${width}`, async ({ page }) => {
+for (const width of [375, 800]) test(`narrow screens use a drawer without horizontal overflow at ${width}`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 900 })
   for (const view of views) {
     await openSod(page, view)
@@ -65,7 +65,7 @@ test('risk and activity identifiers render as pills in the explorer', async ({ p
   await expect(page.locator('.id-pill-activity').first()).toBeVisible()
 })
 
-for (const width of [375, 800, 1280]) test(`overview tiles and review periods fit without horizontal overflow at ${width}`, async ({ page, request }) => {
+for (const width of [375, 800, 1280]) test(`overview tiles and review periods fit without horizontal overflow at ${width}`, { tag: '@visual' }, async ({ page, request }) => {
   const periodName = `Layout period ${width}-${Date.now()}`
   await createPeriod(request, periodName)
   await page.setViewportSize({ width, height: 900 })
@@ -90,7 +90,7 @@ test('matrix cells are compact, column pills use configured colors and scroll po
   await expect(header.locator('.id-pill-risk')).toHaveAttribute('data-colored', 'true')
   const cell = page.getByRole('button', { name: /^SYN_.*risk R001:/ }).first()
   expect((await cell.innerText()).trim().split('\n').join(' ').length).toBeLessThan(18)
-  await expect(page.getByText('Cells show the risk acceptance status', { exact: false })).toBeVisible()
+  await expect(page.getByText('Cells show the normal Risk review decision', { exact: false })).toBeVisible()
   await expect(header).not.toContainText('Criticality')
   const grid = page.getByRole('region', { name: /Scrollable User by risk matrix/ })
   await grid.evaluate((node) => { node.scrollLeft = 900 })
@@ -102,13 +102,16 @@ test('matrix cells are compact, column pills use configured colors and scroll po
   await expect(page.getByText('Scope: activities that contribute to at least one potential conflict', { exact: false })).toBeVisible()
 })
 
-for (const width of [375, 800]) test(`the review workspace is usable without horizontal overflow at ${width}`, async ({ page }) => {
+for (const width of [375, 800]) test(`the review workspace is usable without horizontal overflow at ${width}`, { tag: '@visual' }, async ({ page }) => {
   await page.setViewportSize({ width, height: 800 })
   await openSod(page, 'Reviews')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   await page.getByRole('button', { name: /^Open review for / }).first().click()
   const panel = page.getByRole('dialog', { name: /^SYN_/ })
-  for (const name of ['Activity Review', 'Role Assignment Review', 'Risk Acceptance']) await expect(panel.getByRole('region', { name, exact: true })).toBeVisible()
+  for (const [tab,name] of [['Roles','Role Assignment Review'],['Activities','Activity Review'],['Risks','Risk Review']]) {
+    await panel.getByRole('tab', {name:new RegExp('^'+tab)}).click(); await expect(panel.getByRole('region', {name,exact:true})).toBeVisible()
+  }
+  await panel.getByRole('tab', {name:/^Activities/}).click()
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy()
   const box = await panel.boundingBox()
   expect(box!.x + box!.width).toBeLessThanOrEqual(width + 1)
@@ -122,6 +125,7 @@ test('Activity Review and Role Assignment Review rows are single-line with icon 
   await openSod(page, 'Reviews')
   await page.getByRole('button', { name: /^Open review for / }).first().click()
   const panel = page.getByRole('dialog', { name: /^SYN_/ })
+  await panel.getByRole('tab', {name:/^Activities/}).click()
   const activities = panel.getByRole('region', { name: 'Activity Review', exact: true })
   const row = activities.getByRole('listitem').filter({ has: page.getByRole('button', { name: 'Review activity A', exact: true }) })
   // Identity, status, risk pills, role coverage, decision action and expand control share one line.
@@ -140,6 +144,7 @@ test('Activity Review and Role Assignment Review rows are single-line with icon 
   await row.getByRole('button', { name: 'Hide details for A', exact: true }).click()
   await expect(row.getByText('Activity review history')).toHaveCount(0)
   // Role assignment rows show the catalogue description next to the role identifier without opening the evidence.
+  await panel.getByRole('tab', {name:/^Roles/}).click()
   const assignments = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
   await expect(assignments.getByRole('listitem').first().locator('.sod-assignment-description')).toContainText('Synt')
   await expect(assignments.getByText('SAP User Group')).toHaveCount(0)

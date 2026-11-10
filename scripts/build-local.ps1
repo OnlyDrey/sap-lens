@@ -3,12 +3,15 @@
 param(
     [ValidateSet('Build', 'Quick', 'Validate', 'Package')]
     [string]$Mode = 'Build',
-    [string]$Version = '0.1.0'
+    [string]$Version = '',
+    [switch]$IncludeService,
+    [string]$OutputDirectory=''
 )
 $ErrorActionPreference = 'Stop'
 $watch = [System.Diagnostics.Stopwatch]::StartNew()
 $stage = 'Prerequisites'
 $root = Split-Path $PSScriptRoot -Parent
+$helper = Join-Path $PSScriptRoot 'packaging/local-build.py'
 $originalLocation = Get-Location
 $originalConsoleEncoding = [Console]::OutputEncoding
 $originalOutputEncoding = $OutputEncoding
@@ -42,6 +45,8 @@ try {
     if ($env:OS -ne 'Windows_NT') { throw 'Local Windows builds require Windows x64. Use the documented Linux validation commands on other operating systems.' }
     if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { throw 'Use x64 Windows PowerShell on Windows x64, not an ARM or 32-bit shell.' }
     if ($PSVersionTable.PSVersion -lt [version]'5.1') { throw 'Install Windows PowerShell 5.1 or PowerShell 7.' }
+    if ($IncludeService -and -not (Test-Path (Join-Path $env:WINDIR 'Microsoft.NET/Framework64/v4.0.30319/csc.exe'))) { throw '-IncludeService requires .NET Framework 4.8 on the Windows builder.' }
+    if ($IncludeService -and $Mode -notin @('Build', 'Package')) { throw '-IncludeService requires Build or Package mode.' }
     if ($env:GITHUB_ACTIONS -eq 'true') { throw 'This entry point is local-only. GitHub Actions must use build-windows.ps1.' }
     Set-Location $root
     foreach ($command in @('git', 'node', 'npm')) {
@@ -65,77 +70,98 @@ try {
     if (-not $hostPython) { throw 'Install 64-bit Python 3.12 with the Python launcher, then reopen PowerShell.' }
     & $hostPython -c "import sys,struct; sys.exit(0 if sys.version_info[:2] == (3,12) and struct.calcsize('P') == 8 else 1)"
     if ($LASTEXITCODE -ne 0) { throw 'Python 3.12 x64 is required, matching CI. Install it with the Python launcher.' }
+    if (Test-Path (Join-Path $root 'dist/.sap-lens-clean.lock')) { throw 'Cleanup owns build paths; retry after it finishes.' }
     $buildDirectory = Join-Path $root 'backend/build'
     New-Item -ItemType Directory -Force $buildDirectory | Out-Null
     try {
         $lock = [System.IO.File]::Open((Join-Path $buildDirectory 'local-build.lock'), 'OpenOrCreate', 'ReadWrite', 'None')
     } catch { throw 'Another local build is running, or backend/build is not writable. Close the other build and retry.' }
+    if (Test-Path (Join-Path $root 'dist/.sap-lens-clean.lock')) { throw 'Cleanup started while acquiring build ownership; retry after it finishes.' }
     $run = (Get-Date -Format 'yyyyMMdd-HHmmss') + '-' + [guid]::NewGuid().ToString('N').Substring(0, 8)
     $runDirectory = Join-Path $root "dist/local/runs/$run"
     New-Item -ItemType Directory -Force $runDirectory | Out-Null
     Start-Transcript -Path (Join-Path $runDirectory 'build.log') | Out-Null
     $transcribing = $true
-    $env:SAP_LENS_LOCAL_VERSION = $Version
     $env:SAP_LENS_CONFIG_DIR = Join-Path $buildDirectory "local-test-settings/$run"
     $env:DATA_CSV_PATH = ''
     $env:USER_CSV_PATH = ''
-    $helper = Join-Path $PSScriptRoot 'local-build.py'
     $canonical = Join-Path $PSScriptRoot 'build-windows.ps1'
     $buildPython = Join-Path $buildDirectory 'python-env/Scripts/python.exe'
     $auditPython = Join-Path $buildDirectory 'audit-env/Scripts/python.exe'
     $env:PATH = (Split-Path $buildPython -Parent) + ';' + $env:PATH
-    if ($Mode -in @('Build', 'Package')) {
-        Run-Stage 'Clean source check' { Invoke-Native $hostPython @($helper, 'clean') }
-    }
-    # Validate the requested version before dependency installation or packaging.
-    Run-Stage 'Local identity' { Invoke-Native $hostPython @($helper, 'identity', '--version', $Version) }
-    $info = Get-Content -Raw (Join-Path $buildDirectory 'build-version.json') | ConvertFrom-Json
-    $output = Join-Path $root "dist/local/packages/$($info.version)/$run"
-    if ($Mode -eq 'Package') {
-        Run-Stage 'Validated input freshness' { Invoke-Native $hostPython @($helper, 'check', '--version', $Version) }
-    } else {
-        Run-Stage 'Invalidate previous validation' { Invoke-Native $hostPython @($helper, 'invalidate') }
-        Run-Stage 'Environment' { & $canonical -Stage Environment -PythonExecutable $hostPython }
-        Run-Stage 'Python' { & $canonical -Stage Python -PythonExecutable $hostPython }
-        Run-Stage 'Frontend' {
-            $frontendStage = if ($Mode -eq 'Quick') { 'FrontendInstall' } else { 'Frontend' }
-            & $canonical -Stage $frontendStage -PythonExecutable $hostPython
-            Invoke-Native 'npm' @('--prefix', 'frontend', 'run', 'check:types')
-            Invoke-Native 'node' @('scripts/sync-lucide-catalog.mjs', '--check')
+    Run-Stage 'Version resolution' {
+        if (-not $Version) {
+            $script:Version = & $hostPython $helper version
+            if ($LASTEXITCODE -ne 0) { throw 'Unable to resolve backend/resources/product-version.json. Check its version and JSON syntax.' }
         }
     }
-    Run-Stage 'Packaging tool versions' {
-        Invoke-Native $buildPython @($helper, 'tools')
-    }
-    if ($Mode -ne 'Quick') {
+    $env:SAP_LENS_LOCAL_VERSION = $Version
+    if ($Mode -eq 'Quick') {
+        Run-Stage 'Quick build configuration' {
+            $identityJson = & $hostPython $helper quick --version $Version
+            if ($LASTEXITCODE -ne 0) { throw 'Build configuration check failed. Resolve the reported prerequisite before Build.' }
+            $script:info = $identityJson | ConvertFrom-Json
+            Invoke-Native 'node' @('scripts/product-version.mjs')
+            Invoke-Native $hostPython @('scripts/check-docs.py')
+            & (Join-Path $PSScriptRoot 'check-powershell.ps1')
+            Invoke-Native 'git' @('diff', '--check')
+        }
+    } else {
+        if ($Mode -in @('Build', 'Package')) {
+            Run-Stage 'Clean source check' { Invoke-Native $hostPython @($helper, 'clean') }
+        }
+        # Validate the requested version before dependency installation or packaging.
+        Run-Stage 'Local identity' { Invoke-Native $hostPython @($helper, 'identity', '--version', $Version) }
+        $info = Get-Content -Raw (Join-Path $buildDirectory 'build-version.json') | ConvertFrom-Json
+        $output = if ($OutputDirectory) { $OutputDirectory } else { Join-Path $root "dist/local/packages/$($info.version)/$run" }
+        if ($Mode -eq 'Package') {
+            Run-Stage 'Validated input freshness' { Invoke-Native $hostPython @($helper, 'check', '--version', $Version) }
+        } else {
+            Run-Stage 'Invalidate previous validation' { Invoke-Native $hostPython @($helper, 'invalidate') }
+            Run-Stage 'Environment' { & $canonical -Stage Environment -PythonExecutable $hostPython }
+            Run-Stage 'Python' { & $canonical -Stage Python -PythonExecutable $hostPython }
+            Run-Stage 'Frontend' {
+                & $canonical -Stage Frontend -PythonExecutable $hostPython
+                Invoke-Native 'npm' @('--prefix', 'frontend', 'run', 'check:types')
+                Invoke-Native 'node' @('scripts/sync-lucide-catalog.mjs', '--check')
+            }
+        }
+        Run-Stage 'Packaging tool versions' {
+            Invoke-Native $buildPython @($helper, 'tools')
+        }
         Run-Stage 'Audit' {
             Invoke-Native $hostPython @('-m', 'venv', (Join-Path $buildDirectory 'audit-env'))
             & $canonical -Stage Audit -PythonExecutable $hostPython -AuditPython $auditPython
             # Package also rechecks current vulnerability data without reinstalling inputs.
             if ($Mode -eq 'Package') { Invoke-Native 'npm' @('--prefix', 'frontend', 'audit', '--omit=dev') }
         }
-    }
-    if ($Mode -ne 'Package') {
-        Run-Stage 'Backend' { & $canonical -Stage Backend -PythonExecutable $hostPython }
-        if ($Mode -ne 'Quick') { Run-Stage 'Browser' { & $canonical -Stage Browser -PythonExecutable $hostPython } }
-        Run-Stage 'Repository' {
-            Invoke-Native $buildPython @('scripts/check-workflows.py')
-            Invoke-Native $buildPython @('scripts/ci.py', 'lint')
-            & (Join-Path $PSScriptRoot 'check-powershell.ps1')
-            Invoke-Native 'git' @('diff', '--check')
-        }
-        if ($Mode -ne 'Quick') {
+        if ($Mode -ne 'Package') {
+            Run-Stage 'PackagingBackend' { & $canonical -Stage Backend -PythonExecutable $hostPython -TargetedValidation }
+            Run-Stage 'PackagingBrowser' { & $canonical -Stage Browser -PythonExecutable $hostPython -TargetedValidation }
+            Run-Stage 'Repository' {
+                Invoke-Native $buildPython @('scripts/check-workflows.py')
+                Invoke-Native $buildPython @('scripts/testing/ci.py', 'lint')
+                & (Join-Path $PSScriptRoot 'check-powershell.ps1')
+                Invoke-Native 'git' @('diff', '--check')
+            }
             Run-Stage 'Validation receipt' {
-                Invoke-Native $buildPython @($helper, 'record', '--version', $Version, '--stages', 'Frontend', 'Python', 'Audit', 'Backend', 'Browser', 'Repository')
+                Invoke-Native $buildPython @($helper, 'record', '--version', $Version, '--stages', 'Frontend', 'Python', 'Audit', 'PackagingBackend', 'PackagingBrowser', 'Repository')
             }
         }
-    }
-    if ($Mode -in @('Build', 'Package')) {
-        Run-Stage 'Validated input freshness' { Invoke-Native $buildPython @($helper, 'check', '--version', $Version) }
-        Run-Stage 'Package' { & $canonical -Stage Package -PythonExecutable $hostPython }
-        Run-Stage 'Verify' { & $canonical -Stage Verify -PythonExecutable $hostPython }
-        Run-Stage 'Smoke' { & $canonical -Stage Smoke -PythonExecutable $hostPython }
-        Run-Stage 'Distribution roundtrip' { Invoke-Native $buildPython @($helper, 'export', '--version', $Version, '--output', $output) }
+        if ($Mode -in @('Build', 'Package')) {
+            Run-Stage 'Validated input freshness' { Invoke-Native $buildPython @($helper, 'check', '--version', $Version) }
+            Run-Stage 'Package' { & $canonical -Stage Package -PythonExecutable $hostPython }
+            Run-Stage 'Verify' { & $canonical -Stage Verify -PythonExecutable $hostPython }
+            Run-Stage 'Smoke' { & $canonical -Stage Smoke -PythonExecutable $hostPython }
+            Run-Stage 'Distribution roundtrip' { Invoke-Native $buildPython @($helper, 'export', '--version', $Version, '--output', $output) }
+        }
+        if ($IncludeService) {
+            Run-Stage 'Service bundle' {
+                $serviceDirectory = Join-Path $output 'service'
+                & (Join-Path $PSScriptRoot 'build-server-windows.ps1') -Version $Version -OutputDirectory $serviceDirectory
+                Invoke-Native $buildPython @('scripts/deployment-package.py', 'finish', '--directory', $serviceDirectory, '--platform', 'Windows-Service-x64', '--output', (Join-Path $output 'service-archives'))
+            }
+        }
     }
     $completed = $true
 } catch {

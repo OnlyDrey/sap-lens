@@ -1,6 +1,7 @@
+import { OrganizationFilter } from '@/components/Shared/OrganizationFilter'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { keepPreviousData, useQuery, type QueryClient } from '@tanstack/react-query'
-import { AlertTriangle, CheckCircle2, FilterX, CircleDashed, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, UserMinus } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, FilterX, CircleDot, History, Lock, RefreshCw, Search, ShieldCheck, ShieldX, Trash2, Clock3 } from 'lucide-react'
 import { sod, scopeParams, emptyFilters, type ContextInfo, type Filters, type Lifecycle } from '@/api/sod'
 import { useHistoryValue, useViewHistory, type SodFilterState } from '@/hooks/useViewHistory'
 import { Card, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
@@ -23,15 +24,15 @@ const size = 14
 /** One mapping for every decision lifecycle so shape, wording and tone stay consistent across views. */
 export function lifecycleView(value: string): LifecycleView {
   switch (value) {
-    case 'Approved': case 'Keep': case 'Accepted': return { icon: <CheckCircle2 size={size} />, tone: 'success', text: value }
-    case 'Conditional': return { icon: <CircleDot size={size} />, tone: 'info', text: value }
-    case 'Removal required': return { icon: <UserMinus size={size} />, tone: 'error', text: 'Remove' }
-    case 'Investigate': return { icon: <Search size={size} />, tone: 'info', text: 'Investigate' }
+    case 'Approved': case 'Keep': case 'Accepted': return { icon: <CheckCircle2 size={size} />, tone: 'success', text: value==='Keep'?'Approved':value }
+    case 'Conditional': return { icon: <CircleDot size={size} />, tone: 'info', text: 'Conditional' }
+    case 'Remove': case 'Removal required': return { icon: <Trash2 size={size} />, tone: 'error', text: 'Remove' }
+    case 'Investigate': return { icon: <Search size={size} />, tone: 'warning', text: 'Investigate' }
     case 'Rejected': return { icon: <ShieldX size={size} />, tone: 'error', text: value }
     case 'Outdated': return { icon: <RefreshCw size={size} />, tone: 'warning', text: value }
     case 'Resolved': return { icon: <ShieldCheck size={size} />, tone: 'success', text: value }
     case 'Historical': return { icon: <History size={size} />, tone: 'neutral', text: value }
-    default: return { icon: <CircleDashed size={size} />, tone: 'warning', text: 'Pending' }
+    default: return { icon: <Clock3 size={size} />, tone: 'neutral', text: 'Pending' }
   }
 }
 
@@ -43,7 +44,7 @@ export function LifecycleBadge({ value }: { value: Lifecycle | string }) {
 /** Review status of the assignment queue as sent to the API: an empty choice means the documented default, assignments needing attention. */
 export const reviewStatusParam = (filters: Filters) => (typeof filters.review_status === 'string' && filters.review_status) || 'attention'
 
-export const KIND_LABEL: Record<string, string> = { activity: 'Activity', assignment: 'Role assignment', acceptance: 'Risk acceptance' }
+export const KIND_LABEL: Record<string, string> = { activity: 'Activity', assignment: 'Role assignment', acceptance: 'Risk acceptance', risk:'Risk review' }
 
 export function useSodContext(): [string, (value: string) => void] {
   const [value, set] = useHistoryValue('sodContext')
@@ -64,11 +65,12 @@ export function useSodSubject(): [SodSubject | null, (value: SodSubject | null) 
  * only those, so an unsupported selection stays stored (and is restored on a page that supports it) without affecting results elsewhere.
  * Filters never touch the review context (`sodContext`), decisions, snapshots or evidence: they only scope what is shown and exported.
  */
-export const SHARED_DIMENSIONS: Partial<Record<FilterField, [string, string]>> = {
+export const SHARED_DIMENSIONS: Partial<Record<FilterField, [string, string, ...string[]]>> = {
   group: ['group', 'groups'], username: ['username', 'usernames'], risk: ['risk', 'risks'], activity: ['activity', 'activities'],
-  tcode: ['tcode', 'tcodes'], category: ['category', 'categories'], role: ['role', 'roles'],
+  tcode: ['tcode', 'tcodes'], category: ['category', 'categories'], role: ['role', 'roles','role_families','role_exact'],
+  functional_group: ['functional_group', 'functional_groups'], manager: ['manager', 'managers'],
 }
-const SCOPE_FIELDS: FilterField[] = ['group', 'username', 'risk', 'activity', 'role', 'tcode', 'category']
+const SCOPE_FIELDS: FilterField[] = ['group', 'functional_group', 'manager', 'username', 'risk', 'activity', 'role', 'tcode', 'category']
 /** Which shared dimensions each page applies. Role conflicts filter catalogue roles, so assigned-role, user and activity selections do not apply there. */
 export const PAGE_FIELDS: Record<string, FilterField[]> = {
   riskMatrix: SCOPE_FIELDS, activityMatrix: SCOPE_FIELDS, explorer: SCOPE_FIELDS, queue: SCOPE_FIELDS, remediation: SCOPE_FIELDS, roles: ['risk', 'tcode', 'category'],
@@ -79,16 +81,13 @@ const sharedPairs = (fields: FilterField[]) => fields.flatMap((field) => (SHARED
 /** A page's filters: its own slot plus the shared dimensions it supports. */
 export function readFilters(stored: Record<string, SodFilterState> | undefined, name: string, fields: FilterField[] = PAGE_FIELDS[name] ?? [], base: Filters = emptyFilters): Filters {
   const shared = stored?.shared ?? {}, result: Filters = { ...base, ...stored?.[name] }
-  for (const [single, plural] of sharedPairs(fields)) {
-    if (single in shared) result[single] = shared[single]
-    if (plural in shared) result[plural] = shared[plural]
-  }
+  for (const keys of sharedPairs(fields)) for(const key of keys)if(key in shared)result[key]=shared[key]
   return result
 }
 /** Splits a page's filters back into the shared context (only the dimensions the page supports) and its own slot. */
 export function writeFilters(stored: Record<string, SodFilterState> | undefined, name: string, fields: FilterField[], value: Filters): Record<string, SodFilterState> {
   const shared: SodFilterState = { ...stored?.shared }
-  for (const [single, plural] of sharedPairs(fields)) { shared[single] = (value[single] as string) ?? ''; shared[plural] = (value[plural] as string[]) ?? [] }
+  for (const keys of sharedPairs(fields))keys.forEach((key,index)=>{shared[key]=(value[key] as string|string[])??(index===0?'':[])})
   const local = Object.fromEntries(Object.entries(value).filter(([key]) => !SHARED_KEYS.includes(key))) as SodFilterState
   return { ...stored, shared, [name]: local }
 }
@@ -114,8 +113,23 @@ export function useFilterChangeReset(filters: Filters, reset: () => void) {
   useEffect(() => { if (previous.current !== key) { previous.current = key; reset() } }, [key]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
-export const refreshKeys = ['sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
-export const invalidateSod = (qc: QueryClient) => Promise.all(refreshKeys.map((key) => qc.invalidateQueries({ queryKey: [key] })))
+export const refreshKeys = ['sod-review-subjects','sod-bulk-preview','dashboard','sod-filter-options', 'sod-matrix', 'sod-subject', 'sod-queue', 'sod-explorer', 'sod-overview', 'sod-remediation', 'sod-periods', 'sod-period', 'sod-context']
+export async function invalidateSod(qc:QueryClient,reviewFocus?:readonly unknown[]) {
+  if(!reviewFocus)return Promise.all(refreshKeys.map(key=>qc.invalidateQueries({queryKey:[key]})))
+  const affected=(query:{queryKey:readonly unknown[]})=>{
+    const key=String(query.queryKey[0]);if(!refreshKeys.includes(key))return false
+    if(key==='sod-review-subjects')return false // Review decisions do not change source identity eligibility.
+    if(key!=='sod-filter-options')return true
+    // Source-only choices cannot change after a review. Review-scoped choices can.
+    const params=new URLSearchParams(typeof query.queryKey[2]==='string'?query.queryKey[2]:'')
+    return ['review_status','activity_decision','assignment_decision','acceptance','status','tracking'].some(name=>{const value=params.get(name);return !!value&&value!=='all'})
+  }
+  await qc.invalidateQueries({predicate:affected,refetchType:'none'})
+  // Start independent counters immediately; a slow subject read must not hold them up.
+  void qc.refetchQueries({type:'active',predicate:query=>affected(query)&&JSON.stringify(query.queryKey)!==JSON.stringify(reviewFocus)}).catch(()=>{})
+  await qc.refetchQueries({queryKey:reviewFocus,exact:true,type:'active'})
+}
+
 
 /** One review-context bar for every SoD view, shown beneath the SoD navigation: current evidence or a review period, its evaluation date and whether it is live or a frozen snapshot. */
 export function ContextBar() {
@@ -150,12 +164,12 @@ export function ContextBar() {
 
 const DECISION_OPTIONS: Record<string, string[]> = {
   activity_decision: ['Pending', 'Approved', 'Conditional', 'Removal required', 'Outdated'],
-  assignment_decision: ['Pending', 'Keep', 'Removal required', 'Investigate', 'Outdated'],
+  assignment_decision: ['Pending', 'Investigate', 'Keep', 'Removal required', 'Outdated'],
   acceptance: ['Pending', 'Accepted', 'Rejected', 'Outdated'],
 }
 
 export type FilterField = 'group' | 'risk' | 'activity' | 'username' | 'role' | 'role_suffix' | 'tcode' | 'category' | 'criticality' | 'validity' | 'activity_decision' | 'assignment_decision' | 'acceptance'
-  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status' | 'multiple_risks'
+  | 'risk_type' | 'composite_role' | 'single_role' | 'account_status' | 'review_status' | 'multiple_risks' | 'functional_group' | 'manager'
 const FIELD_LABELS: Record<string, [string, number]> = {
   group: ['SAP User Group', 256], risk: ['Risk ID', 512], activity: ['Activity', 512], username: ['SAP username', 512], role: ['Assigned role', 512], role_suffix: ['Role suffix', 128],
   tcode: ['Transaction code', 256], category: ['Business area', 120], criticality: ['Source criticality', 64], risk_type: ['Risk type', 64],
@@ -191,21 +205,22 @@ function OptionField({ name, label, max, value, onChange, filters }: { name: str
 }
 
 /** Multi-select over the evidence values of one field; the options follow the other active filters so Select all acts on the values available in the current filter context. */
-function MultiOptionField({ field, listName, label, values, onChange, filters }: { field: string; listName: string; label: string; values: string[]; onChange: (values: string[]) => void; filters: Filters }) {
+function MultiOptionField({ field, listName, label, values, onChange, filters }: { field: string; listName: string; label: string; values: string[]; onChange: (values: string[],families?:string[]) => void; filters: Filters }) {
   const [context] = useSodContext()
   const [term, setTerm] = useState('')
-  const others = scopeParams(context, { ...filters, [field]: '', [listName]: [] })
+  const others = scopeParams(context, { ...filters, [field]: '', [listName]: [],...(field==='role'?{role_families:[],role_exact:[]}: {}) })
   others.set('field', field); others.set('term', term); others.set('limit', '200')
+  if(field==='role')others.set('group_roles','true')
   const options = useQuery({
     queryKey: ['sod-filter-options', field, others.toString()],
-    queryFn: () => sod<{ items: string[]; total: number }>('/api/sod/filter-options', others),
+    queryFn: () => sod<{ items: string[]; total: number;family_values?:string[] }>('/api/sod/filter-options', others),
     placeholderData: keepPreviousData,
     staleTime: 15_000,
   })
   const items = options.data?.items || []
   return (
     <FormField label={label}>
-      <MultiSelectFilter label={label} values={values} options={items} onChange={onChange} onSearch={setTerm} loading={options.isFetching && !options.data}
+      <MultiSelectFilter label={label} values={values} options={items} onChange={values=>onChange(values,options.data?.family_values||[])} onSearch={setTerm} loading={options.isFetching && !options.data}
         hasMore={(options.data?.total || 0) > items.length} scope="within the other active filters" />
     </FormField>
   )
@@ -223,12 +238,12 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
   const apply = (value: Record<string, unknown>) => {
     onReset?.()
     const next = { ...defaults, ...value } as Filters
-    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status', 'multiple_risks'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [] }
+    for (const name of Object.keys(FIELD_LABELS).concat(Object.keys(DECISION_LABELS), ['validity', 'account_status', 'multiple_risks'])) if (!shown.has(name)) { next[name] = defaults[name] ?? ''; if (MULTI[name]) next[MULTI[name]] = [];if(name==='role'){next.role_families=[];next.role_exact=[]} }
     setFilters(next)
   }
   const list = (name: string) => (Array.isArray(filters[name]) ? (filters[name] as string[]) : [])
-  const MULTI: Record<string, string> = { username: 'usernames', role_suffix: 'role_suffixes', risk: 'risks', activity: 'activities', group: 'groups', role: 'roles', tcode: 'tcodes', category: 'categories', criticality: 'criticalities' }
-  const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '') && (!MULTI[name] || !list(MULTI[name]).length)
+  const MULTI: Record<string, string> = { functional_group: 'functional_groups', manager: 'managers', username: 'usernames', role_suffix: 'role_suffixes', risk: 'risks', activity: 'activities', group: 'groups', role: 'roles', tcode: 'tcodes', category: 'categories', criticality: 'criticalities' }
+  const isDefault = (name: string) => text(name) === (typeof defaults[name] === 'string' ? (defaults[name] as string) : '') && (!MULTI[name] || !list(MULTI[name]).length) && (name!=='role'||!list('role_families').length&&!list('role_exact').length)
   const active = [...shown].filter((name) => !isDefault(name)).length + (text('search') ? 1 : 0)
   const field = (name: FilterField) => {
     if (name === 'validity') return (
@@ -281,8 +296,13 @@ export function SodFilters({ view, filters, setFilters, fields, sorts, actions, 
         </Select>
       </FormField>
     )
+    if (name === 'functional_group' || name === 'manager') return <FormField key={name} label={name === 'manager' ? 'Manager' : 'Functional Group'}><OrganizationFilter kind={name} values={list(MULTI[name])} onChange={values => setFilters({ ...filters, [MULTI[name]]: values })} /></FormField>
     const [label, max] = FIELD_LABELS[name]
-    if (MULTI[name]) return <MultiOptionField key={name} field={name} listName={MULTI[name]} label={label} values={list(MULTI[name])} onChange={(values) => setFilters({ ...filters, [name]: '', [MULTI[name]]: values })} filters={filters} />
+    if (MULTI[name]) return <MultiOptionField key={name} field={name} listName={MULTI[name]} label={label} values={name==='role'?[...new Set([...list('roles'),...list('role_families'),...list('role_exact')])]:list(MULTI[name])} onChange={(values,families=[]) => {
+      if(name!=='role')return setFilters({...filters,[name]:'',[MULTI[name]]:values})
+      const legacy=new Set(list('roles')),family=new Set([...families,...list('role_families')])
+      setFilters({...filters,role:'',roles:values.filter(value=>legacy.has(value)),role_families:values.filter(value=>!legacy.has(value)&&family.has(value)),role_exact:values.filter(value=>!legacy.has(value)&&!family.has(value))})
+    }} filters={filters} />
     return <OptionField key={name} name={name} label={label} max={max} value={text(name)} onChange={(value) => update(name, value)} filters={filters} />
   }
   const sidebar = (

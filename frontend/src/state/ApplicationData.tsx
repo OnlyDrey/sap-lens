@@ -1,4 +1,4 @@
-import {selectSource,type CSVSource,type SourceSelection,type SourceActivation} from '@/api/sources'
+import {selectSource,uploadSource,type CSVSource,type SourceSelection,type SourceActivation} from '@/api/sources'
 import {
   createContext,
   useCallback,
@@ -10,7 +10,7 @@ import {
 } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { fetchConfiguration } from '@/api/configuration'
-import { refreshData } from '@/api/client'
+import { onDataRevision, refreshData } from '@/api/client'
 import type { RefreshSummary } from '@/components/Shared/RefreshReport'
 
 /** Source snapshot identity is separate from the SAP refresh timestamp. */
@@ -21,7 +21,7 @@ function datasetRevision(data:Awaited<ReturnType<typeof fetchConfiguration>>) {
 const Context = createContext<{
   loading: boolean
   importPhase:string|null
-  activateSource:(source:CSVSource,selection:SourceSelection)=>Promise<SourceActivation>
+  activateSource:(source:CSVSource,selection:SourceSelection,file?:File)=>Promise<SourceActivation>
   refresh: () => Promise<void>
   lastLoaded: string | null
   report: RefreshSummary | null
@@ -80,6 +80,9 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
     pendingLoad.current = false
     void synchronize(revision, force)
   }, [configuration.data, synchronize])
+  // Data published by anyone (another user, a scheduled refresh, a restart) is noticed by the first response that carries the newer revision:
+  // only the views that are on screen are re-read, and queries still in flight for the old revision are cancelled so they cannot repopulate the cache.
+  useEffect(() => onDataRevision(() => { void synchronize(observed.current ?? 'revision', true); void qc.invalidateQueries({ queryKey: ['configuration'] }) }), [qc, synchronize])
   const refresh = useCallback(async () => {
     if (running.current || configuration.data?.loading) return
     running.current = true
@@ -101,11 +104,11 @@ export function ApplicationDataProvider({ children }: { children: ReactNode }) {
       void qc.invalidateQueries({ queryKey: ['configuration'] })
     }
   }, [qc, synchronize, configuration.data?.loading])
-  const activateSource=useCallback(async(source:CSVSource,selection:SourceSelection)=>{
+  const activateSource=useCallback(async(source:CSVSource,selection:SourceSelection,file?:File)=>{
     if(running.current||configuration.data?.loading)throw Error('Another CSV operation is running. Wait for it to finish.')
-    running.current=true;setRefreshing(true);setImportPhase('Reading file');setReport(null)
+    running.current=true;setRefreshing(true);setImportPhase(file?'Uploading, validating and importing':'Reading file');setReport(null)
     try{
-      const result=await selectSource(source,selection)
+      const result=await (file?uploadSource(source,selection,file):selectSource(source,selection))
       setImportPhase('Updating dependent views')
       const data=await qc.fetchQuery({queryKey:['configuration'],queryFn:fetchConfiguration,staleTime:0})
       const revision=datasetRevision(data)

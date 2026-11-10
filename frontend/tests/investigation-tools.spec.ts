@@ -3,6 +3,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers, goTo, setDescending, sortDirection } from './support'
+import { layoutMatrix } from './matrix'
 let root: string
 const mode = async (page: Page, name: string) =>
   page
@@ -122,7 +123,7 @@ test('comparison difference and evidence indicators start at the same vertical p
   const table = page.getByRole('table', { name: 'User comparison evidence' })
   const rows = table.locator('tbody tr')
   await expect(rows.first()).toBeVisible()
-  expect(await rows.count()).toBeGreaterThan(0)
+  await expect.poll(() => rows.count()).toBeGreaterThan(0)
   for (const row of await rows.all()) {
     const difference = (await row.locator('.evidence-difference').boundingBox())!
     for (const index of [2, 3]) {
@@ -299,7 +300,7 @@ test('same user is excluded and no-assignment user has an honest empty state', a
     page.getByText('No matching roles.', { exact: false }),
   ).toBeVisible()
 })
-test('saved filters save load rename update delete and survive page reload', async ({
+test('saved filters save load rename update delete and survive page reload', { tag: '@workflow' }, async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
@@ -665,9 +666,8 @@ test('future saved schema remains unavailable without crashing or replacing stor
   await expect(page.getByLabel('Search users', { exact: true })).toHaveValue('')
 })
 
-for (const theme of ['light', 'dark'])
-  for (const width of [375, 800, 1280])
-    test(`investigation tools visual ${theme} ${width}`, async ({
+for (const { theme, width } of layoutMatrix([375, 800, 1280]))
+    test(`investigation tools visual ${theme} ${width}`, { tag: '@visual' }, async ({
       page,
       request,
     }, info) => {

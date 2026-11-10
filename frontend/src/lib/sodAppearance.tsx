@@ -1,19 +1,25 @@
+import {createContext,useContext} from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '@/api/client'
 import { IdPill } from '@/components/Shared/IdPill'
 import { Popover } from '@/components/Shared/Popover'
 
+export const SodEntityNavigation=createContext<((kind:'risk'|'activity',id:string)=>void)|null>(null)
+
 interface Appearance { risks: Record<string, { name: string; color: string }>; activities: Record<string, { name: string; color: string }> }
 const none: Appearance = { risks: {}, activities: {} }
 
-/** A resolved description of a risk or activity: the imported value when the SoD CSV supplies one, otherwise the local business text, with the origin of each. */
+/** A resolved description of a risk or activity: non-empty local overrides, then imported metadata, then curated references, with each value’s provenance. */
 export interface SodDescription {
-  name?: string; description?: string; impact?: string; business_process?: string; type?: string
-  criticality?: string; risks?: number
-  origin: Record<string, 'imported' | 'local'>
-  alternate?: Record<string, { value: string; origin: 'imported' | 'local' }>
+  name?: string; description?: string; impact?: string; controls?: string; guidance?: string; notes?: string; business_process?: string; type?: string
+  criticality?: string; risks?: number; activities?:string[]; risk_ids?:string[]
+  inherited?: Record<string, string>
+  inherited_origin?: Record<string, 'imported' | 'reference'>
+  reference?: Record<string, string>
+  origin: Record<string, 'imported' | 'local' | 'reference'>
+  alternate?: Record<string, { value: string; origin: 'imported' | 'local' | 'reference' }>
 }
-interface Described { risks: Record<string, SodDescription>; activities: Record<string, SodDescription> }
+interface Described { active_activities?:string[]; risks: Record<string, SodDescription>; activities: Record<string, SodDescription> }
 const empty: Described = { risks: {}, activities: {} }
 
 /** Local display names and colors for risk and activity identifiers; failures fall back to plain pills. */
@@ -23,10 +29,10 @@ export function useSodAppearance(): Appearance {
 
 /** Resolved descriptions shared by pills, popovers and Settings; failures leave the pills without a description. */
 export function useSodMetadata(): Described {
-  return useQuery({ queryKey: ['sod-metadata'], queryFn: () => apiRequest<Described>('/api/sod/metadata'), staleTime: 60_000, retry: false }).data || empty
+  return useQuery({ queryKey: ['sod-metadata'], queryFn: () => apiRequest<Described>('/api/sod/metadata'), staleTime: 60_000, refetchOnWindowFocus: 'always', retry: false }).data || empty
 }
 
-const ORIGIN = { imported: 'Imported from the SoD CSV', local: 'Local business text' } as const
+const ORIGIN = { imported: 'Imported from the SoD CSV', local: 'Local business text', reference: 'Curated reference library' } as const
 const MISSING = 'No description available'
 const concise = (value: string, length = 150) => (value.length > length ? `${value.slice(0, length - 1).trimEnd()}…` : value)
 
@@ -37,19 +43,26 @@ export function pillSummary(kind: 'risk' | 'activity', value: string, entry?: So
   return `${kind === 'risk' ? 'Risk' : 'Activity'} ${value}${parts.length ? ` — ${parts.join(': ')}` : ` — ${MISSING}`}`
 }
 
-function Detail({ entry, field, label, required = false }: { entry: SodDescription; field: 'name' | 'description' | 'impact' | 'business_process' | 'type'; label: string; required?: boolean }) {
+/** Exact active IDs only; React text nodes preserve escaping and punctuation. */
+function ActivityReferences({text}:{text:string}) {
+ const metadata=useSodMetadata(), ids=new Set(metadata.active_activities||[])
+ return <>{text.split(/([A-Za-z0-9_:-]+)/).map((part,index)=>ids.has(part)?<SodPill key={index} kind="activity" value={part}/>:part)}</>
+}
+
+function Detail({ entry, field, label, required = false, compact=false }: { entry: SodDescription; field: 'name' | 'description' | 'impact' | 'business_process' | 'type' | 'controls' | 'guidance' | 'notes'; label: string; required?: boolean; compact?:boolean }) {
   const text = entry[field], origin = entry.origin[field], other = entry.alternate?.[field]
-  if (!text && !other) return required ? <div><dt>{label}</dt><dd className="ui-description">{MISSING}</dd></div> : null  // a missing description is stated, never invented
+  if (!text && !other) return required ? <div><dt>{label}</dt><dd className="ui-description">{field==='name'?'Missing display name':MISSING}</dd></div> : null  // a missing description is stated, never invented
   return (
     <div>
       <dt>{label}</dt>
-      <dd>{text}{origin && <small className="sod-pill-origin"> {ORIGIN[origin]}</small>}
-        {other && <span className="sod-pill-alternate">{ORIGIN[other.origin]}, differs: {other.value}</span>}</dd>
+      <dd>{compact&&text?<ActivityReferences text={text}/>:text}{!compact&&origin && <small className="sod-pill-origin"> {ORIGIN[origin]}</small>}
+        {!compact&&other && <span className="sod-pill-alternate">{ORIGIN[other.origin]}, differs: {other.value}</span>}</dd>
     </div>
   )
 }
 
-function Details({ kind, value, entry }: { kind: 'risk' | 'activity'; value: string; entry?: SodDescription }) {
+function Details({ kind, value, entry, compact=false }: { kind: 'risk' | 'activity'; value: string; entry?: SodDescription; compact?:boolean }) {
+  const navigate=useContext(SodEntityNavigation)
   const shown: SodDescription = entry ?? { origin: {} }
   // Only descriptive fields count; the factual context of the imported definition (criticality, risk type) is not a description.
   const known = !!entry && (!!entry.name || !!entry.description || !!entry.business_process || (kind === 'risk' ? !!entry.impact : !!entry.type))
@@ -58,12 +71,16 @@ function Details({ kind, value, entry }: { kind: 'risk' | 'activity'; value: str
       <dl className="ui-metadata-list">
         <div><dt>{kind === 'risk' ? 'Risk' : 'Activity'}</dt><dd><code>{value}</code></dd></div>
         <>
-          <Detail entry={shown} field="name" label="Display name" />
-          <Detail entry={shown} field="description" label="Description" required />
-          {kind === 'risk' && <Detail entry={shown} field="impact" label="Impact" />}
-          <Detail entry={shown} field="business_process" label="Business process" />
-          {kind === 'activity' && <Detail entry={shown} field="type" label="Type" />}
-          {kind === 'risk' && shown.criticality && <div><dt>Source criticality</dt><dd>{shown.criticality}</dd></div>}
+          <Detail compact={compact} entry={shown} field="name" label="Display name" required />
+          <Detail compact={compact} entry={shown} field="description" label="Description" required />
+          {kind === 'risk' && <Detail compact={compact} entry={shown} field="impact" label="Impact" />}
+          <Detail compact={compact} entry={shown} field="controls" label="Compensating controls" />
+          <Detail compact={compact} entry={shown} field="guidance" label="Review guidance" />
+          <Detail compact={compact} entry={shown} field="notes" label="Notes" />
+          <Detail compact={compact} entry={shown} field="business_process" label="Business process" />
+          {kind === 'activity' && <Detail compact={compact} entry={shown} field="type" label="Type" />}
+          {!compact && kind === 'risk' && shown.criticality && <div><dt>Source criticality</dt><dd>{shown.criticality}</dd></div>}
+          {(kind==='risk'?shown.activities:shown.risk_ids)?.length? <div><dt>{kind==='risk'?'Related Activities':'Related Risks'}</dt><dd className="id-pill-list">{(kind==='risk'?shown.activities:shown.risk_ids)!.map(id=><SodPill key={id} kind={kind==='risk'?'activity':'risk'} value={id} details={!!navigate}/>)}</dd></div>:null}
           {kind === 'activity' && typeof shown.risks === 'number' && <div><dt>Used in risks</dt><dd>{shown.risks.toLocaleString()}</dd></div>}
         </>
       </dl>
@@ -84,17 +101,19 @@ export function SodDescriptionDetails({ kind, value }: { kind: 'risk' | 'activit
  * it keeps the tooltip and adds no second interactive element.
  */
 export function SodPill({ kind, value, details = true }: { kind: 'risk' | 'activity'; value: string; details?: boolean }) {
+  const navigate=useContext(SodEntityNavigation)
   const appearance = useSodAppearance(), metadata = useSodMetadata(),
     entry = (kind === 'risk' ? appearance.risks : appearance.activities)[value],
     described = (kind === 'risk' ? metadata.risks : metadata.activities)[value],
     summary = pillSummary(kind, value, described, entry?.name),
     pill = <IdPill kind={kind} value={value} color={entry?.color} title={details ? undefined : summary} />
   if (!details) return pill
+  if(navigate)return <button type="button" className="id-pill-button" title={summary} aria-label={summary} onClick={()=>navigate(kind,value)}>{pill}</button>
   return (
     <span className="sod-pill" title={summary}>
-      <Popover label={`${kind === 'risk' ? 'Risk' : 'Activity'} ${value} details`} preferredWidth={360} triggerSize="compact" triggerVariant="ghost" triggerClassName="id-pill-trigger"
+      <Popover label={`${kind === 'risk' ? 'Risk' : 'Activity'} ${value} details`} preferredWidth={440} triggerSize="compact" triggerVariant="ghost" triggerClassName="id-pill-trigger"
         trigger={<span aria-label={summary}>{pill}</span>}>
-        <Details kind={kind} value={value} entry={described} />
+        <Details compact kind={kind} value={value} entry={described} />
       </Popover>
     </span>
   )

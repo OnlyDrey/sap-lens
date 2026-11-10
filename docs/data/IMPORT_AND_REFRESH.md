@@ -58,7 +58,7 @@ Reports contain personal data and stay local. Diagnostic exports contain only al
 **Settings → Runtime & Scheduling** can run the same refresh automatically. The backend schedules it, so no browser tab has to be open, and every run is the normal refresh: Dynamic sources are re-read, Static sources are not, a changed source is validated before it replaces the previous one, and any failure keeps the previously validated data.
 
 - **Schedule.** Enable it, then choose a daily time (HH:MM, 24-hour) or an advanced five-field cron expression (`minute hour day-of-month month day-of-week`; lists, ranges, steps and `JAN`/`MON` names; Sunday is 0 or 7; day-of-month and weekday are OR-ed like standard cron). Runs must be at least 5 minutes apart. The page explains the schedule in words and lists the next runs before you apply it.
-- **Time zone.** Local time (the computer or server), UTC, or an IANA name such as Europe/Oslo when the operating system has the time zone database (Windows Desktop may offer only Local time and UTC). A local time skipped by a spring-forward change is skipped; a repeated hour runs once.
+- **Time zone.** Local time (the computer or server), UTC, or an IANA name such as Europe/Oslo. The pinned `tzdata` database ships with the runtime, including Windows packages, so named zones work without an operating-system IANA database. Daily time uses explicit 24-hour `HH:mm` entry regardless of browser/Windows AM/PM preferences. A local time skipped by a spring-forward change is skipped; a repeated hour runs once.
 - **Safety.** One process owns the data store, so a schedule cannot run twice, and a scheduled run is skipped when another load or refresh is already running. A slot missed while the application was not running is skipped, never replayed; editing the schedule starts it fresh from that moment.
 - **Status.** Next run, last attempted run, last successful run, last failure (and failures in a row) and the last outcome (succeeded, partly failed, failed, skipped) are shown in Settings and summarized, without paths, in the diagnostics export. Failure messages are generic; details stay in the refresh history.
 
@@ -83,7 +83,7 @@ The older `operational_status` directory API field remains a compatibility descr
 
 For all four sources, selecting a file automatically reads, validates, stages and
 activates a complete non-empty dataset. There is no separate normal-flow Validate,
-Confirm or Import action. **Browse CSV** (one label for every source) is always available,
+Confirm or Import action. **Browse / Upload file** (one label for every source) is always available,
 also when a file is already configured; only an import in progress for that source
 blocks it. It opens the native dialog in the desktop app, the upload chooser where browser
 uploads are supported, and otherwise explains that native browsing is desktop-only and moves
@@ -121,4 +121,80 @@ Automated browser and backend tests use synthetic identities. Fresh-process snap
 
 ## SoD Matrix import format, mapping and validation
 
-Settings → Data Sources → SoD Matrix has the same **Advanced import format and column mapping** section as the other CSV sources, in three steps: *CSV Import Format* (delimiter and encoding, both automatic by default; the documented columns RISK through TTEXT are a fixed schema), *Column mapping* (columns are matched by name; choose a source column only where a header differs, for example `Risk_ID` for RISK) and *Validation & preview* (counts, parser errors, SoD-specific checks and sample rows, in a table that scrolls inside its own container). The section inspects the selected file through `POST /api/data-sources/sod/inspect`, which parses it exactly as an import would but stores nothing: active data, risk definitions, decisions and review snapshots are never touched, and an invalid file never replaces the last valid dataset. The format and mapping are saved with the next import or **Apply settings** (`sod_import` in the configuration) and are used for static and dynamic refreshes. Browse CSV, Refresh source, Preview data, View changes, Technical source details and Clear source data are unchanged.
+Settings → Data Sources → SoD Matrix has the same **Advanced import format and column mapping** section as the other CSV sources, in three steps: *CSV Import Format* (delimiter and encoding, both automatic by default; the documented columns RISK through TTEXT are a fixed schema), *Column mapping* (columns are matched by name; choose a source column only where a header differs, for example `Risk_ID` for RISK) and *Validation & preview* (counts, parser errors, SoD-specific checks and sample rows, in a table that scrolls inside its own container). The section inspects the selected file through `POST /api/data-sources/sod/inspect`, which parses it exactly as an import would but stores nothing: active data, risk definitions, decisions and review snapshots are never touched, and an invalid file never replaces the last valid dataset. The format and mapping are saved with the next import or **Apply settings** (`sod_import` in the configuration) and are used for static and dynamic refreshes. Browse / Upload file, Refresh source, Preview data, View changes, Technical source details and Clear source data are unchanged.
+
+
+### Browser file uploads
+
+In Settings → Data Sources, **Browse / Upload file** opens the browser's file picker
+for Role Catalogue, User Access, Employee Directory and SoD Matrix CSVs. No server
+filesystem path is required. Desktop WebView2 uses the same primary action with its native file dialog;
+a browser connected to the desktop backend can also upload using its authenticated session.
+
+The authenticated multipart request (`POST /api/server/uploads/{source}/activate`)
+carries one CSV, the current settings revision and optional existing import profile.
+It reuses the same source-selection, complete validation, atomic activation and snapshot
+persistence service as desktop browsing. Only after activation succeeds does the shared
+application-data owner refresh dependent views and show record/change counts. Active
+filename, import timestamps and snapshot metadata remain available beside the source controls.
+
+Limits are 50 MiB for Employee Directory and 128 MiB for other CSV sources, with bounded
+multipart overhead and form fields. Empty files, invalid names/types/schemas, interrupted
+uploads, stale revisions and concurrent replacements are rejected without replacing valid
+data. Failed staged files and multipart temporary files are cleaned up. Files use generated
+private names and Static mode; Global Refresh never rereads a client device. Optional
+administrator-managed Dynamic paths remain under Advanced server source path and follow
+server source-root permissions. Existing raw staging endpoints remain compatible with
+packaging tools, but the UI uses multipart activation, not the legacy staging/confirmation flow.
+
+
+There is one primary **Browse / Upload file** action per Data Sources tab. Native desktop
+uses its file dialog; browser sessions use the authenticated multipart uploader. The optional
+**Advanced server source path** contains only the path input, with no second Browse action.
+Uploaded replacements explicitly use Static mode (shown beside the action and in completion
+feedback/source mode); administrator-selected paths retain the chosen Static/Dynamic mode.
+Global/manual/scheduled refresh behavior, inspection and failure recovery are unchanged.
+
+## Source-specific refresh and the unchanged fast path
+
+Start-up (Dynamic sources) and every refresh evaluate each source on its own:
+
+1. **Fingerprint.** For Role Catalogue, User-Role Mapping, SoD Matrix and Employee Directory ([details](EMPLOYEE_DIRECTORY.md#fingerprint-derived-copy-and-shared-identity-matching)) the file content digest is combined with the parsing settings (active import profile or SoD format) and the digest of the
+   parser code. The fingerprint of the input that produced the active revision is stored with that revision in the SQLite store.
+2. **Unchanged:** an equal fingerprint, the same path and a loaded active revision mean parsing would reproduce the active snapshot exactly. The source is reported `unchanged` (marked `fast_path`) and is
+   neither parsed, compared, anomaly-checked, snapshotted nor rebuilt; its `checked_at` is updated. The file is still read once to hash it; the content is never trusted by timestamp or size alone.
+3. **Changed:** only that source takes the full path (parse, validate, compare with the previous approved revision of the same source, anomaly check, snapshot). Users are re-mapped against the
+   catalogue **once**: when the users file is re-read they are already mapped to the final catalogue; when only the catalogue changed, the unchanged users are re-mapped without reading their file.
+4. **Unknown fingerprint** (first start after an upgrade, store missing or rebuilt, different parser) simply takes the full path once and then records the fingerprint.
+
+Activation stays atomic. The new snapshot is written (immutable), its rows are *staged* in the store (invisible to readers), the configuration pointer is committed with the existing compare-and-swap, and
+only then are the staged revisions activated (one short transaction per source). Each load is a staging *operation* with its own identifier; staged revisions are owned by it. If the commit does not happen, or the load fails or is cancelled, only that operation's staged revisions are discarded (a snapshot two overlapping loaders both staged is handed to the remaining one, never deleted under it). Revisions left by a process that died are orphans: they are removed at start-up and, while running, when older than an hour and not owned by a live operation. Activation clears ownership. In memory the published dataset is replaced as one object.
+Snapshot integrity is verified on every start (SHA-256 of the snapshot file against its content address) even when the records come from the store or the derived cache.
+
+## Data retention
+
+Old superseded source snapshots, completed review periods and expired automatic backups are cleaned up by three separate, approval-gated retention categories.
+The rules, previews, approvals, recovery and undo are described in [Data retention](../operations/DATA_RETENTION.md).
+
+## Import checks: suspicious versus invalid
+
+Every replacement source is compared with the **active revision of the same source** (roles, users, employees or SoD) and with nothing else: not another source, not an
+unactivated or held file. A first import has nothing to compare and is never held.
+
+| Outcome | Meaning | What happens |
+| --- | --- | --- |
+| Invalid | Structurally unusable: no records, wrong headers, bad dates, unreadable | Rejected. Cannot be confirmed. `severity: invalid`, `confirmable: false`. |
+| Suspicious | Valid, but a sharp reduction against the active revision | Parsed and reported, **not activated**. Needs explicit confirmation. `category: needs_confirmation`, `severity: suspicious`. |
+| Normal | Anything else | Activated atomically as before. |
+
+Rules (Settings > Data Sources > Import checks; defaults 30 % and 20 records, changes apply with Apply settings):
+
+- **Reduction:** records or a distinct-entity count falls by more than the limit. Entities per source: roles - catalogue entries and transactions; users - SAP users and assigned roles;
+  employees - directory accounts; SoD - risks.
+- **Missing group:** every record of an organizational group (user group, module area or department) disappears and that group held at least 5 records and 1 % of the previous source.
+- Active sources smaller than the minimum are never held, and the checks can be switched off. The limit is between 1 % and 95 %.
+
+A held import keeps the active data, settings revision and snapshots untouched. The API answers `409` with `code: import_needs_confirmation`, the triggered checks and the old and new counts; the
+Settings dialog shows the same report. Importing again with confirmation (`confirm_anomalies`, upload form field of the same name) activates it through the normal atomic path and appends an entry
+(source, time, actor, triggered checks, old and new record counts; last 100) to `data_lifecycle.confirmations`. A scheduled or startup refresh that finds a suspicious file reports the source as
+failed with `previous_preserved: true` and never activates it.
