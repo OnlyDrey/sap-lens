@@ -11,13 +11,13 @@ SCRIPT = (ROOT / 'scripts/test-windows-exe.ps1').read_text(encoding='utf-8')
 class SmokeScriptContracts(unittest.TestCase):
     def test_every_failure_class_is_distinguished(self):
         for name in ('process_exited_before_readiness', 'runtime_record_missing', 'runtime_not_owned', 'http_unavailable', 'instance_id_mismatch',
-                     'health_status_incorrect', 'cached_roles_incorrect', 'window_initialization_failed', 'readiness_timeout',
+                     'health_status_incorrect', 'configuration_required', 'service_identity_incorrect', 'cached_roles_incorrect', 'window_initialization_failed', 'readiness_timeout',
                      'prerequisite_existing_instance', 'instance_not_released'):
             self.assertIn(f"'{name}'", SCRIPT, name)
 
     def test_diagnostics_carry_the_required_facts(self):
         for fact in ('Scenario:', 'Executable:', 'Launcher PID:', 'Runtime PID', 'Launcher exit code', 'Owned processes (parent/child)', 'runtime.json present',
-                     'Last health:', '(expected ok)', '(expected 2)', 'Last readiness condition', 'Elapsed:', 'Application log (last lines, secrets redacted)'):
+                     'Last health:', '(expected $($state.ExpectedStatus))', '(expected $($state.ExpectedRoles))', 'Process readiness:', 'Last readiness condition', 'Elapsed:', 'Application log (last lines, secrets redacted)'):
             self.assertIn(fact, SCRIPT, fact)
         self.assertIn('<redacted>', SCRIPT)
 
@@ -29,9 +29,46 @@ class SmokeScriptContracts(unittest.TestCase):
         self.assertIn("if (-not $ids.Contains([int]$record.pid))", SCRIPT)
         self.assertNotRegex(SCRIPT, r'(?i)(Stop-Process|taskkill|Get-Process\s+-Name[^|\n]*\|\s*(Stop|Kill))')
         self.assertIn('Never terminate processes by name', SCRIPT)
-        self.assertIn("$health.status -ne 'ok'", SCRIPT)
-        self.assertIn('cached_roles -ne 2', SCRIPT)
+        self.assertIn('$health.status -ne $contract.Status', SCRIPT)
+        self.assertIn('$health.cached_roles -ne $contract.Roles', SCRIPT)
+        self.assertIn("$health.app -ne 'sap-lens'", SCRIPT)
         self.assertIn('AddSeconds(60)', SCRIPT, 'the readiness timeout is unchanged')
+
+    def test_fresh_and_configured_scenarios_have_exact_health_contracts(self):
+        policy = SCRIPT[SCRIPT.index('function Get-ScenarioContract'):SCRIPT.index('function Wait-Ready')]
+        self.assertIn("$scenario -eq 'first-launch'", policy)
+        self.assertIn("Status = 'needs_configuration'; Roles = 0", policy)
+        self.assertIn("@('configured', 'relaunch', 'port-conflict')", policy)
+        self.assertIn("Status = 'ok'; Roles = 2", policy)
+        self.assertIn('throw "Unknown smoke scenario:', policy)
+        self.assertIn("@('first-launch', 'configured', 'relaunch', 'port-conflict')", SCRIPT)
+        self.assertIn("$scenario -in @('configured', 'port-conflict')", SCRIPT)
+        self.assertIn("schema_version = 3; data_csv_path = $csvPath; source_modes = @{ roles = 'dynamic' }", SCRIPT)
+        self.assertIn("Join-Path $testRoot 'configured'", SCRIPT)
+
+    def test_launch_environment_is_isolated_and_restored(self):
+        launch = SCRIPT[SCRIPT.index('function Start-Application'):SCRIPT.index('function Get-ScenarioContract')]
+        for name in ('SAP_LENS_CONFIG_DIR', 'SAP_LENS_DATA_DIR', 'SAP_LENS_DEPLOYMENT_MODE', 'DATA_CSV_PATH'):
+            self.assertIn('$env:' + name, launch.split('finally')[0])
+            self.assertIn('$env:' + name, launch.split('finally')[1])
+        self.assertIn("$env:DATA_CSV_PATH = ''", launch)
+        self.assertIn("$env:SAP_LENS_DEPLOYMENT_MODE = 'desktop'", launch)
+        self.assertIn('$env:SAP_LENS_DATA_DIR = $directory', launch)
+
+    def test_process_readiness_is_required_in_addition_to_configuration(self):
+        wait = SCRIPT[SCRIPT.index('function Wait-Ready'):SCRIPT.index('try {\n    $version')]
+        self.assertIn('/health/ready', wait)
+        self.assertIn("if ($ready.status -eq 'ready')", wait)
+        self.assertLess(wait.index("if ($ready.status -eq 'ready')"), wait.index('return $record'))
+        self.assertIn("$state.Health.status -eq 'needs_configuration' -and $contract.Status -eq 'ok'", wait)
+        self.assertNotIn("$health.status -notin", wait, 'do not accept arbitrary non-error health states')
+
+    def test_configuration_diagnostics_do_not_print_source_values(self):
+        helper = SCRIPT[SCRIPT.index('function Get-SmokeConfigurationSummary'):SCRIPT.index('function Format-DiagnosticsCore')]
+        self.assertIn("Join-SafePath $directory 'settings.json'", helper)
+        self.assertIn('source_configured=$configured; source_exists=$exists; source_mode=$mode', helper)
+        self.assertNotIn('$($settings.data_csv_path)', helper)
+        self.assertIn('Configuration summary (no values or paths)', SCRIPT)
 
     def test_existing_instance_is_reported_before_any_launch(self):
         self.assertLess(SCRIPT.index("'prerequisite_existing_instance'"), SCRIPT.index("foreach ($scenario in"))

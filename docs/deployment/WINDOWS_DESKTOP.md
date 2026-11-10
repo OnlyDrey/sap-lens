@@ -237,3 +237,36 @@ persistence/rollback and browser controls. **Native acceptance is still required
 EXE/WebView2 close/hide, double-click and menu restoration, Explorer restart, actual
 browser access while hidden, simultaneous browser/WebView use, explicit Exit,
 shutdown/sign-out, sign-in startup, port conflicts and cleanup during uninstall.
+
+
+## EXE startup smoke contract
+
+Process readiness and data configuration are separate. `/health/ready` must
+return HTTP 200 with `status: ready`; this does not imply any SAP source has
+been imported. `/health` also identifies the application and owned runtime.
+The native `scripts/test-windows-exe.ps1` smoke check requires exact states:
+
+| Scenario | Application status | Cached roles |
+| --- | --- | --- |
+| Fresh first launch, no source configured | `needs_configuration` | 0 |
+| Synthetic catalogue configured in Dynamic mode | `ok` | 2 |
+| Relaunch of that configured installation | `ok` | 2 |
+| Configured installation with preferred port occupied | `ok` | 2 |
+
+`loading`, unknown states, wrong identities and incorrect counts never pass.
+A configured scenario still at `needs_configuration` reports
+`configuration_required`; inspect its application log for an unavailable or
+invalid source. A fresh installation requiring configuration is not a process
+startup failure. Production health semantics are unchanged.
+
+Run on native Windows against the intended artifact after closing any existing
+desktop instance (the smoke test never terminates unrelated applications):
+
+```powershell
+powershell -NoProfile -File .\scripts\test-windows-exe.ps1 -ExecutablePath .\backend\dist\SAP-Lens.exe
+```
+
+Use the actual built EXE path if different. Test storage and source environment
+are isolated; production CSVs are never used by the smoke fixtures. Source-mode
+backend tests and static PowerShell contracts do not establish packaged Windows
+or WebView2 acceptance.

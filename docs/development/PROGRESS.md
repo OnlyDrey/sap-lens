@@ -871,3 +871,99 @@ passed. The existing non-blocking ResourceWarning at
 `test_validation_entrypoint.py:60` remains. The curated profile's zero skips do
 not replace the separately reported unavailable PowerShell checks above.
 Native Windows packaging and PowerShell execution remain unverified here.
+
+
+### Windows Desktop EXE smoke: readiness versus configuration
+
+Observed native smoke failure: first-launch health `needs_configuration`, with
+an owned backend ready and WebView2 started, while the smoke expected `ok` and
+two roles. Production `/health` deliberately reports `needs_configuration` for
+no successfully loaded dataset or an unsuccessful initial load. `/health/ready`
+is the independent process-readiness contract. Desktop supervision already
+accepts known `loading`, `ok`, and `needs_configuration` application states
+with strict app/instance identity and live-worker checks. Production health
+and startup code were not changed to force an `ok` result.
+
+The old smoke called a preconfigured synthetic installation `first-launch`
+and required `ok`/2 universally. Its legacy CSV path fixture *does* load in
+source mode: contrary to an initial hypothesis, Role Catalogue defaults to
+Dynamic, not Static. The packaged import's exact failure cause cannot be
+established without its application log (requested). The revised smoke does
+not hide such a failure: a new explicit configured case still requires `ok`/2,
+and reports `configuration_required` when that expectation is unmet.
+
+The first-launch scenario is now truly unconfigured and requires exactly
+`needs_configuration`/0. Configured, configured relaunch and port-conflict
+scenarios require exactly `ok`/2 with an explicit schema-3 Dynamic synthetic
+source. Relaunch reuses the configured installation. All successful scenarios
+also require HTTP 200 `ready` from `/health/ready`; other states do not pass.
+Diagnostics show scenario-specific expected configuration/count separately
+from process readiness, and distinguish configuration-required from service
+identity/startup failures. Readiness deadlines were not increased.
+
+Fixture launches explicitly isolate CONFIG_DIR, DATA_DIR, desktop deployment
+mode and DATA_CSV_PATH, restoring the caller's values afterward. The minimal
+PATH requirement, runtime ownership, per-session mutex, loopback checks,
+version validation, authentication/CORS checks and owned-process cleanup are
+preserved. Fresh launch also retains duplicate-instance coverage.
+
+Tests added cover real source-mode API states for fresh, loading, configured
+legacy source and missing source; existing Desktop tests continue to reject
+wrong app/instance, unknown states, exited workers and redirected probes.
+Smoke contracts enforce exact scenario mapping, strict cached counts,
+independent readiness, environment restoration and unknown-scenario rejection.
+The initial new TestClient setup was corrected to use the required loopback
+Host; no production Host boundary was weakened.
+
+Targeted Linux results: direct health cases 2/2 passed; complete Desktop and
+smoke-contract modules 59/59 passed; packaging/stage/startup contracts plus
+health tests 63/63 passed; final smoke-isolation contracts 16/16 passed. Scopes
+overlap. Ruff/whitespace checks passed. No PowerShell executable or native
+Windows EXE is available here, so PowerShell parsing/execution and packaged
+WebView2 acceptance remain pending; static contracts do not count as native
+passes. No service packaging behavior changed.
+
+Native follow-up after safely syncing `work`:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_desktop --test test_desktop_smoke_script --test test_windows_stages --test test_windows_package --test test_startup_session --jobs 1 --log build/windows-exe-health-contract.log --report build/windows-exe-health-contract.json
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+powershell -NoProfile -File .\scripts\test-windows-exe.ps1 -ExecutablePath .\backend\dist\SAP-Lens.exe
+```
+
+Use the actual built artifact path. If configured still fails, preserve its
+full smoke diagnostic and application log: do not accept needs_configuration
+for that case or claim its two-role import passed. The known fresh-install
+contract is corrected; the original packaged seeded-import cause is still
+unconfirmed. No GitHub Actions, main merge or release is authorized here.
+
+
+The subsequently uploaded `sap-lens-desktop-smoke-diagnostics.zip` was inspected
+outside Git. It confirms the old smoke script seeded a legacy CSV-path setting,
+the runtime PID belonged to the launched tree, WebView2 started, startup reached
+ready at **4953 ms**, and health reported needs_configuration with zero roles.
+Service packaging passed. The archive contains build logs/manifest and the old
+smoke script, but only the reporter's **25-line application-log tail**, not the
+scenario settings or complete sap-lens.log. It therefore does not establish why
+that seeded path failed in the packaged app. No hidden-import or CSV failure
+cause is asserted from unrelated negative test output in the build log.
+
+Future smoke diagnostics additionally print only settings/source presence,
+source existence and a whitelisted source mode; no settings values or source
+paths are printed. This helps distinguish absent configuration from a failing
+configured source without exposing credentials/data. The final 17 smoke-contract
+tests passed after adding this diagnostic regression. Native configured import
+acceptance remains deliberately strict at ok/two roles, so this change cannot
+turn that unresolved package/data failure into a passing fresh-install result.
+
+Final requested local **REGRESSION passed in 6:07**: backend **1481/1481**,
+critical browser **90/90**, tagged browser **33/33**; aggregate **1604 passed,
+0 failed, 0 skipped**. Documentation links, workflow contracts, test ownership,
+Ruff, ESLint, TypeScript and frontend unit checks also passed. Evidence:
+`build/test-logs/exe-health-regression.log` and
+`build/test-artifacts/exe-health-regression.json` (local generated artifacts).
+The final value-free diagnostic contract was added after the backend stage;
+its affected smoke-contract module was separately rerun, **17/17 passed**.
+No application/frontend production code changed. A new frontend production
+build, FULL, security audits, native packaging and Windows/WebView2 execution
+were not performed. REGRESSION is the curated profile, not the complete suite.

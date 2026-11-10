@@ -8,7 +8,7 @@ New-Item -ItemType Directory -Force $testRoot | Out-Null
 $owned = @{}
 $script:SmokeStart = Get-Date
 $script:ScenarioStart = $script:SmokeStart
-$script:State = @{ Scenario = ''; Directory = ''; Launcher = 0; Runtime = 0; Condition = 'not started'; Health = $null; HttpError = ''; RecordSeen = $false; OwnedSeen = $false }
+$script:State = @{ Scenario = ''; Directory = ''; Launcher = 0; Runtime = 0; Condition = 'not started'; Health = $null; HttpError = ''; RecordSeen = $false; OwnedSeen = $false; ExpectedStatus = ''; ExpectedRoles = 0; Readiness = 'not probed' }
 # The single-instance guard of the packaged application (backend/instance.py). It is per Windows session and independent of SAP_LENS_CONFIG_DIR, so ANY
 # running SAP Lens makes a new launch exit with code 0 without starting a runtime.
 $script:InstanceMutexName = 'Local\SAPLensDesktop'
@@ -40,6 +40,20 @@ function Get-SafeLogTail($directory, [int]$lines = 25) {
     } catch { return "(sap-lens.log unreadable: $($_.Exception.GetType().Name))" }
 }
 
+function Get-SmokeConfigurationSummary($directory) {
+    $settingsFile = Join-SafePath $directory 'settings.json'
+    if (-not $settingsFile -or -not (Test-Path -LiteralPath $settingsFile)) { return 'settings_present=False; source_configured=False' }
+    try {
+        $settings = Get-Content -LiteralPath $settingsFile -Raw -ErrorAction Stop | ConvertFrom-Json
+        $configured = -not [string]::IsNullOrWhiteSpace([string]$settings.data_csv_path)
+        $exists = $false
+        if ($configured) { $exists = Test-Path -LiteralPath ([string]$settings.data_csv_path) }
+        $mode = 'unspecified'
+        if ($settings.source_modes.roles -in @('static', 'dynamic')) { $mode = $settings.source_modes.roles }
+        return "settings_present=True; source_configured=$configured; source_exists=$exists; source_mode=$mode"
+    } catch { return "configuration summary unavailable ($($_.Exception.GetType().Name))" }
+}
+
 function Format-DiagnosticsCore([string]$class, [string]$detail, $application) {
     $state = $script:State
     $lines = [System.Collections.Generic.List[string]]::new()
@@ -63,11 +77,13 @@ function Format-DiagnosticsCore([string]$class, [string]$detail, $application) {
     $lines.Add("runtime.json present: $present    seen during scenario: $($state.RecordSeen)    owned by launched tree: $($state.OwnedSeen)")
     $health = $state.Health
     if ($health) {
-        $lines.Add("Last health: status=$($health.status) (expected ok), cached_roles=$($health.cached_roles) (expected 2), version=$($health.version), instance_id=$($health.instance_id)")
+        $lines.Add("Last health: status=$($health.status) (expected $($state.ExpectedStatus)), cached_roles=$($health.cached_roles) (expected $($state.ExpectedRoles)), version=$($health.version), instance_id=$($health.instance_id)")
     } else {
         $lines.Add("Last health: none received. Last HTTP error: $($state.HttpError)")
     }
+    $lines.Add("Process readiness: $($state.Readiness); application configuration status is checked separately.")
     $lines.Add("Last readiness condition: $($state.Condition)")
+    $lines.Add('Configuration summary (no values or paths): ' + (Get-SmokeConfigurationSummary $state.Directory))
     $lines.Add("Single-instance guard $($script:InstanceMutexName) currently held: $(Test-InstanceHeld). SAP-Lens processes: $((Get-RunningSapLens) -join '; ')")
     $lines.Add('Application log (last lines, secrets redacted):')
     $lines.Add((Get-SafeLogTail $state.Directory))
@@ -127,18 +143,33 @@ function Track-Owned([int]$rootId) {
 function Start-Application([string]$directory) {
     $originalPath = $env:PATH
     $originalConfig = $env:SAP_LENS_CONFIG_DIR
+    $originalData = $env:SAP_LENS_DATA_DIR
+    $originalMode = $env:SAP_LENS_DEPLOYMENT_MODE
+    $originalCsv = $env:DATA_CSV_PATH
     try {
         # The packaged app must work without Python, Node or build tools on PATH.
         $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
         $env:SAP_LENS_CONFIG_DIR = $directory
+        $env:SAP_LENS_DATA_DIR = $directory
+        $env:SAP_LENS_DEPLOYMENT_MODE = 'desktop'
+        $env:DATA_CSV_PATH = ''
         return Start-Process -FilePath $executable -PassThru
     } finally {
         $env:PATH = $originalPath
         $env:SAP_LENS_CONFIG_DIR = $originalConfig
+        $env:SAP_LENS_DATA_DIR = $originalData
+        $env:SAP_LENS_DEPLOYMENT_MODE = $originalMode
+        $env:DATA_CSV_PATH = $originalCsv
     }
 }
 
-function Wait-Ready($application, [string]$directory) {
+function Get-ScenarioContract([string]$scenario) {
+    if ($scenario -eq 'first-launch') { return @{ Status = 'needs_configuration'; Roles = 0 } }
+    if ($scenario -in @('configured', 'relaunch', 'port-conflict')) { return @{ Status = 'ok'; Roles = 2 } }
+    throw "Unknown smoke scenario: $scenario"
+}
+
+function Wait-Ready($application, [string]$directory, $contract) {
     $deadline = (Get-Date).AddSeconds(60)
     $state = $script:State
     do {
@@ -171,14 +202,23 @@ function Wait-Ready($application, [string]$directory) {
                 $state.Condition = "HTTP endpoint unavailable ($($state.HttpError))"
             } else {
                 $state.Health = $health
-                if ($health.instance_id -ne $record.instance_id) {
+                if ($health.app -ne 'sap-lens') {
+                    throw (New-SmokeException 'service_identity_incorrect' 'Health response is not SAP Lens.' $application)
+                } elseif ($health.instance_id -ne $record.instance_id) {
                     $state.Condition = "instance_id mismatch (health $($health.instance_id), runtime.json $($record.instance_id))"
-                } elseif ($health.status -ne 'ok') {
-                    $state.Condition = "health status is '$($health.status)', expected 'ok'"
+                } elseif ($health.status -ne $contract.Status) {
+                    $state.Condition = "health status is '$($health.status)', expected '$($contract.Status)'"
                 } else {
-                    if ($health.cached_roles -ne 2) { throw (New-SmokeException 'cached_roles_incorrect' "Configured synthetic data was not loaded: cached_roles is $($health.cached_roles), expected 2." $application) }
-                    $state.Condition = 'ready'
-                    return $record
+                    if ($health.cached_roles -ne $contract.Roles) { throw (New-SmokeException 'cached_roles_incorrect' "Scenario role count is $($health.cached_roles), expected $($contract.Roles)." $application) }
+                    try {
+                        $ready = Invoke-RestMethod "$($record.origin)/health/ready" -TimeoutSec 2
+                        $state.Readiness = $ready.status
+                        if ($ready.status -eq 'ready') {
+                            $state.Condition = 'ready'
+                            return $record
+                        }
+                        $state.Condition = "process readiness is '$($ready.status)', expected 'ready'"
+                    } catch { $state.Condition = 'process readiness endpoint unavailable'; $state.Readiness = 'unavailable' }
                 }
             }
         }
@@ -188,6 +228,7 @@ function Wait-Ready($application, [string]$directory) {
     if (-not $state.RecordSeen) { $class = 'runtime_record_missing' }
     elseif (-not $state.Health) { $class = 'http_unavailable' }
     elseif ($state.Health.instance_id -ne $record.instance_id -and $state.Condition -like 'instance_id mismatch*') { $class = 'instance_id_mismatch' }
+    elseif ($state.Health.status -eq 'needs_configuration' -and $contract.Status -eq 'ok') { $class = 'configuration_required' }
     elseif ($state.Condition -like "health status*") { $class = 'health_status_incorrect' }
     throw (New-SmokeException $class "Not ready within 60 s: $($state.Condition)" $application)
 }
@@ -208,25 +249,30 @@ try {
     if (Test-InstanceHeld) {
         throw (New-SmokeException 'prerequisite_existing_instance' 'Another SAP Lens instance already runs in this Windows session. Close it and run the smoke test again. Nothing was started or terminated.' $null)
     }
-    foreach ($scenario in @('first-launch', 'relaunch', 'port-conflict')) {
+    foreach ($scenario in @('first-launch', 'configured', 'relaunch', 'port-conflict')) {
         $script:ScenarioStart = Get-Date
-        $script:State = @{ Scenario = $scenario; Directory = ''; Launcher = 0; Runtime = 0; Condition = 'not started'; Health = $null; HttpError = ''; RecordSeen = $false; OwnedSeen = $false }
+        $script:State = @{ Scenario = $scenario; Directory = ''; Launcher = 0; Runtime = 0; Condition = 'not started'; Health = $null; HttpError = ''; RecordSeen = $false; OwnedSeen = $false; ExpectedStatus = ''; ExpectedRoles = 0; Readiness = 'not probed' }
         if (Test-InstanceHeld) { throw (New-SmokeException 'instance_not_released' 'The previous scenario left the single-instance guard held; a launch would exit immediately.' $null) }
         $directory = Join-Path $testRoot $scenario
         New-Item -ItemType Directory -Force $directory | Out-Null
-        # Reuse the first launch's saved configuration to check persistence.
-        if ($scenario -eq 'relaunch') { $directory = Join-Path $testRoot 'first-launch' }
+        # Reuse the configured scenario's saved state to check persistence.
+        if ($scenario -eq 'relaunch') { $directory = Join-Path $testRoot 'configured' }
         $script:State.Directory = $directory
+        $contract = Get-ScenarioContract $scenario
+        $script:State.ExpectedStatus = $contract.Status
+        $script:State.ExpectedRoles = $contract.Roles
         $application = $null
         $csvPath = Join-Path $directory 'role-catalogue.csv'
+        if ($scenario -ne 'first-launch') {
 @'
 FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 FI,DEMO:A,Synthetic A,SHARED,Shared,DEMO,Demo
 MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
 '@ | Set-Content $csvPath -Encoding utf8
-        if ($scenario -ne 'relaunch') {
+        }
+        if ($scenario -in @('configured', 'port-conflict')) {
             $settingsPath = Join-Path $directory 'settings.json'
-            $settingsJson = @{ data_csv_path = $csvPath } | ConvertTo-Json
+            $settingsJson = @{ schema_version = 3; data_csv_path = $csvPath; source_modes = @{ roles = 'dynamic' } } | ConvertTo-Json -Depth 4
             [System.IO.File]::WriteAllText($settingsPath, $settingsJson, (New-Object System.Text.UTF8Encoding($false)))
         }
         $busy = $null
@@ -238,7 +284,7 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
             $application = Start-Application $directory
             $owned[$application.Id] = $application
             $script:State.Launcher = $application.Id
-            $record = Wait-Ready $application $directory
+            $record = Wait-Ready $application $directory $contract
             $health = Invoke-RestMethod "$($record.origin)/health"
             if ($health.version -ne $expectedVersion) { throw 'Runtime version differs from packaged build identity.' }
             if ($busy -and ([uri]$record.origin).Port -eq 18743) { throw 'Port conflict did not select a new controlled port.' }

@@ -85,6 +85,47 @@ class DesktopTests(unittest.TestCase):
         config.get_settings.cache_clear()
         self.temp.cleanup()
 
+    def test_health_separates_fresh_configuration_from_process_readiness(self):
+        app = create_app(instance_id='synthetic-health')
+        with TestClient(app, base_url='http://127.0.0.1') as client:
+            self.assertEqual(client.get('/health/ready').json(), {'status': 'ready'})
+            health = client.get('/health').json()
+            self.assertEqual((health['app'], health['instance_id'], health['status'], health['cached_roles']),
+                             ('sap-lens', 'synthetic-health', 'needs_configuration', 0))
+            app.state.loader.loading = True
+            try:
+                self.assertEqual(client.get('/health/ready').status_code, 503)
+                self.assertEqual(client.get('/health').json()['status'], 'loading')
+            finally:
+                app.state.loader.loading = False
+
+    def test_health_configured_legacy_fixture_and_invalid_source(self):
+        import asyncio
+        from fastapi import HTTPException
+        csv = self.root / 'role-catalogue.csv'
+        csv.write_text('FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n'
+                       'FI,DEMO:A,Synthetic A,SHARED,Shared,DEMO,Demo\n'
+                       'MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo\n', encoding='utf-8-sig')
+        for valid in (True, False):
+            with self.subTest(valid=valid):
+                cache._cache = cache._CacheState()
+                (self.root / 'settings.json').write_text(json.dumps({'data_csv_path': str(csv if valid else self.root / 'missing.csv')}), encoding='utf-8')
+                config.get_settings.cache_clear()
+                app = create_app(instance_id='synthetic-health')
+                with TestClient(app, base_url='http://127.0.0.1') as client:
+                    async def finished(application=app):
+                        result = application.state.loader._result
+                        if result is not None:
+                            try:
+                                await asyncio.wait_for(asyncio.shield(result), 5)
+                            except HTTPException:
+                                pass
+                    client.portal.call(finished)
+                    self.assertEqual(client.get('/health/ready').json(), {'status': 'ready'})
+                    health = client.get('/health').json()
+                    self.assertEqual((health['status'], health['cached_roles']), ('ok', 2) if valid else ('needs_configuration', 0))
+                    self.assertEqual(bool(app.state.loader.error), not valid)
+
     def drive_gui(self, **kwargs):
         self.navigate.reset_mock()
         worker=threading.Thread(target=kwargs['func'], daemon=True)
