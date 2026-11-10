@@ -637,3 +637,69 @@ are executed together in one backend process by the current runner.
 Direct-dependent Linux validation completed: **84 passed, 0 failed, 0 skipped**.
 Documentation links: 62 files, zero failures. No FULL, REGRESSION, production
 build or browser suite was rerun for these test-only changes.
+
+
+### Browser backup subprocess: Windows mutex isolation
+
+Native Windows REGRESSION isolated the remaining failure to the browser test's
+synthetic archive generator. Its separate Python interpreter called desktop
+`maintenance.backup()` with the production session mutex. A unittest patch in
+the parent process cannot cross that process boundary, so a real desktop or
+another default-mutex helper could make `acquire()` return false. This is a
+test-process isolation defect; production refusal to back up a live instance
+remains intentional. The browser-helper audit found no other maintenance
+backup/restore call sites under `frontend/tests`.
+
+The UUID-scoped patch mechanism is now shared in
+`scripts/testing/desktop_test_mutex.py`. Existing backend fixtures delegate to
+it, retaining their cleanup and real Windows acquire/close semantics. The
+browser invokes `scripts/testing/synthetic-backup.py`, which uses that same
+mechanism inside the child interpreter and explicitly points configuration and
+data storage at a fresh temporary synthetic store. The chosen interpreter and
+other process environment are inherited as before. Each invocation generates
+its own namespace; no environment option bypasses production locking.
+
+The scripts/testing location is already mirrored into isolated frontend build
+workspaces; importing a backend Python test module here would have broken that
+layout. No build/packaging implementation change was needed. All original
+browser assertions and backup semantics remain intact. The new backend test
+runs the actual generator as a child; on native Windows it holds a production
+mutex handle during that operation, including when another desktop already
+owns that name. Maintenance still closes its own handles in existing finally
+blocks. Production lock defaults, storage leases and safety gates are untouched.
+
+Linux validation: original browser test passed before the change (the native
+mutex branch is Windows-only); corrected individual test passed; complete
+backup spec 9/9 passed; direct-dependent backup/maintenance/migration tests
+65/65 passed; focused Ruff and ESLint passed. Native Windows execution of the
+held-production-mutex branch and the three-browser-process scenario remains
+required before claiming native resolution.
+
+PowerShell 5.1/7 follow-up (prepared .venv; new artifact names):
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_application_backups.BackupTests.test_browser_archive_subprocess_is_isolated_from_the_production_mutex --jobs 1 --log build/windows-backup-child-kernel.log --report build/windows-backup-child-kernel.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec application-backups --grep "Settings backup requires restart" --browser-jobs 1 --log build/windows-backup-child-focused.log --report build/windows-backup-child-focused.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec application-backups --browser-jobs 1 --log build/windows-backup-child-spec.log --report build/windows-backup-child-spec.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_application_backups --test test_maintenance --test test_storage_migration --jobs 1 --log build/windows-backup-child-backend.log --report build/windows-backup-child-backend.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec application-backups --spec desktop --spec enterprise --browser-jobs 3 --log build/windows-backup-child-parallel.log --report build/windows-backup-child-parallel.json
+```
+
+Stop if a step fails. Only after these pass, run the existing REGRESSION command
+with new log/report names. An existing desktop can remain running for the
+focused child-generator test: its kernel handle is neither released nor
+modified by the test. No FULL, packaging, release or GitHub Actions run is needed.
+
+
+Final local Linux results: targeted three-process browser verification **15/15**
+passed. The subsequent requested REGRESSION passed in **8:02**: backend
+**1474/1474**, critical browser **90/90**, tagged browser **33/33**, including
+the failing backup workflow. Aggregate **1597 passed, 0 failed, 0 skipped**.
+All included static, lint, TypeScript, frontend unit, documentation and workflow
+checks passed. The known non-blocking unclosed-stream ResourceWarning at
+`test_validation_entrypoint.py:60` remains outside this fix. Native Windows
+kernel contention and the same three-process native run remain unexecuted
+here; no FULL, packaging, release or GitHub Actions workflow was run.

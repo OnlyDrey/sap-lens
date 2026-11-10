@@ -33,6 +33,26 @@ class BackupTests(unittest.TestCase):
         self.archive=self.root/'exports'/'source.tar.gz'
         maintenance.backup(self.source,self.archive,'desktop',VERSION)
 
+    def test_browser_archive_subprocess_is_isolated_from_the_production_mutex(self):
+        import subprocess
+        from windows_test_instance import WindowsInstance
+        guard = None
+        try:
+            if os.name == 'nt':
+                # Keep the production name alive, or retain a handle if a real desktop already owns it.
+                guard = WindowsInstance()
+                guard.acquire()
+            script = Path(__file__).resolve().parents[2] / 'scripts/testing/synthetic-backup.py'
+            result = subprocess.run([sys.executable, str(script)], capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr.decode('utf-8', 'replace'))
+            archive = self.root / 'browser-fixture.tar.gz'
+            archive.write_bytes(result.stdout)
+            manifest = maintenance.verify(archive, 'desktop', VERSION)
+            self.assertIn('data/settings.json', manifest['files'])
+        finally:
+            if guard:
+                guard.close()
+
     def preview(self):
         with backups.uploaded(self.data) as (identity,path):
             path.write_bytes(self.archive.read_bytes())

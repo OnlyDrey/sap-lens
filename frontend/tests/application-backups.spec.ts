@@ -4,19 +4,7 @@ import { PYTHON } from './python'
 import path from 'node:path'
 import { layoutMatrix } from './matrix'
 const headers={'X-SAP-Lens':'browser-test-session'}
-function archive(){return execFileSync(PYTHON,['-c',`import sys,tempfile,json
-from pathlib import Path
-sys.path.insert(0,'backend')
-from config_models import AppConfig
-from maintenance import backup
-from version import VERSION
-with tempfile.TemporaryDirectory() as folder:
- root=Path(folder);data=root/'data';data.mkdir()
- (data/'deployment.json').write_text(json.dumps(dict(version=1,mode='desktop')))
- (data/'settings.json').write_text(AppConfig().model_dump_json())
- target=root/'exports'/'synthetic.tar.gz'
- backup(data,target,'desktop',VERSION)
- sys.stdout.buffer.write(target.read_bytes())`],{cwd:path.resolve('..')})}
+function archive(){return execFileSync(PYTHON,[path.resolve('../scripts/testing/synthetic-backup.py')],{cwd:path.resolve('..')})}
 test.afterEach(async({request})=>{await request.post('/api/backups/cancel',{headers})})
 test('Settings backup requires restart; restore validates before explicit replacement confirmation',{ tag: '@workflow' }, async({page,request})=>{
  await request.post('/api/backups/cancel',{headers})

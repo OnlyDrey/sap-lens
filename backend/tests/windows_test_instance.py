@@ -1,11 +1,13 @@
 """Keep real Windows lock semantics, isolated from user applications and parallel tests."""
-from uuid import uuid4
-from unittest.mock import patch
+from pathlib import Path
+import sys
 from instance import WindowsInstance
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts/testing'))
+from desktop_test_mutex import desktop_mutex_patch
 
 
 def isolate_desktop_instance(case):
-    name = 'Local\\SAPLensTest-' + uuid4().hex
-    replacement = patch('instance.WindowsInstance', side_effect=lambda: WindowsInstance(name=name))
+    replacement = desktop_mutex_patch(lambda **kwargs: WindowsInstance(**kwargs))
     replacement.start()
     case.addCleanup(replacement.stop)
