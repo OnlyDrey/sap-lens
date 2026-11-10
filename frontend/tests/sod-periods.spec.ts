@@ -37,7 +37,7 @@ test('period deletion requires the typed name; empty drafts are removed and work
  const confirm=dialog.getByRole('button',{name:'Archive period',exact:true});await expect(confirm).toBeDisabled();await dialog.getByRole('checkbox').check();await confirm.click()
  await expect(page.getByRole('status').filter({hasText:'archived'})).toBeVisible()
  await expect(page.getByRole('button',{name:`Open ${workedName}`,exact:true})).toHaveCount(0);await page.getByRole('button',{name:'Show archived periods',exact:true}).click();await expect(page.getByText(/Archived/).first()).toBeVisible()
- const archived=(await(await request.get('/api/sod/periods?include_archived=true',{headers})).json());expect(archived.items.find((item:any)=>item.id===worked).deleted_at).toBeTruthy();expect(archived.deletions.filter((item:any)=>[draftId,worked].includes(item.id)).map((item:any)=>item.mode).sort()).toEqual(['archived','permanent'])
+ const archived=(await(await request.get('/api/sod/periods?include_archived=true',{headers})).json());expect(archived.items.find((item:any)=>item.id===worked).deleted_at).toBeTruthy();expect(archived.deletions.filter((item:{id:string})=>[draftId,worked].includes(item.id)).map((item:any)=>item.mode).sort()).toEqual(['archived','permanent'])
 })
 
 test('period comparison includes decision changes and ignores deleted periods',async({page,request})=>{
