@@ -785,3 +785,89 @@ frontend unit checks passed. These are Linux results, not proof of native
 Windows file sharing or descendant termination. No FULL, packaging, release
 or GitHub Actions workflow was executed. Original native exception correlation
 and the PowerShell checks above remain outstanding.
+
+
+### CI script inventory and Windows shared-build validation
+
+Safely fast-forwarded a clean `work` from `002af1c` to the owner's merged
+`origin/main` commit `fdc41bb`; no main branch checkout or modification was
+performed. Existing implementation history and generated files were preserved.
+The actual failed CI job (run 42900693579 / job 130125567334) was read without
+dispatching anything. It failed only
+`test_unified_build.ScriptInventoryTests.test_every_tracked_script_is_documented_in_the_build_guide`,
+listing `testing/desktop_test_mutex.py` and `testing/synthetic-backup.py`.
+The uploaded native `build.log` independently identifies the same test and
+same omissions (lines 152–159): this confirms the Windows failure, rather than
+assuming it from matching counts. Packaging was correctly blocked before any
+desktop/service package attempt.
+
+`docs/BUILD.md` now documents both internal test fixtures in its existing
+inventory table. Verification covers all **70 tracked script files**, including
+the existing build_system wildcard; omissions are zero. The inventory test was
+not weakened or changed. The canonical public entrypoint remains
+`scripts/build.ps1`; no root-level bootstrapper was created. A search of the
+README, documentation and script index found no stale root `.\build.ps1`
+command examples needing replacement.
+
+Shared validation in `scripts/deployment/build-deployments.py` runs
+`run-tests.py targeted deployment --backend` for normal builds, and the backend
+REGRESSION profile only when full scope is explicitly selected. The normal
+17-module selection includes the inventory test. Before the documentation fix,
+its local reproduction matched **341 passed, 1 failed, 21 skipped**, with the
+same inventory failure. After the fix it passed **343, 0 failed, 21 skipped**
+(the added diagnostic regression test is included). The earlier green curated
+REGRESSION did not replace these build/deployment tests, which are outside its
+release/packaging selection.
+
+A related reporting gap was corrected minimally: the final 20 output lines can
+be entirely skip messages, hiding a failing test in the build summary. Build
+StageFailure now separately extracts bounded, redacted unittest identities
+from complete captured output, prints them and preserves `failed_tests` in the
+manifest. Its detailed log path and existing output tail remain. A regression
+test proves identity retention beyond 25 skip lines and duplicate normalization.
+Existing shared-validation failure propagation and blocked desktop/service
+manifest contracts pass; no validation gate was bypassed.
+
+Windows PowerShell 5.1 **or** 7 satisfies the packaging prerequisite. PowerShell
+7 is optional; its parser/bootstrapper checks remain explicitly skipped when
+pwsh is absent. No dependency was installed or compatibility claimed from a
+skip. Windows symlink privilege skips likewise do not alter link protections.
+This host has no PowerShell executable, so only source/command contracts ran.
+A direct Windows all-target build dry-run was correctly rejected on Linux
+(exit 2, native runner/explicit remote builder required); no package was built.
+
+Targeted local checks: unified build, diagnostic and workflow modules **99
+passed / 1 skipped**; expanded Windows-stage/PowerShell/build contracts **136
+passed / 18 skipped**; shared backend build selection **343 passed / 21 skipped**.
+These scopes overlap. Documentation check passed for 62 Markdown files;
+workflow contracts, focused Ruff and whitespace checks passed. Original CI
+and Windows log files remain outside Git. No FULL, packaging, release or
+GitHub Actions dispatch was performed.
+
+Native PowerShell 5.1 retry sequence (prepared environment, clean checkout):
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted deployment --backend --log build/windows-build-gate.log --report build/windows-build-gate.json
+powershell -NoProfile -File .\scripts\build.ps1 -Mode build -Platform windows -Target all -NonInteractive
+```
+
+Stop if backend validation fails and retain its named failing tests, build.log
+and build-manifest.json. Native PowerShell execution, PyInstaller, service and
+installer packaging still require Windows verification. The confirmed blocking
+inventory defect is fixed; packaging is ready to retry, not claimed successful.
+
+
+Final diagnostic validation also consumed the actual uploaded Windows build
+log: one correctly deduplicated failing inventory-test identity is retained,
+including unittest contexts that already contain the method name. The expanded
+34-test build diagnostic module passed after adding that real-log format.
+Final local REGRESSION passed in **6:19**: backend **1476/1476**, critical browser
+**90/90**, tagged browser **33/33**, aggregate **1599 passed, 0 failed, 0 skipped**.
+All included static, lint, TypeScript, unit, documentation and workflow checks
+passed. The existing non-blocking ResourceWarning at
+`test_validation_entrypoint.py:60` remains. The curated profile's zero skips do
+not replace the separately reported unavailable PowerShell checks above.
+Native Windows packaging and PowerShell execution remain unverified here.

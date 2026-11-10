@@ -78,6 +78,12 @@ unchanged; see the [deployment guides](deployment/README.md).
 | PowerShell 5.1 or 7 | Windows targets | Checked on Windows; not needed for Linux or Docker packaging | None on Windows |
 | Inno Setup, .NET Framework 4.8, WebView2 | Windows installer, service manager, desktop smoke | Handled by the Windows packaging scripts; see the Windows guides | Administrator approval where policy requires |
 
+Windows packaging accepts Windows PowerShell **5.1 or 7**. PowerShell 7 is optional:
+checks that specifically require `pwsh` are reported as skipped when it is absent;
+those skips do not prove PowerShell 7 compatibility. PowerShell 5.1 static contracts
+remain enforced. A skipped symlink test on a host without link privileges likewise
+does not relax the package's link protections.
+
 Quick checks (`quick`) install nothing. `test` prepares only the project `.venv`; `build`/`package` prepare the packaging environment; `release` needs Git only. System-level installs (Python, Git, Node) always need explicit consent (`--install-system` or an interactive yes).
 
 **pip and certificates.** Python 3.12 seeds new environments with pip 24.0, which trusts only its bundled certificates and fails with `CERTIFICATE_VERIFY_FAILED` where a corporate proxy's CA lives in the Windows certificate store. The engine therefore moves an old pip to the project's pinned release (`pip==` in `backend/requirements-build.txt`) before installing anything; if that first step fails certificate verification it retries **once** with pip's system-trust-store option (`--use-feature=truststore`), only for this bootstrap, because pip 24.2 and later use the system store by default. Verification is never disabled, `--trusted-host` is never used, and no certificate is added to the machine. If the system store does not contain the CA, ask IT to trust it there (or `pip config set global.cert <file>`) and rerun; repeated runs resume safely.
@@ -399,6 +405,8 @@ else is an internal helper and is not a supported entrypoint.
 | Verification | packaging/verify-windows-package.py, packaging/verify-server-bundle.py, packaging/verify-desktop-installer.py, packaging/verify-desktop-distribution.py, packaging/verify-artifact-zip.py, packaging/write-windows-metadata.py | KEEP | Package, bundle, installer and ZIP verifiers; version/PE metadata generation |
 | Validation | validate.py, run-tests.py, test-map.json, testing/ci.py, check-workflows.py, check-docs.py, check-powershell.ps1, check-powershell-compat.ps1 | KEEP | Validation levels (documented in AGENTS.md), test profiles and ownership, CI step runner/summary, workflow contracts, documentation links, PowerShell parse check |
 | Validation | testing/serve-browser-tests.py, sync-lucide-catalog.mjs, frontend-licenses.mjs, product-version.mjs, requirements-audit.txt | KEEP | Browser test server, icon catalogue check, license and version generators, audit tooling pins |
+| Test fixtures | testing/desktop_test_mutex.py | KEEP | Test-only Windows desktop mutex isolation shared by backend fixtures and browser-test subprocesses; production locks remain unchanged |
+| Test fixtures | testing/synthetic-backup.py | KEEP | Generates disposable synthetic backup archives for browser tests using isolated temporary storage and a unique test mutex |
 | Development | maintenance/validation_tracker.py, maintenance/generate-examples.py, maintenance/reference-template.py, benchmarks/profile-sod.py, benchmarks/data_benchmark.py | KEEP | Tracker tooling, deterministic example generator, SoD profiling and reference template; separate from the build engine by design |
 
 Remaining debt: the legacy `build-windows.ps1` stage engine and the deployment

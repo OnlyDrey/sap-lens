@@ -48,6 +48,18 @@ class Classification(unittest.TestCase):
         for secret in ('super-secret-value-123', 'abc123456', 'hunter2pw'):
             self.assertNotIn(secret, text)
 
+    def test_backend_failure_identity_survives_many_skips_and_is_in_manifest(self):
+        name = 'test_unified_build.ScriptInventoryTests.test_every_tracked_script_is_documented_in_the_build_guide'
+        output = f'[backend] FAIL: {name}\nFAIL: {name.split(".")[-1]} (test_unified_build.ScriptInventoryTests)\nFAIL: {name.split(".")[-1]} ({name})\n'
+        output += '\n'.join(f'skipped: optional check {i}' for i in range(25))
+        output += '\nResult: FAILED (tests)'
+        failure = failures.StageFailure('backend', ['python', 'scripts/run-tests.py', 'targeted', 'deployment', '--backend'], '.', 1, output, 'dist/version/build.log', 'backend_validation')
+        self.assertNotIn(name, failure.output_tail)
+        self.assertEqual(failure.as_record()['failed_tests'], [name])
+        self.assertIn(name, failure.summary())
+        self.assertIn('Detailed log: dist/version/build.log', failure.summary())
+        self.assertEqual(failures.failing_tests('ERROR: secret_payload must never be reported'), [])
+
     def test_summary_names_stage_command_directory_exit_code_cause_and_log(self):
         failure = failures.StageFailure('Install locked frontend dependencies', ['npm', '--prefix', 'C:\\My Repo\\ws\\frontend', 'ci', '--no-audit'], 'C:\\My Repo', 1, NPM_EPERM, 'dist/1.0.0/build.log', 'dependency_install')
         text = str(failure)

@@ -71,12 +71,25 @@ def hint(stage, lock, output=''):
     return None
 
 
+def failing_tests(output):
+    """Keep only unittest identifiers, never arbitrary exception messages or test data."""
+    found = []
+    for line in redact(output).splitlines():
+        match = re.match(r'^(?:\[backend(?: \d+/\d+)?\]\s+)?(?:FAIL|ERROR):\s+([\w.]+)(?:\s+\(([\w.]+)\))?', line.strip())
+        if match and match[1].split('.')[-1].startswith('test_'):
+            identity = match[2] if match[2] and match[2].endswith('.' + match[1]) else f'{match[2]}.{match[1]}' if match[2] else match[1]
+            if identity not in found:
+                found.append(identity)
+    return found[:20]
+
+
 class StageFailure(ValueError):
     """A failed build stage with everything needed to diagnose it. The message is the multi-line terminal summary."""
 
     def __init__(self, stage, command, cwd, exit_code, output='', log=None, failure_class='stage', note=None):
         self.stage, self.command, self.cwd, self.exit_code = stage, display(command), str(cwd), exit_code
         self.output_tail, self.log, self.failure_class = tail(output), str(log) if log else None, failure_class
+        self.failed_tests = failing_tests(output)
         if 'ACCEPTANCE PREREQUISITE' in str(output): failure_class = 'acceptance_prerequisite'
         self.lock = classify_lock(output)
         self.hint = hint(stage, self.lock, output) or note
@@ -96,6 +109,7 @@ class StageFailure(ValueError):
     def summary(self):
         rows = [f'Build stage failed: {self.stage}', f'Command: {self.command}', f'Working directory: {self.cwd}', f'Exit code: {self.exit_code}']
         if self.cause: rows.append(f'Error: {self.cause}')
+        if self.failed_tests: rows.append('Failing tests: ' + ', '.join(self.failed_tests))
         if self.hint: rows.append(f'Possible cause: {self.hint}')
         if self.output_tail: rows.append('Last output:\n' + '\n'.join('  ' + line for line in self.output_tail.splitlines()))
         if self.log: rows.append(f'Detailed log: {self.log}')
@@ -103,7 +117,7 @@ class StageFailure(ValueError):
 
     def as_record(self):
         return dict(failed_stage=self.stage, failure_class=self.failure_class, command=self.command, cwd=self.cwd, exit_code=self.exit_code, error=self.cause or self.stage,
-                    hint=self.hint, output_tail=self.output_tail.splitlines(), log=self.log, file_lock=self.lock)
+                    hint=self.hint, output_tail=self.output_tail.splitlines(), log=self.log, file_lock=self.lock, failed_tests=self.failed_tests)
 
 
 class BlockedByShared(ValueError):
