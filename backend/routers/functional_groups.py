@@ -85,8 +85,19 @@ def sync_organizational_changes():
                 if match['status'] == 'matched' and match['employee']['email']:
                     emails[user['username'].strip().upper()] = normalized(match['employee']['email'])
         return fg.apply_organizational_changes(emails, changes['events'], managers)
-    except Exception:  # noqa: BLE001 - advisory synchronisation must not break reads
-        logging.getLogger('sap-lens').warning('Functional Group review synchronisation failed; classifications are unchanged.')
+    except Exception as error:  # noqa: BLE001 - advisory synchronisation must not break reads
+        # Exceptions can contain employee data or local paths: record only the root category and numeric OS codes.
+        cause, seen = error, set()
+        while id(cause) not in seen:
+            seen.add(id(cause))
+            nested = cause.__cause__ or cause.__context__
+            if nested is None:
+                break
+            cause = nested
+        logging.getLogger('sap-lens').warning(
+            'Functional Group review synchronisation failed; classifications are unchanged. '
+            '(operation=organizational_sync category=%s errno=%s winerror=%s)',
+            type(cause).__name__, getattr(cause, 'errno', None), getattr(cause, 'winerror', None))
         return 0
 
 

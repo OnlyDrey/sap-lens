@@ -251,6 +251,26 @@ class Migration(Store):
 
 
 class Persistence(Store):
+    def test_file_reads_and_replacements_share_the_storage_lock(self):
+        from contextlib import contextmanager
+        self.group()
+        original_open, original_write = Path.open, fg.atomic_write
+
+        @contextmanager
+        def checked_open(path, *args, **kwargs):
+            self.assertTrue(fg.lock._is_owned(), 'a Windows read handle must not overlap atomic replacement')
+            with original_open(path, *args, **kwargs) as stream:
+                yield stream
+                self.assertTrue(fg.lock._is_owned(), 'close the read handle before releasing the lock')
+
+        def checked_write(*args):
+            self.assertTrue(fg.lock._is_owned(), 'replacement must use the same lock as readers')
+            return original_write(*args)
+
+        with patch.object(Path, 'open', checked_open), patch.object(fg, 'atomic_write', checked_write):
+            data = fg.read()
+            fg.write(data)
+
     def test_round_trip_and_validation(self):
         gid = self.group()
         fg.add_membership('U1', gid, 'r', 0, 'rev')
@@ -500,6 +520,26 @@ class Api(unittest.TestCase):
     def organisation(self, department, title, manager):
         from test_position_changes import directory, person
         return directory(person('normal@example.test', department, title, ManagerMail=manager, ManagerName=manager.split('@')[0]))
+
+    def test_failed_sync_preserves_classification_and_logs_only_safe_diagnostics(self):
+        import position_changes as changes
+        gid = self.call('POST', '', json=dict(name='Purchasing')).json()['id']
+        user = '/users/DEMO_NORMAL'
+        self.call('PUT', user, json=dict(group_id=gid, reviewer='Rev', rationale='Buys', expected_revision=0))
+        before = fg.read()
+        changes.record_safely(self.organisation('Finance', 'Accountant', 'm1@example.test'),
+                              self.organisation('Procurement', 'Accountant', 'm1@example.test'))
+        problem = PermissionError(13, 'private-synthetic-path-and-person')
+        problem.winerror = 32
+        with patch.object(fg, 'atomic_write', side_effect=problem), self.assertLogs('sap-lens', level='WARNING') as logs:
+            response = self.call('GET', user)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(fg.read(), before)
+        self.assertIn('category=PermissionError errno=13 winerror=32', '\n'.join(logs.output))
+        self.assertNotIn('private-synthetic-path-and-person', '\n'.join(logs.output))
+        # A later successful synchronization must persist the original event exactly once.
+        self.assertEqual(self.call('GET', user).json()['classification']['status'], 'Needs review')
+        self.assertEqual(len([e for e in fg.user_history('DEMO_NORMAL')['items'] if e['event'] == 'review_required']), 1)
 
     def test_organizational_changes_require_reconfirmation_without_losing_the_group(self):
         import position_changes as changes

@@ -113,6 +113,9 @@ test('a Department change requires explicit Functional Group reconfirmation in A
   await importDirectory(employee('Finance', 'Boss'))
   expect((await classify(request, group)).ok()).toBeTruthy()
   await importDirectory(employee('Procurement', 'Boss'))
+  const classification = await request.get('/api/functional-groups/users/DEMO_FG', { headers })
+  expect(classification.ok()).toBeTruthy()
+  expect((await classification.json()).classification.status).toBe('Needs review')
   await page.goto(sessionUrl)
   await page.goto('/#/user-access/account-review')
   const row = page.getByRole('row').filter({ hasText: 'DEMO_FG' }).last() // the main table follows the position-change queue

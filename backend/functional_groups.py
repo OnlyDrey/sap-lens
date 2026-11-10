@@ -185,21 +185,22 @@ def validate_storage(data):
 
 
 def read():
-    path = config_dir() / FILE
-    try:
-        if not path.exists():
-            return empty()
-        with path.open('rb') as stream:
-            raw = stream.read(MAX_BYTES + 1)
-        if len(raw) > MAX_BYTES:
-            raise ValueError('size')
-        parsed = json.loads(raw)
-        result = validate_storage(parsed)
-        if isinstance(parsed, dict) and parsed.get('format') == LEGACY_FORMAT:
-            _keep_legacy_copy(path, raw)
-        return result
-    except (OSError, ValueError, KeyError, TypeError, RecursionError):
-        raise HTTPException(409, 'Functional Group storage could not be read. The original file is retained; review local application storage before recovery.') from None
+    with lock:
+        path = config_dir() / FILE
+        try:
+            if not path.exists():
+                return empty()
+            with path.open('rb') as stream:
+                raw = stream.read(MAX_BYTES + 1)
+            if len(raw) > MAX_BYTES:
+                raise ValueError('size')
+            parsed = json.loads(raw)
+            result = validate_storage(parsed)
+            if isinstance(parsed, dict) and parsed.get('format') == LEGACY_FORMAT:
+                _keep_legacy_copy(path, raw)
+            return result
+        except (OSError, ValueError, KeyError, TypeError, RecursionError):
+            raise HTTPException(409, 'Functional Group storage could not be read. The original file is retained; review local application storage before recovery.') from None
 
 
 def _keep_legacy_copy(path, raw):
@@ -213,13 +214,14 @@ def _keep_legacy_copy(path, raw):
 
 
 def write(data):
-    raw = json.dumps(validate_storage(data), ensure_ascii=False, separators=(',', ':')).encode()
-    if len(raw) > MAX_BYTES:
-        raise HTTPException(409, 'Functional Group storage is full. Existing data is retained.')
-    try:
-        atomic_write(config_dir() / FILE, raw)
-    except OSError:
-        raise HTTPException(409, 'Functional Group data could not be saved. Previous data is retained.') from None
+    with lock:
+        raw = json.dumps(validate_storage(data), ensure_ascii=False, separators=(',', ':')).encode()
+        if len(raw) > MAX_BYTES:
+            raise HTTPException(409, 'Functional Group storage is full. Existing data is retained.')
+        try:
+            atomic_write(config_dir() / FILE, raw)
+        except OSError:
+            raise HTTPException(409, 'Functional Group data could not be saved. Previous data is retained.') from None
 
 
 # --- catalogue ---------------------------------------------------------------------------------------------------------
