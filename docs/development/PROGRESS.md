@@ -967,3 +967,100 @@ its affected smoke-contract module was separately rerun, **17/17 passed**.
 No application/frontend production code changed. A new frontend production
 build, FULL, security audits, native packaging and Windows/WebView2 execution
 were not performed. REGRESSION is the curated profile, not the complete suite.
+
+## Desktop smoke App Control classification and safe diagnostics
+
+Baseline: `aec1cf5`; branch `work`. The supplied native report establishes a
+**pre-process Windows application-control block**: launcher/runtime PID zero,
+no runtime record/application log, correlated Code Integrity events 3077/3033,
+enforced policy and unsigned EXE. It does not establish why an earlier artifact
+was allowed or whether policy, trust, location or artifact identity changed.
+No security-policy change, signing, certificate installation or bypass is made.
+The earlier running-backend/configured-CSV failure is a separate unresolved issue.
+
+Inspection: Windows desktop remains PyInstaller one-file/windowed/noupx, with
+version/icon/resources/frontend bundled by `scripts/build_system/windows/stages.py`.
+The orchestration still invokes `scripts/test-windows-exe.ps1`; `Start-Process`
+launches the resolved EXE with an isolated source environment/minimal PATH. No
+packaging metadata, extraction strategy or launch mechanism was changed in this
+work. Neither packaging success nor `NotSigned` alone explains changing policy
+acceptance between builds.
+
+Implemented:
+
+- Structured nested Win32 error extraction. Native 1260 or exact time/path-
+  correlated blocking events classify `windows_application_control_blocked`;
+  other launch errors remain `process_creation_failed`. Error 577 and unsigned
+  status alone do not assert WDAC. Every blocked/failed creation remains a failure.
+- Read-only Code Integrity query: 3077/3033, attempted launch ±2 seconds, maximum
+  128 events; checks event timestamps and exact `FileName`, not parent name or
+  basename/suffix. NT device paths use QueryDosDevice mapping. Unavailable logs,
+  drive mapping, signature inspection or malformed events report limitations;
+  diagnostic failures preserve the original exception and known policy category.
+- Safe signature status, native error, event/policy IDs, executable-started flag
+  and administrator-approved deployment guidance. No policy changes or elevation.
+  A failed start adds no owned process handle; existing ownership-only cleanup,
+  mutex, security, readiness and fresh/configured exact-count checks remain intact.
+- Safe fixture/schema/path/readability/size diagnostics and bounded allowlisted
+  initialization/import evidence. No CSV contents or settings values are logged.
+  Configured CSV success is not claimed until a native run passes `ok`/two roles.
+- Added executable PowerShell-function tests with mocked OS/event/signature calls
+  for success, wrapped policy error, inaccessible log, NT path/policy correlation,
+  unrelated/old/audit events and diagnostic-failure/no-process ownership. These
+  require PowerShell; Linux structural tests do not substitute for their execution.
+
+Direct validation initially exposed a structural syntax guard treating NT path
+and regex literals as new PowerShell operators. The guard now excludes literal
+single-quoted strings; actual 5.1 parsing remains a native follow-up. Direct
+contracts: 25 discovered, **19 executed successfully / 6 skipped** (PowerShell
+unavailable), no failures. The runner displays discovered tests as passed even
+when it also lists skips; the counts here distinguish actual execution. No test
+is skipped to conceal an observed Windows failure.
+
+Native follow-up commands are in
+[Windows Desktop: App Control](../deployment/WINDOWS_DESKTOP.md#app-control--wdac-blocks-before-startup).
+Run the PowerShell parser, direct tests (including mocked OS behavior), then the
+existing EXE smoke without rebuilding unnecessarily. If policy still blocks it,
+retain the native code and correlated events and use organization-approved
+signing/deployment. Only after launch is allowed can configured-import and
+WebView2 acceptance be assessed. FULL, native packaging and GitHub Actions are
+not executed by this task.
+
+Affected Level 2 validation: five Desktop/smoke/stage/package/startup modules,
+**115 discovered, 109 executed successfully, 6 Windows-only skips**, no failures
+(`build/test-logs/wdac-affected.log`). Final structural contracts were rerun after
+small diagnostic safeguards; 19 executed successfully / 6 Windows-only skips.
+Documentation checker: 62 Markdown files, zero broken internal links; Ruff and
+whitespace checks passed.
+
+The requested REGRESSION was launched with `SAP_LENS_TEST_PROGRESS=summary`.
+Its backend stage exposed an existing console-test environment dependency:
+`ColorOutputTests.test_live_failures_and_summaries_are_coloured` expects PASS
+lines that this summary-only option intentionally suppresses. The call log shows
+the expected failure line and absent success line; no application failure is
+inferred. With the invocation override removed, that exact test and all **12
+ColorOutputTests passed** (`wdac-progress-env-recheck` / `wdac-console-contracts`
+logs and JSON reports under `build/`). No assertions, test skip or product code
+were changed to resolve it. The original REGRESSION is retained, not restarted;
+its original nonzero outcome and focused recovery evidence are reported separately.
+
+Final REGRESSION evidence (`build/test-logs/wdac-regression.log` and matching
+`build/test-artifacts/wdac-regression.json`): **6:05, exit 1**, due solely to the
+console-output environment assertion above. Backend: 1490 discovered, **1483
+passed, 1 failed, 6 skipped**. Browser: **90 critical + 33 tagged passed**, zero
+failures/skips. Whitespace, documentation, workflow contracts, ownership map,
+Ruff, ESLint, TypeScript and frontend unit checks passed. The profile summary
+counts skipped backend tests in its displayed passed number; executed counts
+here exclude those six skips. One existing nonfatal resource warning reported
+an unclosed file in `test_validation_entrypoint.py:60`. No unrelated repair was
+made. The one failed test and its complete 12-test class passed without the
+summary override; this is recovery evidence, **not a clean single-run REGRESSION
+pass**. Do not restart broad suites just to replace this recorded outcome.
+
+Implementation commit: `43b2a8f` (smoke script and regression coverage). Deployment
+guidance and this validation record are delivered in the following documentation
+commit. Four files changed; no production Python, build identity/version,
+packaging configuration, dependencies, CI triggers or `main` changes. No native
+Windows build, PowerShell execution, WebView2 acceptance, FULL, signing or policy
+modifications were performed. Native acceptance remains pending, and the earlier
+configured-CSV root cause remains unresolved.

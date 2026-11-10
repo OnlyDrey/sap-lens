@@ -270,3 +270,83 @@ Use the actual built EXE path if different. Test storage and source environment
 are isolated; production CSVs are never used by the smoke fixtures. Source-mode
 backend tests and static PowerShell contracts do not establish packaged Windows
 or WebView2 acceptance.
+
+### App Control / WDAC blocks before startup
+
+An unsigned EXE can be rejected by an enforced Windows App Control (WDAC)
+policy **before process creation**. This is different from a running application
+reporting `needs_configuration`. Packaging success is not launch authorization;
+a checksum, PE product metadata and an Authenticode signature are separate
+properties. A signature alone does not guarantee acceptance by organization policy.
+See [code signing readiness](CODE_SIGNING.md) for the existing unsigned status.
+
+The smoke test reports `windows_application_control_blocked` for native Windows
+error **1260** (`ERROR_ACCESS_DISABLED_BY_POLICY`) or a blocking Code Integrity
+**3077 / 3033** event correlated to this exact EXE and launch time. It reports
+other creation failures as `process_creation_failed`. Error 577 or `NotSigned`
+alone does not prove WDAC. Audit-only event 3076 is not treated as a block.
+
+Failure diagnostics include the original launch error, native error code when
+available, whether this attempt created a process, Authenticode status and
+correlated event/policy IDs. The read-only event query covers two seconds before
+and after the attempted process creation, capped at 128 entries. Exact DOS or
+mapped NT device paths are compared; basename/suffix matches and parent-process
+paths cannot attribute a block. NT drive mapping uses the read-only Windows
+`QueryDosDevice` API. If App Control/Constrained Language prevents its diagnostic
+helper, or event/signature inspection is unavailable, the limitation is reported;
+the original exception remains the cause. Ordinary smoke execution does not
+require elevation. A blocked launch always fails verification.
+
+Use an existing package first; a rebuild is not necessary to investigate policy.
+From the repository root, with all existing SAP Lens desktop instances closed:
+
+```powershell
+# Parse scripts and run direct contracts before attempting the EXE.
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_desktop_smoke_script --test test_desktop --test test_windows_stages --test test_windows_package --test test_startup_session --jobs 1 --log build/windows-wdac-targeted.log --report build/windows-wdac-targeted.json
+
+$exe = (Resolve-Path .\backend\dist\SAP-Lens.exe).Path
+Get-AuthenticodeSignature -LiteralPath $exe | Select-Object Status
+$launchStart = Get-Date
+powershell -NoProfile -File .\scripts\test-windows-exe.ps1 -ExecutablePath $exe
+$smokeExit = $LASTEXITCODE
+$launchEnd = Get-Date
+Write-Host "Desktop smoke exit code: $smokeExit"
+
+# Optional read-only event overview; the smoke report performs exact EXE correlation.
+# This overview alone cannot attribute events to SAP Lens.
+Get-WinEvent -FilterHashtable @{
+    LogName = 'Microsoft-Windows-CodeIntegrity/Operational'
+    Id = @(3077, 3033)
+    StartTime = $launchStart.AddSeconds(-2)
+    EndTime = $launchEnd.AddSeconds(2)
+} -MaxEvents 128 -ErrorAction Stop | Select-Object TimeCreated, Id, RecordId
+```
+
+In Event Viewer, use **Applications and Services Logs → Microsoft → Windows →
+CodeIntegrity → Operational**. Inspect the event XML's `FileName` and policy ID
+near the launch timestamp. An unrelated executable or old event is not evidence
+for this launch. If logs are inaccessible, retain the original process error and
+ask the organization's security administrator to review the matching event.
+Use organization-approved signing and deployment; do not disable WDAC, alter
+policies, install trust certificates, add exclusions or bypass enterprise controls.
+No certificate provisioning or automatic signing is implemented here.
+
+### Configured-source failure evidence
+
+The earlier seeded-CSV failure occurred **after** backend startup, unlike the
+subsequent policy block. Its packaged root cause remains unconfirmed. After the
+organization authorizes execution, all four smoke scenarios must pass; a
+configured installation still requires `ok` and exactly two synthetic roles.
+
+The failure report records settings/source existence, whitelisted source mode,
+schema-current and expected-fixture-path flags, readability, byte count and a
+read-error type. No CSV contents or configuration values are printed. Bounded
+startup evidence summarizes only allowlisted stage/result fields and whether a
+CSV failure was logged; the existing redacted log tail remains available.
+These observations distinguish missing/unreadable fixtures, persistence/path
+mismatches and logged initialization/import failures. They cannot alone prove a
+database or packaged-resource cause. Preserve the full local application log,
+scenario settings and build identity for investigation, but inspect/redact them
+before sharing; never commit settings, logs, source files, credentials or tokens.
+Native Windows and WebView2 acceptance remain separate from Linux/mock checks.
