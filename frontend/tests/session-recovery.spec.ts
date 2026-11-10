@@ -110,7 +110,9 @@ test('a temporary connection loss is explained once and recovers with Retry', as
   await expect(notice(page)).toHaveCount(1)
   await expect(notice(page)).toContainText('Connection lost')
   await expect(page.getByRole('button', { name: 'Reconnect session' })).toHaveCount(0)               // only actions that work in this state
+  const recovered = page.waitForResponse(response => new URL(response.url()).pathname === '/api/configuration' && response.request().method() === 'GET' && response.ok())
   await page.getByRole('button', { name: 'Retry connection' }).click()
+  await recovered // Retry is asynchronous: the notice clears when the successful read is processed, not when the click returns.
   await expect(notice(page)).toHaveCount(0)
   await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText(names.b)          // the view the person was on is kept
   await expect(page).toHaveURL(new RegExp(`#/user-access/user/${names.b}`))

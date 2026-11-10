@@ -61,7 +61,10 @@ for(const [action,decision,confirm] of [['Keep','Keep','Keep 2 assignments'],['R
  expect(remediation.items[0].activity).toBe('')
  expect(remediation.items[0].recommended).toBe(action==='Keep'?'Maintain access':action==='Remove'?'Remove assignment':'Investigate assignment')
  await dialog.getByRole('button',{name:'Done',exact:true}).click()
+ const queueLoaded=page.waitForResponse(response=>new URL(response.url()).pathname==='/api/sod/queue/users'&&response.request().method()==='GET'&&response.ok())
  await page.getByRole('tab',{name:'Work queue',exact:true}).click()
+ const displayedQueue=await(await queueLoaded).json()
+ expect(displayedQueue.items.some((item:{user:string})=>item.user===`${names.c}_ONLY`)).toBe(true)
  await expect(page.getByRole('table',{name:'SoD review work queue',exact:true}).locator('tbody tr').filter({hasText:`${names.c}_ONLY`})).toBeVisible()
 })
 test('legacy exact selections remain exact while new family chips clear and restore',async({page,request})=>{

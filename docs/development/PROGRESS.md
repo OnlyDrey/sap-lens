@@ -422,3 +422,88 @@ value can be parsed as a feature name by argparse. TARGETED selects changes
 against the explicit baseline; inspect with `--plan` first. The three browser
 processes use the runner's separate ports and storage. These are follow-up
 commands, not a claim that Windows or broad TARGETED validation has passed.
+
+
+### Windows seven-spec follow-up: asynchronous completion assertions
+
+The supplied `windows-verification.zip` was extracted outside the repository,
+without changing the original evidence. Its latest seven-spec run reports
+78 passed / 2 failed / 0 skipped, build and TypeScript passed. The archive
+contains JSON, console/progress and server logs, but not the `trace.zip`,
+error-context or screenshot files referenced by the JSON. Their absolute
+Windows paths are not accessible here. Older `level1`, `level2` and broader
+TARGETED results in the same archive are separate runs, not current evidence.
+
+**Session Recovery:** the original assertion starts its five-second UI budget
+as soon as Retry's click completes, before the asynchronous configuration read
+has completed. It now waits for the successful GET configuration response,
+then retains the original notice-count, navigation and URL assertions. No
+notice is hidden and no timeout was increased. Individual Linux reproduction
+passed before changes. A controlled late-request experiment did not establish
+an application defect; no speculative session state-machine change was kept.
+Classification: test synchronization gap corrected; the precise Windows
+failure sequence remains unconfirmed without the original trace/native rerun.
+
+**Bulk Keep:** the failure was the final Work Queue navigation assertion, after
+all subject, assignment decision, history, queue API, coverage and remediation
+assertions had succeeded. This rules out failure to seed or save that assignment
+at the preceding API checks. The test now awaits the Work Queue response,
+asserts the expected user exists in that response, then retains the exact UI
+row assertion. The same check covers Keep, Remove and Investigate. No review
+rule, filter default, cache or application code changed. Classification: test
+synchronization gap corrected; Windows rendering/filter causality still needs
+native confirmation. Existing regression tests were strengthened, not skipped.
+
+Validation before the seven-spec checkpoint: both original tests passed
+individually on Linux; corrected tests passed three times each (6/6); both full
+specs passed (16/16); focused ESLint passed with no warnings/errors. No backend
+or production frontend source changed, so prior build/type evidence was reused.
+No FULL regression, package build or GitHub Actions dispatch was performed.
+
+**Performance:** Windows logs show successful but slow reads across all three
+servers, including `/health` (4730–5013 ms) and diagnostics (4211–5265 ms).
+The health handler reads the cache snapshot without a SQLite query or lock;
+those timings alone do not establish database contention or expensive SoD
+calculation. Single-process Linux endpoint measurements during the 16-test run:
+health 1 request, max 357 ms; diagnostics 28 requests, mean 16.5 / max 67 ms;
+filter-options 368 requests, mean 24 / max 54 ms; selection 36 requests,
+mean 14 / max 25 ms. Cross-OS numbers are not a controlled performance
+comparison. CPU/thread-pool contention, startup and host scheduling remain
+possible; no bottleneck was confirmed and no caching optimization was made.
+The Windows reset traceback is in asyncio Proactor connection shutdown,
+not an application route. No accompanying process termination or HTTP 500 is
+shown; remaining tests continued. No unsafe suppression or transport workaround
+was added. Its exact connection/request correlation is unavailable.
+
+Windows follow-up (PowerShell 5.1/7, existing prepared `.venv`): preserve the
+original files and use new output names. Run these progressively; stop at the
+first failure. Keep the request log to compare one versus three processes.
+
+```powershell
+git fetch origin
+git switch work
+git merge --ff-only origin/work
+$env:SAP_LENS_TEST_REQUEST_LOG = Join-Path $PWD 'build/windows-followup-requests.log'
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec session-recovery --spec sod-complete-bulk --grep "a temporary connection loss|complete bulk Keep reviews active non-conflict" --repeat-each=3 --browser-jobs 1 --log build/windows-followup-repeat.log --report build/windows-followup-repeat.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec session-recovery --spec sod-complete-bulk --browser-jobs 1 --log build/windows-followup-specs.log --report build/windows-followup-specs.json
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --spec session-recovery --spec ui-polish-actions --spec employee-directory --spec sod-complete-bulk --spec sod-metadata --spec investigation-ux --spec data-aware-ux --browser-jobs 3 --log build/windows-followup-seven.log --report build/windows-followup-seven.json
+Remove-Item Env:SAP_LENS_TEST_REQUEST_LOG
+```
+
+Only after the seven-spec Windows group passes, proceed to the previously
+selected TARGETED feature group if broader verification is desired. Native
+Windows validation remains pending; Linux success does not close that gap.
+
+Seven-spec Linux checkpoint completed: **80 passed, 0 failed, 0 skipped**,
+188.5 seconds, three isolated Playwright processes. Both previously failing
+cases passed in this group. All original assertions remain. Documentation
+check: 62 Markdown files, zero broken internal links; `git diff --check` passed.
+Three-process request measurements (combined independent server logs):
+
+- `/health: n=4, mean=301.0 ms, max=447 ms`
+- `/api/diagnostics: n=178, mean=25.2 ms, max=108 ms`
+- `/api/sod/filter-options: n=464, mean=38.5 ms, max=138 ms`
+- `/api/sod/explorer/access_list/selection: n=35, mean=22.5 ms, max=51 ms`
+
+These are Linux observations, not a Windows benchmark or proof of native
+resolution. Uploaded artifacts and generated results remain outside Git.
