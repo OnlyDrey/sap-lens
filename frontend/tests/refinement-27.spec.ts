@@ -83,7 +83,7 @@ test('Windows tray settings use the parent draft, persist and respond to native 
  const area=page.getByRole('region',{name:'Windows Desktop background operation',exact:true}),toggle=area.getByRole('switch',{name:'Minimize to System Tray on Close',exact:true})
  await expect(toggle).toHaveAttribute('aria-checked','false');await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).toBeDisabled()
  await toggle.click();await area.getByLabel('Start minimized to the system tray',{exact:true}).check();await area.getByLabel('Start SAP Lens at Windows sign-in',{exact:true}).check();expect((await config(request)).desktop.close_to_tray).toBe(false)
- await page.getByRole('button',{name:'Apply settings',exact:true}).click();expect((await config(request)).desktop).toEqual({close_to_tray:true,run_at_signin:true,start_minimized:true})
+ await page.getByRole('button',{name:'Apply settings',exact:true}).click();await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible();expect((await config(request)).desktop).toEqual({close_to_tray:true,run_at_signin:true,start_minimized:true})
  await page.reload();await settings(page,'Runtime & Scheduling');await expect(toggle).toHaveAttribute('aria-checked','true');await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).toBeChecked();await toggle.click();await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).not.toBeChecked()
 })
 test('Windows tray controls are unavailable without the native Windows capability',async({page})=>{

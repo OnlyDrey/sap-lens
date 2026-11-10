@@ -14,6 +14,12 @@ export function textMatches(value:string,query:string):boolean {
  return text.endsWith(last)&&text.length-last.length>=position
 }
 
+/** Several search values separated by comma, semicolon or line break, OR-combined; mirrors the server's text_matches_any. */
+export function textMatchesAny(value:string,query:string):boolean {
+ const terms=query.split(/[,;\n]/).map(term=>term.trim()).filter(Boolean)
+ return !terms.length||terms.some(term=>textMatches(value,term))
+}
+
 /** Transaction filters use exact codes unless an explicit SAP '*' pattern is supplied. */
 export function transactionMatches(code: string, patterns: readonly string[]): boolean {
  return patterns.length === 0 || patterns.some(pattern => pattern.includes('*')

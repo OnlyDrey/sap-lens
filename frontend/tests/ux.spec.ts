@@ -48,7 +48,7 @@ test('theme preview, accessible validation, custom preset persistence, system ap
  await page.getByRole('button',{name:'Reset Primary text color',exact:true}).click()
  await page.getByLabel('Custom preset name',{exact:true}).fill('Synthetic theme')
  await page.getByRole('button',{name:'Save custom preset',exact:true}).click()
- await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+ await page.getByRole('button',{name:'Apply settings',exact:true}).click();await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
  await expect(page.locator('html')).toHaveCSS('--primary','#123456')
  await page.reload()
  await page.getByRole('tab',{name:'Appearance & Branding'}).click()

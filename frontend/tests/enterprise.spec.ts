@@ -30,6 +30,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     await expect(page.getByRole('img',{name:'Header logo preview',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
     await expect(page.getByRole('img',{name:'Selected header logo preview',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+    await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
     unlinkSync(logoPath)
     await page.reload()
     await expect(page.locator('html')).toHaveClass(/dark/)

@@ -57,6 +57,6 @@ test('automatic activation preserves unrelated Settings drafts and opening sourc
  await page.getByRole('tab',{name:'Organization & SAP System',exact:true}).click();await expect(name).toHaveValue('Synthetic unsaved organization')
  await page.getByRole('tab',{name:'Data Sources',exact:true}).click();await expect(area).toBeVisible()
  expect((await settings(request)).revision).toBe(revision)
- await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+ await page.getByRole('button',{name:'Apply settings',exact:true}).click();await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
  expect((await settings(request)).organization.name).toBe('Synthetic unsaved organization')
 })

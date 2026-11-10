@@ -1,5 +1,5 @@
 import { observeAnchorLayout } from '@/lib/observeAnchorLayout'
-import { textMatches } from '@/lib/searchMatching'
+import { textMatches, textMatchesAny } from '@/lib/searchMatching'
 import { usePopoverOwners } from './Popover'
 import { Button } from './Button'
 import { FilterChip } from './FilterChip'
@@ -27,6 +27,14 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
   const wide = Boolean(optionDescription) || shown.some(option => optionLabel(option).length > 36)
   const unselected = shown.filter(option => !values.includes(option))
   const close = () => { setOpen(false); setQuery(''); onSearch?.('') }
+  // While a search is pending (debounce or request in flight) the list can still hold the previous query's results: Enter then acts on
+  // the highlighted value only when it matches the typed text, otherwise on an exact match, and never toggles an unrelated stale value.
+  const matches = (option: string) => !query || textMatchesAny(option, query) || textMatchesAny(optionLabel(option), query) || textMatchesAny(optionDescription?.(option) ?? '', query)
+  const enterTarget = () => {
+    const highlighted = shown[index], typed = query.trim().toLowerCase()
+    if (!loading || (highlighted !== undefined && matches(highlighted))) return highlighted
+    return typed ? shown.find(option => option.toLowerCase() === typed || optionLabel(option).toLowerCase() === typed) : undefined
+  }
   const toggle = (option: string) => onChange(values.includes(option) ? values.filter(item => item !== option) : values.length < maxSelected ? [...values, option] : values)
   const selectShown = () => onChange([...values, ...unselected].slice(0, maxSelected))
   useLayoutEffect(() => {
@@ -79,7 +87,7 @@ export function MultiSelectFilter({ label, values, options, onChange, onSearch, 
             if (event.key === 'Escape' && open) { event.preventDefault(); event.stopPropagation(); close() }
             else if (event.key === 'Tab') close()
             else if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); openList(); setIndex(previous => Math.max(0, Math.min(shown.length - 1, previous + (event.key === 'ArrowDown' ? 1 : -1)))) }
-            else if (event.key === 'Enter' && open) { event.preventDefault(); if (shown[index] !== undefined) toggle(shown[index]) }
+            else if (event.key === 'Enter' && open) { event.preventDefault(); const target = enterTarget(); if (target !== undefined) toggle(target) }
             else if (event.key === 'Backspace' && !query && values.length) onChange(values.slice(0, -1))
           }} />
         <button type="button" aria-label={`${open ? 'Close' : 'Open'} ${label} options`} tabIndex={-1} onMouseDown={event => event.preventDefault()}

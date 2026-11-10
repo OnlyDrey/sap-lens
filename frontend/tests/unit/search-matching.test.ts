@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { textMatches, transactionMatches, matchingTransactions } from '../../src/lib/searchMatching.ts'
+import { textMatches, textMatchesAny, transactionMatches, matchingTransactions } from '../../src/lib/searchMatching.ts'
 import { presentRoleDescription } from '../../src/lib/rolePresentation.ts'
 
 // Moved from refinement-search-layout.spec.ts and stabilization.spec.ts. Same cases and expected values.
@@ -15,4 +15,9 @@ test('display descriptions and transaction matching preserve literal evidence se
   assert.equal(presentRoleDescription('BC prose - Preserve', ['BC']).description, 'BC prose - Preserve')
   assert.equal(transactionMatches('sost', ['SO*']), true); assert.equal(transactionMatches('SM35', ['SO*']), false); assert.equal(transactionMatches('SOST', ['SO']), false)
   assert.deepEqual(matchingTransactions([{ tcode: 'SOST' }, { tcode: 'SO20' }, { tcode: 'SM35' }], ['SO*']).map(row => row.tcode), ['SOST', 'SO20'])
+})
+
+test('several separated search values combine with OR like the server option search', () => {
+  assert.equal(textMatchesAny('GROUP_A', 'GROUP_B, group_a'), true); assert.equal(textMatchesAny('GROUP_A', 'X;GROUP*'), true)
+  assert.equal(textMatchesAny('GROUP_A', 'GROUP_B\nGROUP_C'), false); assert.equal(textMatchesAny('GROUP_A', ' , ;'), true)
 })

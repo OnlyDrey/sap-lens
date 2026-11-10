@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { accessQuery } from '@/api/access'
 import { Combobox } from '@/components/Shared/Combobox'
 import { MultiSelectFilter } from '@/components/Shared/MultiSelectFilter'
@@ -22,11 +22,12 @@ export function ReleaseFilter({ field, label, value, onChange, context, placehol
 export function ReleaseMultiFilter({ field, label, values, onChange, context, optionLabel }: { field: 'group' | 'release_area' | 'release_group' | 'strategy'; label: string; values: string[]; onChange: (values: string[]) => void; context: Record<string, string | string[]>; optionLabel?: (value: string) => string }) {
   const [search, setSearch] = useState(''), [term, setTerm] = useState('')
   useEffect(() => { const timer = setTimeout(() => setTerm(search), 180); return () => clearTimeout(timer) }, [search])
-  const options = useQuery({ queryKey: ['release-options', field, context, term], queryFn: () => accessQuery<Options>('release-options', { ...context, field, search: term }), gcTime: 60_000 })
+  // The previous list stays visible while a new search runs (marked as searching), instead of an empty list that swallows Enter.
+  const options = useQuery({ queryKey: ['release-options', field, context, term], queryFn: () => accessQuery<Options>('release-options', { ...context, field, search: term }), gcTime: 60_000, placeholderData: keepPreviousData })
   // Complete option lists only: a truncated list cannot prove that a retained choice is missing.
   const unavailable = options.data && !options.isFetching && !options.data.has_more && !term ? values.filter(value => !options.data!.items.includes(value)) : []
   return <Filter label={label}>
-    <MultiSelectFilter label={label} values={values} options={options.data?.items || []} onChange={onChange} onSearch={setSearch} loading={options.isFetching} hasMore={options.data?.has_more} optionLabel={optionLabel} scope="within the other active release filters"/>
+    <MultiSelectFilter label={label} values={values} options={options.data?.items || []} onChange={onChange} onSearch={setSearch} loading={options.isFetching || search !== term} hasMore={options.data?.has_more} optionLabel={optionLabel} scope="within the other active release filters"/>
     {options.isError && <span role="status" className="text-xs text-[var(--warning)]">Options unavailable. Existing filter retained.</span>}
     {unavailable.length > 0 && <span role="status" className="text-xs text-[var(--warning)]">No available value matches {unavailable.join(', ')} in the current context. Remove it or change the other filters.</span>}
   </Filter>

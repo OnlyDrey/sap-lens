@@ -95,6 +95,8 @@ test('automatic directory import, feature persistence, manager drill-down and fa
   await page
     .getByRole('button', { name: 'Apply settings', exact: true })
     .click()
+  // Settings count as unsaved until Apply completes: navigating or reloading earlier meets the discard prompt or cancels the save.
+  await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
   await page
     .getByRole('navigation', { name: 'Main navigation' })
     .getByRole('link', { name: 'User Access', exact: true })
@@ -356,6 +358,8 @@ test('explicit import, independent feature toggles, retained data and Diagnostic
   await page.getByRole('switch',{name:'Employee Directory feature',exact:true}).click()
   await page.getByRole('switch',{name:'User–Role Mapping feature',exact:true}).click()
   await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+  // Settings count as unsaved until Apply completes: navigating or reloading earlier meets the discard prompt or cancels the save.
+  await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
   await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'User Access',exact:true})).toBeEnabled()
   await page.reload()
   await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'User Access',exact:true})).toBeEnabled()
@@ -374,6 +378,7 @@ test('explicit import, independent feature toggles, retained data and Diagnostic
   await page.getByRole('tab',{name:'Features',exact:true}).click()
   await page.getByRole('switch',{name:'User–Role Mapping feature',exact:true}).click()
   await page.getByRole('button',{name:'Apply settings',exact:true}).click()
+  await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'User Access',exact:true}).click()
   await expect(page.getByRole('link', { name: 'DEMO_EMPLOYEE',exact:true})).toBeVisible()
   expect((await settings(request)).employee_snapshot_id).toBe(identity)

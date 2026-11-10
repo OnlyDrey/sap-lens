@@ -189,6 +189,7 @@ test('module status separates saved state from unsaved preview and persists only
   await page
     .getByRole('button', { name: 'Apply settings', exact: true })
     .click()
+  await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible()
   await page.reload()
   await page.getByRole('tab', { name: 'SAP Modules', exact: true }).click()
   await expect(row.locator('.status-pill')).toHaveText('Disabled')

@@ -287,6 +287,13 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
 - *State left by a test*: saved filters and local SoD annotations are user data that a configuration reset keeps. A spec that creates them
   deletes exactly what it created in `afterEach` (see `release-roles` and `sod-metadata`), so a repeat, a retry or a later spec in the same
   process starts clean.
+- *Settings Apply*: Settings count as unsaved until Apply completes. Navigating meanwhile opens the discard prompt (Playwright dismisses it,
+  so the view stays where Settings opened), a reload cancels the save, and a configuration read can still return the old values. After
+  `Apply settings`, wait for `getByRole('status').filter({ hasText: 'Settings saved successfully.' })` before the next step.
+- *Recovery the application does by itself*: the configuration poll (every 3 s) reconnects a lost session without the user. A test that
+  checks a manual action (Retry) keeps the failure in place until that action happened, detected in the page, instead of racing the poll.
+- *Search-as-you-type lists*: server-backed option lists are debounced and show the previous results while a search runs. The shared
+  `MultiSelectFilter` treats Enter during that window as a choice only for a value that matches the typed text; tests do not need sleeps.
 - *Clipboard assertions*: never read `navigator.clipboard.readText()` back. The clipboard belongs to the whole browser (on Windows
   possibly to every browser process of a parallel run) and `writeText` finishes after the click, so a read can return an earlier
   test's value. Call `recordClipboard(page)` from `tests/support.ts` before the copy (it also grants the permissions) and assert

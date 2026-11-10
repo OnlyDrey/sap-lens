@@ -90,8 +90,11 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   await page.goto('/#session=browser-test-session')
   await navigate(page,'User Access')
   let failed = false
+  // While failed, the service stays unreachable until the person clicks Retry: the application's own poll (every 3 s) would
+  // otherwise reconnect first on a slow machine and remove the button under the click, so the recovery is the click's doing.
+  const retried = () => page.evaluate(() => (window as unknown as { retriedConnection?: boolean }).retriedConnection === true).catch(() => false)
   await page.route('**/api/configuration', async route => {
-    if (failed) return route.abort()
+    if (failed) return (await retried()) ? route.fallback() : route.abort()
     try { const response = await route.fetch(); const data = await response.json(); await route.fulfill({json:{...data,loading:true}}) }
     catch { await route.abort().catch(() => {}) } // the request belonged to a page that was navigating away
   })
@@ -106,7 +109,9 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
   await expect(page.locator('.session-notice')).toContainText('Connection lost') // the shared session notice replaces the old banner
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toHaveCount(0)
   await expect(page.locator('.startup-screen')).toHaveCount(0)
-  await page.unroute('**/api/configuration')
+  await page.evaluate(() => document.addEventListener('click', event => {
+    if ((event.target as Element | null)?.closest('button')?.textContent?.includes('Retry connection')) (window as unknown as { retriedConnection?: boolean }).retriedConnection = true
+  }, { capture: true }))
   await page.getByRole('button',{name:'Retry connection',exact:true}).click()
   await expect(page.locator('.session-notice')).toHaveCount(0)
   await expect(page.getByRole('heading',{name:'User Access',exact:true})).toBeVisible()
