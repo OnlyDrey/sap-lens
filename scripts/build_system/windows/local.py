@@ -196,7 +196,7 @@ def build(Mode='Build', Version='', IncludeService=False, OutputDirectory='', ro
             run_stage('Local identity', lambda: native([host, helper, 'identity', '--version', Version]))
             info = json.loads((build_directory / 'build-version.json').read_text(encoding='utf-8-sig'))
             state['info'] = info
-            output = Path(OutputDirectory) if OutputDirectory else root / 'dist/local/packages' / info['version'] / run
+            output = Path(OutputDirectory) if OutputDirectory else root / 'dist' / (info['version'] + '-' + info['source_sha'][:12])
             state['output'] = output
             if Mode != 'Package':
                 run_stage('Managed tool preflight', lambda: native([host, 'scripts/testing/ci.py', 'prerequisites']))
@@ -241,9 +241,9 @@ def build(Mode='Build', Version='', IncludeService=False, OutputDirectory='', ro
                 run_stage('Distribution roundtrip', lambda: native([build_python, helper, 'export', '--version', Version, '--output', output]))
             if IncludeService:
                 def service():
-                    service_directory = output / 'service'
+                    service_directory = build_directory / ('local-service-' + run)
                     (server_build or server.build)(Version=Version, OutputDirectory=str(service_directory))
-                    native([build_python, 'scripts/deployment-package.py', 'finish', '--directory', service_directory, '--platform', 'Windows-Service-x64', '--output', output / 'service-archives'])
+                    native([build_python, 'scripts/deployment-package.py', 'finish', '--directory', service_directory, '--platform', 'Windows-Service-x64', '--output', output])
                 run_stage('Service bundle', service)
         state['completed'] = True
     except (StageError, OSError, ValueError, KeyError) as error:

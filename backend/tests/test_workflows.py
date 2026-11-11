@@ -16,6 +16,24 @@ class WorkflowTests(unittest.TestCase):
     def test_actual_workflows_satisfy_contract(self):
         contracts.validate(self.workflows)
 
+    def test_collection_cannot_be_skipped_or_upload_unverified_intermediate(self):
+        for mutation in ('skip', 'old-path', 'extra-file', 'order'):
+            workflows = copy.deepcopy(self.workflows)
+            steps = workflows['build-windows.yml']['jobs']['windows-exe']['steps']
+            collection = next(step for step in steps if step.get('id') == 'collect')
+            upload = next(step for step in steps if step.get('id') == 'executable')
+            if mutation == 'skip':
+                collection['if'] = 'false'
+            elif mutation == 'old-path':
+                upload['with']['path'] = 'backend/dist/SAP-Lens.exe\nbackend/dist/SAP-Lens.exe.sha256'
+            elif mutation == 'order':
+                steps.remove(collection)
+                steps.insert(0, collection)
+            else:
+                upload['with']['path'] += '\nrelease-manifest.json'
+            with self.subTest(mutation=mutation), self.assertRaises(ValueError):
+                contracts.validate(workflows)
+
     def test_trigger_matrix_only_a_push_to_main_runs_ci_everything_else_is_manual(self):
         # (Fast Validation, Full Validation, Build Windows Application, Build Deployment Packages); a pull request's branch is its target.
         for event, branch, expected in [

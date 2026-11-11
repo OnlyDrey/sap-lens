@@ -300,6 +300,22 @@ class DeploymentCollectionTests(unittest.TestCase):
             release.eligible(info, ALL, data)
         self.assertEqual(len(release.eligible(info, [n for n in ALL if n != 'linux-docker'], {**data, 'docker': {'result': 'skipped', 'outputs': {}}})), len(ALL) - 1)
 
+    def test_ci_finalization_collects_all_platforms_into_versioned_root(self):
+        info = identity(); data = needs(info)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary); inputs = root / 'downloads'; inputs.mkdir()
+            output = root / 'dist' / release.deployment_output_name(info['version'], info['source_sha'])
+            for key in (row[0] for row in release.PACKAGES.values()):
+                row = data[key]['outputs']; name = row['package_name']
+                (inputs / name).write_bytes(key.encode())
+                (inputs / (name + '.sha256')).write_text(row['package_sha'] + '  ' + name + '\n')
+            assets = release.collect(inputs, info, release.eligible(info, ALL, data), output)
+            self.assertTrue(all(path.parent == output for path in assets))
+            inventory = json.loads((output / 'release-manifest.json').read_text())
+            self.assertEqual(len(inventory['artifacts']), 4)
+            self.assertEqual(inventory['source_commit'], info['source_sha'])
+            self.assertTrue(all(not path.name.endswith('.sha256') for path in assets))
+
     def test_exact_asset_collection_checksum_source_manifest_and_tampering(self):
         info = identity(); data = needs(info)
         with tempfile.TemporaryDirectory() as temporary:

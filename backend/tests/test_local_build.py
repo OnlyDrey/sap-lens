@@ -303,30 +303,48 @@ class LocalExportTests(unittest.TestCase):
         local.write_json(self.root / 'backend/build/package-verification.json', {'exe_sha256':self.sha})
         (self.root / 'backend/build/timings.jsonl').write_text('\n'.join(json.dumps({'stage':name,'status':'passed'}) for name in ['PyInstaller packaging (clean)', 'Package verification and checksum', 'EXE smoke testing']))
         self.info = local.version.make_local_package_info('0.1.0', 'a'*40)
-        self.output = self.root / 'dist/local/packages/synthetic'
+        self.output = self.root / 'dist' / (self.info['version'] + '-' + self.info['source_sha'][:12])
 
     def test_exact_archive_is_roundtripped_and_extracted_exe_reverified(self):
         # Stub only the native PE subprocess; real ZIP parser/digest/content checks run.
-        with patch.object(local, 'identity', return_value=self.info), patch.object(local, 'check', return_value={'stages':local.REQUIRED}), patch.object(local.subprocess, 'run') as pe:
+        inspected = []
+        def verify(command, **kwargs):
+            extracted = Path(command[command.index('--distribution')+1])
+            self.assertEqual((extracted / 'SAP-Lens.exe').read_bytes(), self.exe.read_bytes())
+            self.assertTrue(extracted.is_relative_to(self.root / 'backend/build'))
+            inspected.append(extracted)
+            Path(command[command.index('--report')+1]).write_text('{"verification":"passed"}')
+        with patch.object(local, 'identity', return_value=self.info), patch.object(local, 'check', return_value={'stages':local.REQUIRED}), patch.object(local.subprocess, 'run', side_effect=verify) as pe:
             local.export('0.1.0', self.output, self.root)
-        with zipfile.ZipFile(next((self.output / 'archive').glob('*.zip'))) as archive:
+        archive_path = next(self.output.glob('*.zip'))
+        with zipfile.ZipFile(archive_path) as archive:
             self.assertEqual(set(archive.namelist()), {'SAP-Lens.exe','SAP-Lens.exe.sha256'})
-        args = pe.call_args.args[0]
-        distribution_index = args.index("--distribution")
-        actual_distribution = Path(args[distribution_index + 1])
-        expected_distribution = self.output / "application"
-
-        self.assertTrue(
-            os.path.samefile(actual_distribution, expected_distribution),
-            f"Distribution path mismatch: {actual_distribution} != {expected_distribution}",
-        )
-        self.assertIn(self.sha, args)
+        self.assertEqual(len(inspected), 1)
+        self.assertFalse(inspected[0].exists(), 'Extracted intermediate must not remain in the release directory')
         self.assertTrue(pe.call_args.kwargs['check'])
         manifest = json.loads((self.output / 'build-manifest.json').read_text())
         self.assertFalse(manifest['official_release'])
         self.assertEqual(manifest['signing'], 'disabled')
         self.assertEqual(manifest['exe_sha256'], self.sha)
-        self.assertEqual(local.digest(next((self.output / 'archive').glob('*.zip'))), manifest['zip_sha256'])
+        self.assertEqual(local.digest(archive_path), manifest['zip_sha256'])
+        self.assertFalse((self.output / 'archive').exists())
+        self.assertFalse((self.output / 'application').exists())
+        inventory = json.loads((self.output / 'release-manifest.json').read_text())
+        self.assertEqual(inventory['artifacts'][archive_path.name]['sha256'], manifest['zip_sha256'])
+
+    def test_ci_raw_executable_collection_preserves_two_file_upload_and_identity(self):
+        local.write_json(self.root / 'backend/build/build-version.json', self.info)
+        with patch.dict(os.environ, {'GITHUB_OUTPUT': ''}):
+            output = local.collect_executable(root=self.root)
+        self.assertEqual(output, self.output)
+        self.assertEqual((output/'SAP-Lens.exe').read_bytes(), self.exe.read_bytes())
+        inventory = json.loads((output/'release-manifest.json').read_text())
+        self.assertEqual(inventory['source_commit'], self.info['source_sha'])
+        self.assertEqual(set(inventory['artifacts']), {'SAP-Lens.exe'})
+        workflow = (ROOT/'.github/workflows/build-windows.yml').read_text()
+        self.assertLess(workflow.index('-Stage Smoke'), workflow.index('--ci-tool windows-collect'))
+        self.assertLess(workflow.index('--ci-tool windows-collect'), workflow.index('id: executable'))
+        self.assertIn('${{ steps.collect.outputs.release_directory }}/SAP-Lens.exe.sha256', workflow)
 
     def test_changed_exe_or_failed_native_smoke_cannot_be_exported(self):
         with patch.object(local, 'identity', return_value=self.info):

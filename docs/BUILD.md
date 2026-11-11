@@ -246,11 +246,11 @@ All distributable output is written under the repository-root `dist/`, which Git
 
 | Directory | Holds |
 | --- | --- |
-| `dist/local/` | Portable Windows desktop builds, run records and receipts |
-| `dist/deployment/` | Verified deployment archives and checksums: Windows desktop and service, Linux native, Docker image archive |
-| `dist/server/` | Windows service distributions |
-| `dist/<version>-<commit12>/` | Per-version output of the cross-platform builder, with its manifest and `SHA256SUMS.txt` |
-| `dist/publication/` | Same-run artifacts collected by the guarded release job (never written locally) |
+| `dist/local/` | Local run records and diagnostics; no final distributable payloads |
+| `dist/deployment/` | Internal canonical-packager/CI staging for verified archives and checksums |
+| `dist/server/` | Internal direct server-builder staging |
+| `dist/<version>-<commit12>/` | Final local/remote/CI release artifacts and checksums; `release-manifest.json` records names, platform, version and full source SHA |
+| `dist/publication/` | Same-run CI download staging; guarded finalization copies only verified selected artifacts into the version/commit directory |
 
 Docker images stay in Docker; only exported archives and metadata land in `dist/`. The package folders were not split further by platform because the GitHub upload contracts, release collection and verification read these exact paths; the platform is part of each package name. `clean` removes only the generated locations above plus `backend/build`, `backend/dist` and `frontend/dist`, refuses symbolic links and Windows junctions anywhere on the path, requires `--confirm-clean`, and never touches sources, user data or databases.
 
@@ -262,10 +262,30 @@ bump. Existing dotted prereleases and legacy portable beta-hyphen overrides rema
 supported; deployment archives retain their established SemVer requirements.
 
 Deployment archives default to `dist/<version>-<commit12>/`; `--output` can select another
-verified managed/ignored or external output directory. Portable Windows exports
-retain `dist/local/packages/<local-version>/<run-id>/`; a portable output override
-must remain under `dist/local/`. No output is silently overwritten. Each successful
+verified managed/ignored or external output directory. Portable Windows exports use the same root version/commit convention; their
+existing unofficial `+local.<commit12>` version identity is preserved. A portable
+output override must remain below root `dist/`. No output is silently overwritten. Each successful
 command prints its canonical manifest/artifact location and log directory.
+
+Portable EXE output under `backend/dist/` is an internal PyInstaller input. For local portable builds, only
+the roundtripped ZIP and its checksum are final deliverables; extraction
+and PE verification happen in temporary `backend/build/portable-export-*` storage.
+There is no second extracted application or nested archive in the release folder.
+The legacy CI build-only job collects its verified raw EXE and checksum into the
+same versioned root directory after native smoke checks. Its GitHub artifact
+still contains exactly those two files; the local inventory is not an extra upload.
+Installer/service/Linux/Docker archives retain their existing names. The shared
+collector verifies hashes, refuses artifact overwrites and foreign version/commit
+inventories, and records `release-manifest.json`. Package-internal manifests and
+per-invocation build manifests remain distinct evidence. `IncludeService` stages
+its unpacked service under backend/build and places its ZIP beside the portable
+ZIP. CI download/upload staging paths remain compatible; public release assets
+remain limited to the existing selected packages and public manifest, without
+adding duplicate checksum assets.
+
+Verify an archive against its adjacent `.sha256` using `Get-FileHash -Algorithm
+SHA256 <archive>` on Windows or `sha256sum -c <archive>.sha256` on Linux. The digest
+must also equal the record for that filename in `release-manifest.json`.
 
 | Target | Existing archive name |
 | --- | --- |

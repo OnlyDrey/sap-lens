@@ -12,7 +12,7 @@ TARGETS={'windows':('desktop','installer','server','service','all'),'linux':('se
 CI_TOOLS={'validation':('py','testing/ci.py'),'windows-stage':('ps','build-windows.ps1'),'windows-package':('ps','package-windows-deployment.ps1'),
           'installer-check':('ps','build-desktop-installer.ps1'),'native-package':('py','deployment-package.py'),
           'docker-package':('py','deployment/package-docker.py'),'deployment-release':('py','deployment/deployment-release.py'),
-          'legacy-release':('py','packaging/release-windows.py')}
+          'legacy-release':('py','packaging/release-windows.py'),'windows-collect':('py','packaging/local-build.py')}
 
 def module(name):
     path=next((ROOT/'scripts').rglob(name+'.py'))

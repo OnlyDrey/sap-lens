@@ -113,7 +113,7 @@ try {
         # Validate the requested version before dependency installation or packaging.
         Run-Stage 'Local identity' { Invoke-Native $hostPython @($helper, 'identity', '--version', $Version) }
         $info = Get-Content -Raw (Join-Path $buildDirectory 'build-version.json') | ConvertFrom-Json
-        $output = if ($OutputDirectory) { $OutputDirectory } else { Join-Path $root "dist/local/packages/$($info.version)/$run" }
+        $output = if ($OutputDirectory) { $OutputDirectory } else { Join-Path $root ("dist/{0}-{1}" -f $info.version, $info.source_sha.Substring(0,12)) }
         if ($Mode -eq 'Package') {
             Run-Stage 'Validated input freshness' { Invoke-Native $hostPython @($helper, 'check', '--version', $Version) }
         } else {
@@ -157,9 +157,9 @@ try {
         }
         if ($IncludeService) {
             Run-Stage 'Service bundle' {
-                $serviceDirectory = Join-Path $output 'service'
+                $serviceDirectory = Join-Path $buildDirectory ('local-service-'+$run)
                 & (Join-Path $PSScriptRoot 'build-server-windows.ps1') -Version $Version -OutputDirectory $serviceDirectory
-                Invoke-Native $buildPython @('scripts/deployment-package.py', 'finish', '--directory', $serviceDirectory, '--platform', 'Windows-Service-x64', '--output', (Join-Path $output 'service-archives'))
+                Invoke-Native $buildPython @('scripts/deployment-package.py', 'finish', '--directory', $serviceDirectory, '--platform', 'Windows-Service-x64', '--output', $output)
             }
         }
     }

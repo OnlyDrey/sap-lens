@@ -22,6 +22,9 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'backend'))
+sys.path.insert(0, str(ROOT / 'scripts'))
+from build_system import artifacts
+from build_system.layout import deployment_output_name
 import version
 
 REQUIRED = ['Frontend', 'Python', 'Audit', 'PackagingBackend', 'PackagingBrowser', 'Repository']
@@ -165,33 +168,42 @@ def export(requested, output, root=ROOT):
     checksum = root / 'backend/dist/SAP-Lens.exe.sha256'
     if digest(exe) != approved['exe_sha256']:
         raise ValueError('Executable changed after package verification.')
+    if any(artifacts.is_linked_output(path) for path in (output, *output.parents)):
+        raise ValueError('Local distribution must not be linked.')
     output = output.resolve()
-    allowed = (root / 'dist/local').resolve()
+    allowed = (root / 'dist').resolve()
     if not output.is_relative_to(allowed) or output == allowed:
-        raise ValueError('Local distribution must be below dist/local/.')
-    output.mkdir(parents=True, exist_ok=False)
-    archive_dir = output / 'archive'
-    archive_dir.mkdir()
-    archive = archive_dir / f"SAP-Lens-Windows-x64-{info['version']}.zip"
-    with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as bundle:
-        for path in (exe, checksum):
-            bundle.write(path, path.name)
-    zip_sha = digest(archive)
-    extracted = output / 'application'
-    load_script('verify-artifact-zip').verify(archive_dir, extracted, zip_sha)
-    report = output / 'verification-report.json'
-    subprocess.run([sys.executable, str(root / 'scripts/packaging/verify-windows-package.py'),
-                    '--distribution', str(extracted), '--expected-sha256', approved['exe_sha256'],
-                    '--report', str(report)], cwd=root, check=True)
-    archive.with_suffix('.zip.sha256').write_text(f'{zip_sha}  {archive.name}\n', encoding='ascii')
-    manifest = {'schema': 1, 'identity': info, 'official_release': False, 'signing': 'disabled',
-                'verification': 'passed', 'native_smoke_tests': 'passed',
-                'validation': check(requested, root), 'exe_sha256': approved['exe_sha256'],
-                'zip_sha256': zip_sha, 'exe_bytes': exe.stat().st_size,
-                'zip_bytes': archive.stat().st_size, 'zip_members': ['SAP-Lens.exe', 'SAP-Lens.exe.sha256']}
-    write_json(output / 'build-manifest.json', manifest)
-    # Mark completion only after every check succeeds; failed exports retain logs, no manifest.
-    print(f"Local application: {extracted / 'SAP-Lens.exe'}")
+        raise ValueError('Local distribution must be below dist/.')
+    if output.exists():
+        raise ValueError('Local output already exists; choose a new output directory.')
+    with tempfile.TemporaryDirectory(prefix='portable-export-', dir=root / 'backend/build') as temporary:
+        work = Path(temporary)
+        archive_dir = work / 'archive'
+        archive_dir.mkdir()
+        archive = archive_dir / f"SAP-Lens-Windows-x64-{info['version']}.zip"
+        with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED) as bundle:
+            for path in (exe, checksum):
+                bundle.write(path, path.name)
+        zip_sha = digest(archive)
+        extracted = work / 'application'
+        load_script('verify-artifact-zip').verify(archive_dir, extracted, zip_sha)
+        report = work / 'verification-report.json'
+        subprocess.run([sys.executable, str(root / 'scripts/packaging/verify-windows-package.py'),
+                        '--distribution', str(extracted), '--expected-sha256', approved['exe_sha256'],
+                        '--report', str(report)], cwd=root, check=True)
+        archive.with_suffix('.zip.sha256').write_text(f'{zip_sha}  {archive.name}\n', encoding='ascii')
+        manifest = {'schema': 1, 'identity': info, 'official_release': False, 'signing': 'disabled',
+                    'verification': 'passed', 'native_smoke_tests': 'passed',
+                    'validation': check(requested, root), 'exe_sha256': approved['exe_sha256'],
+                    'zip_sha256': zip_sha, 'exe_bytes': exe.stat().st_size,
+                    'zip_bytes': archive.stat().st_size, 'zip_members': ['SAP-Lens.exe', 'SAP-Lens.exe.sha256']}
+        if not report.is_file():
+            raise ValueError('Native verifier did not produce its verification report.')
+        verification = json.loads(report.read_text(encoding='utf-8'))
+        artifacts.collect(archive, output, info['version'], info['source_sha'], 'windows-portable-x64', zip_sha)
+        write_json(output / 'build-manifest.json', manifest)
+        write_json(output / 'verification-report.json', verification)
+    print(f"Verified portable package: {output / archive.name}")
     print(f"Verified ZIP SHA-256: {zip_sha}")
 
 
@@ -253,9 +265,28 @@ def fetch_winsw(output):
             temporary.unlink(missing_ok=True)
 
 
+def collect_executable(output=None, root=ROOT):
+    """CI calls this after PE verification and native smoke; keep its two-file upload contract."""
+    info = version.parse_build_info(json.loads((root / 'backend/build/build-version.json').read_text(encoding='utf-8-sig')))
+    approved = json.loads((root / 'backend/build/package-verification.json').read_text(encoding='utf-8-sig'))
+    source = root / 'backend/dist/SAP-Lens.exe'
+    sidecar = source.with_name(source.name + '.sha256')
+    if sidecar.read_text(encoding='ascii').strip() != approved['exe_sha256'] + '  ' + source.name:
+        raise ValueError('Verified EXE sidecar differs.')
+    output = output or root / 'dist' / deployment_output_name(info['version'], info['source_sha'])
+    artifacts.collect(source, output, info['version'], info['source_sha'], 'windows-portable-x64', approved['exe_sha256'])
+    print(f'Collected verified Windows payload: {output}')
+    if os.environ.get('GITHUB_OUTPUT'):
+        if any(character in str(output) for character in '\r\n'):
+            raise ValueError('Invalid artifact output path.')
+        with Path(os.environ['GITHUB_OUTPUT']).open('a', encoding='utf-8') as stream:
+            stream.write(f'release_directory={output}\n')
+    return output
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['version', 'quick', 'winsw', 'identity', 'clean', 'invalidate', 'record', 'check', 'export', 'tools'])
+    parser.add_argument('operation', choices=['version', 'quick', 'winsw', 'identity', 'clean', 'invalidate', 'record', 'check', 'export', 'collect-exe', 'tools'])
     parser.add_argument('--version', default=version.product_version())
     parser.add_argument('--stages', nargs='*', default=[])
     parser.add_argument('--output', type=Path)
@@ -282,6 +313,8 @@ def main():
         elif args.operation == 'check':
             check(args.version)
             print('Validated inputs match the current clean commit, version and 24-hour receipt.')
+        elif args.operation == 'collect-exe':
+            collect_executable(args.output)
         elif args.operation == 'export':
             if not args.output:
                 parser.error('export requires --output')

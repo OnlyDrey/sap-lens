@@ -23,7 +23,7 @@ import uuid
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'backend'))
 sys.path.insert(0, str(ROOT / 'scripts'))
-from build_system import failures, frontend_workspace, python_env
+from build_system import artifacts, failures, frontend_workspace, python_env
 from build_system.layout import deployment_output_name as output_name, is_linked_output
 from build_system.runner import StageProgress
 from version import make_local_deployment_info,product_version
@@ -338,7 +338,7 @@ class Builder:
             digest = module('deployment-package').sha(archive)
             sidecar = archive.with_name(name + '.sha256')
             if sidecar.read_text(encoding='utf-8').strip() != digest + '  ' + name: raise ValueError('Canonical checksum differs.')
-            shutil.copyfile(archive, self.output / name); shutil.copyfile(sidecar, self.output / sidecar.name)
+            artifacts.collect(archive, self.output, self.args.version, self.source, target, digest)
         # Three separate facts: the artifact was built, its package was verified, and (for the Windows service) the privileged native SCM acceptance ran.
         acceptance = dict(kind='windows-scm', status='passed' if accept else 'not_run', requires='administrator',
                           command='powershell -NoProfile -File scripts\\test-server-service.ps1 -Bundle <service bundle>  (elevated)') if target == 'service' else dict(kind='none', status='not_applicable')
@@ -379,7 +379,7 @@ class Builder:
             for target in targets:
                 row = result.get('targets', {}).get(target, {})
                 if row.get('status') == 'passed':
-                    for filename in (row['artifact'], row['artifact'] + '.sha256'): shutil.copyfile(destination / filename, self.output / filename)
+                    artifacts.collect(destination / row['artifact'], self.output, self.args.version, self.source, target, row['sha256'])
                 self.manifest['targets'][target] = row or dict(status='failed', error='Remote builder did not report the requested target.')
 
     def record_of(self, error):

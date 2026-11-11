@@ -17,6 +17,9 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'backend'))
+sys.path.insert(0, str(ROOT / 'scripts'))
+from build_system import artifacts
+from build_system.layout import deployment_output_name
 from version import parse_build_info, deployment_version, product_version, next_prerelease
 
 CHANNELS = {'Alpha': 'alpha', 'Beta': 'beta', 'Release Candidate (RC)': 'rc',
@@ -238,7 +241,7 @@ def eligible(info, chosen, needs):
     return rows
 
 
-def collect(directory, info, rows):
+def collect(directory, info, rows, output=None):
     expected = {name for row in rows for name in (row['package_name'], row['package_name'] + '.sha256')}
     entries = list(directory.iterdir())
     if {path.name for path in entries} != expected or any(path.is_symlink() or not path.is_file() for path in entries):
@@ -252,10 +255,12 @@ def collect(directory, info, rows):
         if (sha(path) != row['package_sha']
                 or checksum.read_text(encoding='ascii').strip() != row['package_sha'] + '  ' + path.name):
             raise DeliveryError('Collected package differs from the verified platform artifact.')
+        if output is not None:
+            path = artifacts.collect(path, output, info['version'], info['source_sha'], next(name for name, item in PACKAGES.items() if path.name == f"sap-lens-{item[2]}-v{info['version']}{item[3]}"), row['package_sha'])
         assets.append(path)
     # Sidecars are same-run verification inputs, not public release assets.
     # GitHub exposes each uploaded asset's SHA-256; the manifest also records it.
-    manifest = directory / 'sap-lens-manifest.json'
+    manifest = (output if output is not None else directory) / 'sap-lens-manifest.json'
     manifest.write_text(json.dumps(dict(schema=1, identity=info,
         assets={path.name: dict(sha256=sha(path), size=path.stat().st_size) for path in assets}), indent=2) + '\n')
     return [*assets, manifest]
@@ -371,7 +376,7 @@ def main():
         return
     if args.directory is None:
         raise DeliveryError('A verified release asset directory is required.')
-    result = publish(api, info, collect(args.directory, info, rows))
+    result = publish(api, info, collect(args.directory, info, rows, ROOT / 'dist' / deployment_output_name(info['version'], info['source_sha'])))
     summary = f'### Deployment release\n\nPublished {info["tag"]} from `{info["source_sha"]}`.\n\n{result["html_url"]}\n'
     print(summary)
     if os.environ.get('GITHUB_STEP_SUMMARY'):

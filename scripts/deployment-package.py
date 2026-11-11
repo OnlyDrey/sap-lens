@@ -223,6 +223,9 @@ def finish(directory,platform,output):
                 if path.is_file():z.add(path,arcname=path.relative_to(directory).as_posix(),recursive=False)
     with tempfile.TemporaryDirectory() as temp:verify_extract(archive,Path(temp),sha(archive))
     with checksum.open('x',encoding='ascii') as stream:stream.write(sha(archive)+'  '+archive.name+'\n')
+    if (output / 'release-manifest.json').exists():
+        from build_system.artifacts import register_existing
+        register_existing(archive, info['version'], info['source_sha'], platform, sha(archive))
     print('Verified deployment archive: '+archive.name+' SHA-256 '+sha(archive))
     return archive
 

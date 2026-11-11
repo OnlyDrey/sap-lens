@@ -137,14 +137,17 @@ jobs:
       - name: Run Windows application smoke tests
         shell: pwsh
         run: python scripts/build.py build --ci-tool windows-stage --non-interactive -- -Stage Smoke
+      - name: Collect verified Windows payload into versioned release directory
+        id: collect
+        run: python scripts/build.py package --ci-tool windows-collect --non-interactive -- collect-exe
       - name: Upload verified executable
         id: executable
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: SAP-Lens-Windows-x64
           path: |
-            backend/dist/SAP-Lens.exe
-            backend/dist/SAP-Lens.exe.sha256
+            ${{ steps.collect.outputs.release_directory }}/SAP-Lens.exe
+            ${{ steps.collect.outputs.release_directory }}/SAP-Lens.exe.sha256
           if-no-files-found: error
           retention-days: 14
           compression-level: 0 # The one-file EXE already contains a compressed archive.
@@ -231,5 +234,4 @@ jobs:
           ARTIFACT_ID: ${{ needs.windows-exe.outputs.artifact_id }}
           ARTIFACT_DIGEST: ${{ needs.windows-exe.outputs.artifact_digest }}
           RELEASE_DOWNLOAD: ${{ runner.temp }}/sap-lens-release-download
-          RELEASE_OUTPUT: ${{ runner.temp }}/sap-lens-release-assets
-        run: python scripts/build.py release --ci-tool legacy-release --non-interactive -- publish --download "$RELEASE_DOWNLOAD" --output "$RELEASE_OUTPUT"
+        run: python scripts/build.py release --ci-tool legacy-release --non-interactive -- publish --download "$RELEASE_DOWNLOAD"

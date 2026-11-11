@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 
-from build_system import layout, targets  # noqa: E402
+from build_system import artifacts, layout, targets  # noqa: E402
 from build_system.runner import BuildError  # noqa: E402
 
 
@@ -49,7 +49,7 @@ class LayoutContractTests(unittest.TestCase):
 
     def test_producers_and_workflows_use_the_documented_locations(self):
         expected = {
-            'scripts/build-local.ps1': ('dist/local',), 'scripts/packaging/local-build.py': ('dist/local',), 'scripts/build-server-windows.ps1': ('dist/server',),
+            'scripts/build-local.ps1': ('dist/local',), 'scripts/build-server-windows.ps1': ('dist/server',),
             'scripts/package-windows-deployment.ps1': ('dist/deployment',), 'scripts/deployment/package-docker.py': ('dist/deployment',),
             '.github/workflows/build-deployments.yml': ('dist/deployment/*', 'dist/publication'),
         }
@@ -137,3 +137,61 @@ class CleanSafetyTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class FinalReleaseArtifacts(unittest.TestCase):
+    def test_platform_outputs_share_verified_release_inventory_and_preserve_identity(self):
+        import json
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            output = root / 'dist' / layout.deployment_output_name('1.0.0-beta.2', 'a'*40)
+            for platform, name in (('desktop','desktop.zip'),('service','service.zip'),('linux-native','native.tar.gz'),('docker','docker.tar.gz')):
+                source = root / name
+                source.write_bytes(('synthetic '+platform).encode())
+                expected = artifacts.digest(source)
+                target = artifacts.collect(source, output, '1.0.0-beta.2', 'a'*40, platform, expected)
+                self.assertEqual(target.parent, output)
+                self.assertEqual(artifacts.digest(target), expected)
+                self.assertEqual(target.with_name(name+'.sha256').read_text().strip(), expected+'  '+name)
+            manifest = json.loads((output/'release-manifest.json').read_text())
+            self.assertEqual(len(manifest['artifacts']), 4)
+            self.assertEqual(manifest['source_commit'], 'a'*40)
+            with self.assertRaisesRegex(ValueError, 'already exists'):
+                artifacts.collect(source, output, '1.0.0-beta.2', 'a'*40, platform, expected)
+            new = root/'another.zip'; new.write_bytes(b'synthetic')
+            with self.assertRaisesRegex(ValueError, 'another version/source'):
+                artifacts.collect(new, output, '1.0.0-beta.2', 'b'*40, platform, artifacts.digest(new))
+            self.assertFalse((output/new.name).exists())
+            with self.assertRaisesRegex(ValueError, 'verified checksum'):
+                artifacts.collect(new, output, '1.0.0-beta.2', 'a'*40, platform, '0'*64)
+            self.assertFalse((output/new.name).exists())
+
+    def test_reparse_paths_are_rejected_before_collection(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source = Path(temporary)/'artifact.zip'; source.write_bytes(b'synthetic')
+            with patch.object(artifacts, 'is_linked_output', return_value=True):
+                with self.assertRaisesRegex(ValueError, 'linked'):
+                    artifacts.collect(source, Path(temporary)/'out', '1.0.0', 'a'*40, 'desktop', artifacts.digest(source))
+
+
+    def test_failed_copy_preserves_previous_artifacts_and_registration_requires_matching_sidecar(self):
+        import json
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary); output=root/'dist'/'release'
+            first=root/'desktop.zip'; first.write_bytes(b'synthetic desktop')
+            artifacts.collect(first,output,'1.0.0','a'*40,'desktop',artifacts.digest(first))
+            before=(output/'release-manifest.json').read_bytes()
+            second=root/'service.zip'; second.write_bytes(b'synthetic service')
+            with patch.object(artifacts.shutil,'copyfileobj',side_effect=OSError('synthetic copy failure')):
+                with self.assertRaises(OSError):
+                    artifacts.collect(second,output,'1.0.0','a'*40,'service',artifacts.digest(second))
+            self.assertFalse((output/second.name).exists())
+            self.assertEqual((output/'release-manifest.json').read_bytes(),before)
+            existing=output/second.name; existing.write_bytes(second.read_bytes())
+            sidecar=output/(second.name+'.sha256'); sidecar.write_text('wrong')
+            with self.assertRaisesRegex(ValueError,'sidecar'):
+                artifacts.register_existing(existing,'1.0.0','a'*40,'service',artifacts.digest(second))
+            self.assertEqual((output/'release-manifest.json').read_bytes(),before)
+            sidecar.write_text(artifacts.digest(second)+'  '+second.name+'\n')
+            artifacts.register_existing(existing,'1.0.0','a'*40,'service',artifacts.digest(second))
+            self.assertEqual(len(json.loads((output/'release-manifest.json').read_text())['artifacts']),2)

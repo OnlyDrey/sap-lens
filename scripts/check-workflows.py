@@ -69,7 +69,7 @@ def canonical_run(command):
     aliases={('test','validation'):'python scripts/testing/ci.py', ('build','windows-stage'):'./scripts/build-windows.ps1', ('build','installer-check'):'./scripts/build-desktop-installer.ps1',
              ('package','windows-package'):'./scripts/package-windows-deployment.ps1', ('package','native-package'):'python scripts/deployment-package.py',
              ('package','docker-package'):'python scripts/deployment/package-docker.py', ('release','deployment-release'):'python scripts/deployment/deployment-release.py',
-             ('release','legacy-release'):'python scripts/packaging/release-windows.py'}
+             ('release','legacy-release'):'python scripts/packaging/release-windows.py', ('package','windows-collect'):'python scripts/packaging/local-build.py'}
     for (mode,tool),canonical in aliases.items():
         prefix=f'python scripts/build.py {mode} --ci-tool {tool} --non-interactive'
         command=command.replace(prefix+' -- ',canonical+' ')
@@ -225,7 +225,14 @@ def validate(workflows):
     require(any(s.get('run') == 'python scripts/packaging/release-windows.py validate-inputs' and 'if' not in s for s in steps), 'Manual version preflight is mandatory')
     require(windows['jobs']['windows-exe']['outputs'] == {'metadata':'${{ steps.build_identity.outputs.metadata }}', 'artifact_id': '${{ steps.executable.outputs.artifact-id }}', 'artifact_digest': '${{ steps.executable.outputs.artifact-digest }}'}, 'Release must consume only this verified artifact')
     upload = next(s for s in steps if s.get('id') == 'executable')
-    require(upload['with']['path'].split() == ['backend/dist/SAP-Lens.exe', 'backend/dist/SAP-Lens.exe.sha256'], 'Unexpected distribution upload')
+    collection = [i for i, step in enumerate(steps) if step.get('id') == 'collect']
+    require(len(collection) == 1, 'Verified release collection is mandatory')
+    collected = steps[collection[0]]
+    require(collected.get('run') == 'python scripts/packaging/local-build.py collect-exe' and 'if' not in collected, 'Release collection cannot be changed or skipped')
+    smoke = next(i for i, command in enumerate(commands) if re.search(r'-Stage Smoke\b', command))
+    require(smoke < collection[0] < steps.index(upload), 'Release collection must follow smoke and precede upload')
+    expected_paths = ['${{ steps.collect.outputs.release_directory }}/SAP-Lens.exe', '${{ steps.collect.outputs.release_directory }}/SAP-Lens.exe.sha256']
+    require([line.strip() for line in upload['with']['path'].splitlines() if line.strip()] == expected_paths, 'Unexpected distribution upload')
     require(upload['with']['name'] == 'SAP-Lens-Windows-x64' and upload['with']['retention-days'] == '14', 'Distribution identity or retention changed')
     download = next(s for s in steps if s.get('uses', '').startswith('actions/download-artifact@'))
     require(download['with']['artifact-ids'] == '${{ steps.executable.outputs.artifact-id }}', 'Download must use this upload ID')

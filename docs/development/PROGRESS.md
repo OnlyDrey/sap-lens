@@ -1735,3 +1735,106 @@ The final public build applies the builder's full inherited environment and logs
 any remaining failure through the new safe assertion diagnostics. No artifact
 rebuild, complete release regression, GitHub Actions or native success is claimed
 by the Linux checks above.
+
+## Release artifact collection and SCM replacement/cleanup — 2026-11-11
+
+Baseline: `c24df34897d14dcb1fc30533277079a52a0953a3`, clean and synchronized
+with origin/work. SCM corrections are in `02f3a28`; the following artifact
+consolidation commit contains the remaining implementation and this evidence.
+
+### Findings and safety boundaries
+
+The real deployment ZIP finisher reproduced a concrete replacement inventory
+mismatch: it adds **package-manifest.json after the server verifier seals
+verification-report.json**. The old acceptance test recursively copied this
+transport-only file (and any runtime-generated files) from the installed bundle
+into a replacement, while Assert-NewBundle correctly permits only the verifier's
+file list plus verification-report.json. The new test constructs that real ZIP
+and proves the extra entry is package-manifest.json. It does not fabricate a PE
+verification pass or relax the production allowlist.
+
+Acceptance now snapshots exactly the verified replacement file list, with hashes
+and link/path checks, before installation. Transport metadata, generated XML and
+runtime logs stay out. Upgrade diagnostics name unexpected/missing relative paths
+and reparse entry types. Existing WinSW pinning, identity checks and approval of
+only the verified payload remain intact.
+
+**The original cleanup-denied object/handle is not known:** no retained native
+workspace or detailed exception was supplied with this request, and Windows is
+unavailable here. Confirmed code gaps were that service absence was treated as
+sufficient for deletion, read-only directory attributes were not cleared by
+Directory.Delete, and transient sharing locks had no bounded retry. Cleanup now
+waits for processes with executable paths inside the owned workspace, clears
+read-only attributes only on checked test entries, and retries only error codes
+5/32/33 up to five attempts (1.5s backoff). Per-entry caller-SID ACL recovery,
+private marker/token boundaries, reparse rejection, primary/cleanup error
+separation and nonzero failure remain enforced. No recursive permission changes,
+process killing, production-directory cleanup or old retained-workspace deletion
+was added. A full successful native replacement/uninstall/cleanup remains a gate.
+
+### Artifact layout and publication
+
+Final public-build artifacts use root **dist/<version>-<commit12>/**. Canonical
+archives retain their names; local portable builds preserve their existing
+unofficial +local.<commit12> version identity. Portable ZIP roundtrip extraction
+and PE inspection moved to temporary backend/build/portable-export-* storage.
+IncludeService stages its unpacked payload in backend/build and puts its ZIP
+beside the portable ZIP. No duplicate extracted application or nested ZIP is
+shipped. backend/dist remains internal compiler input, not the sole final output.
+
+A standard-library shared collector verifies copied bytes, creates sidecars,
+rejects existing artifact/foreign identity collisions and linked paths, rolls back
+only its own failed copies and atomically records release-manifest.json with
+artifact name/platform/version/full source SHA/SHA-256. Local and trusted remote
+deployment collection and guarded CI finalization share it. Canonical finishers
+can register their adjacent service output into the same managed inventory.
+
+Legacy Windows build-only CI now collects its verified EXE/sidecar into the
+versioned directory after native smoke, before upload, through the shared Python
+entrypoint's internal windows-collect adapter. The exact two-file GitHub artifact,
+its name, retention, compression and provenance checks are preserved. Workflow
+contracts reject skipped collection, pre-smoke collection, intermediate-path
+uploads or extra upload files. Legacy publication also defaults to the versioned
+root directory, retaining explicit output overrides. No public checksum assets
+were duplicated. Workflow triggers/permissions and main-only automatic CI are
+unchanged; no workflow, release, tag or artifact build was dispatched.
+
+### Validation and remaining native checks
+
+- Transport-manifest reproduction: **1 passed**, real synthetic ZIP finisher.
+- Final deployment feature: **362 passed, 0 failed, 22 platform skips** (384
+  discoveries), 9.1s; release-consolidation-final-deployment log/JSON.
+- Windows/service/release contracts: **106 passed, 0 failed, 7 native skips**;
+  release-scm-windows-final log/JSON. Native additions cover locked-file retention
+  and retry, read-only cleanup, and manifest-only replacement copying.
+- Final CI/local-build/workflow/legacy-release checks: **152 passed, 0 failed,
+  3 skips** (155 discoveries), 4.3s; release-final-ci-contracts log/JSON.
+- Artifact integrity/rollback/registration tests passed, including checksum
+  corruption, different source identity, reparse paths and copy interruption.
+- Backend-only REGRESSION checkpoint: **1497 passed, 0 failed, 13 skipped**
+  (1510 discoveries), 2:25; release-scm-backend-regression log/JSON. The final
+  build-only CI wiring was added afterwards and covered by the targeted checks
+  above; the backend checkpoint was not needlessly repeated. The runner includes
+  skipped discoveries in its displayed passed count; actual counts here exclude
+  skips. The existing test_validation_entrypoint.py:60 ResourceWarning remains.
+- Ruff, 62-document links, workflow policy/contracts, ownership map and whitespace
+  passed. No frontend files changed, so frontend builds/browser/FULL were not run.
+- PowerShell syntax/runtime and privileged SCM cannot execute on this Linux host.
+  No Windows build or elevated acceptance success is claimed.
+
+Native follow-up, reusing an existing verified service ZIP where possible:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_windows_acceptance_split --test test_local_build --test test_artifact_layout --jobs 1 --log build/scm-artifact-native.log --report build/scm-artifact-native.json
+# Elevated, with no pre-existing SAPLens service:
+.\scripts\test-server-service.ps1 -Bundle 'C:\Builds\verified-service-package.zip'
+Get-Service SAPLens -ErrorAction SilentlyContinue
+# Only if fresh packages are required; ordinary packaging installs no service:
+.\scripts\build.ps1 -Mode build -Platform windows -Target all -NonInteractive
+```
+
+Inspect any retained workspace, error's relative path/type/code, process state and
+ACLs before manual recovery. Do not recursively grant rights or delete production
+paths. See docs/BUILD.md, deployment/RELEASES.md and deployment/WINDOWS_SERVICE.md
+for the updated layout, checksum verification and administrator requirements.

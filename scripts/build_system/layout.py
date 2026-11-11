@@ -11,7 +11,7 @@ ARTIFACT_ROOT = ROOT / 'dist'
 
 #: name -> (relative path, what it holds). Changing a path here must be matched by the workflow upload contracts (scripts/check-workflows.py).
 OUTPUTS = {
-    'local': ('dist/local', 'portable Windows desktop builds, run records and receipts (build-local.ps1)'),
+    'local': ('dist/local', 'local run records and diagnostics (build-local.ps1); final portable archives use the version/commit directory'),
     'deployment': ('dist/deployment', 'verified deployment archives and checksums: Windows desktop/service, Linux native, Docker image archive (CI and local)'),
     'server': ('dist/server', 'Windows service distributions (build-server-windows.ps1)'),
     'publication': ('dist/publication', 'same-run artifacts collected for the guarded release job; never written by local builds'),

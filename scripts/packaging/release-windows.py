@@ -22,6 +22,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "backend"))
 import version as build_version
+sys.path.insert(0, str(ROOT / "scripts"))
+from build_system.layout import deployment_output_name
 
 REPOSITORY = "OnlyDrey/sap-lens"
 SEMVER = r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
@@ -357,6 +359,8 @@ def publish(client, env, download, output, metadata, progress):
     mode, version, ref = env["RELEASE_MODE"], env["RELEASE_VERSION"], env["GITHUB_REF"]
     info = identity_for_environment(env, metadata)  # also validates GITHUB_RUN_ATTEMPT
     progress["application_version"] = info["version"]
+    if output is None:
+        output = ROOT / "dist" / deployment_output_name(info["version"], info["source_sha"])
     if mode == "build" or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch":
         raise ReleaseError(
             "Publication requires a first-attempt manual beta/stable run."
@@ -571,7 +575,7 @@ def main():
             )
             if env.get("GITHUB_ACTIONS")=="true": build_version.sync_frontend_version(info["version"])
         else:
-            if args.download is None or args.output is None:
+            if args.download is None:
                 raise ReleaseError("Missing publication artifact directories.")
             raw = env.get("BUILD_VERSION_JSON", "")
             if not raw:

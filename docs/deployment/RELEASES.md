@@ -228,3 +228,16 @@ Signing remains disabled. Checksums are not Authenticode signatures, and publish
 an unsigned release does not guarantee corporate policies, SmartScreen or Defender
 will allow downloading or executing it. See [signing](CODE_SIGNING.md),
 [deployment validation status](README.md#validation-status) and [CI architecture](../development/CI.md).
+
+
+## Final artifact location
+
+Local deployment builders, trusted remote retrieval and guarded CI publication
+collect final packages under root `dist/<version>-<commit12>/`. The existing public
+package names and release assets are unchanged. `release-manifest.json` is local
+collection evidence with platform/version/full source SHA and SHA-256 per artifact;
+the existing public release manifest remains the publication contract. CI
+`dist/deployment` and `dist/publication` directories are staging locations.
+Legacy Windows publication now defaults to the same version/commit directory,
+while retaining an explicit output override. Existing releases/tags are untouched.
+See [build outputs and checksum verification](../BUILD.md#outputs-and-versioning).

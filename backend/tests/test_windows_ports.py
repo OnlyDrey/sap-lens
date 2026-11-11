@@ -331,7 +331,7 @@ class LocalBuild(Case):
         self.assertIn('node scripts/sync-lucide-catalog.mjs --check', text)
         self.assertIn(f'<buildpy> {helper} record --version 1.2.3 --stages Frontend Python Audit PackagingBackend PackagingBrowser Repository', text)
         export = next(t for t in text if ' export ' in t)
-        self.assertIn('--output <root>/dist/local/packages/1.2.3-beta.4/', export)
+        self.assertIn('--output <root>/dist/1.2.3-beta.4-abc', export)
         summary = json.loads(next((self.root / 'dist/local/runs').iterdir()).joinpath('summary.json').read_text())
         self.assertEqual((summary['status'], summary['mode'], summary['requested_version'], summary['node'], summary['npm']), ('passed', 'Build', '1.2.3', '24.1.0', '10.9.0'))
         self.assertEqual([row['stage'] for row in summary['stages']], names)
@@ -360,8 +360,15 @@ class LocalBuild(Case):
         calls = []
         ok, recorder, _, _, _ = self.run_mode('Build', Version='1.2.3', IncludeService=True, OutputDirectory=str(self.root / 'out'), server_build=lambda **kw: calls.append(kw))
         self.assertTrue(ok)
-        self.assertEqual(calls, [{'Version': '1.2.3', 'OutputDirectory': str(self.root / 'out/service')}])
-        self.assertTrue(self.norm(recorder.commands)[-1].endswith('scripts/deployment-package.py finish --directory <root>/out/service --platform Windows-Service-x64 --output <root>/out/service-archives'))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]['Version'], '1.2.3')
+        service = Path(calls[0]['OutputDirectory'])
+        self.assertEqual(service.parent, self.root / 'backend/build')
+        self.assertTrue(service.name.startswith('local-service-'))
+        command = self.norm(recorder.commands)[-1]
+        self.assertIn('scripts/deployment-package.py finish --directory <root>/backend/build/local-service-', command)
+        self.assertTrue(command.endswith('--platform Windows-Service-x64 --output <root>/out'))
+
 
     def test_guards_fail_before_any_build_work(self):
         self.identity()
