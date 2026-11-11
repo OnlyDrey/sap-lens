@@ -114,7 +114,13 @@ function Assert-NewBundle([string]$Directory) {
     if ($report.verification -ne 'passed' -or $report.signing -ne 'disabled' -or $report.format -ne 'onedir-console-service') { throw 'Use a verified unsigned headless service package.' }
     $expected = @('verification-report.json') + @($report.files.PSObject.Properties.Name)
     $actual = @(Get-ChildItem $Directory -Recurse -Force | Where-Object { -not $_.PSIsContainer } | ForEach-Object { $_.FullName.Substring($Directory.TrimEnd('\').Length+1).Replace('\','/') })
-    if (@(Compare-Object $expected $actual).Count -or @(Get-ChildItem $Directory -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) { throw 'Unexpected files or links in replacement bundle.' }
+    $differences=@(Compare-Object $expected $actual)
+    $links=@(Get-ChildItem $Directory -Recurse -Force | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint })
+    if ($differences.Count -or $links.Count) {
+        $details=@($differences | ForEach-Object { "$($_.InputObject) [$(if ($_.SideIndicator -eq '=>') { 'unexpected file' } else { 'missing file' })]" })
+        $details+=@($links | ForEach-Object { $_.FullName.Substring($Directory.TrimEnd('\').Length+1)+" [reparse point: $($_.GetType().Name)]" })
+        throw ('Unexpected files or links in replacement bundle: '+($details -join '; '))
+    }
     foreach ($file in $report.files.PSObject.Properties) {
         if ($file.Name -match '(^/|\\|:|(^|/)\.\.(/|$))' -or $file.Value -notmatch '^[a-f0-9]{64}$') { throw 'Invalid replacement manifest.' }
         if ((Get-FileHash -LiteralPath (Join-Path $Directory $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Replacement package checksum mismatch.' }

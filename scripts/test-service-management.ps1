@@ -82,6 +82,8 @@ try {
     if ((Assert-NewBundle $bundle).identity.version -ne '0.1.0') { throw 'Valid bundle identity was lost.' }
     [IO.File]::WriteAllText((Join-Path $bundle 'unexpected.csv'),'synthetic')
     Assert-Rejected { Assert-NewBundle $bundle }
+    try { Assert-NewBundle $bundle | Out-Null; throw 'Unexpected file was accepted.' }
+    catch { if ($_.Exception.Message -notmatch 'unexpected.csv.*unexpected file') { throw } }
     Remove-Item (Join-Path $bundle 'unexpected.csv')
     [IO.File]::WriteAllText((Join-Path $bundle '[Content_Types].xml'),'tampered')
     Assert-Rejected { Assert-NewBundle $bundle }

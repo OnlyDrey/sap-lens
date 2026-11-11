@@ -365,3 +365,27 @@ powershell -NoProfile -File .\scripts\check-powershell.ps1
 
 The protected-ACL fixture requires elevation; other helper tests never install
 a service. The real SCM command above installs a service and requires elevation.
+
+
+### Replacement inventory and retained-workspace diagnostics
+
+SCM acceptance captures a pristine replacement from the verified manifest **before**
+service startup. It copies exactly the approved files and verification report,
+never runtime logs, generated service XML or backup debris from an installed
+bundle. Upgrade still rejects unexpected/missing files and reparse points; its
+message now names the relative path and entry type. Do not add runtime files to
+the package allowlist to make acceptance pass.
+
+After uninstall, acceptance waits up to 15 seconds for processes whose executable
+paths belong to its isolated workspace. It does not terminate unrelated processes.
+Entry cleanup clears read-only attributes inside the marked test tree and retries
+only access/sharing/lock errors at most five times (1.5 seconds total backoff).
+ACL recovery remains per-entry and caller-scoped, without recursive grants.
+
+If cleanup fails, keep the printed workspace, primary error, cleanup error and
+package verification report. Inspect the named entry, running processes and ACLs
+from an elevated shell before any manual removal. Never run recursive ownership
+or deletion against the input package, a production install or application data.
+A retained workspace is not a successful acceptance run. New native helper tests
+cover manifest-defined replacement, read-only directories and locked-file
+retention/retry; the full elevated SCM run remains a separate gate.

@@ -59,7 +59,8 @@ try {
     $backups=Join-Path $workspace.Root 'backups'
     $recovered=Join-Path $workspace.Root 'restored'
     $recoveredConfiguration=Join-Path $workspace.Root 'restored-config'
-    $replacement=Join-Path $workspace.Root 'replacement'
+    # Capture a pristine, manifest-defined replacement before WinSW can write runtime files.
+    $replacement=Copy-ScmReplacementBundle $bundlePath $workspace $report
     $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
     try { $listener.Start();$port=$listener.LocalEndpoint.Port } finally { $listener.Stop() }
     Invoke-ScmManage -Action Install -InstallDirectory $bundlePath -DataDirectory $data -SourceDirectory (Join-Path $data 'sources') -LogDirectory (Join-Path $data 'logs') -Port $port
@@ -81,8 +82,6 @@ try {
     if (-not (Test-Path (Join-Path $recovered 'deployment.json')) -or -not (Test-Path (Join-Path $recoveredConfiguration 'SAPLensService.xml'))) { throw 'Empty-target restore lost deployment ownership or configuration.' }
     # Reinstall the same verified version to exercise staging/activation/restart
     # without fabricating a versioned executable or compiling a second package.
-    New-Item -ItemType Directory $replacement | Out-Null
-    Get-ChildItem $bundlePath | Where-Object { $_.Name -ne 'SAPLensService.xml' } | ForEach-Object { Copy-Item $_.FullName $replacement -Recurse }
     Invoke-ScmManage -Action Upgrade -InstallDirectory $bundlePath -NewBundleDirectory $replacement -BackupDirectory $backups
     if ((Get-ScmStatus) -ne 'Running') { throw 'Staged upgrade did not restart the service.' }
     if ((Invoke-RestMethod "http://127.0.0.1:$port/api/version").version -ne $expected.version) { throw 'Upgrade changed embedded version identity unexpectedly.' }
@@ -104,7 +103,7 @@ try {
         if (Test-ScmRegistered) { throw 'Service registration remains; test workspace retained.' }
     } catch { $safeToRemove=$false; $cleanupErrors.Add($_.Exception.Message) }
     if ($safeToRemove) {
-        try { Remove-ScmWorkspace $workspace }
+        try { Wait-ScmWorkspaceProcesses $workspace; Remove-ScmWorkspace $workspace }
         catch { $cleanupErrors.Add($_.Exception.Message) }
     }
 }

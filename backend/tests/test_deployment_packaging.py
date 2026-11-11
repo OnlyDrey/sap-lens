@@ -76,6 +76,20 @@ class PackagingTests(unittest.TestCase):
         self.temp=tempfile.TemporaryDirectory();self.root=Path(self.temp.name)
         self.info=pkg.make_build_info('build','0.1.0','a'*40,'123','9',1)
     def tearDown(self):self.temp.cleanup()
+    def test_service_transport_manifest_is_not_part_of_verified_replacement_inventory(self):
+        source=self.root/'service';source.mkdir()
+        (source/'app.exe').write_bytes(b'synthetic executable')
+        # The PE verifier seals its file inventory before the canonical ZIP finisher.
+        verified={'files':pkg.files(source)}
+        (source/'verification-report.json').write_text(json.dumps(verified))
+        with patch.object(pkg,'identity',return_value=self.info):
+            archive=pkg.finish(source,'Windows-Service-x64',self.root/'out')
+        with zipfile.ZipFile(archive) as zipped:
+            actual=set(zipped.namelist())
+        expected=set(verified['files'])|{'verification-report.json'}
+        self.assertEqual(actual-expected, {'package-manifest.json'})
+        self.assertEqual(expected-actual, set())
+
     def test_all_platform_names_agree_with_publisher_and_local_builder(self):
         def load(name):
             spec=importlib.util.spec_from_file_location(name,next((ROOT/'scripts').rglob(name+'.py')))

@@ -138,6 +138,20 @@ class ScmCleanupContracts(unittest.TestCase):
         self.assertIn('$global:LASTEXITCODE=1',self.main)
         self.assertTrue(self.main.rstrip().endswith('exit 0'))
 
+    def test_pristine_replacement_precedes_runtime_and_cleanup_waits_for_owned_processes(self):
+        self.assertLess(self.main.index('Copy-ScmReplacementBundle'), self.main.index('-Action Install'))
+        self.assertNotIn('Get-ChildItem $bundlePath | Where-Object', self.main)
+        self.assertLess(self.main.index('Wait-ScmWorkspaceProcesses $workspace'), self.main.index('Remove-ScmWorkspace $workspace'))
+        self.assertIn("$Report.files.PSObject.Properties.Name", self.helper)
+        self.assertIn("$attempt -lt 5", self.helper)
+        self.assertIn("$code -notin @(5,32,33)", self.helper)
+        self.assertIn("(-bnot [IO.FileAttributes]::ReadOnly)", self.helper)
+        self.assertIn("$process.ExecutablePath.StartsWith($root+'\\'", self.helper)
+        self.assertNotIn('Stop-Process', self.helper)
+        management=(ROOT/'scripts/manage-server-service.ps1').read_text()
+        for kind in ('unexpected file', 'missing file', 'reparse point:'):
+            self.assertIn(kind, management)
+
     def test_bundle_input_is_validated_and_copied_before_install(self):
         self.assertLess(self.main.index('Copy-ScmBundle'),self.main.index('-Action Install'))
         for token in ("$source.Extension -ieq '.zip'", 'Get-SafeScmZipPath', 'Duplicate or linked ZIP entry', '2147483648', 'ExtractToFile($entry,$target)', 'manage-server-service.ps1','app/SAP-Lens.exe'):
@@ -199,6 +213,43 @@ if (Test-Path -LiteralPath $workspace.Root) { throw 'Workspace remains.' }
                         body=f"$copy=Copy-ScmBundle '{escaped}' $workspace; if (-not (Test-Path -LiteralPath (Join-Path $copy 'manage-server-service.ps1'))) {{ throw 'Bundle missing.' }}"
                     self.invoke(body,parent,shell)
                     self.assertFalse((Path(parent)/'outside.txt').exists())
+
+    def test_locked_file_retains_workspace_then_allows_retry_after_release(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$path=Join-Path $workspace.Root 'locked.txt'
+[IO.File]::WriteAllText($path,'synthetic')
+$handle=[IO.File]::Open($path,[IO.FileMode]::Open,[IO.FileAccess]::ReadWrite,[IO.FileShare]::None)
+try {
+    $failed=$false
+    try { Remove-ScmWorkspace $workspace } catch { $failed=$true }
+    if (-not $failed -or -not (Test-Path -LiteralPath $path) -or -not (Test-Path -LiteralPath (Join-Path $workspace.Root '.scm-test-owner.json'))) { throw 'Locked operation did not preserve recovery state.' }
+} finally { $handle.Dispose() }
+Remove-ScmWorkspace $workspace
+if (Test-Path -LiteralPath $workspace.Root) { throw 'Unlocked retry did not complete.' }
+""",parent,shell)
+
+    def test_manifest_replacement_excludes_runtime_files_and_readonly_cleanup(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$bundle=Join-Path $workspace.Root 'bundle'
+New-Item -ItemType Directory -Path $bundle | Out-Null
+[IO.File]::WriteAllText((Join-Path $bundle 'app.exe'),'synthetic')
+[IO.File]::WriteAllText((Join-Path $bundle 'runtime.log'),'not a release file')
+[IO.File]::WriteAllText((Join-Path $bundle 'package-manifest.json'),'transport-only metadata')
+$hash=(Get-FileHash (Join-Path $bundle 'app.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+$report=[pscustomobject]@{files=[pscustomobject]@{'app.exe'=$hash}}
+[IO.File]::WriteAllText((Join-Path $bundle 'verification-report.json'),($report | ConvertTo-Json))
+$replacement=Copy-ScmReplacementBundle $bundle $workspace $report
+if ((Test-Path (Join-Path $replacement 'runtime.log')) -or (Test-Path (Join-Path $replacement 'package-manifest.json'))) { throw 'Non-replacement file entered replacement.' }
+if (-not (Test-Path (Join-Path $replacement 'app.exe'))) { throw 'Verified file missing.' }
+$entry=Get-Item -LiteralPath $replacement
+$entry.Attributes=$entry.Attributes -bor [IO.FileAttributes]::ReadOnly
+Remove-ScmWorkspace $workspace
+if (Test-Path -LiteralPath $workspace.Root) { throw 'Readonly workspace remains.' }
+""",parent,shell)
 
     def test_bootstrap_success_failure_help_and_stale_caller_exit(self):
         script=str(ROOT/'scripts/build.ps1')

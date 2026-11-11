@@ -81,17 +81,13 @@ function Remove-ScmWorkspace($Workspace) {
         if ($entry.FullName -eq $marker) { continue }
         $path=Assert-ScmTestPath $Workspace $entry.FullName
         Assert-NoReparse (Get-Item -LiteralPath $path -Force)
-        try {
-            if ($entry -is [IO.DirectoryInfo]) { [IO.Directory]::Delete($path,$false) }
-            else { Remove-Item -LiteralPath $path -Force -ErrorAction Stop }
-        } catch [System.UnauthorizedAccessException] {
-            Grant-ScmTestEntry $Workspace $entry
-            if ($entry -is [IO.DirectoryInfo]) { [IO.Directory]::Delete($path,$false) }
-            else { Remove-Item -LiteralPath $path -Force -ErrorAction Stop }
-        }
+        Remove-ScmTestEntry $Workspace $entry
+
     }
     $null=Assert-ScmTestPath $Workspace $root
     Remove-Item -LiteralPath $marker -Force
+    $rootEntry=Get-Item -LiteralPath $root -Force
+    $rootEntry.Attributes=$rootEntry.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly)
     [IO.Directory]::Delete($root,$false)
 }
 function Get-SafeScmZipPath([string]$Name) {
@@ -178,6 +174,71 @@ function Copy-ScmBundle([string]$InputPath,$Workspace) {
     } else { throw 'Bundle must be an extracted service directory or .zip archive.' }
     foreach ($required in $requiredFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $destination $required) -PathType Leaf)) { throw "Incomplete service bundle: missing $required." }
+    }
+    return $destination
+}
+
+function Remove-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
+    $path=Assert-ScmTestPath $Workspace $Entry.FullName
+    for ($attempt=0; $attempt -lt 5; $attempt++) {
+        try {
+            $current=Get-Item -LiteralPath $path -Force -ErrorAction Stop
+            Assert-NoReparse $current
+            # Directory.Delete does not implement Remove-Item -Force's read-only handling.
+            $current.Attributes=$current.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly)
+            if ($Entry -is [IO.DirectoryInfo]) { [IO.Directory]::Delete($path,$false) }
+            else { Remove-Item -LiteralPath $path -Force -ErrorAction Stop }
+            return
+        } catch {
+            $failureException=$_.Exception
+            while ($failureException.InnerException) { $failureException=$failureException.InnerException }
+            $code=$failureException.HResult -band 0xffff
+            if ($code -notin @(5,32,33) -or $attempt -eq 4) {
+                $relative=$path.Substring($Workspace.Root.TrimEnd('\').Length+1)
+                throw "SCM cleanup failed: $relative ($($Entry.GetType().Name), code=$code). Workspace retained."
+            }
+            if ($code -eq 5) { Grant-ScmTestEntry $Workspace $Entry }
+            # Only confirmed access/sharing/lock failures, bounded to 1.5s total backoff.
+            Start-Sleep -Milliseconds (100 * [math]::Pow(2,$attempt))
+        }
+    }
+}
+function Wait-ScmWorkspaceProcesses($Workspace) {
+    $root=Assert-ScmTestPath $Workspace $Workspace.Root
+    $deadline=[DateTime]::UtcNow.AddSeconds(15)
+    do {
+        $active=New-Object 'System.Collections.Generic.List[int]'
+        foreach ($process in @(Get-CimInstance Win32_Process -ErrorAction Stop)) {
+            try {
+                if ($process.ExecutablePath -and $process.ExecutablePath.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) {
+                    $active.Add([int]$process.ProcessId)
+                }
+            } finally { $process.Dispose() }
+        }
+        if (-not $active.Count) { return }
+        if ([DateTime]::UtcNow -ge $deadline) { throw ('Test-owned processes remain (PIDs '+($active -join ',')+'); workspace retained.') }
+        Start-Sleep -Milliseconds 250
+    } while ($true)
+}
+function Copy-ScmReplacementBundle([string]$Bundle,$Workspace,$Report) {
+    $destination=Join-Path $Workspace.Root 'replacement'
+    $null=Assert-ScmTestPath $Workspace $destination
+    New-Item -ItemType Directory -Path $destination -ErrorAction Stop | Out-Null
+    $names=@('verification-report.json') + @($Report.files.PSObject.Properties.Name)
+    $seen=New-Object 'System.Collections.Generic.HashSet[string]' ([StringComparer]::OrdinalIgnoreCase)
+    foreach ($name in $names) {
+        $relative=Get-SafeScmZipPath $name
+        if (-not $seen.Add($relative)) { throw 'Duplicate replacement manifest path.' }
+        $source=Join-Path $Bundle $relative
+        $null=Assert-ScmTestPath $Workspace $source
+        $entry=Get-Item -LiteralPath $source -Force -ErrorAction Stop
+        Assert-NoReparse $entry
+        if ($entry.PSIsContainer) { throw "Replacement file is a directory: $relative" }
+        if ($name -ne 'verification-report.json' -and
+            (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant() -ne $Report.files.PSObject.Properties[$name].Value) { throw "Replacement checksum mismatch: $relative" }
+        $target=Join-Path $destination $relative
+        New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
+        Copy-Item -LiteralPath $source -Destination $target
     }
     return $destination
 }
