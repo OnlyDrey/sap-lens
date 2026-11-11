@@ -1,4 +1,5 @@
 """The generated-output layout: one root, ignored by Git and Docker, honored by the producers, and safe to clean."""
+import stat
 import subprocess
 import sys
 import tempfile
@@ -50,11 +51,38 @@ class LayoutContractTests(unittest.TestCase):
         expected = {
             'scripts/build-local.ps1': ('dist/local',), 'scripts/packaging/local-build.py': ('dist/local',), 'scripts/build-server-windows.ps1': ('dist/server',),
             'scripts/package-windows-deployment.ps1': ('dist/deployment',), 'scripts/deployment/package-docker.py': ('dist/deployment',),
-            'scripts/deployment/build-deployments.py': ("'dist' / args.version",), '.github/workflows/build-deployments.yml': ('dist/deployment/*', 'dist/publication'),
+            '.github/workflows/build-deployments.yml': ('dist/deployment/*', 'dist/publication'),
         }
         for relative, needles in expected.items():
             for needle in needles:
                 self.assertIn(needle, read(relative), f'{relative} should reference {needle}')
+
+    def test_deployment_layout_is_shared_by_all_targets_and_remote_retrieval(self):
+        # The real constructor and remote retriever both use this exact shared function;
+        # constructor/override/manifest behavior is exercised in SourceOutputIsolation.
+        import importlib.util
+        spec = importlib.util.spec_from_file_location('layout_builder', ROOT / 'scripts/deployment/build-deployments.py')
+        builder = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(builder)
+        self.assertIs(builder.output_name, layout.deployment_output_name)
+        for target in builder.TARGETS:
+            with self.subTest(target=target):
+                self.assertEqual(builder.output_name('1.0.0-beta.2', 'a'*40), '1.0.0-beta.2-' + 'a'*12)
+        self.assertNotEqual(builder.output_name('1.0.0-beta.2', 'a'*40), builder.output_name('1.0.0-beta.2', 'b'*40))
+
+    def test_reparse_outputs_are_rejected_without_rejecting_ordinary_aliases(self):
+        path = Mock()
+        path.lstat.return_value = SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=stat.FILE_ATTRIBUTE_REPARSE_POINT)
+        self.assertTrue(layout.is_linked_output(path))
+        path.lstat.return_value = SimpleNamespace(st_mode=stat.S_IFDIR, st_file_attributes=0)
+        self.assertFalse(layout.is_linked_output(path))
+        path.lstat.return_value = SimpleNamespace(st_mode=stat.S_IFLNK)
+        self.assertTrue(layout.is_linked_output(path))
+        path.lstat.side_effect = FileNotFoundError
+        self.assertFalse(layout.is_linked_output(path))
+        path.lstat.side_effect = PermissionError
+        with self.assertRaises(PermissionError):
+            layout.is_linked_output(path)
 
     def test_clean_only_targets_generated_locations(self):
         for relative in layout.GENERATED:

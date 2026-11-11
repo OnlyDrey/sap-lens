@@ -24,6 +24,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'backend'))
 sys.path.insert(0, str(ROOT / 'scripts'))
 from build_system import failures, frontend_workspace, python_env
+from build_system.layout import deployment_output_name as output_name, is_linked_output
 from version import make_local_deployment_info,product_version
 
 TARGETS = ('desktop', 'service', 'docker', 'linux-native')
@@ -114,10 +115,6 @@ def verify_outputs(directory, version, source, targets, remote=False, release=Fa
     return manifest
 
 
-def output_name(version, source):
-    """Source-scoped defaults; full identity is still checked in every existing manifest."""
-    return f'{version}-{source[:12]}'
-
 
 class Builder:
     def __init__(self, args):
@@ -128,7 +125,7 @@ class Builder:
         self.source = checkout()
         self.info = make_local_deployment_info(args.version, self.source)
         raw_output = args.output_dir or ROOT / 'dist' / output_name(args.version, self.source)
-        if any(path.is_symlink() for path in [raw_output, *raw_output.parents]): raise ValueError('Output may not be linked.')
+        if any(is_linked_output(path) for path in [raw_output, *raw_output.parents]): raise ValueError('Output may not be linked.')
         self.output = raw_output.resolve()
         if self.output.is_relative_to(ROOT):
             ignored = subprocess.run(['git','check-ignore','--no-index','--quiet',str(self.output / 'build-manifest.json')],cwd=ROOT)
@@ -137,7 +134,7 @@ class Builder:
         self.manifest = dict(schema=1, version=args.version, source_commit=self.source,
                              built_at=datetime.now(timezone.utc).isoformat(), invocation=args.invocation, validation_scope=getattr(args,'scope','targeted'), targets={})
         old = self.output / 'build-manifest.json'
-        if any(path.is_symlink() for path in self.output.iterdir()): raise ValueError('Output files may not be linked.')
+        if any(is_linked_output(path) for path in self.output.iterdir()): raise ValueError('Output files may not be linked.')
         if any(self.output.iterdir()) and not old.is_file(): raise ValueError('Choose an empty output directory or an existing managed build output.')
         if old.exists():
             value = json.loads(old.read_text(encoding='utf-8'))

@@ -3,6 +3,8 @@
 Everything distributable goes under the repository-root ``dist/``; temporary work, caches and logs stay in ``backend/build``,
 ``frontend/dist`` and ``build/``. Docker images stay in Docker (only exportable archives land in ``dist``).
 """
+import stat
+
 from .runner import ROOT
 
 ARTIFACT_ROOT = ROOT / 'dist'
@@ -27,3 +29,17 @@ def is_inside_artifact_root(path):
         return path.resolve().is_relative_to(ARTIFACT_ROOT.resolve())
     except OSError:
         return False
+
+
+def deployment_output_name(version, source):
+    """Local and remote builders share a source-scoped directory, not a product-version change."""
+    return f'{version}-{source[:12]}'
+
+
+def is_linked_output(path):
+    """Reject symlinks and Windows junction/reparse paths before canonicalization."""
+    try:
+        info = path.lstat()
+    except FileNotFoundError:
+        return False
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, 'st_file_attributes', 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)

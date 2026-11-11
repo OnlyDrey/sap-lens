@@ -202,9 +202,51 @@ class SourceOutputIsolation(unittest.TestCase):
             args.output_dir=root/'explicit'
             with patch.object(builder,'ROOT',root), patch.object(builder.subprocess,'run',return_value=SimpleNamespace(returncode=0)), patch.object(builder,'checkout',return_value='b'*40):
                 explicit=builder.Builder(args)
-            self.assertEqual(explicit.output,args.output_dir)
+            self.assertTrue(explicit.output.samefile(args.output_dir))
+            self.assertEqual(explicit.output,args.output_dir.resolve())
             pkg.write(explicit.output/'build-manifest.json',dict(version=args.version,source_commit='a'*40,targets={}))
             before=(explicit.output/'build-manifest.json').read_bytes()
             with patch.object(builder,'ROOT',root), patch.object(builder.subprocess,'run',return_value=SimpleNamespace(returncode=0)), patch.object(builder,'checkout',return_value='b'*40):
                 with self.assertRaisesRegex(ValueError,'Nothing was overwritten'): builder.Builder(args)
             self.assertEqual((explicit.output/'build-manifest.json').read_bytes(),before)
+
+
+    def test_explicit_linked_output_is_rejected_before_resolving(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = root / 'private'
+            target.mkdir()
+            link = root / 'output'
+            try:
+                link.symlink_to(target, target_is_directory=True)
+            except OSError:
+                self.skipTest('Creating test symlinks is not permitted')
+            args = SimpleNamespace(version='1.0.0-beta.2', output_dir=link, invocation='d'*32)
+            with patch.object(builder, 'checkout', return_value='a'*40):
+                with self.assertRaisesRegex(ValueError, 'Output may not be linked'):
+                    builder.Builder(args)
+            self.assertEqual(list(target.iterdir()), [])
+
+    @unittest.skipUnless(os.name == 'nt', 'Windows 8.3 filesystem aliases require native Windows')
+    def test_explicit_short_path_alias_preserves_directory_identity(self):
+        import ctypes
+        from ctypes import wintypes
+        short_path = ctypes.WinDLL('kernel32', use_last_error=True).GetShortPathNameW
+        short_path.argtypes = (wintypes.LPCWSTR, wintypes.LPWSTR, wintypes.DWORD)
+        short_path.restype = wintypes.DWORD
+        with tempfile.TemporaryDirectory(prefix='sap-lens-long-output-') as temporary:
+            directory = Path(temporary) / 'explicit long directory name'
+            directory.mkdir()
+            buffer = ctypes.create_unicode_buffer(32768)
+            length = short_path(str(directory), buffer, len(buffer))
+            if not length or length >= len(buffer):
+                self.fail(f'GetShortPathNameW failed: {ctypes.get_last_error()}')
+            alias = Path(buffer.value)
+            if alias == directory:
+                self.skipTest('8.3 aliases are disabled on this Windows filesystem')
+            args = SimpleNamespace(version='1.0.0-beta.2', output_dir=alias, invocation='d'*32)
+            with patch.object(builder, 'checkout', return_value='a'*40):
+                actual = builder.Builder(args).output
+            self.assertTrue(actual.samefile(directory))
+            self.assertTrue(actual.samefile(alias))
+            self.assertEqual(actual, directory.resolve())

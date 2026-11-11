@@ -1472,3 +1472,63 @@ acceptance, correct native help/caller status, and installer lifecycle verificat
 No native success or production release readiness is claimed from Linux tests.
 Reboot/recovery/UNC acceptance remains separately pending. No main/version/CI
 trigger changes, tags/releases or workflow dispatches were made.
+
+## Windows deployment validation contracts — 2026-11-11
+
+Baseline: `0eff788ab5521a5860e05370a111ad1e19b8bd6f`, synchronized with
+origin/work before changes. This entry belongs to the subsequent deployment-contract fix commit.
+
+Root causes and corrections:
+
+- Explicit output was correctly canonicalized by `Path.resolve()`, but the test
+  compared path spellings. Windows may expose a Temp directory through an 8.3
+  alias. Assert filesystem identity with `samefile()` plus resolved-path equality,
+  retaining the real mismatched-manifest rejection and byte-preservation check.
+  Add native GetShortPathNameW coverage (capability skip if 8.3 aliases are disabled).
+  Reject junction/reparse output paths and children before resolution, as well as
+  symlinks; permission errors fail closed. Test reparse attributes and actual
+  linked-output rejection without touching the target directory.
+- The newly tracked SCM helper was missing from the script inventory. Document
+  `testing/windows-scm-test-helpers.ps1` in docs/BUILD.md. The unchanged inventory
+  test audits every tracked script; no other omissions remain.
+- The layout test required obsolete version-only source text. Replace that
+  requirement with the shared `deployment_output_name` contract used by local
+  production and remote retrieval, preserving `dist/<version>-<commit12>/`.
+  All four deployment targets share it; release verification still requires an
+  explicit directory and validates the full source SHA, manifest and artifacts.
+  Explicit output overrides and overwrite protection remain covered.
+
+The SCM ZIP support, protected cleanup helpers, service operations, application
+runtime, product version and workflow triggers were **not changed**.
+
+Validation evidence:
+
+- Before edits: explicit-output test passed on Linux; script inventory and layout
+  tests each reproduced their reported failure. Each original test passed alone
+  after correction.
+- Deployment backend feature: 376 discovered, **354 passed, 0 failed, 22 skipped**
+  in 6.3 seconds. Skips require Windows/PowerShell, including native 8.3 aliases.
+  Evidence: `build/test-logs/deployment-fixes-suite.log` and corresponding JSON.
+- Ruff (backend/scripts), workflow contracts, test ownership mapping, whitespace,
+  and internal links across 62 Markdown documents passed.
+- Backend-only REGRESSION: 1503 discovered, **1492 passed, 0 failed, 11 skipped**,
+  exit 0 in 1:55. Evidence: `build/test-logs/deployment-fixes-regression.log` and
+  matching JSON. The runner includes skipped discoveries in its displayed passed
+  count; actual pass counts here exclude them. The existing ResourceWarning at
+  `test_validation_entrypoint.py:60` remains unrelated.
+
+Native Windows/PowerShell execution, packaging, SCM acceptance and browser/FULL
+regression were not run on this Linux host. No artifacts were built or published.
+Next Windows verification (ordinary shell, then elevated SCM acceptance):
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted deployment --backend --jobs 1 --log build/windows-deployment-contracts.log --report build/windows-deployment-contracts.json
+.\scripts\build.ps1 -Mode build -Platform windows -Target server -NonInteractive
+# Elevated shell; use the actual verified service ZIP produced by the build:
+.\scripts\test-server-service.ps1 -Bundle 'C:\Builds\verified-service-package.zip'
+Get-Service SAPLens -ErrorAction SilentlyContinue
+```
+
+The SCM acceptance must not run against an existing SAPLens service; its existing
+ownership and prerequisite protections remain in force. Native build/acceptance
+success is not claimed by these Linux results.
