@@ -2,6 +2,7 @@
 import argparse
 import importlib.util
 import json
+import re
 from pathlib import Path
 import subprocess
 import sys
@@ -32,6 +33,17 @@ def verify(directory, payload_directory):
     sha=packages.sha(directory/installer)
     report=json.loads((metadata/'installer-verification.json').read_text(encoding='utf-8-sig'))
     if report.get('identity')!=BUILD_INFO or report.get('signing')!='disabled' or not report.get('native_installer_smoke','').startswith('passed:') or report.get('installer_sha256')!=sha or report.get('payload_sha256')!=packages.sha(payload_directory/'SAP-Lens.exe'):raise ValueError('Native installer validation receipt differs.')
+    if report.get('acceptance_mode') not in (None,'isolated-app-id'):
+        raise ValueError('Unknown native acceptance mode.')
+    if report.get('acceptance_mode') == 'isolated-app-id':
+        if (report.get('production_app_id') != '5DB5BC51-A860-44CA-93CA-09AE85812DF0'
+                or not re.fullmatch('[A-F0-9]{8}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{4}-[A-F0-9]{12}', report.get('test_app_id',''))
+                or report['test_app_id'] == report['production_app_id']
+                or report.get('production_unchanged') is not True or report.get('cleanup_complete') is not True
+                or not re.fullmatch('[a-f0-9]{64}',report.get('executed_installer_sha256',''))
+                or not re.fullmatch('[a-f0-9]{64}',report.get('recipe_sha256',''))
+                or report['executed_installer_sha256'] == sha):
+            raise ValueError('Isolated native acceptance identity, production invariance or cleanup evidence differs.')
     with tempfile.TemporaryDirectory() as temp:
         incoming=Path(temp)/'incoming';incoming.mkdir();archive=incoming/'portable.zip'
         with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as output:

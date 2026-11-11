@@ -152,7 +152,7 @@ def validate(workflows):
             'The complete installer recipe must compile before the desktop package build')
     diagnostics=next((step for step in desktop_steps if step.get('name')=='Preserve isolated installer setup diagnostics on failure'),{})
     require(diagnostics.get('if')=='failure()' and diagnostics.get('uses','').startswith('actions/upload-artifact@')
-            and diagnostics.get('with',{}).get('path')=='${{ runner.temp }}/SAP Lens installer */setup.log',
+            and diagnostics.get('with',{}).get('path','').splitlines()==['${{ runner.temp }}/sap-lens-installer-*/setup.log','${{ runner.temp }}/sap-lens-installer-*/reinstall.log'],
             'Installer diagnostics must be failure-only and limited to synthetic setup logs')
     native_steps=deployment['jobs']['native']['steps']
     audit_steps=[i for i,step in enumerate(native_steps) if step.get('run')=='python -m pip install -r scripts/requirements-audit.txt']

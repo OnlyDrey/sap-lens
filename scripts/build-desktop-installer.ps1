@@ -1,17 +1,26 @@
 # Installer wrapping only; never replaces canonical EXE compilation or verification.
 [CmdletBinding()]
-param([Parameter(Mandatory=$true)][string]$OutputDirectory,[switch]$CompileCheck)
+param([Parameter(Mandatory=$true)][string]$OutputDirectory,[switch]$CompileCheck,[string]$AcceptancePlan='')
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Build the desktop installer on Windows.' }
 $root = Split-Path $PSScriptRoot -Parent
 $python = Join-Path $root 'backend/build/python-env/Scripts/python.exe'
-if (-not $CompileCheck) {
+if ($CompileCheck -and $AcceptancePlan) { throw 'CompileCheck cannot use an acceptance plan.' }
+if (-not $CompileCheck -and -not $AcceptancePlan) {
     & $python (Join-Path $root 'scripts/deployment-package.py') require-inputs
     if ($LASTEXITCODE -ne 0) { throw 'Validated deployment inputs are required.' }
+}
+$acceptance=$null
+if ($AcceptancePlan) {
+    $json = & $python (Join-Path $root 'scripts/build_system/installer_acceptance.py') validate --plan $AcceptancePlan
+    if ($LASTEXITCODE -ne 0) { throw 'Invalid isolated acceptance plan.' }
+    $acceptance = $json | ConvertFrom-Json
+    if ([IO.Path]::GetFullPath($OutputDirectory).TrimEnd('\') -ne $acceptance.root.TrimEnd('\')) { throw 'Test-only installer must stay in its private acceptance workspace.' }
 }
 $toolRoot = Join-Path $root 'backend/build/inno-setup-7.1.0'
 $compiler = Join-Path $toolRoot 'ISCC.exe'
 $receipt = Join-Path $toolRoot 'compiler-sha256.txt'
+if ($AcceptancePlan -and -not (Test-Path $compiler)) { throw 'The pinned Inno compiler must be provisioned before isolated acceptance.' }
 if (-not (Test-Path $compiler)) {
     $download = Join-Path $root 'backend/build/innosetup-7.1.0-x64.exe'
     # CompileCheck can precede creation of the packaging environment; its host Python is already a prerequisite.
@@ -25,8 +34,12 @@ if (-not (Test-Path $compiler)) {
     [IO.File]::WriteAllText($receipt,(Get-FileHash $compiler -Algorithm SHA256).Hash.ToLowerInvariant())
 }
 if (-not (Test-Path $receipt) -or (Get-FileHash $compiler -Algorithm SHA256).Hash.ToLowerInvariant() -ne ([IO.File]::ReadAllText($receipt)).Trim()) { throw 'Build compiler changed after verified provisioning. Review the dedicated tool directory.' }
-function Invoke-InstallerCompiler([string]$SourceExe,[string]$FullVersion,[string]$NumericVersion,[string]$Destination) {
+function Invoke-InstallerCompiler([string]$SourceExe,[string]$FullVersion,[string]$NumericVersion,[string]$Destination,[string]$TestIdentity='') {
     $arguments = @('/Qp',('/O'+$Destination),('/DSourceExe='+$SourceExe),('/DProductLicense='+(Join-Path $root 'LICENSE.md')),('/DProductIcon='+(Join-Path $root 'assets/sap-lens.ico')),('/DFullVersion='+$FullVersion),('/DNumericVersion='+$NumericVersion),(Join-Path $root 'deploy/windows/desktop-installer.iss'))
+    if ($TestIdentity) {
+        $rootHex=([Text.Encoding]::BigEndianUnicode.GetBytes([IO.Path]::GetFullPath($Destination)) | ForEach-Object { $_.ToString('x2') }) -join ''
+        $arguments = @($arguments[0..($arguments.Count-2)]) + @(('/DAcceptanceId='+$TestIdentity), ('/DAcceptanceRootHex='+$rootHex), $arguments[-1])
+    }
     & $compiler @arguments
     if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed.' }
 }
@@ -65,6 +78,11 @@ if ($CompileCheck) {
             if ($LASTEXITCODE -ne 0) { throw 'Compiled installer fixture resource verification failed.' }
             Write-Host "Installer recipe compiled and PE resources verified: $channel. Application installation was not tested."
         }
+        $destination=Join-Path $temporary 'acceptance'
+        New-Item -ItemType Directory $destination | Out-Null
+        Invoke-InstallerCompiler $payload '0.1.0-beta.1' '0.1.0.1' $destination '36C8FD0F-14CE-49D9-BA04-52E94C118C31'
+        & $checkPython (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer (Join-Path $destination 'SAP-Lens-Setup.exe') --compiler-fixture-channel beta --acceptance-id '36C8FD0F-14CE-49D9-BA04-52E94C118C31'
+        if ($LASTEXITCODE -ne 0) { throw 'Isolated acceptance recipe compilation/resource check failed.' }
     } finally { Remove-Item -LiteralPath $temporary -Recurse -Force }
     return
 }
@@ -74,13 +92,22 @@ $exe = Join-Path $root 'backend/dist/SAP-Lens.exe'
 $approved = Get-Content (Join-Path $root 'backend/build/package-verification.json') -Raw | ConvertFrom-Json
 if ((Get-FileHash $exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne $approved.exe_sha256) { throw 'Portable executable changed after canonical verification.' }
 New-Item -ItemType Directory -Force $OutputDirectory | Out-Null
-Invoke-InstallerCompiler $exe $version ($info.file_version -join '.') $OutputDirectory
+Invoke-InstallerCompiler $exe $version ($info.file_version -join '.') $OutputDirectory $(if ($acceptance) { $acceptance.test_id } else { '' })
 $installer = Join-Path $OutputDirectory 'SAP-Lens-Setup.exe'
-$named = Join-Path $OutputDirectory ("SAP-Lens-Windows-Desktop-x64-$version-Setup.exe")
+$named = if ($acceptance) { Join-Path $OutputDirectory ("SAP-Lens-Acceptance-"+$acceptance.test_id+"-Setup.exe") } else { Join-Path $OutputDirectory ("SAP-Lens-Windows-Desktop-x64-$version-Setup.exe") }
 Move-Item $installer $named
 $hash = (Get-FileHash $named -Algorithm SHA256).Hash.ToLowerInvariant()
 [IO.File]::WriteAllText(($named+'.sha256'),($hash+'  '+[IO.Path]::GetFileName($named)+"`n"),[Text.Encoding]::ASCII)
 Copy-Item (Join-Path $toolRoot 'license.txt') (Join-Path $OutputDirectory 'LICENSE-Inno-Setup.txt')
-& $python (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer $named
+$verificationArguments=@('--installer',$named)
+if ($acceptance) { $verificationArguments+=@('--acceptance-id',$acceptance.test_id) }
+& $python (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') @verificationArguments
 if ($LASTEXITCODE -ne 0) { throw 'Installer verification failed.' }
+if ($acceptance) {
+    $proof=@{schema=1;test_id=$acceptance.test_id;installer_sha256=$hash;production_installer_sha256=$acceptance.installer_sha256;payload_sha256=$approved.exe_sha256;recipe_sha256=$acceptance.recipe_sha256}
+    [IO.File]::WriteAllText((Join-Path $OutputDirectory 'compiled-acceptance.json'),($proof | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+} else {
+    & $python (Join-Path $root 'scripts/build_system/installer_acceptance.py') record-production --installer $named
+    if ($LASTEXITCODE -ne 0) { throw 'Production installer/payload provenance could not be recorded.' }
+}
 Write-Host 'Unsigned per-user installer compiled and metadata verified. Native installation/lifecycle acceptance is separate.'

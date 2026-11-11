@@ -1,5 +1,6 @@
 """Installer resource checks supplement, never replace, portable payload verification."""
 import argparse
+import uuid
 from pathlib import Path
 import sys
 
@@ -11,7 +12,7 @@ class InstallerValidationError(ValueError):
     """Only fixed, nonprivate diagnostics may be shown in build logs."""
 
 
-def verify(path, expected=None):
+def verify(path, expected=None, acceptance_id=None):
     import pefile
     from version import BUILD_INFO
     expected=BUILD_INFO if expected is None else expected
@@ -31,6 +32,17 @@ def verify(path, expected=None):
                         # Ignore only its trailing space/NUL padding, not leading
                         # whitespace, embedded NULs or any product/version text.
                         metadata[name]=value.decode('utf-8').rstrip(' \x00')
+        description = 'SAP Lens Setup'
+        if acceptance_id is not None:
+            try:
+                identity = str(uuid.UUID(acceptance_id)).upper()
+            except ValueError:
+                raise InstallerValidationError('Invalid acceptance identity.') from None
+            if identity == '5DB5BC51-A860-44CA-93CA-09AE85812DF0':
+                raise InstallerValidationError('Acceptance identity must differ from production.')
+            description = 'SAP Lens Acceptance ' + identity
+        if metadata.get('FileDescription') != description:
+            raise InstallerValidationError('Installer production/test identity resource differs.')
         if metadata.get('ProductName')!='SAP Lens':
             raise InstallerValidationError('Installer ProductName differs from SAP Lens.')
         if metadata.get('ProductVersion')!=expected['version']:
@@ -48,6 +60,7 @@ def verify(path, expected=None):
 
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--installer',type=Path,required=True)
+    parser.add_argument('--acceptance-id')
     parser.add_argument('--compiler-fixture-channel',choices=['alpha','beta','rc','stable'])
     args=parser.parse_args()
     try:
@@ -55,7 +68,7 @@ def main():
         if args.compiler_fixture_channel:
             from version import make_deployment_info
             expected=make_deployment_info('0.1.0',args.compiler_fixture_channel,'1','a'*40,'1','1',1)
-        verify(args.installer,expected)
+        verify(args.installer,expected,args.acceptance_id)
         if expected is not None:print('Compiler fixture only; no application payload or native installation was accepted.')
     except InstallerValidationError as error:parser.exit(1,'Installer verification failed: '+str(error)+'\n')
     except Exception as error:parser.exit(1,'Installer verification failed ('+type(error).__name__+'); private details omitted.\n')

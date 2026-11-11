@@ -16,7 +16,7 @@ spec=importlib.util.spec_from_file_location('installer_resources',ROOT/'scripts/
 rules=importlib.util.module_from_spec(spec);spec.loader.exec_module(rules)
 
 
-def installer_resource_fixture(info, product_name='SAP Lens'):
+def installer_resource_fixture(info, product_name='SAP Lens', description='SAP Lens Setup'):
     """Non-runnable PE with real resource tables and Inno-style padded strings.
 
     No vendor binary is shipped or executed. pefile must parse the bytes itself;
@@ -28,7 +28,7 @@ def installer_resource_fixture(info, product_name='SAP Lens'):
         result=align(header+value)+b''.join(align(child) for child in children)
         return struct.pack('<HHH',len(result),len(value)//2 if text else len(value),int(text))+result[6:]
     strings=[node(key,(value.ljust(50)+'\0').encode('utf-16le'))
-             for key,value in [('ProductName',product_name),('ProductVersion',info['version'])]]
+             for key,value in [('ProductName',product_name),('ProductVersion',info['version']),('FileDescription',description)]]
     a,b,c,d=info['file_version'];ms=a<<16|b;ls=c<<16|d
     fixed=struct.pack('<13I',0xfeef04bd,0x10000,ms,ls,ms,ls,0x3f,0,4,1,0,0,0)
     resource=node('VS_VERSION_INFO',fixed,[node('StringFileInfo',children=[node('000004b0',children=strings)])],text=False)
@@ -69,10 +69,10 @@ class RealInstallerResourceTests(unittest.TestCase):
 
 
 class InstallerResourceTests(unittest.TestCase):
-    def image(self,version=None,signed=False,numeric=None,subsystem=2,product_numeric=None,padded=False):
+    def image(self,version=None,signed=False,numeric=None,subsystem=2,product_numeric=None,padded=False,description='SAP Lens Setup'):
         values=numeric or BUILD_INFO['file_version']
         product=product_numeric or BUILD_INFO['file_version']
-        strings={b'ProductName':b'SAP Lens',b'ProductVersion':(version or BUILD_INFO['version']).encode()}
+        strings={b'ProductName':b'SAP Lens',b'ProductVersion':(version or BUILD_INFO['version']).encode(),b'FileDescription':description.encode()}
         if padded:strings={key:value+b' '*max(0,50-len(value))+b'\x00' for key,value in strings.items()}
         self.closed=False
         def close():self.closed=True
@@ -114,6 +114,20 @@ class InstallerResourceTests(unittest.TestCase):
                 with contextlib.redirect_stderr(output),self.assertRaises(SystemExit) as failed:rules.main()
                 self.assertEqual(failed.exception.code,1);self.assertIn(expected,output.getvalue())
                 self.assertNotIn('synthetic-private-path',output.getvalue())
+
+    def test_production_and_acceptance_resource_identities_are_not_interchangeable(self):
+        identity='36C8FD0F-14CE-49D9-BA04-52E94C118C31'
+        image=self.image(description='SAP Lens Acceptance '+identity)
+        parser=SimpleNamespace(PE=lambda _:image,DIRECTORY_ENTRY={'IMAGE_DIRECTORY_ENTRY_SECURITY':0})
+        with patch.dict(sys.modules,{'pefile':parser}):
+            with self.assertRaisesRegex(ValueError,'identity resource'):rules.verify(Path('test-only.exe'))
+            rules.verify(Path('test-only.exe'),acceptance_id=identity)
+            with self.assertRaisesRegex(ValueError,'differ from production'):
+                rules.verify(Path('test-only.exe'),acceptance_id='5DB5BC51-A860-44CA-93CA-09AE85812DF0')
+        production=self.image()
+        parser.PE=lambda _:production
+        with patch.dict(sys.modules,{'pefile':parser}), self.assertRaisesRegex(ValueError,'identity resource'):
+            rules.verify(Path('production.exe'),acceptance_id=identity)
 
     def test_changed_version_signature_numeric_or_console_resources_rejected(self):
         for values in [dict(version='99.0.0'),dict(signed=True),dict(numeric=[99,0,0,0]),dict(product_numeric=[99,0,0,0]),dict(subsystem=3)]:
@@ -174,6 +188,20 @@ class DesktopDistributionTests(unittest.TestCase):
                 distribution.verify(directory,payload)
                 native.assert_called_once_with(directory/installer)
                 self.assertIn(str(ROOT/'scripts/packaging/verify-windows-package.py'),portable.call_args.args[0])
+            def receipt(value):
+                (directory/'metadata/installer-verification.json').write_text(json.dumps(value))
+                files={p.relative_to(directory).as_posix():digest(p) for p in directory.rglob('*') if p.is_file() and p.name!='package-manifest.json'}
+                (directory/'metadata/package-manifest.json').write_text(json.dumps(dict(schema=1,layout='installer-only-v1',platform='Windows-Desktop-x64',identity=BUILD_INFO,files=files)))
+            isolated={**report,'acceptance_mode':'isolated-app-id','test_app_id':'36C8FD0F-14CE-49D9-BA04-52E94C118C31',
+                'production_app_id':'5DB5BC51-A860-44CA-93CA-09AE85812DF0','production_unchanged':True,'cleanup_complete':True,
+                'executed_installer_sha256':'b'*64,'recipe_sha256':'c'*64}
+            receipt(isolated)
+            with patch.object(distribution,'load',side_effect=load),patch.object(distribution.subprocess,'run'):
+                distribution.verify(directory,payload)
+            for field,value in [('test_app_id',isolated['production_app_id']),('production_unchanged',False),('cleanup_complete',False),('executed_installer_sha256',report['installer_sha256']),('acceptance_mode','unknown')]:
+                receipt({**isolated,field:value})
+                with self.subTest(field=field),self.assertRaises(ValueError):distribution.verify(directory,payload)
+            receipt(report)
             self.assertEqual({p.name for p in directory.iterdir()},{installer,'LICENSE.md','LICENSE-Inno-Setup.txt','README.md','metadata'})
             self.assertFalse((directory/'SAP-Lens.exe').exists())
             (directory/'unexpected.csv').write_text('synthetic')
@@ -181,3 +209,169 @@ class DesktopDistributionTests(unittest.TestCase):
             (directory/'unexpected.csv').unlink()
             (directory/installer).write_bytes(b'tampered')
             with self.assertRaises(ValueError):distribution.verify(directory,payload)
+
+
+class IsolatedInstallerPlans(unittest.TestCase):
+    def setUp(self):
+        import copy, json, os, shutil
+        sys.path.insert(0, str(ROOT/'scripts'))
+        from build_system import installer_acceptance
+        self.helper=installer_acceptance
+        self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.base=Path(self.temp.name)
+        self.repo=self.base/'repository'
+        (self.repo/'deploy/windows').mkdir(parents=True)
+        shutil.copyfile(ROOT/'deploy/windows/desktop-installer.iss', self.repo/'deploy/windows/desktop-installer.iss')
+        (self.repo/'backend/dist').mkdir(parents=True); (self.repo/'backend/build').mkdir()
+        self.payload=self.repo/'backend/dist/SAP-Lens.exe'; self.payload.write_bytes(b'synthetic approved payload')
+        (self.repo/'backend/build/package-verification.json').write_text(json.dumps({'status':'passed','exe_sha256':self.helper.digest(self.payload)}))
+        (self.repo/'backend/build/build-version.json').write_text(json.dumps({'version':'0.1.0'}))
+        self.installer=self.base/'production-setup.exe'; self.installer.write_bytes(b'synthetic production setup, never executed')
+        self.proof=self.helper.record_production(self.installer,self.repo)
+        self.local=self.base/'profile/Local'; self.prod=self.local/'Programs/SAP Lens'; self.prod.mkdir(parents=True)
+        (self.prod/'SAP-Lens.exe').write_bytes(b'existing production installation')
+        (self.local/'SAP Lens').mkdir(); (self.local/'SAP Lens/settings.json').write_text('{"schema_version":3}')
+        self.parent=self.base/'acceptance ø'; self.parent.mkdir()
+        self.environment=patch.dict(os.environ,{'LOCALAPPDATA':str(self.local),'APPDATA':str(self.base/'Roaming'),'USERPROFILE':str(self.base/'profile'),
+            'SAP_LENS_CONFIG_DIR':'','SAP_LENS_BACKUP_DIR':'','SAP_LENS_DATA_DIR':''})
+        self.environment.start(); self.addCleanup(self.environment.stop)
+        self.production=self.helper.production_id(self.repo)
+        self.registry={self.production:{'HKCU64':{'values':{'InstallLocation':{'type':1,'value':str(self.prod)}},'written':1,'children':{}}}}
+        self.native_registry_reader=self.helper.registry
+        self.reader=patch.object(self.helper,'registry',side_effect=lambda identity:copy.deepcopy(self.registry.get(identity,{'HKCU64':None})))
+        self.reader.start(); self.addCleanup(self.reader.stop)
+
+    def prepare(self):
+        return self.helper.prepare(self.installer, self.base/'receipt.json', self.parent, self.repo)
+
+    def registered(self, plan):
+        self.registry[plan['test_id']]={'HKCU64':{'values':{
+            'InstallLocation':{'value':plan['application']},
+            'UninstallString':{'value':'"'+str(Path(plan['application'])/'unins000.exe')+'"'}},'written':2,'children':{}}}
+
+    def test_missing_or_stale_production_payload_binding_is_refused(self):
+        import json
+        content=self.proof.read_text(); self.proof.unlink()
+        with self.assertRaisesRegex(ValueError,'provenance'):self.prepare()
+        self.proof.write_text(content)
+        changed=json.loads(content); changed['payload_sha256']='0'*64
+        self.proof.write_text(json.dumps(changed))
+        with self.assertRaisesRegex(ValueError,'provenance'):self.prepare()
+        self.assertEqual(list(self.parent.iterdir()),[])
+
+    def test_registered_production_is_allowed_but_new_identity_and_directory_are_isolated(self):
+        path, plan=self.prepare()
+        self.assertNotEqual(plan['test_id'],self.production)
+        self.assertEqual(self.helper.load(path,self.repo)['test_id'],plan['test_id'])
+        self.assertEqual(Path(plan['application']),Path(plan['root'])/'application')
+        self.assertFalse(Path(plan['root']).is_relative_to(self.prod))
+        self.helper.verify_production(plan)
+        self.assertEqual((self.prod/'SAP-Lens.exe').read_bytes(),b'existing production installation')
+
+    def test_install_reinstall_uninstall_registration_and_data_preservation(self):
+        _,plan=self.prepare(); application=Path(plan['application']); application.mkdir()
+        installed=application/'SAP-Lens.exe'; installed.write_bytes(self.payload.read_bytes())
+        data=Path(plan['data']); data.mkdir(); settings=data/'settings.json'; settings.write_text('synthetic private state')
+        for iteration in range(2):
+            self.registered(plan)
+            self.helper.registration(plan,True)
+            self.assertEqual(self.helper.digest(installed),plan['payload_sha256'])
+            self.helper.verify_production(plan)
+        with self.assertRaises(ValueError):self.helper.registration(plan,False)
+        del self.registry[plan['test_id']]
+        self.helper.registration(plan,False)
+        self.assertEqual(settings.read_text(),'synthetic private state')
+        self.helper.cleanup(plan)
+        self.assertFalse(Path(plan['root']).exists())
+        self.assertTrue(self.prod.exists())
+
+    def test_production_registry_file_or_data_changes_are_reported(self):
+        _,plan=self.prepare()
+        self.registry[self.production]['HKCU64']['written']=2
+        with self.assertRaisesRegex(ValueError,'registry HKCU64'):self.helper.verify_production(plan)
+        self.registry[self.production]['HKCU64']['written']=1
+        (self.prod/'SAP-Lens.exe').write_bytes(b'changed')
+        with self.assertRaisesRegex(ValueError,'SAP-Lens.exe'):self.helper.verify_production(plan)
+        (self.local/'SAP Lens/settings.json').write_text('changed')
+        with self.assertRaisesRegex(ValueError,'settings.json'):self.helper.verify_production(plan)
+
+    def test_production_identity_overlap_and_unowned_registration_are_refused(self):
+        import uuid
+        with patch.object(self.helper.uuid,'uuid4',return_value=uuid.UUID(self.production)):
+            with self.assertRaisesRegex(ValueError,'differ from production'):self.prepare()
+        with self.assertRaisesRegex(ValueError,'overlaps'):
+            self.helper.prepare(self.installer,self.base/'receipt.json',self.prod,self.repo)
+        _,plan=self.prepare(); self.registered(plan)
+        self.registry[plan['test_id']]['HKCU64']['values']['InstallLocation']['value']=str(self.prod)
+        with self.assertRaisesRegex(ValueError,'does not belong'):self.helper.registration(plan,True)
+        self.assertTrue((self.prod/'SAP-Lens.exe').exists())
+        self.registry[plan['test_id']]['HKCU64']['values']['InstallLocation']['value']=plan['application']
+        self.registry[plan['test_id']]['HKCU64']['values']['UninstallString']['value']='"'+str(self.prod/'unins000.exe')+'"'
+        with self.assertRaisesRegex(ValueError,'uninstall command differs'):self.helper.registration(plan,True)
+
+    def test_changed_payload_or_plan_identity_is_rejected(self):
+        import json
+        path,plan=self.prepare()
+        value=json.loads(path.read_text()); value['test_id']=self.production; path.write_text(json.dumps(value))
+        with self.assertRaises(ValueError):self.helper.load(path,self.repo)
+        path.write_text(json.dumps(plan)); self.payload.write_bytes(b'changed payload')
+        with self.assertRaisesRegex(ValueError,'payload'):self.helper.load(path,self.repo)
+
+    def test_cleanup_failure_retains_marker_snapshot_and_diagnostics(self):
+        _,plan=self.prepare(); root=Path(plan['root']); data=root/'data'; data.mkdir()
+        locked=data/'locked.bin'; locked.write_bytes(b'synthetic')
+        (root/'setup.log').write_text('synthetic setup diagnostics')
+        original=Path.unlink
+        def remove(path,*args,**kwargs):
+            if path==locked:raise PermissionError('synthetic lock')
+            return original(path,*args,**kwargs)
+        with patch.object(Path,'unlink',remove):
+            with self.assertRaisesRegex(ValueError,'cleanup failed'):self.helper.cleanup(plan)
+        for name in ('.owner','plan.json','setup.log'):
+            self.assertTrue((root/name).exists())
+        self.helper.verify_production(plan)
+        self.helper.cleanup(plan)
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Native Windows registry views required')
+    def test_native_test_registration_is_separate_from_production(self):
+        import copy, winreg
+        _,plan=self.prepare()
+        key=self.helper.KEY % plan['test_id']
+        self.assertNotEqual(plan['test_id'],self.production)
+        self.assertFalse(any(row is not None for row in self.native_registry_reader(plan['test_id']).values()))
+        created=False
+        try:
+            with winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER,key,0,winreg.KEY_WRITE | winreg.KEY_WOW64_64KEY) as handle:
+                created=True
+                winreg.SetValueEx(handle,'InstallLocation',0,winreg.REG_SZ,plan['application'])
+                winreg.SetValueEx(handle,'UninstallString',0,winreg.REG_SZ,'"'+str(Path(plan['application'])/'unins000.exe')+'"')
+            def reader(identity):
+                return copy.deepcopy(self.registry[identity]) if identity==self.production else self.native_registry_reader(identity)
+            with patch.object(self.helper,'registry',side_effect=reader):
+                self.helper.registration(plan,True)
+                self.helper.verify_production(plan)
+        finally:
+            if created: winreg.DeleteKeyEx(winreg.HKEY_CURRENT_USER,key,winreg.KEY_WOW64_64KEY)
+        self.assertFalse(any(row is not None for row in self.native_registry_reader(plan['test_id']).values()))
+
+    @unittest.skipUnless(sys.platform == 'win32', 'Native Windows sharing locks required')
+    def test_native_locked_file_preserves_recovery_state(self):
+        _,plan=self.prepare(); root=Path(plan['root']); data=root/'data'; data.mkdir()
+        locked=data/'locked.bin'; locked.write_bytes(b'synthetic')
+        with locked.open('rb'):
+            with self.assertRaisesRegex(ValueError,'cleanup failed'):self.helper.cleanup(plan)
+        self.assertTrue((root/'plan.json').exists()); self.assertTrue((root/'.owner').exists())
+        self.helper.cleanup(plan)
+
+    def test_recipe_and_runner_keep_production_boundaries_and_never_execute_source_setup(self):
+        recipe=(ROOT/'deploy/windows/desktop-installer.iss').read_text()
+        script=(ROOT/'scripts/test-desktop-installer.ps1').read_text()
+        self.assertEqual(self.production,'5DB5BC51-A860-44CA-93CA-09AE85812DF0')
+        for guard in ('AcceptanceId must differ','AcceptanceBoundary','NoAcceptanceLinks','UsePreviousAppDir=no','InitializeUninstall'):
+            self.assertIn(guard,recipe)
+        self.assertIn('CloseApplications=no',recipe)
+        self.assertNotIn('Start-Process -FilePath $Installer',script)
+        self.assertIn('Refusing production or changed installer execution',script)
+        self.assertIn('verify-production',script)
+        self.assertIn('$process.Dispose()',script)
+        self.assertLess(script.index("Invoke-Plan 'cleanup'"),script.index("native_installer_smoke='passed:"))

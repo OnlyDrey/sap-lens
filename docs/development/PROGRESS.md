@@ -1838,3 +1838,39 @@ Inspect any retained workspace, error's relative path/type/code, process state a
 ACLs before manual recovery. Do not recursively grant rights or delete production
 paths. See docs/BUILD.md, deployment/RELEASES.md and deployment/WINDOWS_SERVICE.md
 for the updated layout, checksum verification and administrator requirements.
+
+
+## Windows Desktop installer acceptance isolation (2026-11-11)
+
+The existing acceptance guard correctly refused the production uninstall AppId.
+It therefore could not exercise installation on a developer machine with SAP Lens
+already registered. Production identity and upgrade behavior remain unchanged.
+Acceptance now compiles a separate GUID-bound wrapper from the exact approved
+payload, with producer provenance binding the production Setup, payload, recipe
+and build identity. Its private directory and ownership marker are checked by
+both the runner and installer/uninstaller. It creates no shared shortcuts.
+The production Setup is verified, never installed by this acceptance path.
+
+Read-only snapshots compare production uninstall registration, installation files
+and application data before/after every lifecycle stage. Test-only registration
+and uninstall paths must match the private workspace. Install, reinstall, EXE
+hash/lifecycle, backup/data preservation and uninstall assertions remain. The
+production Desktop mutex is retained: exit a running application (including tray)
+before testing, but leave its installation registered. Failures identify stages;
+cleanup errors preserve private diagnostics. CI uploads only setup/reinstall logs,
+never plans, snapshots, settings or backups.
+
+Validation: focused installer/compiler/provenance/workflow tests: 75 passed,
+2 Windows-only skips. Final deployment checkpoint after provenance binding:
+362 passed, 22 platform skips. Backend REGRESSION checkpoint: 1,506 passed,
+15 skipped, zero failures (1,521 discovered); final build-only provenance and
+diagnostic-selector changes were subsequently covered by focused tests. Ruff,
+documentation, workflow contracts and whitespace checks passed. No frontend code
+changed; browser, frontend build and FULL were intentionally not run.
+
+Native Windows PowerShell/Inno compilation and actual install/reinstall/uninstall
+are NOT verified on this Linux host. Exact native commands and private-workspace
+recovery instructions are in [Windows Desktop](../deployment/WINDOWS_DESKTOP.md#verify-without-repeating-the-entire-windows-build).
+Run CompileCheck and the focused native tests first, then isolated acceptance
+against a current producer-verified Setup. Production-AppId upgrade acceptance
+remains a separate clean-machine/manual gate. No release or workflow was dispatched.

@@ -490,13 +490,14 @@ Report any difference; the original `build-windows.ps1` is removed only after ev
 
 ### Windows validation checklist: packaging ports
 
-Run after the stage checklist passes, on the same host (needs .NET Framework 4.8 for the service manager, network access to download the pinned Inno Setup and WinSW, and an
-unregistered machine for the native installer and service tests: they refuse to touch an existing SAP Lens installation or `SAPLens` service).
+Run after the stage checklist passes, on the same host (needs .NET Framework 4.8 for the service manager, network access to download the pinned Inno Setup and WinSW, and no pre-existing `SAPLens` service for native SCM tests). Desktop installer
+acceptance uses an isolated test AppId: production may remain registered, but must
+not be running. See [isolated installer acceptance](deployment/WINDOWS_DESKTOP.md#isolated-native-installer-acceptance).
 
 ```powershell
 # Reference (PowerShell) first, then the port; compare the bundle contents and exit codes.
 pwsh -NoProfile -File scripts\build-desktop-installer.ps1 -CompileCheck -OutputDirectory $env:TEMP\ps-iscc
-python scripts\build_system\windows\installer.py -CompileCheck -OutputDirectory $env:TEMP\py-iscc        # both: four channels compile and verify
+python scripts\build_system\windows\installer.py -CompileCheck -OutputDirectory $env:TEMP\py-iscc        # both: four production channels plus isolated acceptance recipe
 
 pwsh -NoProfile -File scripts\build-service-manager.ps1 -OutputDirectory $env:TEMP\ps-mgr                   # needs backend\build\build-version.json (after a Package stage)
 python scripts\build_system\windows\service_manager.py -OutputDirectory $env:TEMP\py-mgr                  # both: exe produced, self-test passes

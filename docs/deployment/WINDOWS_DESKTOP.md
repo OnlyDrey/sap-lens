@@ -175,11 +175,12 @@ The deployment pipeline keeps the canonical portable verifier's exactly-two-file
 ZIP rules for the internal portable input. The installer-only outer ZIP groups
 its manifest and receipt under `metadata/`. After download, CI rechecks exact
 contents, hashes, identity, unsigned installer resources and the retained internal
-portable payload; it does not need to ship that second copy to users. The native acceptance definition
-refuses an existing registered installation and uses isolated data to test install,
-repeat installation, installed-EXE lifecycle, uninstall and data preservation.
+portable payload; it does not need to ship that second copy to users. Native acceptance permits an existing registered production installation by
+compiling a separate, test-only AppId into a private marked workspace. It never
+executes production Setup. It tests installation, reinstallation, installed-EXE
+lifecycle, uninstall and data preservation, then verifies production invariance.
 On failure, the native test reports its current phase and retains its isolated
-setup log directory. The selected Windows Desktop job uploads only `setup.log`
+setup log directory. The selected Windows Desktop job uploads only setup/reinstallation logs
 from those synthetic test directories as a separate seven-day diagnostics
 artifact; local operators can inspect and then remove their retained directory.
 Settings, backups and runtime data are not uploaded. Diagnostic logs are never
@@ -416,3 +417,76 @@ for native Windows setup/check commands, persistent caches, internal mirrors,
 offline artifacts and strict checksum/version handling. A corporate HTTP 403
 remains unverified until that setup succeeds on the affected Windows network;
 packaging success or Linux/mock tests cannot establish it.
+
+
+## Isolated native installer acceptance
+
+A registered SAP Lens copy can remain installed. Exit any running copy, including
+its background/tray process, first; the test never terminates it or bypasses the
+production single-instance/maintenance mutex. Run as the same Windows user, without
+administrator elevation. An unrelated Windows Service installation remains separate.
+
+The production AppId stays `{5DB5BC51-A860-44CA-93CA-09AE85812DF0}`. Each acceptance
+run compiles the same Inno recipe and verified application payload with a fresh
+test-only GUID. The test wrapper has a distinct name/uninstall key, no shared
+shortcuts or automatic application launch, and a private workspace whose absolute
+path is bound into the executable. Setup rejects `/DIR` relocation and reparse
+paths; its uninstaller requires the same workspace/ownership marker. Test data
+and backups are fixed to that workspace, not the production fallback directories.
+
+Before execution, the PE verifier requires `FileDescription` to identify that
+exact test GUID. Production verification rejects test-only wrappers; the native
+harness refuses a production or changed executable. Production Setup is only
+resource-checked and hashed, never installed. Production uninstall registrations
+(in both registry views), installed files and default/custom data/backup paths
+are read-only snapshots checked through the lifecycle. Registry differences and
+file paths are reported without file contents. The private plan contains local
+paths and hashes and is not a distribution/upload artifact.
+
+A success receipt is written only after test uninstall, production-invariance
+checks and workspace cleanup complete. It binds the source production installer,
+the **different test installer actually executed**, recipe and payload hashes,
+test/production IDs and cleanup outcome. This proves the isolated recipe lifecycle;
+production-AppId upgrade compatibility, clean-PC and enterprise-policy acceptance
+remain separate release gates.
+
+### Verify without repeating the entire Windows build
+
+Keep the prepared `backend/build/python-env`, pinned Inno compiler, validated
+`backend/dist/SAP-Lens.exe`, package-verification and build-version metadata from
+the same previous build. Isolated wrapper compilation reuses those verified bytes;
+it does not bypass the production packaging receipt/freshness gate or rebuild the
+application. The production Setup must have a matching producer-written
+`backend/build/installer-proofs/<Setup-SHA256>.json` binding its approved payload,
+recipe and build identity. Older installers without this proof must be rebuilt
+through the normal validated installer builder; do not generate a proof
+retrospectively or bypass its freshness checks. Only the isolated test wrapper
+reuses the bound payload. Use a new report filename and a verified production Setup EXE (extract
+it from its checked Desktop ZIP if necessary).
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+.\scripts\build-desktop-installer.ps1 -CompileCheck -OutputDirectory .\backend\build\installer-isolation-check
+.\backend\build\python-env\Scripts\python.exe scripts/run-tests.py targeted --test test_desktop_installer --test test_windows_ports --test test_installer_preflight --jobs 1 --log build/installer-isolation-native.log --report build/installer-isolation-native.json
+.\scripts\test-desktop-installer.ps1 -Installer 'C:\Builds\SAP-Lens-Windows-Desktop-x64-<version>-Setup.exe' -Report ".\backend\build\installer-acceptance-$([guid]::NewGuid().ToString('N')).json"
+```
+
+CompileCheck now covers four production channels **and** the acceptance-only
+conditional code; its compiler-as-payload fixtures are never installed or released.
+Actual Inno compilation and the full native lifecycle still require Windows.
+
+### Failed acceptance and recovery
+
+Failures name their stage, keep the primary failure separate from cleanup errors,
+and retain the private `sap-lens-installer-<GUID>` workspace with ownership marker,
+plan, compiler proof and setup/reinstallation logs. The test uninstalls only a
+registration whose GUID, install location and uninstall executable belong to that
+workspace. It never deletes registry entries manually or runs a production
+uninstaller. Sharing failures leave recovery evidence and return a nonzero status.
+
+Inspect the retained plan and the **test GUID's** HKCU uninstall entry before any
+manual action. If the automated cleanup could not finish, run only that workspace's
+`application\unins000.exe` as the same user; its bound-directory guard remains
+active. Do not move it, remove `.owner`, delete production registry keys or apply
+recursive permission changes. Preserve diagnostics before removing test-only files.
+Private snapshots, settings and backups are excluded from CI diagnostics uploads.

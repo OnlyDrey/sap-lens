@@ -13,6 +13,14 @@ class WorkflowTests(unittest.TestCase):
     def setUp(self):
         self.workflows = contracts.load_workflows()
 
+    def test_installer_diagnostics_cannot_upload_production_snapshots_or_backups(self):
+        for pattern in ('${{ runner.temp }}/sap-lens-installer-*/**','${{ runner.temp }}/sap-lens-installer-*/plan.json','${{ runner.temp }}/sap-lens-installer-*/*.tar.gz'):
+            workflows=copy.deepcopy(self.workflows)
+            steps=workflows['build-deployments.yml']['jobs']['desktop']['steps']
+            diagnostics=next(step for step in steps if step.get('name')=='Preserve isolated installer setup diagnostics on failure')
+            diagnostics['with']['path']=pattern
+            with self.subTest(pattern=pattern),self.assertRaises(ValueError):contracts.validate(workflows)
+
     def test_actual_workflows_satisfy_contract(self):
         contracts.validate(self.workflows)
 

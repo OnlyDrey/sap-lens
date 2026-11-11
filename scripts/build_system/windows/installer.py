@@ -13,7 +13,7 @@ import uuid
 
 from build_system.windows.stages import ROOT, Process, StageError, venv_python
 
-from build_system import managed_tools
+from build_system import managed_tools, installer_acceptance
 INNO_VERSION = managed_tools.INNO_VERSION
 INNO_URL = managed_tools.INNO_URL
 INNO_SHA256 = managed_tools.INNO_SHA256
@@ -27,17 +27,24 @@ def download(url, target):
     managed_tools.atomic_write(Path(target), managed_tools.acquire_inno())
 
 
-def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=None, windows=None, fetch=download, host_python='python'):
+def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=None, windows=None, fetch=download, host_python='python', AcceptancePlan=''):
     process = process or Process()
     env = dict(os.environ if environ is None else environ)
     if not (os.name == 'nt' if windows is None else windows):
         raise StageError('Build the desktop installer on Windows.')
     python = venv_python(root)
-    if not CompileCheck:
+    if CompileCheck and AcceptancePlan:
+        raise StageError('CompileCheck cannot use an acceptance plan.')
+    acceptance = installer_acceptance.load(Path(AcceptancePlan), root) if AcceptancePlan else None
+    if acceptance and Path(OutputDirectory).resolve() != Path(acceptance['root']).resolve():
+        raise StageError('Test-only installer must stay in its private acceptance workspace.')
+    if not CompileCheck and not acceptance:
         if process.run([str(python), str(root / 'scripts/deployment-package.py'), 'require-inputs'], root, env) != 0:
             raise StageError('Validated deployment inputs are required.')
     tool_root = root / f'backend/build/inno-setup-{INNO_VERSION}'
     compiler, receipt = tool_root / 'ISCC.exe', tool_root / 'compiler-sha256.txt'
+    if acceptance and not compiler.exists():
+        raise StageError('Pinned Inno compiler is required before isolated acceptance.')
     if not compiler.exists():
         installer = root / f'backend/build/innosetup-{INNO_VERSION}-x64.exe'
         fetch(INNO_URL, installer)
@@ -51,9 +58,12 @@ def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=
     if not receipt.exists() or sha256(compiler) != receipt.read_text(encoding='utf-8-sig').strip():
         raise StageError('Build compiler changed after verified provisioning. Review the dedicated tool directory.')
 
-    def compile_installer(source_exe, full_version, numeric_version, destination):
+    def compile_installer(source_exe, full_version, numeric_version, destination, test_identity=''):
         arguments = [str(compiler), '/Qp', f'/O{destination}', f'/DSourceExe={source_exe}', f'/DProductLicense={root / "LICENSE.md"}', f'/DProductIcon={root / "assets/sap-lens.ico"}',
                      f'/DFullVersion={full_version}', f'/DNumericVersion={numeric_version}', str(root / 'deploy/windows/desktop-installer.iss')]
+        if test_identity:
+            arguments.insert(-1, '/DAcceptanceId='+test_identity)
+            arguments.insert(-1, '/DAcceptanceRootHex='+str(Path(destination).resolve()).encode('utf-16-be').hex())
         if process.run(arguments, root, env) != 0:
             raise StageError('Inno Setup compilation failed.')
 
@@ -86,6 +96,11 @@ def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=
                 if process.run([str(check_python), str(root / 'scripts/packaging/verify-desktop-installer.py'), '--installer', str(produced), '--compiler-fixture-channel', channel], root, env) != 0:
                     raise StageError('Compiled installer fixture resource verification failed.')
                 print(f'Installer recipe compiled and PE resources verified: {channel}. Application installation was not tested.')
+            destination = temporary / 'acceptance'
+            destination.mkdir()
+            compile_installer(payload, '0.1.0-beta.1', '0.1.0.1', destination, '36C8FD0F-14CE-49D9-BA04-52E94C118C31')
+            if process.run([str(check_python), str(root / 'scripts/packaging/verify-desktop-installer.py'), '--installer', str(destination / 'SAP-Lens-Setup.exe'), '--compiler-fixture-channel', 'beta', '--acceptance-id', '36C8FD0F-14CE-49D9-BA04-52E94C118C31'], root, env) != 0:
+                raise StageError('Isolated acceptance recipe compilation/resource check failed.')
         finally:
             shutil.rmtree(temporary, ignore_errors=True)
         return None
@@ -96,13 +111,21 @@ def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=
     if sha256(executable) != approved['exe_sha256']:
         raise StageError('Portable executable changed after canonical verification.')
     output_directory.mkdir(parents=True, exist_ok=True)
-    compile_installer(executable, version, '.'.join(str(part) for part in info['file_version']), output_directory)
-    named = output_directory / f'SAP-Lens-Windows-Desktop-x64-{version}-Setup.exe'
+    compile_installer(executable, version, '.'.join(str(part) for part in info['file_version']), output_directory, acceptance['test_id'] if acceptance else '')
+    named = output_directory / (f"SAP-Lens-Acceptance-{acceptance['test_id']}-Setup.exe" if acceptance else f'SAP-Lens-Windows-Desktop-x64-{version}-Setup.exe')
     shutil.move(str(output_directory / 'SAP-Lens-Setup.exe'), str(named))
     named.with_name(named.name + '.sha256').write_bytes(f'{sha256(named)}  {named.name}\n'.encode('ascii'))
     shutil.copy2(tool_root / 'license.txt', output_directory / 'LICENSE-Inno-Setup.txt')
-    if process.run([str(python), str(root / 'scripts/packaging/verify-desktop-installer.py'), '--installer', str(named)], root, env) != 0:
+    verification = [str(python), str(root / 'scripts/packaging/verify-desktop-installer.py'), '--installer', str(named)]
+    if acceptance:
+        verification += ['--acceptance-id', acceptance['test_id']]
+    if process.run(verification, root, env) != 0:
         raise StageError('Installer verification failed.')
+    if acceptance:
+        proof = dict(schema=1, test_id=acceptance['test_id'], installer_sha256=sha256(named), production_installer_sha256=acceptance['installer_sha256'], payload_sha256=approved['exe_sha256'], recipe_sha256=acceptance['recipe_sha256'])
+        (output_directory / 'compiled-acceptance.json').write_text(json.dumps(proof), encoding='utf-8')
+    else:
+        installer_acceptance.record_production(named, root)
     print('Unsigned per-user installer compiled and metadata verified. Native installation/lifecycle acceptance is separate.')
     return named
 
@@ -111,10 +134,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description='Python port of build-desktop-installer.ps1 (unverified on Windows).')
     parser.add_argument('-OutputDirectory', required=True)
     parser.add_argument('-CompileCheck', action='store_true')
+    parser.add_argument('-AcceptancePlan', default='')
     options = parser.parse_args(argv)
     try:
-        build(options.OutputDirectory, options.CompileCheck)
-    except (StageError, OSError) as error:
+        build(options.OutputDirectory, options.CompileCheck, AcceptancePlan=options.AcceptancePlan)
+    except (StageError, OSError, ValueError) as error:
         print(error, file=sys.stderr)
         return 1
     return 0

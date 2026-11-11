@@ -156,6 +156,7 @@ class ServerBundle(Case):
 class Installer(Case):
     def prepare(self, provisioned=True):
         self.identity()
+        self.write('deploy/windows/desktop-installer.iss',(ROOT/'deploy/windows/desktop-installer.iss').read_text())
         stages.venv_python(self.root).parent.mkdir(parents=True, exist_ok=True)
         tool = self.root / f'backend/build/inno-setup-{installer.INNO_VERSION}'
         if provisioned:
@@ -167,7 +168,7 @@ class Installer(Case):
     def test_compile_and_name_the_installer(self):
         self.prepare()
         exe = self.write('backend/dist/SAP-Lens.exe', b'portable')
-        self.write('backend/build/package-verification.json', json.dumps({'exe_sha256': hashlib.sha256(b'portable').hexdigest()}))
+        self.write('backend/build/package-verification.json', json.dumps({'status':'passed','exe_sha256': hashlib.sha256(b'portable').hexdigest()}))
         out = self.root / 'out'
         recorder = Recorder({'ISCC.exe': lambda c: self.write('out/SAP-Lens-Setup.exe', b'setup')})
         named = installer.build(str(out), False, self.root, recorder, {}, True)
@@ -183,7 +184,7 @@ class Installer(Case):
     def test_the_executable_must_be_the_verified_one(self):
         self.prepare()
         self.write('backend/dist/SAP-Lens.exe', b'changed')
-        self.write('backend/build/package-verification.json', json.dumps({'exe_sha256': 'f' * 64}))
+        self.write('backend/build/package-verification.json', json.dumps({'status':'passed','exe_sha256': 'f' * 64}))
         with self.assertRaisesRegex(stages.StageError, 'changed after canonical verification'):
             installer.build(str(self.root / 'out'), False, self.root, Recorder({'ISCC': lambda c: None}), {}, True)
 
@@ -199,9 +200,9 @@ class Installer(Case):
         self.assertEqual(text[0], 'python -m venv <root>/backend/build/installer-check-env')
         self.assertTrue(text[1].endswith('-m pip install --disable-pip-version-check pefile==2024.8.26'))
         verified = [t for t in text if 'verify-desktop-installer.py' in t]
-        self.assertEqual([t.rsplit(' ', 1)[1] for t in verified], ['alpha', 'beta', 'rc', 'stable'])
+        self.assertEqual([t.split('--compiler-fixture-channel ',1)[1].split()[0] for t in verified], ['alpha', 'beta', 'rc', 'stable', 'beta'])
         versions = [t.split('/DFullVersion=')[1].split(' ')[0] for t in text if '/DFullVersion=' in t]
-        self.assertEqual(versions, ['0.1.0-alpha.1', '0.1.0-beta.1', '0.1.0-rc.1', '0.1.0'])
+        self.assertEqual(versions, ['0.1.0-alpha.1', '0.1.0-beta.1', '0.1.0-rc.1', '0.1.0', '0.1.0-beta.1'])
         self.assertEqual(list(out.iterdir()), [], 'the disposable recipe directory is removed')
 
     def test_provisioning_downloads_verifies_and_installs_per_user(self):
