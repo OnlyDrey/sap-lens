@@ -149,6 +149,9 @@ class StartupAttempt:
                        pid=os.getpid(), **context)
         if error is not None:
             details['exception'] = type(error).__name__
+            for key in ('errno', 'winerror'):
+                if isinstance(value := getattr(error, key, None), int):
+                    details[key] = value
             # Traceback locations only: no exception values, source lines, paths or locals.
             chain = []
             current = error
@@ -187,13 +190,17 @@ def reserve_listener(preferred_port: int = APP_PORT) -> socket.socket:
     for port in (preferred_port, 0):
         listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            if is_windows():
+            # Socket ownership follows the actual kernel, independent of GUI/platform
+            # capability mocks. Winsock SO_REUSEADDR can bind another service's port.
+            if sys.platform == 'win32':
                 listener.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
             else:
                 listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             listener.bind(('127.0.0.1', port))
             return listener
-        except OSError:
+        except OSError as error:
+            logger.info('desktop_listener reservation_failed policy=%s requested_port=%d errno=%s winerror=%s',
+                        'exclusive' if sys.platform == 'win32' else 'reuse', port, error.errno, getattr(error, 'winerror', None))
             listener.close()
             if port == 0:
                 raise
@@ -518,7 +525,8 @@ def run() -> int:
         from startup_screen import startup_html, state_script, palette_script
         listener = reserve_listener(APP_PORT)
         port = listener.getsockname()[1]
-        attempt.event('listener', 'reserved', host='127.0.0.1', port=port)
+        attempt.event('listener', 'reserved', host='127.0.0.1', port=port,
+                      socket_policy='exclusive' if sys.platform == 'win32' else 'reuse')
         origin = f'http://127.0.0.1:{port}'
         token = secrets.token_urlsafe(32)
         identity = secrets.token_hex(16)

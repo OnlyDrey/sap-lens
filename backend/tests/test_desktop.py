@@ -236,6 +236,42 @@ class DesktopTests(unittest.TestCase):
         self.assertEqual(len(set(tokens)), 3)
         self.report.assert_not_called()
 
+    def startup_diagnostics(self):
+        """Only authored stage labels/error classes; never tokens, paths or exception values."""
+        events = []
+        log = self.root / 'sap-lens.log'
+        if log.is_file():
+            for line in log.read_text(encoding='utf-8').splitlines():
+                if 'desktop_startup ' in line:
+                    event = json.loads(line.split('desktop_startup ', 1)[1])
+                    events.append({key: event[key] for key in ('stage', 'result', 'code', 'exception', 'worker_exit_code', 'socket_policy', 'errno', 'winerror') if key in event})
+        return json.dumps({'socket_platform': sys.platform, 'gui_windows': desktop.is_windows(), 'events': events}, sort_keys=True)
+
+    def test_windows_socket_exclusivity_is_independent_of_mocked_gui_platform(self):
+        # Winsock permits an overlapping bind with SO_REUSEADDR even when another
+        # service owns the port. The native GUI mock must not select that policy.
+        sockets = []
+        exclusive = -5
+        def socket_factory(*args):
+            listener = MagicMock()
+            def bind(address):
+                if address[1] == 18743 and listener.setsockopt.call_args.args[1] == exclusive:
+                    raise OSError(10048, 'synthetic occupied port')
+                listener.getsockname.return_value = ('127.0.0.1', address[1] or 49152)
+            listener.bind.side_effect = bind
+            sockets.append(listener)
+            return listener
+        with patch.object(desktop.sys, 'platform', 'win32'), \
+                patch.object(socket, 'SO_EXCLUSIVEADDRUSE', exclusive, create=True), \
+                patch.object(desktop.socket, 'socket', side_effect=socket_factory):
+            listener = desktop.reserve_listener(18743)
+        self.assertEqual(listener.getsockname()[1], 49152)
+        self.assertEqual(len(sockets), 2)
+        for owned in sockets:
+            owned.setsockopt.assert_called_once_with(socket.SOL_SOCKET, exclusive, 1)
+        sockets[0].close.assert_called_once()
+        sockets[1].close.assert_not_called()
+
     def test_occupied_port_is_not_contacted_or_terminated(self):
         with socket.socket() as unrelated:
             unrelated.bind(('127.0.0.1', 0))
@@ -243,7 +279,8 @@ class DesktopTests(unittest.TestCase):
             port = unrelated.getsockname()[1]
             self.gui_session = self.verify_session
             with patch.object(desktop, 'APP_PORT', port):
-                self.assertEqual(desktop.run(), 0)
+                result = desktop.run()
+                self.assertEqual(result, 0, self.startup_diagnostics())
             self.assertNotEqual(urlsplit(self.session()[0]).port, port)
             unrelated.setblocking(False)
             with self.assertRaises(BlockingIOError):

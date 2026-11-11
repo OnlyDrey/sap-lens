@@ -1657,3 +1657,81 @@ if ($LASTEXITCODE -ne 0) { throw 'PowerShell validation failed' }
 Use a fresh output directory if an explicit directory already belongs to another
 commit. Preserve failed build logs/manifests; never overwrite existing release
 artifacts. Native success is not claimed until these checks actually pass.
+
+## Occupied-port Windows packaging isolation — 2026-11-11
+
+Baseline `71e696241a8a0f2d6edb7a3a04c553561ec5c2b7`, clean and synchronized
+with origin/work. Native Windows/PowerShell is unavailable on this Linux host.
+
+**Confirmed defect:** DesktopTests mocks `desktop.is_windows()` to False to isolate
+WebView2, the native single-instance boundary and GUI integration. The same mock
+also selected POSIX SO_REUSEADDR in `reserve_listener()` on a real Windows kernel.
+Winsock permits overlapping binding with this option: successful bind does not
+establish exclusive ownership, and the later listen/startup may fail or behave
+indeterminately. The preferred-port conflict test must exercise actual OS socket
+semantics, independently of the mocked GUI platform. No leaked process or shared
+mutex was needed to reproduce this policy error.
+
+A regression model of Winsock's occupied-port binding failed before correction:
+it reserved the already-owned preferred port 18743 rather than falling back to
+49152. After correction it proves SO_EXCLUSIVEADDRUSE on both Windows attempts,
+closure of the rejected candidate and retention of the owned fallback socket.
+The actual failing native packaging run was not available for tracing here;
+native confirmation remains required rather than inferred from this model.
+
+**Fix:** socket policy now reads the actual `sys.platform`, independent of the GUI
+helper. Unmocked production behavior is unchanged: Windows exclusive ownership,
+POSIX reuse, loopback-only binding and OS-assigned fallback. No service is probed,
+terminated or reused. The existing live-port test retains every assertion and now
+includes safe startup stage/error-code diagnostics if run() returns nonzero.
+Structured startup events include socket policy and numeric OS error codes;
+failed reservation logs contain only policy, port and OS codes, not error values,
+paths, CSV data or tokens. No deadlines, sleeps, retries, packaging contracts,
+GUI cleanup, readiness identity checks, locks or CI triggers were changed.
+
+**Packaging-equivalent execution:** used `backend/build/python-env/bin/python`
+(the Linux counterpart of packaging's Scripts/python.exe), repository cwd and
+exact flags `-W error::DeprecationWarning -m unittest discover -s backend/tests
+-p test_desktop.py -v`. The inherited environment matched the deployment builder:
+production/source/deployment overrides and pip/Python destination overrides removed;
+PYTHONUTF8=1, PYTHONIOENCODING=utf-8, SAP_LENS_BUILD_SCOPE=targeted, DATA_CSV_PATH and
+USER_CSV_PATH empty, SAP_LENS_CONFIG_DIR=backend/build/deployment-test-settings,
+RUNNER_TEMP=backend/build/deployment-validation, SAP_LENS_AUDIT_PYTHON pointing to
+the prepared audit interpreter, and prepared backend Python first on PATH. Both
+local interpreters report Python 3.12.14, Uvicorn 0.54.0 and FastAPI 0.151.0.
+
+**Validation:** regression model failed before and passed after; model plus live
+occupied-port test passed 2/2. In the prepared packaging environment the original
+test passed five consecutive runs (0.716–0.977s), then the entire desktop module
+passed **51/51 twice** (36.953s and 38.927s), with zero failures/skips. Logs:
+`build/test-logs/desktop-packaging-single-{1..5}.log`,
+`desktop-packaging-module-{1..2}.log`; commands, durations and exit codes in
+`build/test-artifacts/desktop-packaging-repeats.json`. The modeled red/green tests
+have separate `desktop-winsock-before/after` logs and JSON results.
+Related desktop/package/server/startup tests: **62 passed, 0 failed, 6 native
+Windows-only skips** (68 discoveries). Complete deployment feature: **356 passed,
+0 failed, 22 platform skips** (378 discoveries). Evidence uses
+`desktop-winsock-dependents` and `desktop-winsock-deployment` log/JSON prefixes.
+Ruff, documentation links (62 files), workflow contracts and whitespace passed.
+The broad release regression and artifact builds were intentionally not repeated.
+
+**Windows follow-up** — from the repository root after synchronizing work, reuse
+packaging's prepared Python; do not substitute .venv:
+
+```powershell
+$py = '.\backend\build\python-env\Scripts\python.exe'
+foreach ($iteration in 1..5) {
+    & $py -W error::DeprecationWarning -m unittest discover -s backend/tests -p test_desktop.py -k test_occupied_port_is_not_contacted_or_terminated -v
+    if ($LASTEXITCODE -ne 0) { throw "Occupied-port repeat $iteration failed" }
+}
+foreach ($iteration in 1..2) {
+    & $py -W error::DeprecationWarning -m unittest discover -s backend/tests -p test_desktop.py -v
+    if ($LASTEXITCODE -ne 0) { throw "Desktop module repeat $iteration failed" }
+}
+.\scripts\build.ps1 -Mode build -Platform windows -Target server -NonInteractive
+```
+
+The final public build applies the builder's full inherited environment and logs
+any remaining failure through the new safe assertion diagnostics. No artifact
+rebuild, complete release regression, GitHub Actions or native success is claimed
+by the Linux checks above.
