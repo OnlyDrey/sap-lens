@@ -1532,3 +1532,128 @@ Get-Service SAPLens -ErrorAction SilentlyContinue
 The SCM acceptance must not run against an existing SAPLens service; its existing
 ownership and prerequisite protections remain in force. Native build/acceptance
 success is not claimed by these Linux results.
+
+
+## Desktop HTTP readiness and Windows build visibility — 2026-11-11
+
+Baseline: `8e789b111793278e6c3a3ad7ca93e6eed06ff45f`, clean and synchronized
+with origin/work. No Windows runtime or PowerShell is available on this Linux host.
+
+### Failure analysis and correction
+
+Python 3.12's `urllib.request.build_opener()` eagerly constructs an HTTPSHandler,
+which calls `ssl._create_default_https_context()` and loads the system trust
+store. Desktop readiness is exclusively HTTP on the already-owned loopback socket,
+but this unused TLS initialization occurred before the first readiness probe and
+outside its HTTP timeout. The GUI fixture independently closes startup after three
+seconds unless navigation has occurred.
+
+Evidence gathered before editing:
+
+- All five reported tests passed individually on ordinary Linux execution.
+- A controlled certificate-store model advancing the clock by two seconds made
+  readiness return `READINESS_TIMEOUT`, with **one TLS initialization and zero HTTP
+  requests**, rather than checking the mocked wrong identity.
+- Injecting 3.2 seconds into certificate-store construction reproduced the exact
+  `test_gui_failure_cleans_up_server` missing-navigation error (`call_args is None`).
+  This was a reproduction only; no delay was added to production or committed tests.
+
+Failure mechanisms:
+
+| Reported failure | Mechanism |
+| --- | --- |
+| GUI failure: missing navigation | Fixture closes before readiness/navigation; the requested GUI-failure scenario was never reached. Reproduced with delayed TLS initialization. |
+| Occupied port: return 1 | Same startup/fixture timing hazard can make session verification run before navigation. The port-ownership assertion is retained. |
+| Malformed/wrong identity: READINESS_TIMEOUT | Unused TLS construction consumes the deadline before the mocked HTTP request. Reproduced deterministically. |
+| Stalled CSV: return 1 | Same early-close/session timing hazard prevents exercising the intended CSV-loading scenario. CSV behavior is unchanged. |
+| Unexpected backend exit: no destroy | The intended post-navigation runtime-monitor scenario is not reached if fixture startup closes early. Runtime monitoring is unchanged. |
+
+The common initialization defect and two original failure signatures were
+reproduced locally; the other three share the exposed fixture path. Attribution
+of every native Windows occurrence still needs the commands below; the supplied
+failure summary alone does not establish native certificate-store timings.
+
+`desktop.local_http_opener()` now installs only HTTP, HTTP error, unknown-scheme
+and no-redirect handlers. It never initializes TLS or proxies and rejects file,
+FTP and HTTPS. The test HTTP helper uses the same transport. Health identity,
+allowed health states, response-size limits, worker checks, deadlines, redirects,
+listener ownership, shutdown and production single-instance/storage protection
+are unchanged. No test assertion or timeout was weakened or increased.
+
+New regression coverage forbids TLS initialization while validating identity and
+transient failures, exercises real startup with unusable proxy settings and TLS
+setup, and checks rejection of unsupported schemes. Existing redirect, occupied
+port, shutdown, stalled CSV and runtime-failure assertions pass unchanged.
+
+Server packaging intentionally invokes `test_desktop.py`, `test_windows_package.py`
+and `test_server.py` in `package-windows-deployment.ps1`, after shared deployment
+validation. This is the existing common Windows lifecycle gate, not an accidental
+selection from the deployment feature map. It remains mandatory for both targets.
+
+### Build visibility
+
+The shared runner emits named stage start/end markers and elapsed time, a heartbeat
+every 15 seconds, and the log location. Only authored child progress markers are
+relayed to the console; arbitrary child output stays in its detailed log. JSON-mode
+runner diagnostics stay on stderr. Deployment manifests now include per-stage
+name, status, seconds, exit code and log. Windows packaging names each required
+test module. Existing failure classification, exit codes, receipts, output identity,
+checksums and overwrite guards remain intact. SCM ZIP/protected cleanup code and
+CI triggers were not changed.
+
+### Validation
+
+- Five original tests passed individually before and after the fix; three consecutive
+  combined post-fix runs passed **5/5 each** (15 test executions total).
+- New HTTP transport regressions: **3 passed**.
+- Complete desktop module: **50 passed, 0 failed, 0 skipped**, 52.1 seconds.
+- Direct build-tooling modules: **97 passed, 0 failed, 2 skipped**.
+- Windows packaging/smoke/server/startup dependents: **62 passed, 0 failed,
+  6 skipped**, 18.8 seconds.
+- Deployment feature: **356 passed, 0 failed, 22 skipped**, 7.3 seconds.
+- The test runner displays backend discoveries as passed, including skips; these
+  actual pass counts subtract skipped tests. Logs and JSON records use prefixes
+  `desktop-native-before`, `desktop-native-after`, `desktop-native-repeat`,
+  `desktop-http`, and `desktop-build` in build/test-logs and build/test-artifacts.
+- Ruff (backend/scripts), workflow contracts, ownership map and whitespace passed.
+- Backend-only REGRESSION: **1495 passed, 0 failed, 11 skipped** (1506
+  discoveries), exit 0 in 2:16. Evidence: `desktop-native-stability-regression.log`
+  and matching JSON under build/test-logs and build/test-artifacts. The pre-existing
+  `test_validation_entrypoint.py:60` unclosed-file ResourceWarning remains unrelated.
+- Internal links across 62 Markdown documents passed.
+
+Native Windows, PowerShell parser/binding, EXE/WebView2 startup, packaging and SCM
+acceptance were not executed. Browser/FULL checks and CI were not invoked; no
+frontend code changed, no dependencies were installed and no artifacts were built.
+
+### Native follow-up (PowerShell 5.1 or 7)
+
+```powershell
+$py = '.\.venv\Scripts\python.exe'
+$names = @(
+  'test_desktop.DesktopTests.test_gui_failure_cleans_up_server',
+  'test_desktop.DesktopTests.test_occupied_port_is_not_contacted_or_terminated',
+  'test_desktop.DesktopTests.test_readiness_rejects_wrong_identity_and_malformed_content',
+  'test_desktop.DesktopTests.test_stalled_initial_csv_does_not_prevent_window_or_exit',
+  'test_desktop.DesktopTests.test_unexpected_backend_exit_reports_error_and_closes_owned_window'
+)
+foreach ($name in $names) {
+  & $py scripts/run-tests.py targeted --test $name --jobs 1
+  if ($LASTEXITCODE -ne 0) { throw "Focused test failed: $name" }
+}
+$selected = @('scripts/run-tests.py', 'targeted', '--jobs', '1')
+foreach ($name in $names) { $selected += @('--test', $name) }
+foreach ($iteration in 1..3) {
+  & $py @selected --log "build/desktop-repeat-$iteration.log" --report "build/desktop-repeat-$iteration.json"
+  if ($LASTEXITCODE -ne 0) { throw "Repeat failed: $iteration" }
+}
+& $py scripts/run-tests.py targeted --test test_desktop --test test_build_diagnostics --test test_windows_package --test test_server --jobs 1 --log build/desktop-affected.log --report build/desktop-affected.json
+if ($LASTEXITCODE -ne 0) { throw 'Affected validation failed' }
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+if ($LASTEXITCODE -ne 0) { throw 'PowerShell validation failed' }
+.\scripts\build.ps1 -Mode build -Platform windows -Target server -NonInteractive
+```
+
+Use a fresh output directory if an explicit directory already belongs to another
+commit. Preserve failed build logs/manifests; never overwrite existing release
+artifacts. Native success is not claimed until these checks actually pass.

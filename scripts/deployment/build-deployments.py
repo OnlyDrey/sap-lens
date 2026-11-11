@@ -25,6 +25,7 @@ sys.path.insert(0, str(ROOT / 'backend'))
 sys.path.insert(0, str(ROOT / 'scripts'))
 from build_system import failures, frontend_workspace, python_env
 from build_system.layout import deployment_output_name as output_name, is_linked_output
+from build_system.runner import StageProgress
 from version import make_local_deployment_info,product_version
 
 TARGETS = ('desktop', 'service', 'docker', 'linux-native')
@@ -190,14 +191,22 @@ class Builder:
         with self.log.open('a', encoding='utf-8') as log:
             log.write('\n' + label + '\n'); log.flush()
             start = log.tell()
+            progress = StageProgress(label, self.log)
             try:
-                subprocess.run(list(map(str, command)), cwd=directory, env=child_env, stdout=log, stderr=subprocess.STDOUT, check=True)
+                with progress:
+                    subprocess.run(list(map(str, command)), cwd=directory, env=child_env, stdout=log, stderr=subprocess.STDOUT, check=True)
             except subprocess.CalledProcessError as error:
                 log.flush()
                 # The terminal and the manifest get the real cause; the complete output stays in build.log.
                 with self.log.open('r', encoding='utf-8', errors='replace') as reader:
                     reader.seek(start); output = reader.read()
                 raise failures.StageFailure(label, command, directory, error.returncode, output, self.log, self.failure_class(label)) from None
+            finally:
+                if hasattr(self, 'manifest'):
+                    error = sys.exc_info()[1]
+                    self.manifest.setdefault('stages', []).append(dict(name=label, seconds=progress.seconds,
+                        status='failed' if error else 'passed', exit_code=getattr(error, 'returncode', getattr(error, 'exit_code', 1)) if error else 0,
+                        log=str(self.log)))
 
     def prepare_workspace(self):
         """Mirror the sources into the isolated frontend workspace. The developer's frontend/node_modules is never touched."""

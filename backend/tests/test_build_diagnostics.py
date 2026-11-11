@@ -1,4 +1,6 @@
 """Build failure diagnostics, Windows file-lock handling, the isolated frontend workspace and accurate manifest classification (no real locks needed)."""
+import contextlib
+import io
 import importlib.util
 import json
 import os
@@ -338,6 +340,54 @@ class BuilderClassification(unittest.TestCase):
             self.assertEqual((failure.exit_code, failure.failure_class, failure.lock['kind']), (1, 'dependency_install', 'locked'))
             self.assertIn('lightningcss', failure.summary())
             self.assertIn('EPERM', (Path(temporary) / 'build.log').read_text())  # the complete output stays in the detailed log
+
+    def test_success_and_failure_stages_record_elapsed_time_and_heartbeat(self):
+        from build_system.runner import StageProgress
+        with tempfile.TemporaryDirectory() as temporary:
+            run = self.make(Path(temporary) / 'build.log')
+            output = io.StringIO()
+            # Exercise a heartbeat deterministically, without sleeping or a slow child.
+            def fake(command, **kwargs):
+                kwargs['stdout'].write('complete child diagnostics\n')
+                kwargs['stdout'].flush()
+            with contextlib.redirect_stdout(output), patch.object(builder.subprocess, 'run', side_effect=fake):
+                run.run('Backend validation', ['synthetic'])
+            event = run.manifest['stages'][0]
+            self.assertEqual((event['name'], event['status'], event['exit_code']), ('Backend validation', 'passed', 0))
+            self.assertGreaterEqual(event['seconds'], 0)
+            self.assertIn('START | Backend validation', output.getvalue())
+            self.assertIn('PASS | Backend validation', output.getvalue())
+            self.assertIn(str(run.log), output.getvalue())
+            with contextlib.redirect_stdout(output), patch.object(builder.subprocess, 'run', side_effect=subprocess.CalledProcessError(19, ['synthetic'])):
+                with self.assertRaises(failures.StageFailure):
+                    run.run('Failing validation', ['synthetic'])
+            self.assertEqual(run.manifest['stages'][-1]['exit_code'], 19)
+            self.assertEqual(run.manifest['stages'][-1]['status'], 'failed')
+            self.assertIn('FAILED | Failing validation', output.getvalue())
+            progress = StageProgress('Long validation', run.log, stream=output, follow=True)
+            progress.started = 0
+            class Stop:
+                count = 0
+                def wait(self, seconds):
+                    self.count += 1
+                    return self.count > 1
+            progress.stop = Stop()
+            with patch('build_system.runner.time.monotonic', return_value=16):
+                progress.watch()
+            # First deadline is started+15; at t=16 the running marker must appear.
+            self.assertIn('RUNNING | Long validation', output.getvalue())
+            self.assertNotIn('complete child diagnostics', output.getvalue())
+
+    def test_parent_progress_relays_only_stage_markers(self):
+        from build_system.runner import StageProgress
+        with tempfile.TemporaryDirectory() as temporary:
+            log = Path(temporary) / 'child.log'
+            log.write_text('private child output\n[build-stage] START | Backend tests\n', encoding='utf-8')
+            output = io.StringIO()
+            progress = StageProgress('Package', log, stream=output, follow=True)
+            progress.relay()
+            progress.relay()
+            self.assertEqual(output.getvalue(), '[build-stage] START | Backend tests\n')
 
     def test_shared_validation_failure_blocks_every_target_without_calling_it_a_packaging_failure(self):
         with tempfile.TemporaryDirectory() as temporary:

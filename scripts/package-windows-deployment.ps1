@@ -14,8 +14,21 @@ if ($runAcceptance) {
         exit 3
     }
 }
-function Checked([scriptblock]$Command) { & $Command; if ($LASTEXITCODE -ne 0) { throw 'Windows deployment packaging failed.' } }
-Checked { python scripts/deployment-package.py require-inputs }
+function Checked([scriptblock]$Command, [string]$Stage='Windows deployment command') {
+    $timer = [Diagnostics.Stopwatch]::StartNew()
+    $completed = $false
+    Write-Host "[build-stage] START | $Stage"
+    try {
+        & $Command
+        if ($LASTEXITCODE -ne 0) { throw "Windows deployment stage '$Stage' failed (exit $LASTEXITCODE). See the enclosing build.log." }
+        $completed = $true
+    } finally {
+        $timer.Stop()
+        $status = if ($completed) { 'PASS' } else { 'FAILED' }
+        Write-Host ("[build-stage] {0} | {1} | elapsed {2:N1}s" -f $status, $Stage, $timer.Elapsed.TotalSeconds)
+    }
+}
+Checked { python scripts/deployment-package.py require-inputs } -Stage 'Verify validated deployment inputs'
 if (-not $OutputDirectory) { $OutputDirectory=Join-Path $root 'dist/deployment' }
 if ($env:GITHUB_ACTIONS -eq 'true') {
     & ./scripts/build-windows.ps1 -Stage Environment
@@ -24,7 +37,7 @@ if ($env:GITHUB_ACTIONS -eq 'true') {
 } # Local receipt already binds this Windows dependency environment and audit.
 $python=Join-Path $root 'backend/build/python-env/Scripts/python.exe'
 foreach ($pattern in @('test_desktop.py','test_windows_package.py','test_server.py')) {
-    Checked { & $python -W error::DeprecationWarning -m unittest discover -s backend/tests -p $pattern -v }
+    Checked { & $python -W error::DeprecationWarning -m unittest discover -s backend/tests -p $pattern -v } -Stage "Validate $pattern"
 }
 if ($Target -eq 'Desktop') {
     & ./scripts/build-windows.ps1 -Stage Package -ValidatedDeployment
