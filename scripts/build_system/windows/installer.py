@@ -27,16 +27,31 @@ def download(url, target):
     managed_tools.atomic_write(Path(target), managed_tools.acquire_inno())
 
 
+def installer_path(value, root):
+    """Repository-relative CLI paths; ordinary absolute paths for native Inno."""
+    value = os.fspath(value)
+    if value.lower().startswith('\\\\?\\unc\\'):
+        value = '\\\\' + value[8:]
+    elif value.startswith('\\\\?\\'):
+        value = value[4:]
+    if re.match(r'^[A-Za-z]:([^\\/]|$)', value):
+        raise StageError('Drive-relative installer paths are ambiguous; use a full path.')
+    path = Path(value)
+    return Path(os.path.abspath(path if path.is_absolute() else Path(root) / path))
+
+
 def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=None, windows=None, fetch=download, host_python='python', AcceptancePlan=''):
     process = process or Process()
     env = dict(os.environ if environ is None else environ)
     if not (os.name == 'nt' if windows is None else windows):
         raise StageError('Build the desktop installer on Windows.')
+    root = installer_path(root, ROOT)
+    output_directory = installer_path(OutputDirectory, root)
     python = venv_python(root)
     if CompileCheck and AcceptancePlan:
         raise StageError('CompileCheck cannot use an acceptance plan.')
-    acceptance = installer_acceptance.load(Path(AcceptancePlan), root) if AcceptancePlan else None
-    if acceptance and Path(OutputDirectory).resolve() != Path(acceptance['root']).resolve():
+    acceptance = installer_acceptance.load(installer_path(AcceptancePlan, root), root) if AcceptancePlan else None
+    if acceptance and output_directory.resolve() != Path(acceptance['root']).resolve():
         raise StageError('Test-only installer must stay in its private acceptance workspace.')
     if not CompileCheck and not acceptance:
         if process.run([str(python), str(root / 'scripts/deployment-package.py'), 'require-inputs'], root, env) != 0:
@@ -59,6 +74,11 @@ def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=
         raise StageError('Build compiler changed after verified provisioning. Review the dedicated tool directory.')
 
     def compile_installer(source_exe, full_version, numeric_version, destination, test_identity=''):
+        source_exe = installer_path(source_exe, root)
+        destination = installer_path(destination, root)
+        for source in (source_exe, root / 'LICENSE.md', root / 'assets/sap-lens.ico', root / 'deploy/windows/desktop-installer.iss'):
+            if not source.is_file():
+                raise StageError(f'Installer compiler source is missing: {source}')
         arguments = [str(compiler), '/Qp', f'/O{destination}', f'/DSourceExe={source_exe}', f'/DProductLicense={root / "LICENSE.md"}', f'/DProductIcon={root / "assets/sap-lens.ico"}',
                      f'/DFullVersion={full_version}', f'/DNumericVersion={numeric_version}', str(root / 'deploy/windows/desktop-installer.iss')]
         if test_identity:
@@ -67,7 +87,6 @@ def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=
         if process.run(arguments, root, env) != 0:
             raise StageError('Inno Setup compilation failed.')
 
-    output_directory = Path(OutputDirectory)
     if CompileCheck:
         # Compile the complete production recipe before any Python dependency or application packaging; the fixtures are never executed or distributed.
         check_environment = root / 'backend/build/installer-check-env'
@@ -101,8 +120,10 @@ def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=
             compile_installer(payload, '0.1.0-beta.1', '0.1.0.1', destination, '36C8FD0F-14CE-49D9-BA04-52E94C118C31')
             if process.run([str(check_python), str(root / 'scripts/packaging/verify-desktop-installer.py'), '--installer', str(destination / 'SAP-Lens-Setup.exe'), '--compiler-fixture-channel', 'beta', '--acceptance-id', '36C8FD0F-14CE-49D9-BA04-52E94C118C31'], root, env) != 0:
                 raise StageError('Isolated acceptance recipe compilation/resource check failed.')
-        finally:
-            shutil.rmtree(temporary, ignore_errors=True)
+        except Exception:
+            print(f'CompileCheck failed; synthetic fixture retained at {temporary}; see compiler output in the build log.', file=sys.stderr)
+            raise
+        shutil.rmtree(temporary)
         return None
     info = json.loads((root / 'backend/build/build-version.json').read_text(encoding='utf-8-sig'))
     version = str(info['version'])

@@ -464,16 +464,81 @@ retrospectively or bypass its freshness checks. Only the isolated test wrapper
 reuses the bound payload. Use a new report filename and a verified production Setup EXE (extract
 it from its checked Desktop ZIP if necessary).
 
+#### 1. Recipe CompileCheck (no application build or installation)
+
+Run from the repository root:
+
 ```powershell
 powershell -NoProfile -File .\scripts\check-powershell.ps1
 .\scripts\build-desktop-installer.ps1 -CompileCheck -OutputDirectory .\backend\build\installer-isolation-check
-.\backend\build\python-env\Scripts\python.exe scripts/run-tests.py targeted --test test_desktop_installer --test test_windows_ports --test test_installer_preflight --jobs 1 --log build/installer-isolation-native.log --report build/installer-isolation-native.json
-.\scripts\test-desktop-installer.ps1 -Installer 'C:\Builds\SAP-Lens-Windows-Desktop-x64-<version>-Setup.exe' -Report ".\backend\build\installer-acceptance-$([guid]::NewGuid().ToString('N')).json"
 ```
 
-CompileCheck now covers four production channels **and** the acceptance-only
-conditional code; its compiler-as-payload fixtures are never installed or released.
-Actual Inno compilation and the full native lifecycle still require Windows.
+Relative output paths always mean repository-relative paths, even when calling the
+script by its absolute path from another directory. Absolute output paths, spaces
+and Unicode names are supported. Ordinary absolute Win32 paths are passed to Inno;
+extended `\\?\` prefixes are normalized at that boundary. Four production-channel
+recipes and the test-only identity branch are compiled and PE-verified. These
+compiler-as-payload fixtures are **never executed or installed**. Successful recipe
+workspaces are removed; failures retain synthetic files and compiler diagnostics.
+PowerShell writes `compiler.log` beneath each channel directory; the Python port
+prints compiler output into the invoking build log and reports the retained path.
+CompileCheck provisions only the pinned compiler/verifier tools, not application
+datasets, configuration, databases or backups.
+
+#### 2. Production installer build
+
+Only when a current verified production Setup/provenance is unavailable:
+
+```powershell
+.\scripts\build.ps1 -Mode package -Platform windows -Target installer -NonInteractive
+```
+
+This runs the normal production gates and writes a producer provenance record. It
+is separate from recipe CompileCheck and may require rebuilding current inputs.
+Never create provenance manually for an old installer.
+
+#### 3. Discover and verify a production artifact
+
+This copyable block selects the newest locally built Setup that has a producer
+record, then verifies its PE resources. It does not execute the production Setup.
+The native acceptance runner subsequently validates the entire provenance record
+against the approved payload, recipe and build identity before installing anything.
+
+```powershell
+$ErrorActionPreference = 'Stop'
+$repo = (Get-Location).Path
+$python = Join-Path $repo 'backend\build\python-env\Scripts\python.exe'
+$candidates = @(Get-ChildItem -LiteralPath (Join-Path $repo 'backend\build'), (Join-Path $repo 'dist') -Filter 'SAP-Lens-Windows-Desktop-x64-*-Setup.exe' -File -Recurse -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+$installer = $null
+foreach ($candidate in $candidates) {
+    $hash = (Get-FileHash -LiteralPath $candidate.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+    $proofPath = Join-Path $repo ('backend\build\installer-proofs\' + $hash + '.json')
+    if (Test-Path -LiteralPath $proofPath -PathType Leaf) {
+        $proof = Get-Content -LiteralPath $proofPath -Raw | ConvertFrom-Json
+        if ($proof.installer_sha256 -ne $hash) { throw 'Producer proof hash mismatch.' }
+        $installer = $candidate.FullName
+        break
+    }
+}
+if (-not $installer) { throw 'No producer-verified Setup found. Run the production installer build above first.' }
+& $python .\scripts\packaging\verify-desktop-installer.py --installer $installer
+if ($LASTEXITCODE -ne 0) { throw 'Production Setup verification failed.' }
+Write-Host "Verified candidate: $installer"
+```
+
+#### 4. Native isolated acceptance
+
+Keep the variables from step 3. Exit the running SAP Lens application, including
+its tray process, but keep its production installation registered:
+
+```powershell
+& $python scripts/run-tests.py targeted --test test_desktop_installer --test test_windows_ports --test test_installer_preflight --jobs 1 --log build/installer-isolation-native.log --report build/installer-isolation-native.json
+if ($LASTEXITCODE -ne 0) { throw 'Focused native installer tests failed.' }
+.\scripts\test-desktop-installer.ps1 -Installer $installer -Report ".\backend\build\installer-acceptance-$([guid]::NewGuid().ToString('N')).json"
+```
+
+Actual Inno compilation and installation/reinstallation/uninstallation require
+Windows. A PE verification or mocked test pass does not establish native success.
 
 ### Failed acceptance and recovery
 

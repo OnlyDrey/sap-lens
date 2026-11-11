@@ -1874,3 +1874,46 @@ recovery instructions are in [Windows Desktop](../deployment/WINDOWS_DESKTOP.md#
 Run CompileCheck and the focused native tests first, then isolated acceptance
 against a current producer-verified Setup. Production-AppId upgrade acceptance
 remains a separate clean-machine/manual gate. No release or workflow was dispatched.
+
+
+## Installer CompileCheck path resolution (2026-11-11)
+
+Native evidence showed a relative synthetic SourceExe being resolved by Inno
+against deploy/windows, not the repository. Both installer builders retained the
+relative output argument; their unconditional cleanup also removed failed
+fixtures. This is a builder path-contract defect, not a production CSV or
+installer acceptance failure. The reported placeholder-path command did not
+exercise acceptance.
+
+PowerShell and Python now anchor relative output/plan paths to the repository
+independently of caller CWD, and pass absolute source/output paths to Inno.
+Extended Win32 prefixes are normalized at that boundary; ambiguous drive-relative
+paths are rejected. Required compiler sources are checked before invocation.
+Successful synthetic recipe directories are removed; failed directories remain.
+PowerShell captures per-channel compiler.log; the Python port retains fixtures
+and reports their location alongside the invoking compiler/build log. No recipe
+identity, production guard, source-freshness gate or runtime behavior changed.
+CompileCheck never executes its synthetic installers.
+
+Validation: focused installer/port/preflight modules: 59 passed, 3 platform skips
+(62 discovered). Final changed port module after the lint correction: 31 passed,
+1 PowerShell skip. Deployment checks: 362 passed, 22 platform skips (384
+discovered). Ruff, documentation links, workflow contracts and git whitespace
+checks passed. Regression coverage exercises absolute/relative output, repository
+paths with spaces/Norwegian/Japanese characters, another caller CWD, missing
+sources, failed compilation, diagnostic retention and the test-only identity.
+Existing production-preservation checks remain passing.
+
+Native PowerShell execution, Inno compilation and actual installer acceptance
+remain unexecuted on Linux; mocked command tests do not establish native success.
+No full application regression, packaging, frontend build or GitHub Actions was
+run. Next, from the Windows repository root:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+.\scripts\build-desktop-installer.ps1 -CompileCheck -OutputDirectory .\backend\build\installer-isolation-check
+```
+
+Use the four separate CompileCheck/build/provenance/acceptance sections in
+[Windows Desktop](../deployment/WINDOWS_DESKTOP.md#verify-without-repeating-the-entire-windows-build)
+for verified-artifact discovery and acceptance; no placeholder path is required.

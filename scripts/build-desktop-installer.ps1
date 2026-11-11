@@ -3,7 +3,18 @@
 param([Parameter(Mandatory=$true)][string]$OutputDirectory,[switch]$CompileCheck,[string]$AcceptancePlan='')
 $ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { throw 'Build the desktop installer on Windows.' }
-$root = Split-Path $PSScriptRoot -Parent
+# Inno resolves relative /DSourceExe paths against the recipe directory, not CWD.
+# Keep ordinary absolute Win32 paths at the native compiler boundary.
+function Resolve-InstallerPath([string]$Path,[string]$Base) {
+    if ($Path.StartsWith('\\?\UNC\',[StringComparison]::OrdinalIgnoreCase)) { $Path='\\'+$Path.Substring(8) }
+    elseif ($Path.StartsWith('\\?\')) { $Path=$Path.Substring(4) }
+    if ($Path -match '^[A-Za-z]:([^\\/]|$)') { throw 'Drive-relative installer paths are ambiguous; use a full path.' }
+    if (-not [IO.Path]::IsPathRooted($Path)) { $Path=Join-Path $Base $Path }
+    return [IO.Path]::GetFullPath($Path)
+}
+$root = Resolve-InstallerPath (Split-Path $PSScriptRoot -Parent) $PSScriptRoot
+$OutputDirectory = Resolve-InstallerPath $OutputDirectory $root
+if ($AcceptancePlan) { $AcceptancePlan=Resolve-InstallerPath $AcceptancePlan $root }
 $python = Join-Path $root 'backend/build/python-env/Scripts/python.exe'
 if ($CompileCheck -and $AcceptancePlan) { throw 'CompileCheck cannot use an acceptance plan.' }
 if (-not $CompileCheck -and -not $AcceptancePlan) {
@@ -35,12 +46,17 @@ if (-not (Test-Path $compiler)) {
 }
 if (-not (Test-Path $receipt) -or (Get-FileHash $compiler -Algorithm SHA256).Hash.ToLowerInvariant() -ne ([IO.File]::ReadAllText($receipt)).Trim()) { throw 'Build compiler changed after verified provisioning. Review the dedicated tool directory.' }
 function Invoke-InstallerCompiler([string]$SourceExe,[string]$FullVersion,[string]$NumericVersion,[string]$Destination,[string]$TestIdentity='') {
+    $SourceExe=Resolve-InstallerPath $SourceExe $root
+    $Destination=Resolve-InstallerPath $Destination $root
+    foreach ($source in @($SourceExe,(Join-Path $root 'LICENSE.md'),(Join-Path $root 'assets/sap-lens.ico'),(Join-Path $root 'deploy/windows/desktop-installer.iss'))) {
+        if (-not (Test-Path -LiteralPath $source -PathType Leaf)) { throw "Installer compiler source is missing: $source" }
+    }
     $arguments = @('/Qp',('/O'+$Destination),('/DSourceExe='+$SourceExe),('/DProductLicense='+(Join-Path $root 'LICENSE.md')),('/DProductIcon='+(Join-Path $root 'assets/sap-lens.ico')),('/DFullVersion='+$FullVersion),('/DNumericVersion='+$NumericVersion),(Join-Path $root 'deploy/windows/desktop-installer.iss'))
     if ($TestIdentity) {
         $rootHex=([Text.Encoding]::BigEndianUnicode.GetBytes([IO.Path]::GetFullPath($Destination)) | ForEach-Object { $_.ToString('x2') }) -join ''
         $arguments = @($arguments[0..($arguments.Count-2)]) + @(('/DAcceptanceId='+$TestIdentity), ('/DAcceptanceRootHex='+$rootHex), $arguments[-1])
     }
-    & $compiler @arguments
+    & $compiler @arguments 2>&1 | Tee-Object -FilePath (Join-Path $Destination 'compiler.log')
     if ($LASTEXITCODE -ne 0) { throw 'Inno Setup compilation failed.' }
 }
 if ($CompileCheck) {
@@ -83,7 +99,11 @@ if ($CompileCheck) {
         Invoke-InstallerCompiler $payload '0.1.0-beta.1' '0.1.0.1' $destination '36C8FD0F-14CE-49D9-BA04-52E94C118C31'
         & $checkPython (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer (Join-Path $destination 'SAP-Lens-Setup.exe') --compiler-fixture-channel beta --acceptance-id '36C8FD0F-14CE-49D9-BA04-52E94C118C31'
         if ($LASTEXITCODE -ne 0) { throw 'Isolated acceptance recipe compilation/resource check failed.' }
-    } finally { Remove-Item -LiteralPath $temporary -Recurse -Force }
+    } catch {
+        Write-Warning "CompileCheck failed; synthetic fixture and compiler diagnostics retained at $temporary"
+        throw
+    }
+    Remove-Item -LiteralPath $temporary -Recurse -Force
     return
 }
 $info = Get-Content (Join-Path $root 'backend/build/build-version.json') -Raw | ConvertFrom-Json

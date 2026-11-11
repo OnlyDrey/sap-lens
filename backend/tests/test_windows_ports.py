@@ -3,6 +3,9 @@
 Linux checks of command lines, paths, order, failures and file effects. They do not run the Windows tools; see docs/BUILD.md for the Windows validation checklist."""
 import hashlib
 import json
+import os
+import shutil
+import subprocess
 from pathlib import Path
 import sys
 import tempfile
@@ -155,6 +158,8 @@ class ServerBundle(Case):
 
 class Installer(Case):
     def prepare(self, provisioned=True):
+        self.write('LICENSE.md', 'synthetic license')
+        self.write('assets/sap-lens.ico', b'icon')
         self.identity()
         self.write('deploy/windows/desktop-installer.iss',(ROOT/'deploy/windows/desktop-installer.iss').read_text())
         stages.venv_python(self.root).parent.mkdir(parents=True, exist_ok=True)
@@ -204,6 +209,87 @@ class Installer(Case):
         versions = [t.split('/DFullVersion=')[1].split(' ')[0] for t in text if '/DFullVersion=' in t]
         self.assertEqual(versions, ['0.1.0-alpha.1', '0.1.0-beta.1', '0.1.0-rc.1', '0.1.0', '0.1.0-beta.1'])
         self.assertEqual(list(out.iterdir()), [], 'the disposable recipe directory is removed')
+
+    def test_compile_check_paths_are_repository_anchored_from_another_cwd(self):
+        self.root = self.root / 'repo with spaces ÆØÅ 日本語'
+        self.prepare()
+        self.write('backend/requirements-build.txt', 'pefile==2024.8.26\n')
+        original_recipe = (self.root / 'deploy/windows/desktop-installer.iss').read_bytes()
+        old_cwd = Path.cwd()
+        os.chdir(self.temporary.name)
+        try:
+            for output in ('relative output Ø', str(self.root / 'absolute output Å')):
+                with self.subTest(output=output):
+                    calls = []
+                    def compile_fixture(command, calls=calls):
+                        source = Path(next(arg.split('=', 1)[1] for arg in command if arg.startswith('/DSourceExe=')))
+                        destination = Path(next(arg[2:] for arg in command if arg.startswith('/O')))
+                        self.assertTrue(source.is_absolute())
+                        self.assertTrue(source.is_file())
+                        self.assertTrue(destination.is_absolute())
+                        self.assertTrue(destination.is_relative_to(self.root))
+                        calls.append(command)
+                        (destination / 'SAP-Lens-Setup.exe').write_bytes(b'synthetic setup')
+                    installer.build(output, True, self.root, Recorder({'ISCC.exe': compile_fixture}), {}, True)
+                    self.assertEqual(len(calls), 5)
+                    self.assertTrue(any('/DAcceptanceId=' in arg for arg in calls[-1]))
+                    self.assertEqual(list(installer.installer_path(output, self.root).iterdir()), [])
+            self.assertEqual((self.root / 'deploy/windows/desktop-installer.iss').read_bytes(), original_recipe)
+            self.assertFalse((self.root / 'backend/build/installer-proofs').exists())
+        finally:
+            os.chdir(old_cwd)
+
+    def test_missing_source_and_failed_compilation_preserve_fixture(self):
+        self.prepare()
+        self.write('backend/requirements-build.txt', 'pefile==2024.8.26\n')
+        for missing in (True, False):
+            with self.subTest(missing=missing):
+                license_path = self.root / 'LICENSE.md'
+                if missing:
+                    license_path.unlink()
+                else:
+                    license_path.write_text('synthetic license')
+                out = self.root / ('missing' if missing else 'compiler failure')
+                recorder = Recorder(fail_on='ISCC.exe')
+                with self.assertRaisesRegex(stages.StageError, 'source is missing' if missing else 'compilation failed'):
+                    installer.build(out, True, self.root, recorder, {}, True)
+                retained = list(out.glob('recipe-*'))
+                self.assertEqual(len(retained), 1)
+                self.assertTrue((retained[0] / 'SAP-Lens.exe').exists())
+                self.assertEqual(any('ISCC.exe' in command for command in recorder.commands), not missing)
+
+    def test_powershell_wires_absolute_sources_and_retains_failed_diagnostics(self):
+        text = (ROOT / 'scripts/build-desktop-installer.ps1').read_text()
+        self.assertLess(text.index('$OutputDirectory = Resolve-InstallerPath'), text.index('if ($CompileCheck -and'))
+        self.assertIn('$SourceExe=Resolve-InstallerPath $SourceExe $root', text)
+        self.assertIn('$Destination=Resolve-InstallerPath $Destination $root', text)
+        self.assertIn('Tee-Object -FilePath', text)
+        self.assertIn('synthetic fixture and compiler diagnostics retained', text)
+        self.assertNotIn('finally { Remove-Item -LiteralPath $temporary', text)
+        self.assertIn("'36C8FD0F-14CE-49D9-BA04-52E94C118C31'", text)
+        self.assertNotIn('Start-Process -FilePath $payload', text)
+
+    def test_drive_relative_paths_are_rejected(self):
+        if os.name == 'nt':
+            self.assertEqual(installer.installer_path('\\\\?\\' + str(self.root), self.root), self.root)
+        for path in ('C:relative', 'C:'):
+            with self.subTest(path=path), self.assertRaisesRegex(stages.StageError, 'Drive-relative'):
+                installer.installer_path(path, self.root)
+
+    @unittest.skipUnless(shutil.which('pwsh') or (os.name == 'nt' and shutil.which('powershell')), 'PowerShell required for native path-function execution')
+    def test_powershell_path_function_matches_repository_relative_contract(self):
+        text = (ROOT / 'scripts/build-desktop-installer.ps1').read_text()
+        function = text[text.index('function Resolve-InstallerPath'):text.index('$root = Resolve-InstallerPath')]
+        script = self.root / 'paths.ps1'
+        body = "\n$ErrorActionPreference='Stop'\n$base=Join-Path ([IO.Path]::GetTempPath()) 'repo with spaces ÆØÅ 日本語'\n"
+        body += "$expected=[IO.Path]::GetFullPath((Join-Path $base 'relative output Ø'))\n"
+        body += "if ((Resolve-InstallerPath 'relative output Ø' $base) -ne $expected) { throw 'Relative path mismatch' }\n"
+        body += "if ((Resolve-InstallerPath $expected $base) -ne $expected) { throw 'Absolute path mismatch' }\n"
+        body += r"if ($env:OS -eq 'Windows_NT') { if ((Resolve-InstallerPath ('\\?\'+$expected) $base) -ne $expected) { throw 'Extended path mismatch' } }" + '\n'
+        script.write_text(function + body, encoding='utf-8-sig')
+        shell = shutil.which('pwsh') or shutil.which('powershell')
+        done = subprocess.run([shell, '-NoProfile', '-File', str(script)], capture_output=True, text=True, timeout=30)
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
 
     def test_provisioning_downloads_verifies_and_installs_per_user(self):
         tool = self.prepare(provisioned=False)
