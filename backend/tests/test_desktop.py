@@ -12,7 +12,7 @@ import types
 import unittest
 from unittest.mock import MagicMock, patch
 from urllib.parse import parse_qs, urlsplit
-from urllib.request import ProxyHandler, Request, build_opener
+from urllib.request import Request
 from urllib.error import HTTPError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -186,7 +186,7 @@ class DesktopTests(unittest.TestCase):
         return origin, token
 
     def request(self, path, token=None):
-        return build_opener(ProxyHandler({})).open(Request(path, headers={
+        return desktop.local_http_opener().open(Request(path, headers={
             'X-SAP-Lens': token or '1'}), timeout=3)
 
     def verify_session(self, **kwargs):
@@ -599,6 +599,30 @@ class DesktopTests(unittest.TestCase):
                 with self.assertRaises(desktop.StartupFailure) as failure:
                     backend.wait_ready('http://127.0.0.1:12345','synthetic',time.monotonic()+1,threading.Event(),MagicMock())
                 self.assertEqual(failure.exception.code,'UNEXPECTED_SERVICE')
+
+    def test_readiness_http_never_initializes_the_system_tls_trust_store(self):
+        # Even mocked HTTP responses formerly constructed HTTPSHandler first. A slow
+        # Windows trust store could exhaust the deadline before identity validation.
+        with patch('ssl._create_default_https_context', side_effect=AssertionError('Unexpected TLS setup')) as tls:
+            self.test_readiness_rejects_wrong_identity_and_malformed_content()
+            self.test_readiness_retries_transient_failures_then_checks_owned_identity()
+        tls.assert_not_called()
+
+    def test_real_startup_is_independent_of_tls_and_proxy_configuration(self):
+        with patch('ssl._create_default_https_context', side_effect=AssertionError('Unexpected TLS setup')) as tls, \
+                patch.dict(os.environ, {'HTTP_PROXY': 'http://127.0.0.1:1', 'http_proxy': 'http://127.0.0.1:1'}):
+            self.gui_session = self.verify_session
+            self.assertEqual(desktop.run(), 0)
+        tls.assert_not_called()
+        self.report.assert_not_called()
+        self.assertFalse((self.root / 'runtime.json').exists())
+
+    def test_readiness_transport_has_no_file_ftp_or_https_handlers(self):
+        from urllib.error import URLError
+        opener = desktop.local_http_opener()
+        for url in ('file:///synthetic-private', 'ftp://127.0.0.1/private', 'https://127.0.0.1/health'):
+            with self.subTest(url=url), self.assertRaises(URLError):
+                opener.open(url)
 
     def test_readiness_detects_worker_exit_before_during_and_after_probe(self):
         from urllib.error import URLError

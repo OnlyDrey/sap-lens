@@ -360,6 +360,26 @@ class NativeDialogs:
         finally: self._picker_lock.release()
 
 
+def local_http_opener():
+    """Only HTTP on the owned loopback listener; no proxy, TLS, file or FTP setup.
+
+    build_opener() eagerly loads the Windows certificate store through its default
+    HTTPSHandler, outside the HTTP request timeout. Desktop startup never uses TLS.
+    Keep redirects fail-closed instead of contacting another service.
+    """
+    from urllib.request import (OpenerDirector, HTTPHandler, HTTPDefaultErrorHandler,
+                                HTTPErrorProcessor, HTTPRedirectHandler, UnknownHandler)
+
+    class NoRedirect(HTTPRedirectHandler):
+        def redirect_request(self, req, fp, code, msg, headers, newurl):
+            raise StartupFailure('UNEXPECTED_SERVICE', 'The local service redirected its readiness check. No other service will be used.')
+
+    opener = OpenerDirector()
+    for handler in (HTTPHandler(), HTTPDefaultErrorHandler(), HTTPErrorProcessor(), NoRedirect(), UnknownHandler()):
+        opener.add_handler(handler)
+    return opener
+
+
 class ManagedBackend:
     def __init__(self, app, listener):
         import uvicorn
@@ -397,12 +417,8 @@ class ManagedBackend:
             else: time.sleep(.025)
 
     def wait_ready(self, origin, identity, deadline, canceled, attempt):
-        from urllib.request import build_opener, ProxyHandler, HTTPRedirectHandler
         from urllib.error import URLError
-        class NoRedirect(HTTPRedirectHandler):
-            def redirect_request(self, req, fp, code, msg, headers, newurl):
-                raise StartupFailure('UNEXPECTED_SERVICE', 'The local service redirected its readiness check. No other service will be used.')
-        opener = build_opener(ProxyHandler({}), NoRedirect())
+        opener = local_http_opener()
         probes = 0
         while not canceled.is_set():
             if not self.worker.is_alive():
