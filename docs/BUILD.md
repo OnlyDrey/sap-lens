@@ -169,6 +169,48 @@ Windows:
 .\scripts\build.ps1 -Mode test -Scope full -NonInteractive
 ```
 
+### Windows Desktop ZIP versus verified installer
+
+`--target desktop` / `-Target desktop` builds the portable Desktop distribution
+through `build-local.ps1`. Its local receipt is **not** a deployment validation
+receipt. Repeating that build does not refresh
+`backend/build/deployment-local-validation.json`.
+
+For a verified production installer, use this one public entry point:
+
+```powershell
+python scripts/build.py package --platform windows --target installer --scope targeted --non-interactive
+```
+
+The equivalent PowerShell invocation is
+`.\scripts\build.ps1 -Mode package -Platform windows -Target installer -Scope targeted -NonInteractive`.
+It selects the existing deployment orchestrator, runs actual shared validation,
+records successful stages under its isolated `RUNNER_TEMP`, publishes verified
+frontend assets, seals the local deployment receipt and checks that receipt using
+the same consumer as the installer builder. Only then does it package the EXE,
+compile the production installer and run isolated native installer acceptance.
+The installer deployment ZIP includes the Setup executable and verification
+metadata; see [Windows Desktop](deployment/WINDOWS_DESKTOP.md).
+
+A receipt binds commit/version identity, host, source/tool/environment/frontend
+fingerprints, required checks and validation scope; it expires after 24 hours.
+A targeted receipt never certifies full scope. Commit reviewed source changes
+before a real build: dirty checkouts are intentionally rejected.
+`record-local` is an internal finalization step, not a recovery command.
+
+To reuse **still-valid** deployment validation, append `--skip-setup` to the
+installer command. This invokes `require-inputs`; it does not forge a new receipt,
+relabel targeted checks as full, or skip package/EXE/installer verification. Changed
+source, tools, assets, environment or an expired receipt require the normal command
+without that flag. Existing frontend dependency caches are reused where verified;
+the portable EXE alone is not sufficient evidence to skip deployment checks.
+
+Known receipt failures report a safe category (missing receipt, stale commit,
+identity mismatch, incompatible host, incomplete checks, scope mismatch, expiration
+or changed inputs) and the recovery command. Never edit timestamps or copy receipt
+identities to work around one. Keep WDAC/signing policy failures separate from
+validation metadata failures; do not disable enterprise controls.
+
 Linux / direct Python:
 
 ```sh

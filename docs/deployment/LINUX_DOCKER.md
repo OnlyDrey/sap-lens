@@ -180,3 +180,12 @@ service outage.
 Source-build users can continue using Compose directly as described above. The
 offline management helper deliberately requires a downloaded package for
 install/upgrade; it does not silently build source or bypass validation receipts.
+
+## Shared operational limits
+
+These targets use the same source, evidence, backup and retention contracts as
+Windows. Scheduled backups currently wait for host restart; plan a controlled
+maintenance window rather than restarting a browser. Follow [backup/restore](BACKUP_RESTORE.md)
+and [server security](SECURITY.md), including individual-account limitations.
+Packaging checks do not certify systemd reboot/recovery, Docker host hardening or
+production load. Validate those on the intended host before production acceptance.

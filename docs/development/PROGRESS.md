@@ -1917,3 +1917,113 @@ powershell -NoProfile -File .\scripts\check-powershell.ps1
 Use the four separate CompileCheck/build/provenance/acceptance sections in
 [Windows Desktop](../deployment/WINDOWS_DESKTOP.md#verify-without-repeating-the-entire-windows-build)
 for verified-artifact discovery and acceptance; no placeholder path is required.
+
+
+## Desktop versus installer deployment receipts (2026-11-11; local review pending)
+
+Investigation found two deliberate contracts: the portable Desktop adapter
+(build-local.ps1) creates a portable ZIP and its own local validation receipt.
+The installer target goes through deployment/build-deployments.py, runs actual
+shared validation, writes stage records in its isolated RUNNER_TEMP, then calls
+record-local. A portable rebuild cannot renew a deployment receipt for an older
+commit. The standalone wrapper correctly rejected those stale inputs, but its
+CLI swallowed the reason behind a generic packaging failure and its old recovery
+hint did not identify the installer target. No receipt was manually fabricated.
+
+The existing installer orchestration now consumes its newly sealed receipt before
+marking validation ready. Known local receipt failures expose fixed safe categories
+and a host/scope-appropriate recovery command; unrelated archive/parser failures
+retain privacy-safe generic handling. Commit/version, clean-source, input/tool
+fingerprints, host, check coverage, scope and 24-hour expiry remain fail-closed.
+Verified receipt reuse is explicit (--skip-setup); it does not skip package or
+native acceptance gates. Production identity, isolated acceptance and CI policy
+were not changed. Build and Windows guides distinguish portable ZIP, production
+installer build, provenance verification and isolated native acceptance.
+
+Focused local_deployments/unified_build: 67 passed, 2 platform skips (69
+discovered). Complete affected deployment profile: 368 passed, 22 platform skips
+(390 discovered). Ruff, documentation links, workflow contracts and whitespace
+checks passed. Orchestration tests mock native/tool subprocesses; no native
+Windows, Inno CompileCheck, signing/WDAC validation, installer acceptance, actual
+package build or full application regression was executed. No workflow was run.
+
+Supported Windows recovery after reviewing/committing these local changes:
+
+```powershell
+python scripts/build.py package --platform windows --target installer --scope targeted --non-interactive
+```
+
+For a recipe-only preflight first:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+.\scripts\build-desktop-installer.ps1 -CompileCheck -OutputDirectory .\backend\build\installer-isolation-check
+```
+
+A running production Desktop must be exited for native acceptance; its registered
+installation is preserved. Code Integrity or enterprise signing restrictions
+remain separate native acceptance constraints and must not be disabled. These changes were initially held locally for review. The subsequent release-hardening
+request authorizes their validated commit and push together with reporting repairs.
+
+
+## Release evidence hardening and documentation alignment (2026-11-11)
+
+Confirmed source-level reporting defect: SCM ZIP input wrote an unbound sidecar,
+whereas directory input rewrote the package verification report. The runner did
+not read back evidence before announcing success. Local release-output verification
+could not consume later native evidence, and skipped missing/failed requested
+target rows. These contracts are corrected without rewriting build manifests.
+Both input forms now create a separate, create-only receipt after owned service
+and workspace cleanup, verify input fingerprint stability, flush and read back the
+receipt, then announce its exact location. ZIP evidence binds the full ZIP SHA-256;
+directory evidence binds the original file-verification report and is deliberately
+not interchangeable with ZIP release evidence. Existing sidecars fail preflight
+before installing anything. Service management runs in a child PowerShell host
+with checked exit status, so nested exit cannot terminate the reporting host.
+The original ownership, no-existing-service and protected cleanup gates remain.
+
+Historical absence of the final console message cannot be conclusively attributed
+without the native transcript/exit code: no such transcript was supplied in this
+request. In-process invocation was isolated defensively, not claimed as a reproduced
+native cause. Service lifecycle functionality is not reported as failed solely
+because evidence was missing. No native SCM lifecycle was rerun.
+
+Documentation inventory covered the existing 58 docs Markdown files (62 Markdown
+files in the link-check scope), with source checks across imports, SQLite, reviews,
+backup/retention, security, deployment and tests. Corrected outdated role names,
+blanket self-reported-identity wording, the historical no-SQLite-startup statement,
+locality claims and hardcoded test-count wording. Added access-package behavior
+to the existing Role Lookup guide. Preserved existing historical records and
+retention/rollback instructions; no documents deleted or new guides proliferated.
+Root README, architecture, data, features, Windows/Linux/Docker operations and
+release guidance now distinguish implemented capabilities from runtime acceptance.
+Known gaps remain explicit: Basic-auth accounts are not session/TOTP support;
+contributor-wide approval separation and Reviewer transition permissions are
+incomplete; scheduled backup still waits for restart and can pause edits.
+Defaults remain 24-month data retention and 90-day automatic-backup retention;
+manual/migration backup protections and reappearing-assignment semantics remain.
+
+Validation: final focused acceptance/receipt/CLI/release modules: 111 passed,
+10 platform skips (121 discovered); final SCM-module recheck: 13 passed, 8 skips
+(21 discovered). Deployment profile: 368 passed, 22 skips (390 discovered).
+Ruff, 62-file Markdown links, workflow contracts, test ownership and whitespace
+checks passed. Temporary test-loader syntax errors during editing were corrected
+before the final passing runs. PowerShell/Inno/native Windows, enterprise signing,
+reboot/recovery/UNC and actual release publication remain unverified on Linux.
+No frontend source changed, so frontend tests/build were not repeated. No full
+application regression, package rebuild, SCM lifecycle, release or Actions run
+was executed. CI configuration, product version and main were not modified.
+
+Native non-SCM follow-up:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --test test_local_deployments --test test_unified_build --test test_deployment_release --jobs 1 --log build/release-hardening-native.log --report build/release-hardening-native.json
+```
+
+For local release-evidence verification without a lifecycle rerun, follow
+[Windows Service evidence](../deployment/WINDOWS_SERVICE.md#separate-windows-scm-acceptance-evidence).
+Do not forge evidence for a historical run or change a build manifest to claim
+acceptance. A real SCM rerun still requires explicit authorization. The preceding
+installer receipt changes, previously held locally, are included under this task's
+explicit validated-commit/push authorization.

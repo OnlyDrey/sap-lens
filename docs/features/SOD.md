@@ -60,7 +60,11 @@ are shown rather than one recommendation.
 Create a period (name, range, evaluation date) to freeze evidence, then
 `Draft → In review → Ready for approval → Approved → Closed` (or `Rejected` with a reason).
 Approval needs every activity and risk decision current, a different reviewer and approver,
-and freezes the snapshot with its decisions. Reports: PDF and DOCX formal review (executive summary, scope, sources,
+and freezes the snapshot with its decisions. This is currently a name-comparison
+gate, not complete authenticated independence from all period contributors;
+Reviewer API approval permissions also remain incomplete. See
+[server identity limitations](../deployment/SECURITY.md#individual-accounts-and-remaining-multi-user-limits).
+Reports: PDF and DOCX formal review (executive summary, scope, sources,
 risk overview, activity, assignment and acceptance results, controls, remediation, changes,
 conclusion and signature lines, technical appendix) and an access remediation report with
 CSV, DOCX and PDF. Generating a report never approves a review, and names and signature

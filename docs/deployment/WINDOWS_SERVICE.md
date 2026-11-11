@@ -389,3 +389,44 @@ or deletion against the input package, a production install or application data.
 A retained workspace is not a successful acceptance run. New native helper tests
 cover manifest-defined replacement, read-only directories and locked-file
 retention/retry; the full elevated SCM run remains a separate gate.
+
+## Separate Windows SCM acceptance evidence
+
+A successful standalone acceptance writes `PACKAGE.zip.scm-verification.json`
+beside the tested ZIP. Directory inputs write `DIRECTORY.scm-verification.json`
+beside the directory; their fingerprint binds the original verification report
+and is not a ZIP release receipt. Neither path rewrites `verification-report.json`
+or the historical `build-manifest.json`.
+
+Evidence records the package SHA-256, source/version identity, completed lifecycle
+checks and successful isolated cleanup. Management runs in a child PowerShell host
+so its exit cannot terminate the reporting host. Success is announced only after
+the create-only receipt is flushed and read back. A publication failure returns a
+nonzero error even if the service lifecycle completed. An existing sidecar is
+preserved, never silently overwritten; inspect it before any authorized rerun.
+Reboot, recovery-policy and UNC acceptance remain unverified by this lifecycle.
+
+Local release-output verification accepts either the original successful native
+build evidence or a valid separate ZIP receipt. Wrong hashes/identity, missing
+checks, failed cleanup and missing requested build targets are rejected. A sidecar
+is local acceptance evidence, not a signed attestation or permission to publish.
+Existing same-run CI publication protections are unchanged.
+
+To verify a managed output directory without rebuilding or running SCM, select its
+existing `build-manifest.json` in PowerShell (run from the repository root):
+
+```powershell
+$ErrorActionPreference='Stop'
+$manifests=@(Get-ChildItem .\dist -Filter build-manifest.json -File -Recurse | Sort-Object LastWriteTime -Descending)
+if (-not $manifests.Count) { throw 'No managed deployment build found.' }
+$selected=$manifests[0]
+$identity=Get-Content -LiteralPath $selected.FullName -Raw | ConvertFrom-Json
+python scripts/deployment/build-deployments.py --verify-output --version $identity.version --platform service --output-dir $selected.DirectoryName
+if ($LASTEXITCODE -ne 0) { throw 'Release-output evidence verification failed; inspect the manifest and native sidecar.' }
+```
+
+This checks against the current source commit. If the selected manifest belongs to
+another commit, verification intentionally fails. No lifecycle run, release or
+workflow is started. Do not edit a historical manifest to mark acceptance passed.
+A native SCM rerun requires explicit authorization, elevation, no existing SAPLens
+service and a verified package. Packaging success alone is not that authorization.

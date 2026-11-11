@@ -223,9 +223,10 @@ for user options, startup cleanup and native acceptance criteria.
 The launch path is `desktop.run` → exclusive storage lease → stopped-store
 backup/restore recovery → reserved socket → trusted startup HTML → `create_app`
 → owned Uvicorn thread → ASGI lifespan → HTTP identity check → compiled frontend.
-Configuration uses versioned JSON recovery/migration. There is no database
-connection/migration stage in this launch path; individual persistent stores are
-opened by their existing services. Backup/restore recovery must finish under the
+This paragraph records the historical startup-investigation baseline. Current
+startup additionally calls `storage_migration.run` under the storage lease;
+SQLite source/cache migration uses a verified backup where required. Authoritative
+review JSON stores remain separate; see [current storage](STORAGE_AND_REVISIONS.md). Backup/restore recovery must finish under the
 lease before any scheduler or data writer starts. CSV restoration is background
 work and must not be confused with failure of the HTTP service.
 

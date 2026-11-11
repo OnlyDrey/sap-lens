@@ -121,3 +121,12 @@ with `--user` and the same explicit paths. `backup` stops the runtime and leaves
 it stopped until an explicit `start`. See
 [deployment validation status](README.md#validation-status); native systemd
 acceptance remains pending.
+
+## Shared operational limits
+
+These targets use the same source, evidence, backup and retention contracts as
+Windows. Scheduled backups currently wait for host restart; plan a controlled
+maintenance window rather than restarting a browser. Follow [backup/restore](BACKUP_RESTORE.md)
+and [server security](SECURITY.md), including individual-account limitations.
+Packaging checks do not certify systemd reboot/recovery, Docker host hardening or
+production load. Validate those on the intended host before production acceptance.

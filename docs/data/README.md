@@ -11,3 +11,8 @@
 [Configuration](../getting-started/CONFIGURATION.md) owns local storage/preferences;
 [deployment security](../deployment/SECURITY.md) owns hosted filesystem/access rules.
 Use only [synthetic examples](../../examples/README.md) in repository fixtures.
+
+Source/cache storage is described in [Storage and revisions](../architecture/STORAGE_AND_REVISIONS.md).
+Review history remains authoritative outside the rebuildable SQLite cache.
+See [backup/restore](../deployment/BACKUP_RESTORE.md) and
+[retention](../operations/DATA_RETENTION.md) before deleting or replacing data.

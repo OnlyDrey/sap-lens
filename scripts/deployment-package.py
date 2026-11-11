@@ -99,7 +99,10 @@ def frontend_licenses():
 
 def seal(output):
     timings=Path(os.environ.get('RUNNER_TEMP',ROOT/'backend/build'))/'sap-lens-ci-timings.jsonl'
-    records={row['stage']:row for row in map(json.loads,timings.read_text().splitlines())}
+    try:
+        records={row['stage']:row for row in map(json.loads,timings.read_text().splitlines())}
+    except (ValueError, OSError, KeyError, TypeError):
+        validation_error('incomplete-checks', 'Validation stage records are missing or invalid; run the installer orchestration rather than sealing manually.')
     if any(records.get(key,{}).get('status')!='passed' for key in CHECKS):raise ValueError('Shared validation is incomplete.')
     info=identity()
     subprocess.run(['git','diff','--quiet','HEAD'],cwd=ROOT,check=True)
@@ -162,13 +165,16 @@ def record_local():
     info=identity()
     if os.environ.get('GITHUB_ACTIONS')=='true' or info['schema']!=3 or info['source_sha']!=git_sha():
         raise ValueError('Local validation requires a local identity for the clean source commit.')
-    timings=Path(os.environ['RUNNER_TEMP'])/'sap-lens-ci-timings.jsonl'
-    records={row['stage']:row for row in map(json.loads,timings.read_text().splitlines())}
+    try:
+        timings=Path(os.environ['RUNNER_TEMP'])/'sap-lens-ci-timings.jsonl'
+        records={row['stage']:row for row in map(json.loads,timings.read_text().splitlines())}
+    except (ValueError, OSError, KeyError, TypeError):
+        validation_error('incomplete-checks', 'Validation stage records are missing or invalid; run the installer orchestration rather than sealing manually.')
     skipped=set(filter(None,os.environ.get('SAP_LENS_SKIPPED_CHECKS','').split(',')))&LOCAL_OPTIONAL
     if sys.platform=='win32' and skipped:raise ValueError('Windows hosts must run every validation check.')
     required=CHECKS-skipped
     if any(records.get(key,{}).get('status')!='passed' for key in required):
-        raise ValueError('Local deployment validation is incomplete.')
+        validation_error('incomplete-checks', 'Local deployment validation has missing or failed mandatory stages.')
     frontend_licenses()
     privacy(files(ROOT/'frontend/dist'))
     value=dict(schema=1,identity=info,host=sys.platform,validation_scope=os.environ.get('SAP_LENS_BUILD_SCOPE','targeted'),checks=sorted(required),not_verified=sorted(skipped),
@@ -177,21 +183,60 @@ def record_local():
     return value
 
 
+class DeploymentValidationError(ValueError):
+    """Safe receipt diagnostics: fixed categories, never private file contents."""
+
+
+def validation_error(category, detail):
+    scope = 'full' if os.environ.get('SAP_LENS_BUILD_SCOPE') == 'full' else 'targeted'
+    target = '--platform windows --target installer' if sys.platform=='win32' else '--platform linux --target server'
+    command = f'python scripts/build.py package {target} --scope {scope} --non-interactive'
+    raise DeploymentValidationError(f'Deployment validation [{category}]: {detail} Recovery: {command} (without --skip-setup).')
+
+
 def require_inputs():
     if os.environ.get('GITHUB_ACTIONS')=='true':return require_ci()
-    tools=local_tools();tools.clean(ROOT)
+    tools=local_tools()
+    try:
+        tools.clean(ROOT)
+    except (ValueError, subprocess.CalledProcessError):
+        validation_error('source-not-clean', 'Review and commit source changes before validation; no existing artifact was replaced.')
     path=ROOT/'backend/build/deployment-local-validation.json'
     if path.is_symlink() or not path.is_file() or path.stat().st_size>16384:
-        raise ValueError('Run python scripts/build.py package without --skip-setup first.')
-    receipt=json.loads(path.read_text());info=identity()
-    if os.environ.get('SAP_LENS_BUILD_SCOPE')=='full' and receipt.get('validation_scope','full')!='full':
-        raise ValueError('A targeted receipt cannot certify an explicitly requested full test scope.')
-    if (info['schema']!=3 or receipt['identity']!=info or info['source_sha']!=git_sha()
-            or receipt.get('schema')!=1 or receipt.get('host')!=sys.platform
-            or set(receipt.get('checks',[]))!=CHECKS-(set(receipt.get('not_verified',[]))&LOCAL_OPTIONAL if sys.platform!='win32' else set())
-            or not 0<=time.time()-receipt.get('validated_at',0)<=86400
-            or receipt.get('inputs')!=tools.inputs(ROOT,allow_interpreter_links=True)):
-        raise ValueError('Local validation is stale or inputs changed; rebuild without --reuse-validation.')
+        validation_error('missing-receipt', 'A safe local deployment receipt is required; portable Desktop ZIP validation is a different contract.')
+    try:
+        receipt=json.loads(path.read_text())
+        info=identity()
+    except (ValueError, OSError, KeyError):
+        validation_error('invalid-metadata', 'The deployment receipt or build identity is unreadable or invalid.')
+    if not isinstance(receipt,dict) or receipt.get('schema')!=1:
+        validation_error('invalid-receipt', 'The local deployment receipt schema is unsupported.')
+    if info['schema']!=3 or info['source_sha']!=git_sha():
+        validation_error('stale-commit', 'Build identity does not match the current source commit.')
+    recorded_identity=receipt.get('identity')
+    if isinstance(recorded_identity,dict) and recorded_identity.get('source_sha')!=info['source_sha']:
+        validation_error('stale-commit', 'Receipt was validated for another source commit; a portable Desktop rebuild does not renew deployment validation.')
+    if recorded_identity!=info:
+        validation_error('identity-mismatch', 'Receipt identity differs from the current commit/version build identity.')
+    if receipt.get('host')!=sys.platform:
+        validation_error('incompatible-host', 'Validation was performed on another host platform.')
+    scope=receipt.get('validation_scope','full')
+    if scope not in ('targeted','full') or (os.environ.get('SAP_LENS_BUILD_SCOPE')=='full' and scope!='full'):
+        validation_error('scope-mismatch', 'A targeted receipt cannot certify an explicitly requested full test scope.')
+    checks=receipt.get('checks',[]); unverified=receipt.get('not_verified',[])
+    if not isinstance(checks,list) or not isinstance(unverified,list) or any(not isinstance(value,str) for value in checks+unverified):
+        validation_error('incomplete-checks', 'The validation check list is malformed.')
+    if set(checks)!=CHECKS-(set(unverified)&LOCAL_OPTIONAL if sys.platform!='win32' else set()):
+        validation_error('incomplete-checks', 'One or more mandatory validation checks are missing.')
+    age=receipt.get('validated_at',0)
+    if not isinstance(age,(int,float)) or not 0<=time.time()-age<=86400:
+        validation_error('expired', 'Validation is expired or its timestamp is invalid.')
+    try:
+        current_inputs=tools.inputs(ROOT,allow_interpreter_links=True)
+    except (ValueError,OSError,subprocess.CalledProcessError):
+        validation_error('changed-inputs', 'Validated input directories or packaging tools are missing, unsafe or unavailable.')
+    if receipt.get('inputs')!=current_inputs:
+        validation_error('changed-inputs', 'Source, frontend assets, tool versions or the build environment changed after validation.')
     return receipt
 
 
@@ -357,6 +402,8 @@ def main():
         elif a.operation=='readme':
             if a.document is None or a.directory is None: raise ValueError('Specify document and package directory.')
             package_document(a.document,a.directory/'README.md')
+    except DeploymentValidationError as error:
+        p.exit(1,str(error)+'\n')
     except (ValueError,OSError,KeyError,subprocess.CalledProcessError,zipfile.BadZipFile,tarfile.TarError):
         p.exit(1,'Deployment packaging failed; check identity, validation, archive integrity and build prerequisites.\n')
 

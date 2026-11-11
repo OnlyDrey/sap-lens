@@ -19,3 +19,8 @@ Native platform limitations are listed in the [deployment matrix](deployment/REA
 Use [GitHub Releases](https://github.com/OnlyDrey/sap-lens/releases) for release notes
 and history; there is no CHANGELOG.md. Private CSVs, configuration, exports and
 screenshots never belong in Git or build artifacts.
+
+Current limitations are recorded with their owning guides: [server identity and
+approval boundaries](deployment/SECURITY.md#individual-accounts-and-remaining-multi-user-limits),
+[restart-dependent backups](deployment/BACKUP_RESTORE.md#central-host-availability-limitation),
+and [separate native service evidence](deployment/WINDOWS_SERVICE.md#separate-windows-scm-acceptance-evidence).

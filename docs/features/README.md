@@ -1,7 +1,7 @@
 # Features
 
 - [Dashboard](DASHBOARD.md): overview, lifecycle totals, coverage and source navigation.
-- [Role Lookup](ROLE_LOOKUP.md): catalogue, role relationships, transactions and existing Role Comparison.
+- [Role Lookup](ROLE_LOOKUP.md): catalogue, role relationships, transactions and existing Role Comparison and proposed access packages.
 - [User Access](USER_ACCESS.md): directory, profiles and assignment investigation.
 - [Compare Users](COMPARE_USERS.md): shared/unique roles and role-derived transactions, with source intervals.
 - [Account Review](ACCOUNT_REVIEW.md): evidence-based findings and persistent review decisions.

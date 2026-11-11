@@ -95,6 +95,21 @@ def smoke_evidence(target, row, release):
     return not release and target == 'service' and (row.get('native_acceptance') or {}).get('status') == 'not_run'
 
 
+def separate_scm_evidence(package, version, source, digest):
+    """Later native evidence supplements, never edits, the historical build manifest."""
+    path=package.with_name(package.name+'.scm-verification.json')
+    if path.is_symlink() or not path.is_file() or path.stat().st_size>65536:return False
+    try:
+        row=json.loads(path.read_text(encoding='utf-8-sig'))
+        required={'install','start','health','version','stop','backup','restore','upgrade','uninstall','cleanup'}
+        return (row.get('schema')==1 and row.get('kind')=='windows-scm' and row.get('status')=='passed'
+                and row.get('package_kind')=='zip' and row.get('package_sha256')==digest
+                and row.get('cleanup_complete') is True and set(row.get('checks',[]))==required
+                and row.get('identity',{}).get('version')==version
+                and row.get('identity',{}).get('source_sha')==source)
+    except (OSError,ValueError,TypeError,AttributeError):return False
+
+
 def verify_outputs(directory, version, source, targets, remote=False, release=False):
     if (directory / 'build-manifest.json').stat().st_size > 1024*1024: raise ValueError('Build manifest is too large.')
     manifest = json.loads((directory / 'build-manifest.json').read_text(encoding='utf-8'))
@@ -104,14 +119,17 @@ def verify_outputs(directory, version, source, targets, remote=False, release=Fa
     for target in targets:
         row = manifest.get('targets', {}).get(target, {})
         if not isinstance(row,dict): raise ValueError('Malformed target manifest.')
-        if row.get('status') != 'passed': continue
+        if row.get('status') != 'passed':
+            if release: raise ValueError('Requested release target has no successful build evidence.')
+            continue
         stem, extension = STEMS[target]
         name = f'sap-lens-{stem}-v{version}{extension}'
         path = directory / name
         if (row.get('artifact') != name or not path.is_file() or path.is_symlink()
                 or module('deployment-package').sha(path) != row.get('sha256')
                 or path.with_name(name + '.sha256').read_text(encoding='utf-8').strip() != row['sha256'] + '  ' + name
-                or row.get('package_verified') is not True or not smoke_evidence(target, row, release)):
+                or row.get('package_verified') is not True or not (smoke_evidence(target, row, release)
+                    or (release and target=='service' and separate_scm_evidence(path, version, source, row.get('sha256'))))):
             raise ValueError('Builder artifact or verification evidence differs.')
     return manifest
 
@@ -311,6 +329,8 @@ class Builder:
         self.stage = 'Publish verified frontend assets'
         print(f'{self.stage}: {frontend_workspace.publish_dist(workspace, ROOT)} files', flush=True)
         self.run('Seal successful local validation', [self.python, 'scripts/deployment-package.py', 'record-local'])
+        # Exercise the same consumer contract before declaring shared validation ready.
+        self.run('Verify sealed deployment validation receipt', [self.python, 'scripts/deployment-package.py', 'require-inputs'])
         self.validated = True
 
     def local(self, target):

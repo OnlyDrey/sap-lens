@@ -75,3 +75,15 @@ and [access-boundary assumptions](../deployment/SECURITY.md).
 Source storage (immutable snapshots, the optional SQLite store, fingerprints and staged activation), the data revision token and review decision integrity are described in
 [Storage, source revisions and data consistency](STORAGE_AND_REVISIONS.md). Measurements are in [Performance](../development/PERFORMANCE.md); retention and recovery in
 [Data retention](../operations/DATA_RETENTION.md) and [Backup and restore](../deployment/BACKUP_RESTORE.md).
+
+## Headless and persistence boundaries
+
+`server.run()` uses the same `create_app()` and React assets without importing the
+WebView runtime. It owns one data-directory lease and one Uvicorn worker. SQLite
+stores source revisions, derived caches and migration bookkeeping, using WAL and
+short write transactions; validated JSON decisions/periods and immutable evidence
+remain authoritative. Do not deploy several workers against the same files.
+Revision tokens coordinate frontend cache invalidation; they do not replace a
+cross-store transaction. Server users mode provides individual accounts and API
+roles, with the remaining identity/approval limitations documented under
+[deployment security](../deployment/SECURITY.md).

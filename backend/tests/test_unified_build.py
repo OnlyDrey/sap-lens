@@ -87,6 +87,16 @@ class RoutingTests(unittest.TestCase):
             self.assertIn('build-deployments.py',str(targets.plan(installer)))
             self.assertIn('--scope',str(targets.plan(installer)))
 
+    def test_installer_routes_to_fresh_validation_unless_verified_reuse_is_explicit(self):
+        with patch.object(targets.platform,'system',return_value='Windows'):
+            value=args('package','--platform','windows','--target','installer','--scope','targeted','--non-interactive');value.version='1.0.0-beta.2'
+            command=targets.plan(value)[0][1]
+            self.assertIn('scripts/deployment/build-deployments.py',command)
+            self.assertEqual(command[command.index('--platform')+1],'desktop')
+            self.assertNotIn('--reuse-validation',command)
+            value.skip_setup=True
+            self.assertIn('--reuse-validation',targets.plan(value)[0][1])
+
     def test_linux_docker_service_and_all_keep_existing_target_names(self):
         for platform,target,expected in [('linux','server','linux-native'),('docker','server','docker'),('windows','service','service'),('windows','all','desktop'),('all','all','all')]:
             value=args('package','--platform',platform,'--target',target);value.version='1.0.0-beta.2';value.windows_host='synthetic-builder'

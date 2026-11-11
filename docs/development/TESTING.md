@@ -9,7 +9,7 @@ targeted run is not a regression result.
 
 | Layer | Where | What it proves | Theme / viewport |
 | --- | --- | --- | --- |
-| Backend unit and integration | `backend/tests/test_*.py` (`unittest`, 1,763 tests) | Business rules, import, storage, security, SoD governance, packaging scripts | n/a |
+| Backend unit and integration | `backend/tests/test_*.py` (`unittest`; counts change with the checkout) | Business rules, import, storage, security, SoD governance, packaging scripts | n/a |
 | Frontend unit | `frontend/tests/unit/*.test.ts` (`node --test`) | Pure client logic (formatting, session, bulk selection) | n/a |
 | Component behavior `@component` | `frontend/tests/component-library.spec.ts` against Settings > Component Library | Generic behavior of shared production components: selection, removal, toggling, validation, confirmation, focus, ARIA | Behavior once in light; focus ring and fit in both themes at 375 and 1280 px |
 | Functional page tests (untagged) | `frontend/tests/*.spec.ts` | How each screen uses its data: filters, decisions, exports, navigation, persistence | Default theme, one width, unless the behavior depends on width |

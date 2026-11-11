@@ -146,10 +146,23 @@ Never mount the Docker socket or run privileged. Restrict access to backups and
 volumes: they contain personal/access data. Server diagnostics are redacted; logs
 do not dump unexpected exception text, CSV rows or HTTP request details.
 
-## Future authentication
+## Individual accounts and remaining multi-user limits
 
-Before wider multi-user hosting, implement/review local accounts or OIDC/enterprise
-SSO, secure login/logout sessions, Administrator/Analyst/Viewer authorization,
-import/settings/export permissions, user-specific preferences, and privacy-aware
-audit logging. Define identity and retention policy first. This iteration deliberately
-does not add a custom user database or claim shared access provides per-user audit.
+`SAP_LENS_AUTH=users` is implemented in `backend/server_access.py` and
+`backend/deployment.py`: local administrator-managed accounts, PBKDF2 password
+hashes, enabled/disabled accounts and Administrator/Reviewer/Read-only API roles.
+Administration uses the server's `--manage-user` command with JSON on stdin.
+Shared Basic and trusted-proxy modes do not acquire these individual-role semantics.
+The Windows management script's authentication parameter currently exposes only
+local/basic/proxy; do not assume every service installer UI supports users mode.
+
+Individual accounts still use HTTP Basic, not revocable application sessions.
+Configurable session expiry, optional TOTP, enrollment/recovery and full web account
+administration are not implemented. Do not represent these as production-ready
+multi-user identity capabilities. Require HTTPS and protect the account file/ACLs.
+
+Authenticated users mode attributes supported review writes to the request actor;
+Desktop/shared modes retain self-reported names. Period approval compares reviewer
+and approver names but does not enforce independence from every contributor in a
+multi-reviewer period. Reviewer period-transition authorization is also incomplete.
+These are known requirements gaps, not reasons to weaken approval or role checks.

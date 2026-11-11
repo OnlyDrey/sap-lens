@@ -25,7 +25,7 @@
 ---
 
 SAP Lens is a local-first SAP investigation and access-review application. Browse
-roles and transaction mappings, investigate user/release assignments, compare
+roles and transaction mappings, propose access packages, investigate user/release assignments, compare
 users, enrich identities with optional Employee Directory data, record Account
 Review decisions, and investigate and review potential Segregation of Duties
 conflicts with frozen periods and DOCX/PDF reports. Role-derived transaction coverage is investigation evidence,
@@ -55,6 +55,16 @@ A FastAPI backend and a React frontend run on one machine. Role, user, Employee 
 snapshots (Static sources once, Dynamic sources on every refresh); an optional, rebuildable SQLite store and fingerprints keep restarts and refreshes fast. Review
 decisions are bound to the evidence they were made on and are rejected, never overwritten, when that evidence or the dataset changed. See
 [Storage, revisions and consistency](docs/architecture/STORAGE_AND_REVISIONS.md).
+
+## Development and release status
+
+Build/package verification, runtime smoke and native host acceptance are separate
+facts. Windows SCM evidence can supplement an older build manifest without
+rewriting it; see [release verification](docs/deployment/RELEASES.md).
+Individual server accounts/roles exist, but session expiration, optional TOTP and
+complete multi-reviewer approval separation remain requirements gaps; see
+[security boundaries](docs/deployment/SECURITY.md). No blanket production
+certification is implied by a successful build.
 
 ## Security and operations
 

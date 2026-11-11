@@ -242,3 +242,21 @@ function Copy-ScmReplacementBundle([string]$Bundle,$Workspace,$Report) {
     }
     return $destination
 }
+
+function Write-ScmEvidence([string]$Path,$Receipt) {
+    # CreateNew protects earlier acceptance evidence and never follows a pre-existing link.
+    $stream=$null; $writer=$null
+    try {
+        $stream=[IO.File]::Open($Path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+        $writer=[IO.StreamWriter]::new($stream,[Text.UTF8Encoding]::new($false))
+        $writer.Write(($Receipt | ConvertTo-Json -Depth 12)); $writer.Flush(); $stream.Flush($true)
+    } finally {
+        if ($writer) { $writer.Dispose() } elseif ($stream) { $stream.Dispose() }
+    }
+    $saved=Get-Content -LiteralPath $Path -Raw -ErrorAction Stop | ConvertFrom-Json
+    if ($saved.schema -ne 1 -or $saved.kind -ne 'windows-scm' -or $saved.status -ne 'passed' -or
+        $saved.package_sha256 -ne $Receipt.package_sha256 -or -not $saved.cleanup_complete -or
+        ($saved.identity | ConvertTo-Json -Depth 12 -Compress) -ne ($Receipt.identity | ConvertTo-Json -Depth 12 -Compress)) {
+        throw 'SCM evidence read-back validation failed.'
+    }
+}

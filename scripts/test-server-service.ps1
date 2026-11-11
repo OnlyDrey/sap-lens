@@ -22,6 +22,11 @@ function Get-ScmStatus {
 }
 if (Test-ScmRegistered) { throw 'An existing SAPLens service must not be changed by the smoke test.' }
 $inputBundle=(Get-Item -LiteralPath $Bundle -Force).FullName
+$inputIsDirectory=Test-Path -LiteralPath $inputBundle -PathType Container
+$packageFingerprint=if ($inputIsDirectory) { (Get-FileHash -LiteralPath (Join-Path $inputBundle 'verification-report.json') -Algorithm SHA256).Hash.ToLowerInvariant() } else { (Get-FileHash -LiteralPath $inputBundle -Algorithm SHA256).Hash.ToLowerInvariant() }
+$managementHost=(Get-Process -Id $PID).Path
+$reportPath=$inputBundle+'.scm-verification.json'
+if (Test-Path -LiteralPath $reportPath) { throw 'SCM evidence already exists. Inspect and preserve the earlier report before an authorized rerun; no service was changed.' }
 $tempBase = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [IO.Path]::GetTempPath() }
 $workspace=New-ScmWorkspace $tempBase
 $bundlePath=$null; $manage=$null; $primary=$null; $report=$null
@@ -37,7 +42,8 @@ function Assert-OwnedScmService {
 function Invoke-ScmManage {
     if (Test-ScmRegistered) { Assert-OwnedScmService }
     $global:LASTEXITCODE=0
-    & $manage @args
+    # A management script's exit must never terminate this evidence-producing host.
+    & $managementHost -NoProfile -File $manage @args
     if ($global:LASTEXITCODE -ne 0) { throw "Service management failed (exit $global:LASTEXITCODE)." }
 }
 try {
@@ -114,13 +120,18 @@ if ($primary -or $cleanupErrors.Count) {
     if ($primary) { throw (New-Object System.Exception($detail,$primary)) }
     throw $detail
 }
-# Record success only after service removal and complete test-data cleanup.
-$report.native_service_smoke='passed: install/start/health/version/stop/backup/empty-target-restore/same-version-upgrade/uninstall/cleanup'
-$reportPath=if (Test-Path -LiteralPath $inputBundle -PathType Container) { Join-Path $inputBundle 'verification-report.json' } else { $inputBundle+'.scm-verification.json' }
-if (Test-Path -LiteralPath $reportPath) { Assert-NoReparse (Get-Item -LiteralPath $reportPath -Force) }
+# Separate evidence: never rewrite the original package verification or build manifest.
+$receipt=@{schema=1;kind='windows-scm';status='passed';identity=$expected;package_sha256=$packageFingerprint;
+    package_kind=$(if ($inputIsDirectory) { 'directory-report' } else { 'zip' });cleanup_complete=$true;
+    completed_at=[DateTime]::UtcNow.ToString('o');
+    checks=@('install','start','health','version','stop','backup','restore','upgrade','uninstall','cleanup');
+    not_verified=@('reboot','recovery','unc')}
 $global:LASTEXITCODE=1
-[IO.File]::WriteAllText($reportPath,($report | ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false))
-Write-Host 'SCM lifecycle, service removal and isolated-data cleanup passed. Reboot, recovery and UNC were not tested.'
-
+try {
+    $currentFingerprint=if ($inputIsDirectory) { (Get-FileHash -LiteralPath (Join-Path $inputBundle 'verification-report.json') -Algorithm SHA256).Hash.ToLowerInvariant() } else { (Get-FileHash -LiteralPath $inputBundle -Algorithm SHA256).Hash.ToLowerInvariant() }
+    if ($currentFingerprint -ne $packageFingerprint) { throw 'Input package changed during acceptance; evidence refused.' }
+    Write-ScmEvidence $reportPath $receipt
+} catch { throw "SCM lifecycle completed but acceptance evidence publication failed: $($_.Exception.Message). No successful report is claimed." }
+Write-Host "SCM lifecycle, service removal and isolated-data cleanup passed. Evidence: $reportPath. Reboot, recovery and UNC were not tested."
 $global:LASTEXITCODE=0
 exit 0

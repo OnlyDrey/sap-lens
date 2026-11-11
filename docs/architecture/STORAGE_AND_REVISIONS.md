@@ -6,7 +6,7 @@ How SAP Lens stores imported data, decides what changed, publishes a new dataset
 ## Principles
 
 * **Immutable, content-addressed snapshots and the validated JSON stores are authoritative.** Everything else is derived and rebuildable.
-* **Local only.** The server binds to loopback (desktop) or an administrator-configured address (server mode); data never leaves the data directory.
+* **Local only.** The server binds to loopback (desktop) or an administrator-configured address (server mode); there is no automatic third-party data-upload service. Authorized reports, CSV exports and backups can leave the directory and must be protected separately.
 * **A dataset is published whole.** Readers see the previous dataset or the new one, never a mixture.
 * **Evidence is never inferred.** Review decisions are tied to the evidence they were made on and are revalidated when it changes.
 

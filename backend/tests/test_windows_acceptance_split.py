@@ -51,6 +51,29 @@ class ManifestSemantics(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'differs'):
                 builder.verify_outputs(directory, '1.0.0', 'a' * 40, ['service'], release=True)
 
+    def test_later_scm_receipt_binds_exact_zip_without_rewriting_manifest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory=Path(temporary);version='1.0.0';source='a'*40
+            package=directory/'sap-lens-win-service-x64-v1.0.0.zip';package.write_bytes(b'synthetic')
+            digest=hashlib.sha256(package.read_bytes()).hexdigest()
+            package.with_name(package.name+'.sha256').write_text(digest+'  '+package.name+'\n')
+            manifest=directory/'build-manifest.json'
+            manifest.write_text(json.dumps(dict(version=version,source_commit=source,targets=dict(service=dict(status='passed',artifact=package.name,sha256=digest,package_verified=True,runtime_smoke_tested=False,native_acceptance=dict(status='not_run'))))))
+            original=manifest.read_bytes()
+            receipt=dict(schema=1,kind='windows-scm',status='passed',package_kind='zip',package_sha256=digest,cleanup_complete=True,identity=dict(version=version,source_sha=source),checks=['install','start','health','version','stop','backup','restore','upgrade','uninstall','cleanup'])
+            sidecar=package.with_name(package.name+'.scm-verification.json')
+            sidecar.write_text(json.dumps(receipt))
+            builder.verify_outputs(directory,version,source,['service'],release=True)
+            self.assertEqual(manifest.read_bytes(),original)
+            with self.assertRaisesRegex(ValueError,'successful build evidence'):
+                builder.verify_outputs(directory,version,source,['desktop'],release=True)
+            for key,value in [('package_sha256','b'*64),('cleanup_complete',False),('checks',[]),('status','failed'),('identity',dict(version=version,source_sha='b'*40)),('package_kind','directory-report')]:
+                sidecar.write_text(json.dumps({**receipt,key:value}))
+                with self.subTest(key=key),self.assertRaises(ValueError):builder.verify_outputs(directory,version,source,['service'],release=True)
+            sidecar.write_text('{')
+            self.assertFalse(builder.separate_scm_evidence(package,version,source,digest))
+
+
 
 class PrerequisiteDiagnostics(unittest.TestCase):
     OUTPUT = 'ACCEPTANCE PREREQUISITE: the native service (SCM) acceptance needs an elevated PowerShell. Nothing was built.'
@@ -95,6 +118,17 @@ class EntrypointContracts(unittest.TestCase):
         self.assertIn('GetTempPath()', text, 'works outside CI without RUNNER_TEMP')
         self.assertIn('An existing SAPLens service must not be changed', text, 'existing safety check preserved')
 
+    def test_native_evidence_is_separate_and_management_uses_child_host(self):
+        text=self.read('scripts/test-server-service.ps1')
+        helper=self.read('scripts/testing/windows-scm-test-helpers.ps1')
+        self.assertIn('& $managementHost -NoProfile -File $manage @args',text)
+        self.assertNotIn('& $manage @args',text)
+        self.assertIn("$reportPath=$inputBundle+'.scm-verification.json'",text)
+        self.assertNotIn("$report.native_service_smoke=",text)
+        self.assertLess(text.index('Write-ScmEvidence $reportPath $receipt'),text.index('Write-Host "SCM lifecycle'))
+        for guard in ('CreateNew','ConvertFrom-Json','read-back validation failed','Flush($true)'):
+            self.assertIn(guard,helper)
+
     def test_public_entrypoints_forward_the_flag(self):
         self.assertIn("@('--native-acceptance',$NativeAcceptance)", self.read('scripts/build.ps1'))
         self.assertIn('--native-acceptance', self.read('scripts/build_system/cli.py'))
@@ -134,7 +168,7 @@ class ScmCleanupContracts(unittest.TestCase):
         self.assertIn('$service.PathName.Trim().Trim',self.main)
         self.assertIn('$service.Dispose()',self.main)
         self.assertIn('if ($safeToRemove)',self.main)
-        self.assertLess(self.main.index('Remove-ScmWorkspace $workspace'),self.main.index("$report.native_service_smoke='passed"))
+        self.assertLess(self.main.index('Remove-ScmWorkspace $workspace'),self.main.index('Write-ScmEvidence $reportPath $receipt'))
         self.assertIn('$global:LASTEXITCODE=1',self.main)
         self.assertTrue(self.main.rstrip().endswith('exit 0'))
 
@@ -166,6 +200,26 @@ class ScmCleanupContracts(unittest.TestCase):
 
 
 SHELLS = [path for path in (shutil.which('powershell'), shutil.which('pwsh')) if path]
+
+
+@unittest.skipUnless(SHELLS, 'PowerShell required; no SCM lifecycle is exercised')
+class EvidenceHostTests(unittest.TestCase):
+    def test_child_exit_continues_and_receipt_is_readable_and_create_only(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary);child=root/'child.ps1';child.write_text('exit 0')
+            helper=str(ROOT/'scripts/testing/windows-scm-test-helpers.ps1').replace("'", "''")
+            main=(ROOT/'scripts/test-server-service.ps1').read_text()
+            function=main[main.index('function Invoke-ScmManage'):main.index('\ntry {\n    $bundlePath')]
+            script=root/'report.ps1'
+            body=f". '{helper}'\n$manage='{str(child).replace(chr(39), chr(39)*2)}'\n"
+            body+='$managementHost=(Get-Process -Id $PID).Path\nfunction Test-ScmRegistered { return $false }\n'
+            body+=function+'\nInvoke-ScmManage -Action Status\n'
+            body+="$receipt=@{schema=1;kind='windows-scm';status='passed';package_sha256=('a'*64);cleanup_complete=$true;identity=@{version='1.0.0'}}\n"
+            body+="$path=Join-Path $PSScriptRoot 'receipt.json'\nWrite-ScmEvidence $path $receipt\n$before=[IO.File]::ReadAllText($path)\n$blocked=$false\ntry { Write-ScmEvidence $path $receipt } catch { $blocked=$true }\nif (-not $blocked -or [IO.File]::ReadAllText($path) -ne $before) { throw 'Evidence overwritten' }\n"
+            script.write_text(body,encoding='utf-8-sig')
+            done=subprocess.run([SHELLS[0],'-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=30)
+            self.assertEqual(done.returncode,0,done.stdout+done.stderr)
+            self.assertEqual(json.loads((root/'receipt.json').read_text())['status'],'passed')
 
 
 @unittest.skipUnless(os.name == 'nt' and SHELLS, 'Native Windows PowerShell 5.1/7 is required')

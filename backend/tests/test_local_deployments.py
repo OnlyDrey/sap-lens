@@ -138,6 +138,82 @@ class LocalDeploymentReceiptTests(unittest.TestCase):
             target.write_bytes(original)
         self.assertEqual(pkg.require_inputs()['identity'],self.info)
 
+    def test_receipt_failure_categories_and_recovery_are_actionable(self):
+        receipt=pkg.record_local()
+        path=self.root/'backend/build/deployment-local-validation.json'
+        cases=[('identity', {**self.info,'version':'0.2.0'}, 'identity-mismatch'),
+               ('identity', {**self.info,'source_sha':'b'*40}, 'stale-commit'),
+               ('host','another-platform','incompatible-host'),('checks',[],'incomplete-checks'),
+               ('validated_at',0,'expired'),('validation_scope','targeted','scope-mismatch'),
+               ('inputs',{},'changed-inputs')]
+        with patch.dict(os.environ,{'SAP_LENS_BUILD_SCOPE':'full'}):
+            for field,value,category in cases:
+                altered={**receipt,'validation_scope':'full',field:value};pkg.write(path,altered)
+                with self.subTest(category=category),self.assertRaisesRegex(pkg.DeploymentValidationError,category) as error:
+                    pkg.require_inputs()
+                self.assertIn('--scope full --non-interactive',str(error.exception))
+                self.assertIn('without --skip-setup',str(error.exception))
+        path.unlink()
+        with self.assertRaisesRegex(pkg.DeploymentValidationError,'missing-receipt'):pkg.require_inputs()
+        pkg.write(path,receipt)
+        with patch.object(pkg,'git_sha',return_value='c'*40),self.assertRaisesRegex(pkg.DeploymentValidationError,'stale-commit'):
+            pkg.require_inputs()
+        self.assertEqual(pkg.require_inputs()['identity'],self.info)
+
+    def test_tools_changes_and_missing_stage_logs_fail_with_recovery(self):
+        pkg.record_local()
+        with patch.object(legacy.local,'tool_versions',return_value={'python':'changed','node':'changed'}),self.assertRaisesRegex(pkg.DeploymentValidationError,'changed-inputs'):
+            pkg.require_inputs()
+        (self.temporary/'sap-lens-ci-timings.jsonl').unlink()
+        with self.assertRaisesRegex(pkg.DeploymentValidationError,'incomplete-checks'):pkg.record_local()
+
+    def test_cli_reports_known_receipt_reason_without_traceback(self):
+        import contextlib
+        import io
+        stderr=io.StringIO()
+        with patch.object(pkg.sys,'argv',['deployment-package.py','require-inputs']),contextlib.redirect_stderr(stderr),self.assertRaises(SystemExit) as result:
+            pkg.main()
+        self.assertEqual(result.exception.code,1)
+        self.assertIn('[missing-receipt]',stderr.getvalue())
+        self.assertIn('Recovery: python scripts/build.py package',stderr.getvalue())
+        self.assertNotIn('Traceback',stderr.getvalue())
+
+    def test_targeted_receipt_is_not_upgraded_by_consuming_it(self):
+        with patch.dict(os.environ,{'SAP_LENS_BUILD_SCOPE':'targeted'}):
+            receipt=pkg.record_local();self.assertEqual(receipt['validation_scope'],'targeted')
+            self.assertEqual(pkg.require_inputs(),receipt)
+        before=(self.root/'backend/build/deployment-local-validation.json').read_bytes()
+        with patch.dict(os.environ,{'SAP_LENS_BUILD_SCOPE':'full'}),self.assertRaisesRegex(pkg.DeploymentValidationError,'scope-mismatch'):
+            pkg.require_inputs()
+        self.assertEqual((self.root/'backend/build/deployment-local-validation.json').read_bytes(),before)
+
+    def test_installer_orchestration_seals_then_consumes_and_reuse_is_verified(self):
+        from unittest.mock import Mock
+        run=object.__new__(builder.Builder)
+        run.args=SimpleNamespace(platform=['desktop'],clean=False,reuse_validation=False,no_cache=False,scope='targeted')
+        run.system='Windows';run.build=self.root/'backend/build';run.info=self.info
+        run.python=run.build/'python-env/Scripts/python.exe';run.audit=run.build/'audit-env/Scripts/python.exe'
+        run.env={'RUNNER_TEMP':str(self.temporary),'PLAYWRIGHT_EXECUTABLE_PATH':str(self.root/'source.py')}
+        run.validated=False;run.run=Mock();run.bootstrap_pip=Mock()
+        run.prepare_workspace=Mock(return_value=(self.root,self.root/'frontend'))
+        with patch.object(builder,'prerequisite_versions',return_value='powershell'),patch.object(builder,'module',return_value=pkg),patch.object(builder.subprocess,'check_output',return_value='v24.0.0'),patch.object(builder.frontend_workspace,'dependency_stamp'),patch.object(builder.frontend_workspace,'install'),patch.object(builder.frontend_workspace,'publish_dist',return_value=1):
+            run.run_shared_validation()
+        commands=[call.args[1] for call in run.run.call_args_list]
+        self.assertEqual(commands[-2][-1],'record-local')
+        self.assertEqual(commands[-1][-1],'require-inputs')
+        self.assertTrue(run.validated)
+        self.assertTrue(any('targeted' in command and 'deployment' in command for command in commands))
+        self.assertTrue(any('--grep' in command and '@smoke' in command for command in commands))
+        run.args.reuse_validation=True;run.validated=False;run.run.reset_mock()
+        with patch.object(builder,'prerequisite_versions',return_value='powershell'),patch.object(builder,'module',return_value=pkg):
+            run.run_shared_validation()
+        self.assertEqual(run.run.call_count,1)
+        self.assertEqual(run.run.call_args.args[1][-1],'require-inputs')
+        run.validated=False;run.run.side_effect=pkg.DeploymentValidationError('stale-commit')
+        with patch.object(builder,'prerequisite_versions',return_value='powershell'),patch.object(builder,'module',return_value=pkg),self.assertRaisesRegex(pkg.DeploymentValidationError,'stale-commit'):
+            run.run_shared_validation()
+        self.assertFalse(run.validated)
+
     def test_a_non_windows_receipt_may_leave_only_the_powershell_check_unverified_and_says_so(self):
         records=[dict(stage=stage,status='passed') for stage in pkg.CHECKS-{'powershell'}]
         (self.temporary/'sap-lens-ci-timings.jsonl').write_text('\n'.join(map(json.dumps,records)))

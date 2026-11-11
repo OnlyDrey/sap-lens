@@ -50,8 +50,11 @@ the matrix version is unchanged, otherwise **Historical**.
 | `sod-observations.json` | Finding ids at the last observed source refresh, for "changes since refresh". Bounded; rebuilt on demand. |
 | snapshot files | Immutable period snapshots and decision evidence; integrity-checked by SHA-256. |
 
-Portable configuration and diagnostics exports exclude all of them. Names (reviewer,
-approver, actor) are self-reported text, not authenticated identities or signatures.
+Portable configuration and diagnostics exports exclude all of them. Desktop/shared-access names are self-reported. Individual-account server mode
+uses the authenticated actor for supported decision writes and period approval;
+these records are not digital signatures. Approval currently compares supplied
+reviewer and approver names, not the complete contributor set. See the
+[security limitations](../deployment/SECURITY.md#individual-accounts-and-remaining-multi-user-limits).
 
 ## Workflow
 

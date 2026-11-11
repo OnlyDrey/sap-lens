@@ -149,6 +149,21 @@ There is no HTTP endpoint for backup, restore or purge.
 
 ## Build prerequisites and verification boundary
 
+The supported verified-installer workflow is:
+
+```powershell
+python scripts/build.py package --platform windows --target installer --scope targeted --non-interactive
+```
+
+Use a clean reviewed commit on a Windows host with the documented prerequisites.
+`--target desktop` builds the portable Desktop ZIP; its validation receipt cannot
+certify installer deployment inputs. The installer target runs actual shared
+validation, seals/checks the deployment receipt, then packages and verifies the
+installer through isolated acceptance. A standalone `build-desktop-installer.ps1`
+invocation wraps already validated inputs only; it intentionally rejects stale or
+missing deployment receipts. Use the public command above to recover, never run
+`record-local` manually. See [receipt/reuse rules](../BUILD.md#windows-desktop-zip-versus-verified-installer).
+
 The installer wraps the canonically compiled/verified EXE; it does not introduce
 another application build. The build script provisions SHA-256-pinned Inno Setup
 7.1.0 under ignored `backend/build/inno-setup-7.1.0`, verifies the compiler after

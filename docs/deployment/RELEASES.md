@@ -241,3 +241,12 @@ the existing public release manifest remains the publication contract. CI
 Legacy Windows publication now defaults to the same version/commit directory,
 while retaining an explicit output override. Existing releases/tags are untouched.
 See [build outputs and checksum verification](../BUILD.md#outputs-and-versioning).
+
+## Later native service acceptance
+
+Standalone Windows SCM evidence can supplement a historical build manifest via a
+SHA-256-bound `.scm-verification.json` sidecar. The original manifest is preserved.
+See [evidence format, verification command and restrictions](WINDOWS_SERVICE.md#separate-windows-scm-acceptance-evidence).
+Local output verification rejects missing requested build targets and invalid or
+incomplete native evidence. This does not change same-run CI publication gates,
+branch restrictions, signing policy or release authorization.

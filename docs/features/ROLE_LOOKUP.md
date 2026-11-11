@@ -135,3 +135,14 @@ descriptions and canonical classification are unchanged. Unknown prefixes remain
 intact. Role Details uses the same transaction matcher and restores manual
 expansion state when its filter is cleared. Neither role nor transaction overlap
 proves effective SAP authorization.
+
+## Proposed access packages
+
+The shared access-package selection bar and Role Lookup package panel propose
+role names from the imported catalogue and an organizational suffix. Exact roles
+without a suffix variant remain exact. Supported trailing wildcard/suffix forms
+are resolved using catalogue naming evidence; ambiguous patterns and invalid or
+oversized SAP role names are reported rather than silently rewritten. Inspect the
+proposal before copying/exporting it. The package is an investigation proposal:
+it changes no SAP access, imports no assignments and grants no authorization.
+Implementation: `backend/access_package.py` and `AccessPackagePanel.tsx`.

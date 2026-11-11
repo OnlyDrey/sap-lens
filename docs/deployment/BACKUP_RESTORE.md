@@ -175,3 +175,15 @@ explanation is in [Data retention](../operations/DATA_RETENTION.md#count-limit-a
 
 The policy and approval live in `.application-backups/retention.json`, next to the backups and outside the data a restore replaces, so a restore neither voids the backup approval nor brings an older copy back. Source and review retention work differently after a restore (their approvals are voided and cleanup pauses for 7 days; see
 [Data retention](../operations/DATA_RETENTION.md)). **Archives can contain historical records that source or review retention has already removed from the live installation**; restoring such an archive brings those records back.
+
+## Central-host availability limitation
+
+Scheduled backup currently requests a restart-dependent snapshot; it does not
+create an online archive. While pending, edits and refresh are paused until a
+controlled host restart or safe cancellation. Closing a browser is not a server
+restart; closing a Desktop window may leave its tray/backend alive. Plan a
+maintenance window and verify the completed archive before external copying.
+SQLite is derived/rebuildable and excluded from application archives; authoritative
+JSON decisions and evidence are included. SQLite's online backup API alone would
+not make this multi-store application backup consistent. Online snapshotting and
+verified external-copy automation remain operational improvement requirements.
