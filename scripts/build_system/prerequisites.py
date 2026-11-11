@@ -55,7 +55,7 @@ def tool_report(probe):
 
 def diagnostics(name,probe):
     if os.environ.get('SAP_LENS_BUILD_DIAGNOSTICS')=='1':
-        print(f'[diagnostics] {name}: status={probe.status} path={probe.path} value={probe.value} exit={probe.exit_code} python={sys.executable} cwd={os.getcwd()} PATHEXT={os.environ.get("PATHEXT")}',flush=True)
+        print(f'[diagnostics] {name}: status={probe.status} path={probe.path} value={probe.value} exit={probe.exit_code} python={sys.executable} cwd={os.getcwd()} PATHEXT={os.environ.get("PATHEXT")}',file=sys.stderr,flush=True)
 
 def inspect_tool(name):
     """Path of a working, supported tool; None only when it is genuinely absent. A tool that exists but fails is a diagnosed error, never "missing"."""
@@ -73,7 +73,7 @@ def inspect_tool(name):
             raise BuildError(f'Incompatible {name} {value} (resolved: {path}): this project needs Node {node_range[1]} or {int(node_range[2])-1} and npm 10 or 11 (frontend/package.json engines). SAP Lens does not replace your global Node.js: install a supported version with your approved tools (Node 24 LTS is recommended) and reopen the terminal.',3)
     if name=='node' and int(match[1])%2==1 and not NOTED:
         NOTED.append(value)
-        print(f'Note: Node.js {value} is a Current (non-LTS) release. It satisfies the project engines, but Node.js 24 LTS is the CI baseline and the recommended version for reproducible builds.')
+        print(f'Note: Node.js {value} is a Current (non-LTS) release. It satisfies the project engines, but Node.js 24 LTS is the CI baseline and the recommended version for reproducible builds.',file=sys.stderr)
     return path
 
 NOTED=[]  # the non-LTS note is shown once per run

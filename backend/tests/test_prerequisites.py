@@ -1,6 +1,8 @@
 """Prerequisites setup, check, repair and preflight (scripts/build_system/doctor.py, python_env.py, cli.py). Isolated temporary roots only:
 no real environment is created, repaired or changed, nothing is installed and no network is used. Windows-only behaviour is mocked, not verified."""
 import json
+import contextlib
+import io
 import os
 import stat
 import subprocess
@@ -305,8 +307,13 @@ class EntryPoint(unittest.TestCase):
     def test_non_interactive_check_runs_end_to_end_without_prompts(self):
         done = subprocess.run([sys.executable, str(ROOT / 'scripts/build.py'), 'prerequisites', '--check-only', '--json', '--non-interactive'],
                               capture_output=True, text=True, stdin=subprocess.DEVNULL, timeout=120, cwd=ROOT)
-        self.assertIn(done.returncode, (0, 3), done.stderr)
-        report = json.loads(done.stdout)
+        details = f'Exit code: {done.returncode}\nSTDOUT:\n{done.stdout}\nSTDERR:\n{done.stderr}'
+        self.assertIn(done.returncode, (0, 3), details)
+        try:
+            report = json.loads(done.stdout)
+        except json.JSONDecodeError as error:
+            error.add_note(details)
+            raise
         self.assertEqual(report['exit_code'], done.returncode); self.assertIn('Python 3.12 x64', [row['name'] for row in report['items']])
 
     def test_existing_modes_and_arguments_are_preserved(self):
@@ -325,6 +332,89 @@ class EntryPoint(unittest.TestCase):
         text = (ROOT / 'scripts/build-windows.ps1').read_text(encoding='utf-8')
         self.assertNotIn('(Get-Command python).Source', text); self.assertIn('Resolve-HostPython', text)
 
+
+
+class JsonOutputContract(unittest.TestCase):
+    def test_non_lts_node_and_diagnostics_do_not_contaminate_json(self):
+        out, err = io.StringIO(), io.StringIO()
+        def collect(_args, _root):
+            return [doctor.tool_item('node', True)]
+        probe = deps.ToolProbe('node', 'ok', '/synthetic/node', '25.8.0', 0)
+        with patch.object(doctor, 'collect', side_effect=collect), patch.object(deps, 'probe_tool', return_value=probe), patch.object(deps, 'NOTED', []), patch.dict(os.environ, {'SAP_LENS_BUILD_DIAGNOSTICS':'1'}), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = doctor.run_prerequisites(args(check_only=True, json=True), Recorder())
+        report = json.loads(out.getvalue())
+        self.assertEqual(code, 0); self.assertEqual(report['exit_code'], 0)
+        self.assertEqual(report['items'][0]['status'], doctor.WARNING)
+        self.assertIn('non-LTS', err.getvalue()); self.assertIn('[diagnostics]', err.getvalue())
+        self.assertNotIn('Note:', out.getvalue())
+
+    def test_non_lts_node_json_is_consumable_by_a_python_subprocess(self):
+        script = """
+import sys
+from pathlib import Path
+from unittest.mock import patch
+sys.path.insert(0,str(Path.cwd()/'scripts'))
+from build_system import cli,doctor,prerequisites as deps
+probe=deps.ToolProbe('node','ok','synthetic-node','25.8.0',0)
+with patch.object(deps,'probe_tool',return_value=probe), patch.object(deps,'NOTED',[]), patch.object(doctor,'collect',side_effect=lambda *args:[doctor.tool_item('node',True)]):
+    sys.exit(cli.main(['prerequisites','--check-only','--json','--non-interactive']))
+"""
+        done = subprocess.run([sys.executable, '-c', script], cwd=ROOT, stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=30)
+        details = f'Exit code: {done.returncode}\nSTDOUT:\n{done.stdout}\nSTDERR:\n{done.stderr}'
+        self.assertEqual(done.returncode, 0, details)
+        try:
+            report = json.loads(done.stdout)
+        except json.JSONDecodeError as error:
+            error.add_note(details)
+            raise
+        self.assertEqual(report['exit_code'], 0); self.assertIn('non-LTS', done.stderr)
+        self.assertEqual(report['items'][0]['status'], doctor.WARNING)
+
+    def test_json_setup_progress_and_failures_are_separate_from_report(self):
+        for failed in (False, True):
+            out, err = io.StringIO(), io.StringIO()
+            def prepare(*unused, failed=failed):
+                print('Synthetic setup progress')
+                if failed: raise BuildError('Synthetic setup failed', 3)
+                return [doctor.item('synthetic', doctor.READY)]
+            with self.subTest(failed=failed), patch.object(doctor, '_prerequisite_items', side_effect=prepare), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                code = doctor.run_prerequisites(args(json=True), Recorder())
+            report = json.loads(out.getvalue())
+            self.assertEqual(code, 3 if failed else 0); self.assertEqual(report['exit_code'], code)
+            self.assertIn('Synthetic setup progress', err.getvalue())
+            if failed:self.assertIn('Synthetic setup failed', err.getvalue())
+
+    def test_missing_python_still_emits_json_on_stdout(self):
+        out, err = io.StringIO(), io.StringIO()
+        rows = [doctor.item('Python 3.12 x64', doctor.MISSING)]
+        with patch.object(env, 'find_python', return_value=(None, [])), patch.object(doctor, 'collect', return_value=rows), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = doctor.run_prerequisites(args(json=True), Recorder())
+        self.assertEqual(json.loads(out.getvalue())['exit_code'], 3); self.assertEqual(code, 3)
+
+    def test_interpreter_handoff_diagnostic_stays_on_stderr(self):
+        out, err = io.StringIO(), io.StringIO()
+        with patch.object(cli.sys, 'version_info', (3, 13)), patch.dict(os.environ, {'SAP_LENS_REEXEC':''}), patch.object(env, 'find_python', return_value=(info(path='synthetic-python'), [])), patch.object(cli.subprocess, 'call', return_value=0), contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            self.assertEqual(cli.reexec(['quick','--dry-run']), 0)
+        self.assertEqual(out.getvalue(), ''); self.assertIn('Using Python', err.getvalue())
+
+    def test_json_runner_routes_ci_child_stdout_to_stderr(self):
+        from build_system.runner import Runner
+        out, err = io.StringIO(), io.StringIO()
+        with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, {'GITHUB_ACTIONS':'true'}), patch('build_system.runner.subprocess.run', return_value=subprocess.CompletedProcess([], 0)) as child, contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            runner = Runner(Path(temporary)); runner.machine_readable = True
+            runner.run('Synthetic operation', ['synthetic'])
+            self.assertIs(child.call_args.kwargs['stdout'], err)
+            self.assertEqual(child.call_args.kwargs['stdin'], subprocess.DEVNULL)
+        self.assertEqual(out.getvalue(), ''); self.assertIn('Synthetic operation', err.getvalue())
+
+    def test_bootstrap_json_diagnostics_and_native_exit_guards(self):
+        text = (ROOT/'scripts/build.ps1').read_text()
+        self.assertIn('[Console]::Error.WriteLine($Message)', text)
+        self.assertIn('Write-BootstrapFailure', text)
+        self.assertIn('$LASTEXITCODE = 2', text)
+        self.assertIn('$exitCode=$LASTEXITCODE', text)
+        self.assertIn('$script:EngineCompleted', text)
+        self.assertIn('$ErrorActionPreference = $nativePreference', text)
 
 if __name__ == '__main__':
     unittest.main()

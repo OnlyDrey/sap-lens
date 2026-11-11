@@ -1276,3 +1276,90 @@ retain sanitized status/error output. Then, if the required tools are verified,
 run the intended native build. No native corporate-download success, PowerShell
 5.1 execution, Windows cache-lock acceptance or Inno compiler acceptance is
 claimed here. No main/version/CI-trigger/release changes were made.
+
+## Prerequisite JSON stdout contract (Windows Node 25)
+
+Baseline `b351871`, branch `work`. Native Desktop packaging/smoke passed per the
+provided results; Server shared validation failed before service packaging when
+`json.loads(done.stdout)` encountered the Node 25.8.0 non-LTS note. Confirmed
+producer: `prerequisites.inspect_tool()` printed the note to stdout while
+`doctor.collect()` was constructing the JSON report. The supported Node version
+is valid and must remain a visible warning, not become an error or be suppressed.
+
+Audit found related stream risks: optional tool diagnostics, interpreter reexec
+notes, setup/repair/dependency progress, CI child output, the missing-Python
+report path and bootstrap diagnostics. Internal packaging quick JSON is emitted
+without those probes; shared dry-run uses a JSON plan. No versions, prerequisite
+checks, release rules or application/runtime behavior changed.
+
+Fix:
+
+- Node notes and optional probe diagnostics always use stderr. Warning report
+  items remain intact. Interpreter handoff notes use stderr; JSON/non-interactive
+  handoff closes stdin. JSON/dry-run configuration does not prompt.
+- Prerequisite operation work and final report emission are separated: JSON mode
+  redirects Python progress to stderr and emits one final stdout document for
+  check/setup/expected failures. Missing Python still produces exit 3; expected
+  setup errors include structured error information with matching exit codes.
+- JSON-mode Runner labels/tails and CI child stdout use stderr; stdin is closed.
+  Normal human-mode logging behavior stays separate. This prevents dependency
+  setup subprocesses from writing ahead of the report.
+- PowerShell 5.1-compatible bootstrap diagnostics use stderr in machine-readable
+  mode. Pre-engine failures produce an error document. JSON output is buffered
+  only as the success stream, without filtering warning lines or rewriting the
+  producer's JSON. Legitimate native stderr does not force a false failure;
+  the child exit code is preserved, guarded against stale LASTEXITCODE after a
+  launch failure, and ErrorActionPreference is restored. A missing engine report
+  is an explicit failure. Non-interactive mode never asks installation questions.
+- The original failing test now attaches subprocess exit/stdout/stderr to the
+  original JSONDecodeError before reraising; the parser/assertions are preserved.
+
+Coverage: direct Node 25.8.0 + diagnostics JSON parsing; actual Python-subprocess
+CLI parsing with a mocked supported Node version and a real warning on stderr;
+setup success/progress/failure reports; missing Python exit 3; reexec streams;
+CI Runner child streams/closed stdin; bootstrap structural guards. No tool is
+installed by these tests and no warning is suppressed. An initial mock with an
+empty missing-Python collection exposed an exit-code regression in the report
+refactor; the authoritative missing-Python row now preserves exit 3. A test
+closure's late binding was corrected to satisfy Ruff.
+
+Affected validation: five complete prerequisite/build/diagnostic/local-tool/
+Windows-port modules, **207 discovered, 204 executed successfully, 3 PowerShell
+skips**, zero failures (`prerequisites-json-final-targeted.log` / JSON under build/).
+Final closed-stdin/handoff checks reran both affected prerequisite/build modules:
+**91 discovered, 90 passed, 1 PowerShell skip**, zero failures. Scopes overlap.
+Ruff, whitespace, workflow contracts and 62-document internal links passed.
+
+Backend REGRESSION was selected as the relevant integration scope. Browser,
+frontend build, packaging and FULL are intentionally omitted: this change only
+routes build/report streams and does not change application UI/runtime code.
+Windows PowerShell 5.1/7 execution and the real Node 25 Server build remain pending
+on Windows; structural PowerShell checks do not count as native acceptance.
+
+Native Windows follow-up (run PowerShell 5.1 and PowerShell 7 where available):
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_prerequisites --test test_unified_build --jobs 1 --log build/windows-prerequisites-json.log --report build/windows-prerequisites-json.json
+New-Item -ItemType Directory -Force build | Out-Null
+$report = .\scripts\build.ps1 -Mode prerequisites -Platform windows -Target server -CheckOnly -NonInteractive -Json 2> build/prerequisites-json.stderr.log | ConvertFrom-Json
+$checkExit = $LASTEXITCODE
+if ($report.exit_code -ne $checkExit) { throw 'Report/process exit codes disagree.' }
+$report.items | Where-Object status -eq 'Warning'
+Get-Content build/prerequisites-json.stderr.log
+if ($checkExit -ne 0) { throw 'Resolve reported prerequisites before building.' }
+.\scripts\build.ps1 -Mode build -Platform windows -Target server -NonInteractive
+```
+
+Use stdout directly; do not merge stderr into the JSON input. Inspect warning
+items and the separate stderr log. No CI triggers, main/version changes or manual
+workflow dispatches are part of this task.
+
+Final relevant **backend-only REGRESSION passed (1:59, exit 0)**: 1495 discovered,
+**1489 actually passed, zero failed, 6 Windows-only skipped**. The runner displays
+1495 passed because its backend summary includes skipped discoveries. Evidence:
+`build/test-logs/prerequisites-json-regression.log` and matching JSON under
+`build/test-artifacts/` (local generated artifacts). The existing nonfatal unclosed
+file ResourceWarning at `test_validation_entrypoint.py:60` remains unrelated.
+The build static checks above passed separately; no browser, frontend build,
+packaging, FULL or GitHub Actions run is claimed. Changes are limited to build
+stream handling, regression coverage and documentation.

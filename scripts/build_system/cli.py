@@ -88,9 +88,10 @@ def reexec(argv):
     if not found:
         if '--check-only' in argv:return None
         print('Python 3.12 x64 was not found; the default python is never used for SAP Lens builds. Install Python 3.12 (other versions may stay installed), then rerun.',file=sys.stderr)
+        if '--json' in argv:print(json.dumps(dict(ok=False,exit_code=3,items=[],error='Python 3.12 x64 was not found.')))
         return 3
-    print(f"Using Python {found['version']} ({found['path']}) instead of {sys.version.split()[0]}.")
-    return subprocess.call([found['path'],str(Path(__file__).resolve().parents[1]/'build.py'),*argv],env=dict(os.environ,SAP_LENS_REEXEC='1'),stdin=subprocess.DEVNULL if not sys.stdin or not sys.stdin.isatty() else None)
+    print(f"Using Python {found['version']} ({found['path']}) instead of {sys.version.split()[0]}.",file=sys.stderr)
+    return subprocess.call([found['path'],str(Path(__file__).resolve().parents[1]/'build.py'),*argv],env=dict(os.environ,SAP_LENS_REEXEC='1'),stdin=subprocess.DEVNULL if '--json' in argv or '--non-interactive' in argv or not sys.stdin or not sys.stdin.isatty() else None)
 
 def main(argv=None):
     argv=list(sys.argv[1:] if argv is None else argv)
@@ -98,7 +99,7 @@ def main(argv=None):
     if redirected is not None:return redirected
     split=argv.index('--') if '--' in argv else len(argv)
     args=parser().parse_args(argv[:split]);args.tool_args=argv[split+1:]
-    interactive=not args.non_interactive and os.environ.get('GITHUB_ACTIONS')!='true' and sys.stdin.isatty()
+    interactive=not (args.non_interactive or args.json or args.dry_run) and os.environ.get('GITHUB_ACTIONS')!='true' and sys.stdin.isatty()
     runner=Runner(verbose=args.verbose)
     try:
         configure(args,interactive)
@@ -133,4 +134,6 @@ def main(argv=None):
         return 0
     except (BuildError,ValueError,OSError,subprocess.SubprocessError) as error:
         print(str(error),file=sys.stderr)
-        return getattr(error,'code',2)
+        code=getattr(error,'code',2)
+        if args.json:print(json.dumps(dict(ok=False,exit_code=code,items=[],error=str(error))))
+        return code

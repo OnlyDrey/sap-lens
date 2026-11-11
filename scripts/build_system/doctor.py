@@ -1,5 +1,6 @@
 """Prerequisites report, repair and target-specific preflight. Check mode is strictly read-only; nothing here installs a system tool."""
 import json
+from contextlib import nullcontext, redirect_stdout
 import os
 from pathlib import Path
 import platform
@@ -151,16 +152,33 @@ def quarantine(directory):
 
 
 def run_prerequisites(args, runner, root=ROOT):
-    """prerequisites mode: check (read-only), setup (default) or repair. Returns the process exit code."""
+    """Exactly one stdout report in JSON mode; progress and warnings stay on stderr."""
     as_json = getattr(args, 'json', False)
+    runner.machine_readable = as_json
+    try:
+        with redirect_stdout(sys.stderr) if as_json else nullcontext():
+            items = _prerequisite_items(args, runner, root)
+    except (BuildError, ValueError, OSError) as error:
+        if not as_json:
+            raise
+        code = getattr(error, 'code', 2)
+        print(str(error), file=sys.stderr)
+        print(json.dumps(dict(ok=False, exit_code=code, items=[], error=str(error))))
+        return code
+    print(render(items, as_json))
+    return exit_code(items)
+
+
+def _prerequisite_items(args, runner, root=ROOT):
+    """Prepare check/setup/repair report rows; the wrapper owns serialization and exit codes."""
     if args.check_only:
-        items = collect(args, root)
-        print(render(items, as_json))
-        return exit_code(items)
+        return collect(args, root)
     found, rejected = python_env.find_python()
     if not found:
-        print(render(collect(args, root), as_json), file=sys.stderr)
-        return 3
+        # Preserve the authoritative setup failure even if a second scan changes or yields no rows.
+        rows = collect(args, root)
+        return [item('Python 3.12 x64', MISSING, 'not found', PY_HINT),
+                *[row for row in rows if row['name'] != 'Python 3.12 x64']]
     packaging = needs_packaging(args) and args.target in PACKAGING_TARGETS
     for directory in [root / '.venv'] + ([root / 'backend/build/python-env'] if packaging else []):
         state, detail, _ = python_env.inspect_venv(directory)
@@ -175,9 +193,7 @@ def run_prerequisites(args, runner, root=ROOT):
     deps.prepare_environment(root, runner, packaging=False, frontend=True, creator=found['path'])
     if packaging:
         deps.prepare_environment(root, runner, packaging=True, frontend=False, creator=found['path'])
-    items = collect(args, root)
-    print(render(items, as_json))
-    return exit_code(items)
+    return collect(args, root)
 
 
 def preflight(args):

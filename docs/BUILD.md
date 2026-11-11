@@ -785,3 +785,29 @@ execute or allowlist the artifact; investigate the source. Cache permission/disk
 failures: repair only the chosen tool cache. No WDAC, TLS, proxy or endpoint
 controls are bypassed. Native Windows/corporate acquisition must be verified
 separately; mocked network success does not prove access through that network.
+
+### Machine-readable prerequisite reports
+
+`prerequisites --json` (PowerShell `-Json`) writes exactly one JSON report to
+stdout for checks, setup and expected failures. `ok` and `exit_code` match the
+process outcome; warnings remain in report items and human diagnostics go to
+stderr. A supported non-LTS Node version remains a warning, not a failure.
+Interpreter handoff, dependency progress and verbose diagnostics must not prefix
+the document. Machine-readable mode does not prompt; JSON-mode children have
+closed stdin. Dry-run also reserves stdout for its JSON plan.
+
+Consume stdout directly; do **not** merge stderr with `2>&1` before parsing:
+
+```powershell
+New-Item -ItemType Directory -Force build | Out-Null
+$report = .\scripts\build.ps1 -Mode prerequisites -Platform windows -Target server -CheckOnly -NonInteractive -Json 2> build/prerequisites-json.stderr.log | ConvertFrom-Json
+if ($report.exit_code -ne $LASTEXITCODE) { throw 'Report/process exit codes disagree.' }
+$report.items | Where-Object status -eq 'Warning'
+```
+
+Windows PowerShell 5.1 and PowerShell 7 use the same interface. Native stderr
+warnings do not override the child's exit code; bootstrap failures before Python
+starts produce an error report instead. Invalid CLI syntax/help remains ordinary
+CLI usage output, not a successful prerequisite report. Linux/Python consumers
+can use `subprocess.run(..., capture_output=True)` and `json.loads(done.stdout)`
+without filtering lines; preserve `done.stderr` and the exit code for diagnostics.

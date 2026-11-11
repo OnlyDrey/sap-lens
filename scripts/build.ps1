@@ -108,17 +108,27 @@ function Find-BuildPython {
     return $null
 }
 
+$script:EngineCompleted = $false
+$script:BootstrapDetail = 'Bootstrap failed before the build engine started.'
+function Write-BootstrapMessage([string]$Message) {
+    $script:BootstrapDetail = $Message
+    if ($Json -or $DryRun) { [Console]::Error.WriteLine($Message) } else { Write-Host $Message }
+}
+function Write-BootstrapFailure([int]$Code) {
+    if ($Json) { Write-Output (@{ ok=$false; exit_code=$Code; items=@(); error=$script:BootstrapDetail } | ConvertTo-Json -Depth 4) }
+}
+
 function Write-PythonDiscovery {
-    Write-Host 'Python discovery:'
-    if (-not $script:PythonDiagnostics -or $script:PythonDiagnostics.Count -eq 0) { Write-Host '  No Python interpreter was found (checked the project .venv, the Python launcher, PATH and registered installations).'; return }
+    Write-BootstrapMessage 'Python discovery:'
+    if (-not $script:PythonDiagnostics -or $script:PythonDiagnostics.Count -eq 0) { Write-BootstrapMessage '  No Python interpreter was found (checked the project .venv, the Python launcher, PATH and registered installations).'; return }
     foreach ($row in $script:PythonDiagnostics) {
         $shown = if ($row.Version) { "$($row.Version), $($row.Bits)-bit" } else { 'not inspected' }
-        Write-Host ("  {0}: {1}`n    {2} -> {3}" -f $row.Source, $row.Path, $shown, $row.Result)
+        Write-BootstrapMessage ("  {0}: {1}`n    {2} -> {3}" -f $row.Source, $row.Path, $shown, $row.Result)
     }
 }
-if ($env:OS -ne 'Windows_NT') { Write-Host 'Use python3.12 scripts/build.py on Linux. This bootstrapper supports Windows x64.'; exit 2 }
-if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { Write-Host 'Use x64 PowerShell on Windows x64; ARM/32-bit build hosts are not supported.'; exit 2 }
-$nonInteractiveRun=$NonInteractive -or $env:GITHUB_ACTIONS -eq 'true'
+if ($env:OS -ne 'Windows_NT') { Write-BootstrapMessage 'Use python3.12 scripts/build.py on Linux. This bootstrapper supports Windows x64.'; Write-BootstrapFailure 2; exit 2 }
+if ($env:PROCESSOR_ARCHITECTURE -ne 'AMD64') { Write-BootstrapMessage 'Use x64 PowerShell on Windows x64; ARM/32-bit build hosts are not supported.'; Write-BootstrapFailure 2; exit 2 }
+$nonInteractiveRun=$NonInteractive -or $Json -or $DryRun -or $env:GITHUB_ACTIONS -eq 'true'
 try { $nonInteractiveRun=$nonInteractiveRun -or [Console]::IsInputRedirected } catch { $nonInteractiveRun=$true }
 $originalEncoding=[Console]::OutputEncoding
 $originalOutputEncoding=$OutputEncoding
@@ -131,16 +141,16 @@ try {
     $python=Find-BuildPython
     if (-not $python) {
         Write-PythonDiscovery
-        if ($Help) { Write-Host 'SAP Lens: .\scripts\build.ps1 -Mode quick|test|build|package|release|clean [-Platform windows|linux|docker] [-Target desktop|installer|service|server|all]. Install Python 3.12 x64 or opt in with -InstallSystem.'; exit 0 }
-        if ($SkipSetup -or $DryRun) { Write-Host 'Python 3.12 x64 is missing. Install it through approved tools; skip-setup/dry-run will not install it.'; exit 3 }
+        if ($Help) { Write-BootstrapMessage 'SAP Lens: .\scripts\build.ps1 -Mode quick|test|build|package|release|clean [-Platform windows|linux|docker] [-Target desktop|installer|service|server|all]. Install Python 3.12 x64 or opt in with -InstallSystem.'; exit 0 }
+        if ($SkipSetup -or $DryRun) { Write-BootstrapMessage 'Python 3.12 x64 is missing. Install it through approved tools; skip-setup/dry-run will not install it.'; Write-BootstrapFailure 3; exit 3 }
         $consent=[bool]$InstallSystem
         if (-not $consent -and -not $nonInteractiveRun) { $consent=(Read-Host 'Python 3.12 x64 is required. Install for this user using winget? [y/N]') -match '^(?i:y|yes)$' }
-        if (-not $consent) { Write-Host 'Python setup declined/not authorized. Install Python 3.12 x64 and reopen PowerShell, or explicitly use -InstallSystem.'; exit 3 }
-        if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Write-Host 'winget is unavailable. Use the approved Python 3.12 x64 installer from python.org, then reopen PowerShell. No software was installed.'; exit 3 }
-        & winget install --id Python.Python.3.12 --exact --source winget --scope user --architecture x64 --accept-source-agreements --accept-package-agreements --disable-interactivity
+        if (-not $consent) { Write-BootstrapMessage 'Python setup declined/not authorized. Install Python 3.12 x64 and reopen PowerShell, or explicitly use -InstallSystem.'; Write-BootstrapFailure 3; exit 3 }
+        if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Write-BootstrapMessage 'winget is unavailable. Use the approved Python 3.12 x64 installer from python.org, then reopen PowerShell. No software was installed.'; Write-BootstrapFailure 3; exit 3 }
+        & winget install --id Python.Python.3.12 --exact --source winget --scope user --architecture x64 --accept-source-agreements --accept-package-agreements --disable-interactivity | ForEach-Object { if ($Json) { [Console]::Error.WriteLine([string]$_) } else { Write-Output $_ } }
         if ($LASTEXITCODE -ne 0) { $exitCode=$LASTEXITCODE; throw 'Python installation failed. Review winget/permission/network diagnostics; no elevated fallback is attempted.' }
         $python=Find-BuildPython
-        if (-not $python) { Write-Host 'Installation returned success, but compatible Python was not found. Reopen PowerShell or repair Python 3.12 x64.'; exit 3 }
+        if (-not $python) { Write-BootstrapMessage 'Installation returned success, but compatible Python was not found. Reopen PowerShell or repair Python 3.12 x64.'; Write-BootstrapFailure 3; exit 3 }
     }
     $arguments=@((Join-Path $PSScriptRoot 'build.py'))
     if ($Mode) { $arguments+=$Mode.ToLowerInvariant() }
@@ -150,11 +160,31 @@ try {
     foreach ($pair in @(@('--setup',$Setup),@('--setup-only',$SetupOnly),@('--check-only',$CheckOnly),@('--repair',$Repair),@('--json',$Json),@('--skip-setup',$SkipSetup),@('--install-system',$InstallSystem),@('--non-interactive',$nonInteractiveRun),@('--dry-run',$DryRun),@('--confirm-clean',$ConfirmClean),@('--no-cache',$NoCache),@('--native-acceptance',$NativeAcceptance),@('--verbose',[bool]$PSBoundParameters['Verbose']),@('--help',$Help))) {
         if ($pair[1]) { $arguments+=$pair[0] }
     }
-    & $python @arguments
-    $exitCode=$LASTEXITCODE
-} catch { Write-Host $_.Exception.Message -ForegroundColor Red } finally {
+    $nativePreference = $ErrorActionPreference
+    try {
+        # Native stderr carries legitimate warnings in JSON mode; the exit code, not stderr presence, is authoritative.
+        $ErrorActionPreference = 'Continue'
+        $LASTEXITCODE = 2
+        if ($Json) {
+            $engineJson = @(& $python @arguments)
+            $exitCode=$LASTEXITCODE
+            if ($engineJson.Count) {
+                $engineJson | Write-Output
+                $script:EngineCompleted = $true
+            } else {
+                Write-BootstrapMessage 'Build engine returned no JSON report. Review stderr diagnostics.'
+                if ($exitCode -eq 0) { $exitCode = 2 }
+            }
+        } else {
+            & $python @arguments
+            $exitCode=$LASTEXITCODE
+            $script:EngineCompleted = $true
+        }
+    } finally { $ErrorActionPreference = $nativePreference }
+} catch { Write-BootstrapMessage $_.Exception.Message } finally {
     [Console]::OutputEncoding=$originalEncoding
     $OutputEncoding=$originalOutputEncoding
     $env:PYTHONUTF8=$originalUtf8
 }
+if (-not $script:EngineCompleted) { Write-BootstrapFailure $exitCode }
 exit $exitCode
