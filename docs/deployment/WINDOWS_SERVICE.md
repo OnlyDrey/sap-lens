@@ -132,7 +132,7 @@ as executed results.
 Use the [central build guide](../BUILD.md#commands):
 `scripts/build.ps1 -Mode package -Platform windows -Target service` (or target `all` for
 installer/desktop plus service). Version resolution is automatic; deployment
-archives default to `dist/<version>/`. WinSW is acquired and SHA-256 checked;
+archives default to `dist/<version>-<commit12>/`. WinSW is acquired and SHA-256 checked;
 internal offline `-WinSW` overrides are still checked. Packaging does not install
 SCM; actual service installation/lifecycle acceptance needs Windows administration.
 
@@ -307,3 +307,61 @@ The Service Manager offers three explicit modes (default: HTTPS with a generated
 The access URLs shown by the Service Manager use the configured scheme. A failed registration now reports the validation step and the underlying error, for example `Invalid server configuration at step "TLS certificate names (SAN)": The TLS certificate SANs do not cover: 127.0.0.1. Present: DNS=localhost.` The steps are listen address, port, data and source directories, public origin, allowed hosts, authentication boundary, TLS certificate and key files, TLS certificate and private key (load and match), TLS certificate decoding, TLS certificate validity period, TLS certificate names (SAN) and account file. The same check can be run by hand with `SAP-Lens.exe --check-server-config` (with the service environment).
 
 The command-line `manage-server-service.ps1` keeps its stricter rule: network public origins require HTTPS there; HTTP on the network is a Service Manager decision with acknowledgement.
+
+## Isolated native SCM acceptance
+
+Run from the repository in an elevated PowerShell, with no existing `SAPLens`
+service. Use a trusted, package-verified service bundle. Both inputs are supported:
+
+```powershell
+.\scripts\test-server-service.ps1 -Bundle 'C:\Builds\verified-service-bundle'
+.\scripts\test-server-service.ps1 -Bundle 'C:\Builds\verified-service-package.zip'
+```
+
+The test copies directory input or safely extracts ZIP input into a unique
+`sap-lens-scm-<GUID>` workspace under RUNNER_TEMP/the user's temporary directory.
+It rejects links, junctions/reparse points, traversal/ADS/reserved ZIP names,
+duplicate entries and oversized archives before installation. ZIP origin-zone
+metadata is propagated to extracted files; extraction does not unblock code. Required files,
+the verification report and its file hashes are checked before SCM operations.
+Expected runtime version comes from that package's identity, not a previous
+checkout's generated build metadata. An unsigned archive is not automatically
+trusted merely because its internal hashes agree; verify artifact provenance.
+
+All mutable configuration, data, backups, restore targets, replacement bundles
+and upgrade copies stay inside this workspace. Production backup ACLs remain
+unchanged. The workspace is restricted to its creator and SYSTEM, with a bound
+ownership marker. There is no new SYSTEM endpoint, scheduled task, service
+cleanup command or production purge option. Production purge deliberately
+preserves backups and is not used as a substitute for test cleanup.
+
+After verifying that the test-owned service is removed, cleanup validates the
+workspace marker, canonical boundary and reparse-free tree. If SYSTEM-only ACLs
+block enumeration/deletion, it takes ownership of that single validated test
+entry and grants FullControl only to the invoking SID using literal paths.
+There is no recursive takeown/icacls, no Everyone/Users/Authenticated Users
+grant, and no privilege operation outside the marked workspace. The full tree
+is checked before deletion; directories are removed non-recursively. Original
+acceptance errors remain primary if cleanup also fails, and both are reported.
+A service not owned by the test, remaining registration, ACL error or locked
+file causes nonzero failure and retention of the workspace for investigation.
+Do not manually run recursive ownership commands against production directories.
+
+ServiceController/CIM handles are disposed. The test refuses existing services
+and checks the SCM binary path before uninstalling a partially installed service.
+A passing report is written only after service removal **and cleanup** succeed.
+Directory input updates `verification-report.json`; ZIP input remains unchanged
+and gets a `<zip>.scm-verification.json` sidecar. Failed cleanup never marks the
+report passed. Reboot, recovery and UNC scenarios remain separate acceptance.
+
+Native release-gate checks are still required; Linux structural tests cannot
+prove SYSTEM-owned cleanup or SCM behavior. Run the helper tests and parser on
+Windows PowerShell 5.1 and PowerShell 7 where available:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_windows_acceptance_split --test test_local_deployments --test test_prerequisites --test test_unified_build --jobs 1 --log build/windows-scm-build.log --report build/windows-scm-build.json
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+```
+
+The protected-ACL fixture requires elevation; other helper tests never install
+a service. The real SCM command above installs a service and requires elevation.

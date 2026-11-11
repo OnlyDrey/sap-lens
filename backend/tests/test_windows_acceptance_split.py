@@ -1,6 +1,11 @@
 """Windows packaging is separate from the privileged native service (SCM) acceptance: orchestration, manifest and prerequisite contracts.
 Static and orchestration evidence only; the native acceptance itself is reported separately."""
 import hashlib
+import base64
+import os
+import shutil
+import subprocess
+import zipfile
 import importlib.util
 import json
 from pathlib import Path
@@ -100,3 +105,145 @@ class EntrypointContracts(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ScmCleanupContracts(unittest.TestCase):
+    def setUp(self):
+        self.main=(ROOT/'scripts/test-server-service.ps1').read_text()
+        self.helper=(ROOT/'scripts/testing/windows-scm-test-helpers.ps1').read_text()
+
+    def test_cleanup_scope_ownership_and_reparse_checks_precede_privilege(self):
+        for token in ('sap-lens-scm-', '.scm-test-owner.json', '$saved.Token -ne $Workspace.Token', '$saved.Sid -ne $Workspace.Sid', 'Path is outside the SCM test workspace', 'ReparsePoint'):
+            self.assertIn(token,self.helper)
+        grant=self.helper[self.helper.index('function Grant-ScmTestEntry'):self.helper.index('function Remove-ScmWorkspace')]
+        self.assertLess(grant.index('Assert-ScmTestPath'),grant.index('takeown.exe'))
+        self.assertLess(grant.index('Assert-NoReparse'),grant.index('takeown.exe'))
+        for command in grant.splitlines():
+            if command.lstrip().startswith('& '):
+                self.assertNotIn('/R',command);self.assertNotIn('/T',command)
+        for sid in ('S-1-1-0','S-1-5-11','S-1-5-32-545'):
+            self.assertNotIn(sid,self.helper)
+        self.assertIn("/grant:r ('*'+$Workspace.Sid+':F') /L",grant)
+        self.assertIn('[IO.Directory]::Delete($path,$false)',self.helper)
+
+    def test_finally_preserves_primary_error_and_requires_owned_service_removal(self):
+        self.assertIn('$primary=$_.Exception',self.main)
+        self.assertIn('New-Object System.Exception($detail,$primary)',self.main)
+        self.assertIn('Cleanup failure(s)',self.main)
+        self.assertIn('Refusing to change an unrelated SAPLens service',self.main)
+        self.assertIn('$service.PathName.Trim().Trim',self.main)
+        self.assertIn('$service.Dispose()',self.main)
+        self.assertIn('if ($safeToRemove)',self.main)
+        self.assertLess(self.main.index('Remove-ScmWorkspace $workspace'),self.main.index("$report.native_service_smoke='passed"))
+        self.assertIn('$global:LASTEXITCODE=1',self.main)
+        self.assertTrue(self.main.rstrip().endswith('exit 0'))
+
+    def test_bundle_input_is_validated_and_copied_before_install(self):
+        self.assertLess(self.main.index('Copy-ScmBundle'),self.main.index('-Action Install'))
+        for token in ("$source.Extension -ieq '.zip'", 'Get-SafeScmZipPath', 'Duplicate or linked ZIP entry', '2147483648', 'ExtractToFile($entry,$target)', 'manage-server-service.ps1','app/SAP-Lens.exe'):
+            self.assertIn(token,self.helper)
+        self.assertIn("@('.','..')",self.helper)
+        self.assertIn("$name.Contains(':')",self.helper)
+        self.assertIn("$entry.Name -ne 'SAPLensService.xml'",self.helper)
+        self.assertNotIn('Remove-Item $data -Recurse',self.main)
+        self.assertIn("$inputBundle+'.scm-verification.json'",self.main)
+        self.assertIn("WriteAllBytes($target+':Zone.Identifier',$zone)",self.helper)
+        self.assertNotIn('Unblock-File',self.helper)
+
+
+SHELLS = [path for path in (shutil.which('powershell'), shutil.which('pwsh')) if path]
+
+
+@unittest.skipUnless(os.name == 'nt' and SHELLS, 'Native Windows PowerShell 5.1/7 is required')
+class NativeSafeScmHelpers(unittest.TestCase):
+    def invoke(self, body, directory, shell):
+        helper=str(ROOT/'scripts/testing/windows-scm-test-helpers.ps1').replace("'", "''")
+        parent=str(directory).replace("'", "''")
+        source=f". '{helper}'\n$workspace=New-ScmWorkspace '{parent}'\n" + 'try {\n' + body + "\n} finally { if (Test-Path -LiteralPath $workspace.Root) { Remove-ScmWorkspace $workspace } }"
+        encoded=base64.b64encode(source.encode('utf-16-le')).decode()
+        done=subprocess.run([shell,'-NoProfile','-NonInteractive','-EncodedCommand',encoded],capture_output=True,text=True,timeout=60)
+        self.assertEqual(done.returncode,0,done.stdout+done.stderr)
+
+    def test_owned_cleanup_and_outside_path_rejection(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$folder=Join-Path $workspace.Root 'data'
+New-Item -ItemType Directory -Path $folder | Out-Null
+[IO.File]::WriteAllText((Join-Path $folder 'synthetic.txt'),'synthetic')
+$rejected=$false
+try { $null=Assert-ScmTestPath $workspace (Join-Path $workspace.Parent 'outside') } catch { $rejected=$true }
+if (-not $rejected) { throw 'Outside path was not rejected.' }
+Remove-ScmWorkspace $workspace
+if (Test-Path -LiteralPath $workspace.Root) { throw 'Workspace remains.' }
+""", parent, shell)
+
+    def test_zip_and_directory_inputs_and_traversal_rejection(self):
+        for shell in SHELLS:
+            for zipped, unsafe in ((False,False),(True,False),(True,True)):
+                with self.subTest(shell=shell,zipped=zipped,unsafe=unsafe), tempfile.TemporaryDirectory() as parent:
+                    source=Path(parent)/'input'; (source/'app').mkdir(parents=True)
+                    for name in ('manage-server-service.ps1','SAPLensService.exe','app/SAP-Lens.exe','verification-report.json'):
+                        (source/name).write_text('synthetic')
+                    bundle=source
+                    if zipped:
+                        bundle=Path(parent)/'input.zip'
+                        with zipfile.ZipFile(bundle,'w') as archive:
+                            for file in source.rglob('*'):
+                                if file.is_file(): archive.write(file,file.relative_to(source).as_posix())
+                            if unsafe: archive.writestr('../outside.txt','must never escape')
+                    escaped=str(bundle).replace("'", "''")
+                    if unsafe:
+                        body=f"$rejected=$false; try {{ Copy-ScmBundle '{escaped}' $workspace }} catch {{ $rejected=$true }}; if (-not $rejected) {{ throw 'Unsafe ZIP accepted.' }}"
+                    else:
+                        body=f"$copy=Copy-ScmBundle '{escaped}' $workspace; if (-not (Test-Path -LiteralPath (Join-Path $copy 'manage-server-service.ps1'))) {{ throw 'Bundle missing.' }}"
+                    self.invoke(body,parent,shell)
+                    self.assertFalse((Path(parent)/'outside.txt').exists())
+
+    def test_bootstrap_success_failure_help_and_stale_caller_exit(self):
+        script=str(ROOT/'scripts/build.ps1')
+        for shell in SHELLS:
+            for arguments, code in ((['-Help'],0),(['-Mode','quick','-DryRun','-NonInteractive'],0),(['-Mode','invalid','-NonInteractive'],2)):
+                with self.subTest(shell=shell,arguments=arguments):
+                    done=subprocess.run([shell,'-NoProfile','-NonInteractive','-File',script,*arguments],capture_output=True,text=True,timeout=60)
+                    self.assertEqual(done.returncode,code,done.stdout+done.stderr)
+            escaped=script.replace("'", "''")
+            command=f"$global:LASTEXITCODE=77; & '{escaped}' -Mode quick -DryRun -NonInteractive; if ($global:LASTEXITCODE -ne 0) {{ throw 'Stale caller exit code.' }}"
+            done=subprocess.run([shell,'-NoProfile','-NonInteractive','-Command',command],capture_output=True,text=True,timeout=60)
+            self.assertEqual(done.returncode,0,done.stdout+done.stderr)
+
+    def test_junction_is_rejected_without_changing_its_target(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$outside=Join-Path $workspace.Parent 'outside'
+New-Item -ItemType Directory -Path $outside | Out-Null
+[IO.File]::WriteAllText((Join-Path $outside 'sentinel.txt'),'keep')
+$link=Join-Path $workspace.Root 'link'
+New-Item -ItemType Junction -Path $link -Value $outside | Out-Null
+try {
+    $rejected=$false
+    try { Remove-ScmWorkspace $workspace } catch { $rejected=$true }
+    if (-not $rejected -or -not (Test-Path -LiteralPath (Join-Path $outside 'sentinel.txt'))) { throw 'Junction boundary failed.' }
+} finally { [IO.Directory]::Delete($link,$false) }
+""",parent,shell)
+
+    def test_system_only_test_directory_cleanup_when_elevated(self):
+        import ctypes
+        if not ctypes.windll.shell32.IsUserAnAdmin(): self.skipTest('Elevated Windows is required for SYSTEM-owner ACL fixture')
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$folder=Join-Path $workspace.Root 'system-only'
+New-Item -ItemType Directory -Path $folder | Out-Null
+[IO.File]::WriteAllText((Join-Path $folder 'synthetic.txt'),'synthetic')
+$acl=New-Object Security.AccessControl.DirectorySecurity
+$acl.SetAccessRuleProtection($true,$false)
+$system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
+$acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($system,'FullControl','ContainerInherit,ObjectInherit','None','Allow')))
+Set-Acl -LiteralPath $folder -AclObject $acl
+& (Join-Path $env:SystemRoot 'System32/icacls.exe') $folder /setowner '*S-1-5-18' /L /Q | Out-Null
+if ($LASTEXITCODE -ne 0) { throw 'SYSTEM-owner fixture setup failed.' }
+Remove-ScmWorkspace $workspace
+if (Test-Path -LiteralPath $workspace.Root) { throw 'Protected workspace remains.' }
+""",parent,shell)

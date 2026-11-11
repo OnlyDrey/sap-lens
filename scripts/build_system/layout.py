@@ -14,8 +14,8 @@ OUTPUTS = {
     'server': ('dist/server', 'Windows service distributions (build-server-windows.ps1)'),
     'publication': ('dist/publication', 'same-run artifacts collected for the guarded release job; never written by local builds'),
 }
-#: Per-version output of build-deployments.py (dist/<version>/) and the cleanup coordination file.
-VERSIONED_PATTERN = 'dist/<version>/'
+#: Per-version output of build-deployments.py (dist/<version>-<commit12>/) and the cleanup coordination file.
+VERSIONED_PATTERN = 'dist/<version>-<commit12>/'
 CLEAN_LOCK = ARTIFACT_ROOT / '.sap-lens-clean.lock'
 
 #: Generated, safe-to-delete locations the clean command may remove (never user data, sources or databases).

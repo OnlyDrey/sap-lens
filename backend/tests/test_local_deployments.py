@@ -174,3 +174,37 @@ class LocalDeploymentReceiptTests(unittest.TestCase):
         timing.write_text('\n'.join(map(json.dumps,data)))
         (self.root/'frontend/dist/private.csv').write_text('private')
         with self.assertRaises(ValueError):pkg.record_local()
+
+
+class SourceOutputIsolation(unittest.TestCase):
+    def test_default_names_include_source_and_keep_product_version(self):
+        one=builder.output_name('1.0.0-beta.2','a'*40)
+        two=builder.output_name('1.0.0-beta.2','b'*40)
+        self.assertNotEqual(one,two)
+        self.assertEqual(one,'1.0.0-beta.2-'+'a'*12)
+        source=(ROOT/'scripts/deployment/build-deployments.py').read_text()
+        self.assertIn("args.output_dir or ROOT / 'dist' / output_name(args.version, self.source)",source)
+        self.assertIn("'/dist/' + output_name(self.args.version, self.source)",source)
+        self.assertIn("value.get('source_commit') != self.source",source)
+        self.assertIn('Nothing was overwritten',source)
+
+    def test_defaults_separate_commits_and_explicit_output_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary)
+            args=SimpleNamespace(version='1.0.0-beta.2',output_dir=None,invocation='d'*32)
+            with patch.object(builder,'ROOT',root), patch.object(builder.subprocess,'run',return_value=SimpleNamespace(returncode=0)), patch.object(builder,'checkout',return_value='a'*40):
+                one=builder.Builder(args)
+            (one.output/'sentinel').write_text('keep')
+            with patch.object(builder,'ROOT',root), patch.object(builder.subprocess,'run',return_value=SimpleNamespace(returncode=0)), patch.object(builder,'checkout',return_value='b'*40):
+                two=builder.Builder(args)
+            self.assertNotEqual(one.output,two.output)
+            self.assertEqual((one.output/'sentinel').read_text(),'keep')
+            args.output_dir=root/'explicit'
+            with patch.object(builder,'ROOT',root), patch.object(builder.subprocess,'run',return_value=SimpleNamespace(returncode=0)), patch.object(builder,'checkout',return_value='b'*40):
+                explicit=builder.Builder(args)
+            self.assertEqual(explicit.output,args.output_dir)
+            pkg.write(explicit.output/'build-manifest.json',dict(version=args.version,source_commit='a'*40,targets={}))
+            before=(explicit.output/'build-manifest.json').read_bytes()
+            with patch.object(builder,'ROOT',root), patch.object(builder.subprocess,'run',return_value=SimpleNamespace(returncode=0)), patch.object(builder,'checkout',return_value='b'*40):
+                with self.assertRaisesRegex(ValueError,'Nothing was overwritten'): builder.Builder(args)
+            self.assertEqual((explicit.output/'build-manifest.json').read_bytes(),before)

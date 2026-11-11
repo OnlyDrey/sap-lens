@@ -148,7 +148,7 @@ try {
         if (-not $consent) { Write-BootstrapMessage 'Python setup declined/not authorized. Install Python 3.12 x64 and reopen PowerShell, or explicitly use -InstallSystem.'; Write-BootstrapFailure 3; exit 3 }
         if (-not (Get-Command winget -ErrorAction SilentlyContinue)) { Write-BootstrapMessage 'winget is unavailable. Use the approved Python 3.12 x64 installer from python.org, then reopen PowerShell. No software was installed.'; Write-BootstrapFailure 3; exit 3 }
         & winget install --id Python.Python.3.12 --exact --source winget --scope user --architecture x64 --accept-source-agreements --accept-package-agreements --disable-interactivity | ForEach-Object { if ($Json) { [Console]::Error.WriteLine([string]$_) } else { Write-Output $_ } }
-        if ($LASTEXITCODE -ne 0) { $exitCode=$LASTEXITCODE; throw 'Python installation failed. Review winget/permission/network diagnostics; no elevated fallback is attempted.' }
+        if ($LASTEXITCODE -ne 0) { $exitCode=$global:LASTEXITCODE; throw 'Python installation failed. Review winget/permission/network diagnostics; no elevated fallback is attempted.' }
         $python=Find-BuildPython
         if (-not $python) { Write-BootstrapMessage 'Installation returned success, but compatible Python was not found. Reopen PowerShell or repair Python 3.12 x64.'; Write-BootstrapFailure 3; exit 3 }
     }
@@ -164,10 +164,10 @@ try {
     try {
         # Native stderr carries legitimate warnings in JSON mode; the exit code, not stderr presence, is authoritative.
         $ErrorActionPreference = 'Continue'
-        $LASTEXITCODE = 2
+        $global:LASTEXITCODE = 2
         if ($Json) {
             $engineJson = @(& $python @arguments)
-            $exitCode=$LASTEXITCODE
+            $exitCode=$global:LASTEXITCODE
             if ($engineJson.Count) {
                 $engineJson | Write-Output
                 $script:EngineCompleted = $true
@@ -177,11 +177,11 @@ try {
             }
         } else {
             & $python @arguments
-            $exitCode=$LASTEXITCODE
+            $exitCode=$global:LASTEXITCODE
             $script:EngineCompleted = $true
         }
     } finally { $ErrorActionPreference = $nativePreference }
-} catch { Write-BootstrapMessage $_.Exception.Message } finally {
+} catch { if ($exitCode -eq 0) { $exitCode=2 }; Write-BootstrapMessage $_.Exception.Message } finally {
     [Console]::OutputEncoding=$originalEncoding
     $OutputEncoding=$originalOutputEncoding
     $env:PYTHONUTF8=$originalUtf8

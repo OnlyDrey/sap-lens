@@ -187,7 +187,7 @@ class PythonDiscoveryContractTests(unittest.TestCase):
         text=_bootstrapper()
         for forwarded in ("@('--platform',$Platform)","@('--version',$Version)","@('--target',$Target)","@('--non-interactive',$nonInteractiveRun)","@('--help',$Help)","@('--verbose',[bool]$PSBoundParameters['Verbose'])"):
             self.assertIn(forwarded,text)
-        self.assertIn('$exitCode=$LASTEXITCODE',text);self.assertTrue(text.rstrip().endswith('exit $exitCode'))
+        self.assertIn('$exitCode=$global:LASTEXITCODE',text);self.assertTrue(text.rstrip().endswith('exit $exitCode'))
         self.assertNotIn('$arguments+=$pair[0]-replace',text)
 
     def test_classification_rules_match_the_requirements(self):

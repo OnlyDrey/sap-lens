@@ -1363,3 +1363,112 @@ file ResourceWarning at `test_validation_entrypoint.py:60` remains unrelated.
 The build static checks above passed separately; no browser, frontend build,
 packaging, FULL or GitHub Actions run is claimed. Changes are limited to build
 stream handling, regression coverage and documentation.
+
+## Windows SCM acceptance isolation, outputs and exit status
+
+Baseline `e1c1329`, branch `work`. Provided native evidence: Desktop build/smoke
+passed on b351871; Service package built/verified on e1c1329, and SCM install,
+start, stop, backup, restore and uninstall ran successfully before cleanup failed.
+These are supplied historical results, not new native execution by this task.
+
+Confirmed cleanup cause: private backup directories intentionally have a
+SYSTEM-only DACL/owner. An elevated administrator does not automatically have
+list/delete access. The old acceptance finally used recursive Remove-Item,
+which crossed those protected entries, and recorded native success before its
+cleanup completed. Production purge preserves backups and is not a suitable
+SYSTEM-context test cleanup mechanism. No new SYSTEM task/endpoint was added.
+
+Implementation:
+
+- Test-only `testing/windows-scm-test-helpers.ps1` creates a unique private Temp/
+  RUNNER_TEMP root with creator/SYSTEM access and an in-memory/marker-bound token,
+  canonical parent/path and caller SID. All mutable copies, data, sources/logs,
+  backups, restore/config targets and upgrade copies are children of this root.
+- Cleanup is allowed only after verifying removal of the service whose SCM binary
+  path belongs to the isolated bundle. Controller/CIM handles are disposed; an
+  unexpected service or incomplete removal retains the workspace, never changes
+  an unrelated registration or deletes live application files.
+- Root/path/marker/caller/reparse checks precede privileged operations. The tree
+  is inspected before deletion. Only when access fails, non-recursive takeown
+  recovers that exact test entry and icacls grants FullControl only to the creator
+  SID (/L, no /T or /R). No Everyone/Users/Authenticated Users grant, no production
+  ACL change. Files/directories are deleted without privileged recursive traversal;
+  directory deletion is explicitly non-recursive. Cleanup errors remain nonzero;
+  primary errors are retained as inner exceptions and reported with cleanup errors.
+- Both directory and ZIP inputs are copied/extracted into the private workspace.
+  Required bundle files and the verified report/file hashes are checked before
+  service operations. ZIP validation rejects traversal, drive/ADS/reserved names,
+  duplicate names, links/reparse metadata, excessive entries and size. Only then
+  does extraction occur, without overwriting. ZIP origin-zone metadata is carried
+  to extracted files; code is not implicitly unblocked. Use trusted verified
+  packages: self-consistent unsigned metadata alone does not establish provenance.
+- Runtime version is checked against the selected package identity, removing the
+  unrelated previous local build-metadata dependency. Directory input receives
+  its updated report only after cleanup; ZIP input remains unchanged and receives
+  a .scm-verification.json sidecar. No failed cleanup is marked passed.
+
+Output collision cause: cross-platform local default folders used only product
+version while manifests correctly refused a different source SHA. Defaults now
+use dist/<version>-<first12SHA>; remote collection uses the same rule. Product and
+artifact versions/names are unchanged. Full-SHA manifest checks still guard even
+prefix collisions. Explicit output is honored exactly; existing folders and
+manifests are not removed. Legacy portable Desktop already has local identity/
+run-specific output and retains its layout. Tests instantiate builders for two
+sources, preserve an earlier sentinel, honor explicit output and reject a stale
+manifest without modifying it.
+
+Exit handling: the bootstrap's script-scoped LASTEXITCODE sentinel could shadow
+the global native value. Sentinel/read operations now consistently address the
+global variable; exceptions after a successful child force nonzero status.
+Acceptance also starts/fails with nonzero status and explicitly exits zero only
+after report writing and cleanup. Exact external -Help exit 1 was not reproduced
+without native PowerShell; it remains a Windows follow-up, not assumed harmless.
+Native tests exercise help, dry-run success, invalid arguments and stale caller
+status on each installed PowerShell 5.1/7 host.
+
+Validation: eight complete acceptance/deployment/prerequisite/build/port/contract/
+packaging/layout modules, **173 discovered, 166 passed, zero failed, 7 native/
+PowerShell skips** (`scm-build-ready.log` and matching JSON in build/). Focused
+helper-contract reruns passed after final compatibility/origin-metadata guards:
+15 discovered, 10 executed successfully, 5 Windows-only skips; scopes overlap.
+The strict old exit-code source assertion was updated to the intentional global
+form rather than removed. Native tests cover ordinary workspace removal, outside
+paths, valid directory/ZIP, traversal, junction targets, SYSTEM-owner/DACL cleanup
+(elevated) and bootstrap outcomes. These were not executable on this Linux host.
+The System ACL test touches only a uniquely created marked test subtree.
+
+Relevant **backend-only REGRESSION passed in 2:00, exit 0**: 1503 discovered,
+**1492 actually passed, zero failed, 11 Windows-only skips**. The runner displays
+1503 passed because its backend summary includes skipped discoveries. Evidence:
+`build/test-logs/scm-build-regression.log` and matching JSON under build/test-artifacts/.
+The final test-helper-only refinements were covered by the focused contracts;
+no application runtime/frontend code changed. Ruff, workflow contracts, whitespace
+and 62-document links passed. The pre-existing unclosed-file ResourceWarning at
+`test_validation_entrypoint.py:60` remains unrelated. Browser/frontend builds,
+FULL, packaging and live SCM/PowerShell execution were intentionally not repeated.
+
+Native commands (replace example artifact paths with the build's actual output):
+
+```powershell
+# Standard build shell; no service installed by ordinary packaging.
+.\scripts\build.ps1 -Mode build -Platform windows -Target server -NonInteractive
+# Elevated shell: parse/test first, then reuse the verified service ZIP if available.
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_windows_acceptance_split --test test_local_deployments --test test_prerequisites --test test_unified_build --jobs 1 --log build/windows-scm-build.log --report build/windows-scm-build.json
+.\scripts\test-server-service.ps1 -Bundle 'C:\Builds\verified-service-package.zip'
+Get-Service SAPLens -ErrorAction SilentlyContinue
+# Confirm bootstrap status in both Windows PowerShell and PowerShell 7 where installed.
+powershell -NoProfile -File .\scripts\build.ps1 -Help
+$LASTEXITCODE
+.\scripts\build.ps1 -Mode quick -DryRun -NonInteractive
+$LASTEXITCODE
+# Per-user Desktop installer verification; no existing registered installation allowed.
+.\scripts\build.ps1 -Mode build -Platform windows -Target installer -NonInteractive
+.\scripts\test-desktop-installer.ps1 -Installer 'C:\Builds\SAP-Lens-Setup.exe' -Report 'C:\Builds\installer-acceptance.json'
+```
+
+Remaining release gates: actual Windows parser/helper/privileged cleanup and SCM
+acceptance, correct native help/caller status, and installer lifecycle verification.
+No native success or production release readiness is claimed from Linux tests.
+Reboot/recovery/UNC acceptance remains separately pending. No main/version/CI
+trigger changes, tags/releases or workflow dispatches were made.

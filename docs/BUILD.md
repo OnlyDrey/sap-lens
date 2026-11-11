@@ -106,7 +106,7 @@ Quick checks (`quick`) install nothing. `test` prepares only the project `.venv`
 - **Shared prerequisites run once per invocation:** `-Target all` validates and builds the shared frontend assets once; Desktop and Service reuse them. If shared
   validation fails, the remaining targets are recorded as `blocked` (not attempted) instead of repeating the suite or being reported as packaging failures.
 - **Failure reports:** every failed stage prints the stage, command, working directory, exit code, the real error and the last output lines, and names the detailed
-  log (`dist/<version>/build.log`). Secrets (token variables, URL credentials, `_authToken`) are redacted. `build-manifest.json` carries the same facts per
+  log (`dist/<version>-<commit12>/build.log`). Secrets (token variables, URL credentials, `_authToken`) are redacted. `build-manifest.json` carries the same facts per
   target (`failed_stage`, `failure_class`, `command`, `exit_code`, `error`, `hint`, `output_tail`, `log`), a top-level `shared_validation` record when shared validation
   failed, and `status: blocked` with `blocked_by: shared_validation` for targets that were not attempted. Failure classes: `dependency_install`, `python_environment`,
   `frontend_validation`, `frontend_build`, `browser_smoke`, `desktop_packaging`, `service_packaging`, `runtime_smoke`, `validation`.
@@ -248,7 +248,7 @@ All distributable output is written under the repository-root `dist/`, which Git
 | `dist/local/` | Portable Windows desktop builds, run records and receipts |
 | `dist/deployment/` | Verified deployment archives and checksums: Windows desktop and service, Linux native, Docker image archive |
 | `dist/server/` | Windows service distributions |
-| `dist/<version>/` | Per-version output of the cross-platform builder, with its manifest and `SHA256SUMS.txt` |
+| `dist/<version>-<commit12>/` | Per-version output of the cross-platform builder, with its manifest and `SHA256SUMS.txt` |
 | `dist/publication/` | Same-run artifacts collected by the guarded release job (never written locally) |
 
 Docker images stay in Docker; only exported archives and metadata land in `dist/`. The package folders were not split further by platform because the GitHub upload contracts, release collection and verification read these exact paths; the platform is part of each package name. `clean` removes only the generated locations above plus `backend/build`, `backend/dist` and `frontend/dist`, refuses symbolic links and Windows junctions anywhere on the path, requires `--confirm-clean`, and never touches sources, user data or databases.
@@ -260,7 +260,7 @@ Docker images stay in Docker; only exported archives and metadata land in `dist/
 bump. Existing dotted prereleases and legacy portable beta-hyphen overrides remain
 supported; deployment archives retain their established SemVer requirements.
 
-Deployment archives default to `dist/<version>/`; `--output` can select another
+Deployment archives default to `dist/<version>-<commit12>/`; `--output` can select another
 verified managed/ignored or external output directory. Portable Windows exports
 retain `dist/local/packages/<local-version>/<run-id>/`; a portable output override
 must remain under `dist/local/`. No output is silently overwritten. Each successful
@@ -291,7 +291,7 @@ auto-installed or inferred by SAP Lens.
 ## Release preparation and CI
 
 ```sh
-python3.12 scripts/build.py release --platform linux --target server --output dist/<version> --non-interactive
+python3.12 scripts/build.py release --platform linux --target server --output dist/<version>-<commit12> --non-interactive
 ```
 
 Prereleases prepare from `work`; stable preparation is rejected unless on `main`.
@@ -811,3 +811,41 @@ starts produce an error report instead. Invalid CLI syntax/help remains ordinary
 CLI usage output, not a successful prerequisite report. Linux/Python consumers
 can use `subprocess.run(..., capture_output=True)` and `json.loads(done.stdout)`
 without filtering lines; preserve `done.stderr` and the exit code for diagnostics.
+
+### Source-isolated outputs and PowerShell status
+
+Cross-platform local deployment defaults are now
+`dist/<product-version>-<first-12-source-SHA>/`. Local and trusted remote builders
+use the same naming rule. Different commits normally get separate directories;
+the manifest still records the **full** source SHA and refuses a different
+identity even in a short-prefix collision. Product versions and artifact names
+are unchanged. Explicit `-Output`/`--output` paths are honored exactly, including
+older layouts, with the same no-overwrite checks. Existing directories are never
+deleted automatically. Legacy portable Desktop output already includes its
+local identity/run ID and keeps that established layout.
+
+The bootstrap uses the global native LASTEXITCODE value consistently. A
+script-local sentinel must not shadow the native value and turn a successful
+build into apparent exit 2. Wrapper exceptions after a successful child become
+nonzero failures; help/invalid arguments retain CLI semantics. Native tests cover
+help, dry-run success, invalid arguments and a caller with a stale exit code.
+The reported separate help exit 1 has not been reproduced on Linux; inspect
+stdout/stderr if it persists on Windows rather than assuming it was success.
+
+Commands for the next native checks (no release is published):
+
+```powershell
+# Service package; ordinary packaging does not require installing a service.
+.\scripts\build.ps1 -Mode build -Platform windows -Target server -NonInteractive
+# Elevated: use the exact service ZIP path printed by the build, or an extracted directory.
+.\scripts\test-server-service.ps1 -Bundle 'C:\Builds\verified-service-package.zip'
+# Desktop installer target and native installer behavior against its verified artifacts.
+.\scripts\build.ps1 -Mode build -Platform windows -Target installer -NonInteractive
+# Use the actual setup EXE path reported/extracted from the verified Desktop artifact.
+.\scripts\test-desktop-installer.ps1 -Installer 'C:\Builds\SAP-Lens-Setup.exe' -Report 'C:\Builds\installer-acceptance.json'
+```
+
+For the installer lifecycle command and prerequisites, see
+[Desktop installation/lifecycle](deployment/WINDOWS_DESKTOP.md) and the native
+installer test's `-Installer` / `-Report` interface. SCM cleanup/security details and test commands
+are in [Windows Service acceptance](deployment/WINDOWS_SERVICE.md#isolated-native-scm-acceptance).

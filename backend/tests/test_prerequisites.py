@@ -411,8 +411,8 @@ with patch.object(deps,'probe_tool',return_value=probe), patch.object(deps,'NOTE
         text = (ROOT/'scripts/build.ps1').read_text()
         self.assertIn('[Console]::Error.WriteLine($Message)', text)
         self.assertIn('Write-BootstrapFailure', text)
-        self.assertIn('$LASTEXITCODE = 2', text)
-        self.assertIn('$exitCode=$LASTEXITCODE', text)
+        self.assertIn('$global:LASTEXITCODE = 2', text)
+        self.assertIn('$exitCode=$global:LASTEXITCODE', text)
         self.assertIn('$script:EngineCompleted', text)
         self.assertIn('$ErrorActionPreference = $nativePreference', text)
 

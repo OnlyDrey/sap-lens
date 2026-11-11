@@ -114,6 +114,11 @@ def verify_outputs(directory, version, source, targets, remote=False, release=Fa
     return manifest
 
 
+def output_name(version, source):
+    """Source-scoped defaults; full identity is still checked in every existing manifest."""
+    return f'{version}-{source[:12]}'
+
+
 class Builder:
     def __init__(self, args):
         self.args = args
@@ -122,7 +127,7 @@ class Builder:
         if self.system not in ('Windows', 'Linux'): raise ValueError('Use a Windows or Linux build host.')
         self.source = checkout()
         self.info = make_local_deployment_info(args.version, self.source)
-        raw_output = args.output_dir or ROOT / 'dist' / args.version
+        raw_output = args.output_dir or ROOT / 'dist' / output_name(args.version, self.source)
         if any(path.is_symlink() for path in [raw_output, *raw_output.parents]): raise ValueError('Output may not be linked.')
         self.output = raw_output.resolve()
         if self.output.is_relative_to(ROOT):
@@ -349,7 +354,7 @@ class Builder:
         with self.log.open('a') as log: subprocess.run(ssh, stdout=log, stderr=subprocess.STDOUT)
         with tempfile.TemporaryDirectory(prefix='remote-deployment-', dir=self.build) as temporary:
             destination = Path(temporary)
-            remote_root = repository.replace('\\', '/').rstrip('/') + '/dist/' + self.args.version
+            remote_root = repository.replace('\\', '/').rstrip('/') + '/dist/' + output_name(self.args.version, self.source)
             scp = [tool('scp'), '-o', 'BatchMode=yes', '-o', 'StrictHostKeyChecking=yes']
             subprocess.run([*scp, host + ':' + remote_root + '/build-manifest.json', str(destination)], check=True, stdout=subprocess.DEVNULL)
             result = json.loads((destination / 'build-manifest.json').read_text(encoding='utf-8'))
