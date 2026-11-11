@@ -159,13 +159,13 @@ class ActionlintAcquisitionTests(unittest.TestCase):
             return self.ci.acquire_actionlint('pkg.zip', self.digest, 'https://example.invalid/a.zip', Path(directory))
 
     def test_cache_hit_needs_no_network(self):
-        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen') as net:
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.managed_tools, 'open_url') as net:
             (Path(d) / self.name).write_bytes(self.payload)
             self.assertEqual(self.acquire(d), self.payload); net.assert_not_called()
 
     def test_persistent_cache_is_preferred_and_receives_downloads(self):
         with tempfile.TemporaryDirectory() as d, tempfile.TemporaryDirectory() as cache:
-            with patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(self.payload)):
+            with patch.object(self.ci.managed_tools, 'open_url', return_value=io.BytesIO(self.payload)):
                 self.acquire(d, SAP_LENS_TOOL_CACHE=cache)
             self.assertEqual((Path(cache) / self.name).read_bytes(), self.payload)
             self.assertFalse((Path(d) / self.name).exists())
@@ -173,13 +173,13 @@ class ActionlintAcquisitionTests(unittest.TestCase):
     def test_corrupted_cache_is_ignored_and_redownloaded(self):
         with tempfile.TemporaryDirectory() as d:
             (Path(d) / self.name).write_bytes(b'corrupt')
-            with patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(self.payload)) as net:
+            with patch.object(self.ci.managed_tools, 'open_url', return_value=io.BytesIO(self.payload)) as net:
                 self.assertEqual(self.acquire(d), self.payload); net.assert_called_once()
 
     def test_failed_download_reports_url_status_cache_and_recovery_and_blocks(self):
         import urllib.error
         error = urllib.error.HTTPError('https://example.invalid/a.zip', 403, 'Forbidden', {}, None)
-        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen', side_effect=error):
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.managed_tools, 'open_url', side_effect=error):
             with self.assertRaises(self.ci.ActionlintUnavailable) as raised: self.acquire(d)
             message = str(raised.exception)
             for token in ('403', 'https://example.invalid/a.zip', d, 'SAP_LENS_ACTIONLINT_ARCHIVE', 'never disabled'): self.assertIn(token, message)
@@ -187,12 +187,12 @@ class ActionlintAcquisitionTests(unittest.TestCase):
                 self.assertEqual(self.ci.main(), 2)
 
     def test_checksum_mismatch_is_discarded(self):
-        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen', return_value=io.BytesIO(b'other')):
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.managed_tools, 'open_url', return_value=io.BytesIO(b'other')):
             with self.assertRaisesRegex(self.ci.ActionlintUnavailable, 'checksum mismatch'): self.acquire(d)
             self.assertFalse((Path(d) / self.name).exists())
 
     def test_offline_local_archive_never_touches_the_network(self):
-        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.urllib.request, 'urlopen') as net:
+        with tempfile.TemporaryDirectory() as d, patch.object(self.ci.managed_tools, 'open_url') as net:
             archive = Path(d) / 'mine.zip'; archive.write_bytes(self.payload)
             self.assertEqual(self.acquire(d, SAP_LENS_ACTIONLINT_ARCHIVE=str(archive)), self.payload); net.assert_not_called()
             archive.write_bytes(b'tampered')
@@ -208,26 +208,26 @@ class LocalToolingTests(unittest.TestCase):
         with zipfile.ZipFile(data, 'w') as archive:
             archive.writestr('actionlint.exe', b'synthetic executable, never executed')
         payload = data.getvalue()
-        with tempfile.TemporaryDirectory() as directory, patch.object(ci.platform, 'system', return_value='Windows'), patch.object(ci.platform, 'machine', return_value='AMD64'), patch.object(ci, 'ACTIONLINT_WINDOWS_SHA256', hashlib.sha256(payload).hexdigest()), patch.dict(os.environ, {'RUNNER_TEMP':directory}), patch.object(ci.subprocess, 'call', return_value=0) as execute:
-            with patch.object(ci.urllib.request, 'urlopen', return_value=io.BytesIO(payload)) as download:
+        with tempfile.TemporaryDirectory() as directory, patch.object(ci.platform, 'system', return_value='Windows'), patch.object(ci.platform, 'machine', return_value='AMD64'), patch.object(ci, 'ACTIONLINT_WINDOWS_SHA256', hashlib.sha256(payload).hexdigest()), patch.dict(os.environ, {'RUNNER_TEMP':directory}), patch.object(ci.subprocess, 'call', return_value=0) as execute, patch.object(ci.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, ci.ACTIONLINT_VERSION)):
+            with patch.object(ci.managed_tools, 'open_url', return_value=io.BytesIO(payload)) as download:
                 self.assertEqual(ci.lint(), 0)
                 self.assertIn('windows_amd64.zip', download.call_args.args[0].full_url)
             tool = Path(directory) / ('actionlint-' + ci.ACTIONLINT_VERSION + '.exe')
             self.assertEqual(tool.read_bytes(), b'synthetic executable, never executed')
             tool.write_bytes(b'tampered extracted tool')
-            with patch.object(ci.urllib.request, 'urlopen') as download:
+            with patch.object(ci.managed_tools, 'open_url') as download:
                 self.assertEqual(ci.lint(), 0)
                 download.assert_not_called()
             self.assertEqual(tool.read_bytes(), b'synthetic executable, never executed')
             cached = next(Path(directory).glob('*.zip'))
             cached.write_bytes(b'corrupt cache')
-            with patch.object(ci.urllib.request, 'urlopen', return_value=io.BytesIO(b'corrupt download')):
+            with patch.object(ci.managed_tools, 'open_url', return_value=io.BytesIO(b'corrupt download')):
                 with self.assertRaisesRegex(RuntimeError, 'checksum mismatch'):
                     ci.lint()
             commands=[call.args[0] for call in execute.call_args_list]
             self.assertEqual(commands.count([str(tool)]),2)
-            self.assertEqual(sum(str(command[-1]).endswith('check-docs.py') for command in commands),3)
-            self.assertEqual(len(commands),5)
+            self.assertEqual(sum(str(command[-1]).endswith('check-docs.py') for command in commands),2)
+            self.assertEqual(len(commands),4)
 
     @unittest.skipUnless(shutil.which('pwsh') and os.name != 'nt', 'Requires PowerShell on Linux')
     def test_powershell_rejects_non_windows_and_invalid_arguments(self):
@@ -468,3 +468,179 @@ class WinSWAcquisitionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,'Cached WinSW'):local.fetch_winsw(self.output)
             download.assert_not_called()
         self.assertEqual(self.output.read_bytes(),b'tampered')
+
+
+class ManagedToolResolverTests(unittest.TestCase):
+    """Only synthetic archives and mocked networking/version probes; no tool is installed or executed."""
+    def setUp(self):
+        from build_system import managed_tools
+        self.tools = managed_tools
+        self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.directory = Path(self.temp.name)
+        data = io.BytesIO()
+        with zipfile.ZipFile(data, 'w') as archive:
+            archive.writestr('actionlint.exe', b'synthetic executable')
+        self.payload = data.getvalue()
+        self.digest = hashlib.sha256(self.payload).hexdigest()
+        for mock in (patch.dict(os.environ, dict.fromkeys(('SAP_LENS_TOOL_CACHE', 'SAP_LENS_ACTIONLINT_ARCHIVE', 'SAP_LENS_ACTIONLINT_MIRROR', 'SAP_LENS_TOOLS_OFFLINE'), '')),
+                     patch.object(self.tools.platform, 'system', return_value='Windows'), patch.object(self.tools.platform, 'machine', return_value='AMD64'),
+                     patch.object(self.tools.shutil, 'which', return_value=None)):
+            mock.start(); self.addCleanup(mock.stop)
+
+    def resolve(self):
+        return self.tools.resolve_actionlint(self.directory, expected=self.digest, report=lambda text: None)
+
+    def archive(self):
+        return self.directory / f'actionlint-{self.tools.ACTIONLINT_VERSION}-windows_amd64.zip'
+
+    def version(self, value=None):
+        return patch.object(self.tools.subprocess, 'run', return_value=subprocess.CompletedProcess([], 0, value or self.tools.ACTIONLINT_VERSION))
+
+    def test_success_cached_offline_and_binary_repair(self):
+        with patch.object(self.tools, 'open_url', side_effect=lambda request: io.BytesIO(self.payload)) as net, self.version():
+            tool = self.resolve()
+            self.assertEqual(tool.read_bytes(), b'synthetic executable')
+            self.assertEqual(net.call_count, 1)
+        tool.write_bytes(b'corrupt')
+        with patch.dict(os.environ, {'SAP_LENS_TOOLS_OFFLINE': '1'}), patch.object(self.tools, 'open_url') as net, self.version():
+            self.assertEqual(self.resolve().read_bytes(), b'synthetic executable')
+            net.assert_not_called()
+        self.assertFalse(list(self.directory.glob('.tool-*')))
+
+    def test_offline_missing_cache_is_a_block_without_network(self):
+        with patch.dict(os.environ, {'SAP_LENS_TOOLS_OFFLINE': '1'}), patch.object(self.tools, 'open_url') as net:
+            with self.assertRaisesRegex(self.tools.ToolUnavailable, 'offline: no verified cache'): self.resolve()
+            net.assert_not_called()
+
+    def test_permanent_http_errors_are_not_retried_and_secrets_are_not_printed(self):
+        import urllib.error
+        for status in (403, 404):
+            with self.subTest(status=status), patch.object(self.tools, 'open_url', side_effect=urllib.error.HTTPError('https://invalid/?token=secret-value', status, 'secret-value', {}, None)) as net:
+                with self.assertRaises(self.tools.ToolUnavailable) as raised: self.resolve()
+                self.assertIn(f'HTTP {status}', str(raised.exception))
+                self.assertNotIn('secret-value', str(raised.exception))
+                self.assertEqual(net.call_count, 1)
+
+    def test_transient_network_errors_retry_three_times_with_bounded_backoff(self):
+        import urllib.error
+        import http.client
+        for error in (TimeoutError(), ConnectionResetError(), urllib.error.URLError('proxy secret-value refused'), http.client.IncompleteRead(b'partial'), urllib.error.HTTPError('https://invalid', 503, 'Unavailable', {}, None)):
+            with self.subTest(error=type(error).__name__), patch.object(self.tools, 'open_url', side_effect=error) as net, patch.object(self.tools.time, 'sleep') as wait:
+                with self.assertRaises(self.tools.ToolUnavailable) as raised: self.resolve()
+                self.assertNotIn('secret-value', str(raised.exception))
+                self.assertEqual(net.call_count, 3)
+                self.assertEqual([call.args[0] for call in wait.call_args_list], [0.25, 0.5])
+                self.assertFalse(self.archive().exists())
+
+    def test_transient_download_recovers_and_mirror_403_falls_back(self):
+        import urllib.error
+        responses = [urllib.error.HTTPError('https://mirror.invalid',403,'Forbidden',{},None), io.BytesIO(self.payload)]
+        with patch.dict(os.environ, {'SAP_LENS_ACTIONLINT_MIRROR': 'https://mirror.invalid/tools'}), patch.object(self.tools, 'open_url', side_effect=responses) as net, self.version():
+            self.resolve()
+            self.assertTrue(net.call_args_list[0].args[0].full_url.startswith('https://mirror.invalid/tools/'))
+            self.assertTrue(net.call_args_list[1].args[0].full_url.startswith('https://github.com/rhysd/'))
+
+    def test_mirror_success_uses_pinned_checksum_and_no_upstream(self):
+        with patch.dict(os.environ, {'SAP_LENS_ACTIONLINT_MIRROR': 'https://mirror.invalid/tools'}), patch.object(self.tools, 'open_url', return_value=io.BytesIO(self.payload)) as net, self.version():
+            self.resolve(); self.assertEqual(net.call_count, 1)
+            self.assertIn('/tools/actionlint_1.7.12_windows_amd64.zip', net.call_args.args[0].full_url)
+
+    def test_wrong_version_blocks_execution_even_with_verified_archive(self):
+        self.archive().write_bytes(self.payload)
+        with self.version('1.7.11'), self.assertRaisesRegex(self.tools.ToolUnavailable, 'version mismatch'): self.resolve()
+
+    def test_corrupt_checksum_never_publishes_or_probes(self):
+        with patch.object(self.tools, 'open_url', return_value=io.BytesIO(b'bad')), patch.object(self.tools.subprocess, 'run') as run:
+            with self.assertRaisesRegex(self.tools.ToolUnavailable, 'checksum mismatch'): self.resolve()
+            self.assertFalse(self.archive().exists()); run.assert_not_called()
+
+    def test_interrupted_publication_leaves_no_partial_archive(self):
+        with patch.object(self.tools, 'open_url', return_value=io.BytesIO(self.payload)), patch.object(self.tools.os, 'replace', side_effect=OSError('synthetic interrupt')):
+            with self.assertRaisesRegex(self.tools.ToolUnavailable, 'could not be cached'): self.resolve()
+        self.assertFalse(self.archive().exists()); self.assertFalse(list(self.directory.glob('.tool-*')))
+
+    def test_concurrent_resolution_downloads_once(self):
+        from concurrent.futures import ThreadPoolExecutor
+        with patch.object(self.tools, 'open_url', side_effect=lambda request: io.BytesIO(self.payload)) as net, self.version():
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                results = list(executor.map(lambda _: self.resolve(), range(3)))
+            self.assertEqual(len(set(results)), 1); self.assertEqual(net.call_count, 1)
+
+    def test_tls_failure_is_not_retried_and_downgrade_is_refused(self):
+        import ssl
+        with patch.object(self.tools, 'open_url', side_effect=ssl.SSLCertVerificationError()) as net:
+            with self.assertRaisesRegex(self.tools.ToolUnavailable, 'TLS verification failure'): self.resolve()
+            self.assertEqual(net.call_count, 1)
+        with self.assertRaisesRegex(self.tools.ToolUnavailable, 'insecure scheme'):
+            self.tools.SecureRedirect().redirect_request(None, None, 302, '', {}, 'http://invalid/tool')
+
+    def test_unsupported_platform_never_fetches(self):
+        with patch.object(self.tools.platform, 'system', return_value='Darwin'), patch.object(self.tools, 'open_url') as net:
+            with self.assertRaisesRegex(self.tools.ToolUnavailable, 'Windows or Linux x64'): self.resolve()
+            net.assert_not_called()
+
+    def test_preflight_precedes_expensive_validation_and_receipt_reuse_needs_no_tool(self):
+        local_source = (ROOT/'scripts/build_system/windows/local.py').read_text()
+        self.assertLess(local_source.index("run_stage('Managed tool preflight'"), local_source.index("run_stage('Environment'"))
+        deploy = (ROOT/'scripts/deployment/build-deployments.py').read_text()
+        self.assertLess(deploy.index("self.run('Managed tool preflight'"), deploy.index("self.run('Create dedicated build Python environment'"))
+        self.assertLess(deploy.index('if self.args.reuse_validation:'), deploy.index("self.run('Managed tool preflight'"))
+        self.assertIn("if Mode != 'Package':\n                run_stage('Managed tool preflight'", local_source)
+
+    def test_linux_archive_and_approved_path_binary(self):
+        import tarfile
+        content = b'synthetic executable'
+        buffer = io.BytesIO()
+        with tarfile.open(fileobj=buffer, mode='w:gz') as archive:
+            member = tarfile.TarInfo('actionlint'); member.size = len(content)
+            archive.addfile(member, io.BytesIO(content))
+        self.payload = buffer.getvalue(); self.digest = hashlib.sha256(self.payload).hexdigest()
+        candidate = self.directory / 'approved-actionlint'; candidate.write_bytes(content)
+        with patch.object(self.tools.platform, 'system', return_value='Linux'), patch.object(self.tools.shutil, 'which', return_value=str(candidate)), patch.object(self.tools, 'open_url', return_value=io.BytesIO(self.payload)), self.version():
+            self.assertEqual(self.resolve(), candidate)
+
+    def test_transient_failure_can_recover_without_a_partial_cache(self):
+        with patch.object(self.tools, 'open_url', side_effect=[TimeoutError(), io.BytesIO(self.payload)]) as net, patch.object(self.tools.time, 'sleep') as wait, self.version():
+            self.resolve(); self.assertEqual(net.call_count, 2); wait.assert_called_once_with(0.25)
+            self.assertEqual(self.archive().read_bytes(), self.payload)
+
+    def test_zip_link_member_is_not_executed(self):
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, 'w') as archive:
+            member = zipfile.ZipInfo('actionlint.exe'); member.external_attr = 0o120777 << 16
+            archive.writestr(member, 'untrusted-target')
+        self.payload = buffer.getvalue(); self.digest = hashlib.sha256(self.payload).hexdigest()
+        with patch.object(self.tools, 'open_url', return_value=io.BytesIO(self.payload)), patch.object(self.tools.subprocess, 'run') as run:
+            with self.assertRaisesRegex(self.tools.ToolUnavailable, 'member is invalid'): self.resolve()
+            run.assert_not_called()
+
+    def test_source_diagnostics_hide_mirror_path_and_authentication(self):
+        self.assertEqual(self.tools.safe_url('https://user:password@mirror.invalid/private-token/file.zip?token=secret'), 'https://mirror.invalid/file.zip')
+
+    def test_inno_uses_shared_verified_acquisition_without_running_installer(self):
+        with patch.object(self.tools, 'INNO_SHA256', self.digest), patch.object(self.tools, 'open_url', return_value=io.BytesIO(self.payload)), patch.object(self.tools.subprocess, 'run') as execute:
+            self.assertEqual(self.tools.acquire_inno(self.directory, report=lambda text: None), self.payload)
+            self.assertEqual((self.directory/'innosetup-7.1.0-x64.exe').read_bytes(), self.payload)
+            execute.assert_not_called()
+        source = (ROOT/'scripts/build-desktop-installer.ps1').read_text()
+        self.assertIn('scripts/testing/ci.py', source)
+        self.assertNotIn('Invoke-WebRequest', source)
+        self.assertIn('Get-Command python -ErrorAction Stop', source, 'compile check must work before packaging venv creation')
+
+    def test_legacy_verified_archive_is_promoted_without_network(self):
+        legacy_root = self.directory/'legacy'
+        legacy = legacy_root/'backend/build'; legacy.mkdir(parents=True)
+        (legacy/self.archive().name).write_bytes(self.payload)
+        with patch.object(self.tools, 'ROOT', legacy_root), patch.object(self.tools, 'open_url') as net, self.version():
+            self.resolve(); net.assert_not_called()
+        self.assertEqual(self.archive().read_bytes(), self.payload)
+
+    def test_installer_inspection_is_read_only_and_reports_missing_bootstrap(self):
+        from argparse import Namespace
+        from build_system import doctor
+        args = Namespace(mode='prerequisites', platform='windows', target='installer', target_given=True, skip_setup=False)
+        with patch.object(doctor.python_env, 'find_python', return_value=(None, [])), patch.object(doctor.python_env, 'inspect_venv', return_value=('missing','',None)), patch.object(doctor, 'tool_item', side_effect=lambda name, required: doctor.item(name, doctor.READY)), patch.object(doctor.deps, 'frontend_current', return_value=True), patch.object(self.tools, 'open_url') as net:
+            rows = doctor.collect(args, self.directory)
+        row = next(row for row in rows if row['name'] == 'Inno Setup bootstrap')
+        self.assertEqual(row['status'], doctor.MISSING); self.assertTrue(row['required'])
+        self.assertEqual(list(self.directory.iterdir()), []); net.assert_not_called()

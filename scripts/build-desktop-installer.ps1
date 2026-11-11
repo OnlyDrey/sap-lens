@@ -14,7 +14,11 @@ $compiler = Join-Path $toolRoot 'ISCC.exe'
 $receipt = Join-Path $toolRoot 'compiler-sha256.txt'
 if (-not (Test-Path $compiler)) {
     $download = Join-Path $root 'backend/build/innosetup-7.1.0-x64.exe'
-    Invoke-WebRequest 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe' -OutFile $download
+    # CompileCheck can precede creation of the packaging environment; its host Python is already a prerequisite.
+    $toolPython = $python
+    if (-not (Test-Path $toolPython)) { $toolPython = (Get-Command python -ErrorAction Stop).Source }
+    & $toolPython (Join-Path $root 'scripts/testing/ci.py') inno $download
+    if ($LASTEXITCODE -ne 0) { throw 'Pinned Inno Setup acquisition failed; inspect prerequisite diagnostics.' }
     if ((Get-FileHash $download -Algorithm SHA256).Hash.ToLowerInvariant() -ne '0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f') { throw 'Inno Setup download SHA-256 mismatch.' }
     $setup = Start-Process -FilePath $download -ArgumentList @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER',('/DIR="'+$toolRoot+'"')) -Wait -PassThru
     if ($setup.ExitCode -ne 0 -or -not (Test-Path $compiler)) { throw 'Pinned per-user Inno Setup provisioning failed. Review prerequisites and tool installer logs.' }

@@ -198,6 +198,8 @@ def build(Mode='Build', Version='', IncludeService=False, OutputDirectory='', ro
             state['info'] = info
             output = Path(OutputDirectory) if OutputDirectory else root / 'dist/local/packages' / info['version'] / run
             state['output'] = output
+            if Mode != 'Package':
+                run_stage('Managed tool preflight', lambda: native([host, 'scripts/testing/ci.py', 'prerequisites']))
             if Mode == 'Package':
                 run_stage('Validated input freshness', lambda: native([host, helper, 'check', '--version', Version]))
             else:
@@ -205,12 +207,13 @@ def build(Mode='Build', Version='', IncludeService=False, OutputDirectory='', ro
                 run_stage('Environment', lambda: stage_port('Environment'))
                 run_stage('Python', lambda: stage_port('Python'))
 
+            run_stage('Packaging tool versions', lambda: native([build_python, helper, 'tools']))
+            if Mode != 'Package':
                 def frontend():
                     stage_port('Frontend')
                     native(['npm', '--prefix', 'frontend', 'run', 'check:types'])
                     native(['node', 'scripts/sync-lucide-catalog.mjs', '--check'])
                 run_stage('Frontend', frontend)
-            run_stage('Packaging tool versions', lambda: native([build_python, helper, 'tools']))
 
             def audit():
                 native([host, '-m', 'venv', build_directory / 'audit-env'])

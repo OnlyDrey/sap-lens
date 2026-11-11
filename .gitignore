@@ -106,3 +106,6 @@ sod-periods.json
 
 # Every generated distributable (scripts/build_system/layout.py): local, deployment, server, publication, versioned outputs and the cleanup lock
 /dist/
+
+# Verified project-local build tools (never release inputs)
+.build-tools/

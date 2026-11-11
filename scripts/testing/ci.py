@@ -1,7 +1,5 @@
 """Small CI command/timing adapter; never treats a missing check as a pass."""
 import argparse
-import hashlib
-import io
 import json
 import math
 import os
@@ -10,15 +8,14 @@ import platform
 import re
 import subprocess
 import sys
-import tarfile
 import time
-import urllib.request
-import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
-ACTIONLINT_VERSION = '1.7.12'
-ACTIONLINT_SHA256 = '8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8'
-ACTIONLINT_WINDOWS_SHA256 = '6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9'
+sys.path.insert(0, str(ROOT / 'scripts'))
+from build_system import managed_tools
+ACTIONLINT_VERSION = managed_tools.ACTIONLINT_VERSION
+ACTIONLINT_SHA256 = managed_tools.ACTIONLINT_SHA256
+ACTIONLINT_WINDOWS_SHA256 = managed_tools.ACTIONLINT_WINDOWS_SHA256
 
 
 def timing_path():
@@ -120,88 +117,29 @@ def summary():
         print(text)
 
 
-class ActionlintUnavailable(RuntimeError):
-    """The pinned actionlint archive could not be obtained and verified. Never a lint pass."""
-
-
-def _verified(path, expected):
-    if path.is_symlink():
-        raise RuntimeError(f'actionlint archive must not be linked: {path}')
-    if not path.is_file():
-        return None
-    data = path.read_bytes()
-    return data if hashlib.sha256(data).hexdigest() == expected else None
+# Kept as import aliases for existing callers; acquisition has one implementation.
+ActionlintUnavailable = managed_tools.ToolUnavailable
 
 
 def acquire_actionlint(package, expected, url, directory):
-    """Return the checksum-verified archive. Order: explicit local archive, persistent tool cache, build cache, download.
+    return managed_tools.acquire_archive(package, expected, url, directory)
 
-    SAP_LENS_ACTIONLINT_ARCHIVE names a local archive (offline use); SAP_LENS_TOOL_CACHE names a persistent cache directory outside the
-    disposable build output. Downloads honour HTTPS_PROXY/NO_PROXY, verify TLS normally, and are stored only after the SHA-256 matches.
-    """
-    explicit = os.environ.get('SAP_LENS_ACTIONLINT_ARCHIVE')
-    if explicit:
-        data = _verified(Path(explicit), expected)
-        if data is None:
-            raise ActionlintUnavailable(f'SAP_LENS_ACTIONLINT_ARCHIVE={explicit} is missing or its SHA-256 does not match {expected}. '
-                                        f'Download {url} and verify the checksum, or unset the variable.')
-        return data
-    name = f'actionlint-{ACTIONLINT_VERSION}-{package}'
-    persistent = os.environ.get('SAP_LENS_TOOL_CACHE')
-    caches = ([Path(persistent)] if persistent else []) + [directory]
-    for cache in caches:
-        data = _verified(cache / name, expected)
-        if data is not None:
-            return data
-    target = caches[0]
-    request = urllib.request.Request(url, headers={'User-Agent': 'sap-lens-build/1 (+actionlint-fetch)', 'Accept': '*/*'})
-    try:
-        data = urllib.request.urlopen(request, timeout=60).read()
-    except Exception as error:
-        status = getattr(error, 'code', 'n/a')
-        raise ActionlintUnavailable(
-            f'Could not download actionlint {ACTIONLINT_VERSION}: {error} (HTTP status {status}). URL: {url}. Cache searched: '
-            f'{", ".join(str(c) for c in caches)}. Recovery: download the archive in a browser or with PowerShell Invoke-WebRequest, '
-            f'verify SHA-256 {expected}, then place it at {target / name} or set SAP_LENS_ACTIONLINT_ARCHIVE to its path. '
-            'Proxies: set HTTPS_PROXY; certificate problems: install the corporate root in the OS trust store (verification is never disabled).') from error
-    if hashlib.sha256(data).hexdigest() != expected:
-        raise ActionlintUnavailable(f'actionlint checksum mismatch for {url}; the download was discarded and nothing was executed.')
-    target.mkdir(parents=True, exist_ok=True)
-    (target / name).write_bytes(data)
-    return data
+
+def resolve_actionlint():
+    directory = Path(os.environ.get('RUNNER_TEMP') or managed_tools.cache_directory())
+    expected = ACTIONLINT_WINDOWS_SHA256 if platform.system() == 'Windows' else ACTIONLINT_SHA256
+    return managed_tools.resolve_actionlint(directory, expected=expected)
 
 
 def lint():
+    tool = resolve_actionlint()
     documentation = subprocess.call([sys.executable, str(ROOT / 'scripts/check-docs.py')], cwd=ROOT)
-    if documentation:
-        return documentation
-    system = platform.system()
-    if system not in {'Linux', 'Windows'} or platform.machine() not in {'x86_64', 'AMD64'}:
-        raise RuntimeError('Pinned actionlint installer requires Windows or Linux x64.')
-    windows = system == 'Windows'
-    package = 'windows_amd64.zip' if windows else 'linux_amd64.tar.gz'
-    expected = ACTIONLINT_WINDOWS_SHA256 if windows else ACTIONLINT_SHA256
-    url = f'https://github.com/rhysd/actionlint/releases/download/v{ACTIONLINT_VERSION}/actionlint_{ACTIONLINT_VERSION}_{package}'
-    directory = Path(os.environ.get('RUNNER_TEMP', ROOT / 'backend/build'))
-    directory.mkdir(parents=True, exist_ok=True)
-    data = acquire_actionlint(package, expected, url, directory)
-    tool = directory / (f'actionlint-{ACTIONLINT_VERSION}' + ('.exe' if windows else ''))
-    if tool.is_symlink():
-        raise RuntimeError('actionlint destination must not be linked')
-    if windows:
-        with zipfile.ZipFile(io.BytesIO(data)) as archive:
-            executable = archive.read('actionlint.exe')
-    else:
-        with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as archive:
-            executable = archive.extractfile('actionlint').read()
-    tool.write_bytes(executable)
-    tool.chmod(0o700)
-    return subprocess.call([str(tool)], cwd=ROOT)
+    return documentation or subprocess.call([str(tool)], cwd=ROOT)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('operation', choices=['run', 'summary', 'lint'])
+    parser.add_argument('operation', choices=['run', 'summary', 'lint', 'prerequisites', 'inno'])
     parser.add_argument('arguments', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if args.operation == 'run':
@@ -209,11 +147,24 @@ def main():
         if command[:1] == ['--']:
             command = command[1:]
         return run(stage, command)
-    if args.operation == 'lint':
+    if args.operation in ('lint', 'prerequisites', 'inno'):
         try:
+            if args.operation == 'inno':
+                if len(args.arguments) != 1:
+                    raise ActionlintUnavailable('Inno prerequisite requires exactly one output path.')
+                managed_tools.atomic_write(Path(args.arguments[0]), managed_tools.acquire_inno())
+                return 0
+            if args.operation == 'prerequisites':
+                resolve_actionlint()
+                if '--installer' in args.arguments:
+                    managed_tools.acquire_inno()
+                return 0
             return lint()
-        except ActionlintUnavailable as error:
-            print(f'workflow_lint BLOCKED (prerequisite, not a validation result): {error}', file=sys.stderr)
+        except (ActionlintUnavailable, OSError) as error:
+            label = 'workflow_lint' if args.operation == 'lint' else 'managed_tools'
+            detail = str(error) if isinstance(error, ActionlintUnavailable) else (
+                f'Local tool operation failed ({type(error).__name__}, errno={error.errno}, winerror={getattr(error, "winerror", None)}); check cache permissions/free space and host policy.')
+            print(f'{label} BLOCKED (prerequisite, not a validation result): {detail}', file=sys.stderr)
             return 2
     summary()
     return 0

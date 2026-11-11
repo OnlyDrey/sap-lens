@@ -251,6 +251,8 @@ class Builder:
             self.run('Verify existing source/tool/frontend validation receipt', [sys.executable, 'scripts/deployment-package.py', 'require-inputs'])
             self.validated = True
             return
+        tools = ['--installer'] if self.system == 'Windows' and 'desktop' in requested(self.args.platform) else []
+        self.run('Managed tool preflight', [sys.executable, 'scripts/testing/ci.py', 'prerequisites', *tools])
         receipt = self.build / 'deployment-local-validation.json'
         if receipt.is_symlink(): raise ValueError('Validation receipt may not be linked.')
         receipt.unlink(missing_ok=True)

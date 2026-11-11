@@ -159,3 +159,16 @@ def prepare_environment(root,runner,*,packaging=False,frontend=True,creator=None
         if frontend_current(root):print('Locked frontend dependencies are already installed; nothing to change.')
         else:runner.run('Install locked frontend dependencies',[locate('npm'),'--prefix','frontend','ci','--no-audit','--no-fund'])
     return python
+
+
+def resolve_managed_tools(root=ROOT, *, installer=False):
+    """Pinned project tools only; host runtime installation remains consented and separate."""
+    from . import managed_tools
+    try:
+        result = {'actionlint': managed_tools.resolve_actionlint(managed_tools.cache_directory(root))}
+        if installer:
+            managed_tools.acquire_inno(managed_tools.cache_directory(root))
+            result['Inno Setup'] = 'pinned installer verified'
+        return result
+    except managed_tools.ToolUnavailable as error:
+        raise BuildError(str(error), 3) from None

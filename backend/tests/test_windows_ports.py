@@ -318,7 +318,7 @@ class LocalBuild(Case):
         ok, recorder, stage_calls, printed, locks = self.run_mode('Build', Version='1.2.3')
         self.assertTrue(ok)
         names = [line.strip('= \n') for line in printed if line.startswith('\n=== ')]
-        self.assertEqual(names, ['Version resolution', 'Clean source check', 'Local identity', 'Invalidate previous validation', 'Environment', 'Python', 'Frontend', 'Packaging tool versions', 'Audit',
+        self.assertEqual(names, ['Version resolution', 'Clean source check', 'Local identity', 'Managed tool preflight', 'Invalidate previous validation', 'Environment', 'Python', 'Packaging tool versions', 'Frontend', 'Audit',
                                  'PackagingBackend', 'PackagingBrowser', 'Repository', 'Validation receipt', 'Validated input freshness', 'Package', 'Verify', 'Smoke', 'Distribution roundtrip'])
         self.assertEqual([(s, t) for s, t, _, _ in stage_calls], [('Environment', False), ('Python', False), ('Frontend', False), ('Audit', False), ('Backend', True), ('Browser', True),
                                                                  ('Package', False), ('Verify', False), ('Smoke', False)])

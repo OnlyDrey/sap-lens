@@ -367,7 +367,7 @@ The build manifest keeps three facts apart per target: `built`, `package_verifie
 - **Public parameter mapping:** `-Output <dir>` (alias `-OutputDir`) maps to `--output` of `build.py` and `--output-dir` of the deployment builder. An explicit directory is used exactly as given. If it holds a build of another version or commit, the build stops and prints the path, the existing manifest version/commit, the requested ones and a suggested new directory; nothing is overwritten or deleted. Use a timestamped directory for routine runs: `-Output ".\backend\build\windows-$(Get-Date -Format 'yyyyMMdd-HHmmss')"`.
 - **Python discovery:** `build.ps1` resolves the repository root from its own location (`Get-RepositoryRoot`, validated by the presence of `scripts\build.py`); functions never depend on an implicit `$PSScriptRoot`. Python 3.12 x64 is required; others are listed with the reason for rejection.
 - **Clean order:** confirmation, allowlisted target, no linked directory, then protection of the running interpreter. Each is tested separately.
-- **actionlint (pinned 1.7.12, SHA-256 checked):** order is `SAP_LENS_ACTIONLINT_ARCHIVE` (local archive, offline), `SAP_LENS_TOOL_CACHE` (persistent cache outside `backend/build`), the build cache, then a download that honours `HTTPS_PROXY` and never disables TLS verification. If it cannot be obtained, the `workflow_lint` stage ends as a **prerequisite** failure (exit 2, "BLOCKED") with URL, HTTP status, cache paths and recovery steps; it is never reported as a passed lint. Recovery on a network that returns 403 to Python: download the archive with PowerShell `Invoke-WebRequest`, verify the SHA-256, and put it in the cache path shown or set the variable.
+- **Managed tools:** actionlint and the Inno Setup bootstrap use the shared verified acquisition engine. Repository lint tooling is resolved before expensive build validation; see [centralized prerequisites](#centralized-prerequisites-and-restricted-networks). A corporate 403 is still a prerequisite failure, never a lint pass.
 - **Prerequisites:** Windows PowerShell 5.1 (PowerShell 7 optional), Python 3.12 x64, Node.js 24 LTS recommended (25 accepted with a note), npm 10/11. Python and frontend dependencies are installed into isolated project environments automatically; Git, Node.js and Python are never installed without consent. Certificate problems must be fixed in the operating system trust store.
 - **Failure classes:** `prerequisite` (tool missing/unobtainable), `validation`, `dependency_install`, `*_packaging`. A target not attempted because shared validation failed is `blocked`, with the underlying error, log path and recovery hint, and is not a packaging failure.
 - **Test skips:** PowerShell-dependent tests run on Windows PowerShell 5.1 or PowerShell 7; they skip only when no PowerShell exists. Other skips are POSIX-only behavior (permission bits, signals, process groups, `/proc`) or optional build dependencies (PyInstaller, pefile, openssl).
@@ -678,3 +678,110 @@ are excluded. Target configuration is generated at install time; it must not be
 prepopulated with an organization's data or access secrets.
 
 
+
+
+## Centralized prerequisites and restricted networks
+
+The public interfaces remain `scripts/build.ps1` and `scripts/build.py`.
+`build_system/prerequisites.py`, `python_env.py` and `doctor.py` detect compatible
+host tools and prepare pinned local environments. `build_system/managed_tools.py`
+is the common acquisition engine used by Repository lint, deployment validation
+and both Windows installer helpers. No host Python or Node installation is
+silently installed, upgraded or replaced.
+
+| Tool | Approved version/source | Acquisition / scope |
+| --- | --- | --- |
+| Python | 3.12 x64 for builds | Existing discovery; approved manual/explicit opt-in system setup; local venvs |
+| Node.js / npm | Node 24 LTS recommended (25 accepted), npm 10–11 | Existing detection; no automatic replacement; frontend lockfile via `npm ci` |
+| PyInstaller | 6.22.3 in `backend/requirements-build.txt` | Pinned packaging venv; version checks before frontend build in local Windows pipeline |
+| Audit/build Python packages | Existing requirement files | Existing isolated environments and pinned installers |
+| actionlint | 1.7.12; platform archive SHA-256 pinned in `managed_tools.py` | Windows/Linux x64; required only when Repository/shared workflow lint runs |
+| Inno Setup bootstrap | 7.1.0; pinned Windows installer SHA-256 | Installer-bearing Windows targets; existing per-user compiler provisioning/receipt checks retained |
+| Git, Docker/Compose, PowerShell, service compiler | Existing compatible host checks | Target-specific; no implicit system installation |
+| WebView2 | Existing native acceptance prerequisite | Runtime prerequisite, never silently downloaded by this resolver |
+
+Fresh local Windows validation resolves managed tools **before Environment,
+Python installs, frontend, backend tests and Repository lint**. Deployment shared
+validation resolves them before its environments/frontend/tests. A verified
+receipt-reuse path does not acquire tools for checks it does not run. Quick,
+dry-run and read-only prerequisite inspection do not download managed tools.
+
+Check/setup independently before another expensive build:
+
+```powershell
+.\scripts\build.ps1 -Mode prerequisites -Platform windows -Target desktop -CheckOnly -NonInteractive
+.\scripts\build.ps1 -Mode prerequisites -Platform windows -Target desktop -NonInteractive
+```
+
+```bash
+python scripts/build.py prerequisites --platform linux --target server --check-only --non-interactive
+python scripts/build.py prerequisites --platform linux --target server --non-interactive
+```
+
+Check-only reports cached archive availability without network access or cache
+writes; actual executable/version verification occurs in preflight. Setup may
+create project venvs and install locked project packages. It does not imply native
+packaging or runtime acceptance. `--setup-only` also resolves the selected managed
+tools. Select `installer` explicitly when preparing the Inno bootstrap.
+
+### Managed tool policy
+
+Resolution prefers an explicit local artifact, then checksum-verified configured
+and project/run caches, then a configured approved HTTPS mirror, then the official
+upstream release. Default local storage is ignored `.build-tools/`, separate from
+runtime/user data and disposable packaging output. `RUNNER_TEMP`, when set by CI,
+is used by its lint adapter; `SAP_LENS_TOOL_CACHE` supplies a persistent cache.
+Verified legacy `backend/build` archives are promoted into the selected cache.
+Normal build cleanup does not purge `.build-tools/`.
+
+Archive SHA-256 is checked before extraction. Only the expected executable member
+is read; link/invalid members are rejected. Cached executable bytes must match the
+verified archive and actionlint must report exactly the pinned version. A PATH
+binary is reused only if its bytes match that trusted archive, not merely because
+it claims the right version. Keep archives with binaries for offline verification.
+Missing/corrupt artifacts never count as successful validation.
+
+Downloads are capped at 32 MiB, have socket timeouts and at most three attempts per
+source with 0.25/0.5-second backoff for transient failures. 403/404 and TLS failures
+are not retried repeatedly. A configured mirror denial may fall back to the
+official source; a checksum mismatch is rejected immediately. HTTPS redirects
+are supported; downgrade to HTTP is refused. Proxy/CA behavior uses Python's
+standard trusted configuration, never disabled verification. Temp files are
+fsynced and atomically published; kernel-owned acquisition locks serialize
+concurrent callers and release on process exit. No partial download is executed.
+
+| Variable | Meaning |
+| --- | --- |
+| `SAP_LENS_TOOL_CACHE` | Persistent cache directory; use an absolute path |
+| `SAP_LENS_ACTIONLINT_ARCHIVE` | Explicit official Windows ZIP or Linux tar.gz; exact pinned checksum required |
+| `SAP_LENS_ACTIONLINT_MIRROR` | Approved HTTPS directory containing `actionlint_1.7.12_windows_amd64.zip` and/or `actionlint_1.7.12_linux_amd64.tar.gz` |
+| `SAP_LENS_INNO_ARCHIVE` | Explicit pinned `innosetup-7.1.0-x64.exe` bootstrap artifact |
+| `SAP_LENS_INNO_MIRROR` | Approved HTTPS directory containing that exact Inno installer filename |
+| `SAP_LENS_TOOLS_OFFLINE=1` | Managed tools use verified local artifacts/caches only; does not put pip/npm/other build operations offline |
+| `HTTPS_PROXY`, `NO_PROXY`, trusted CA configuration | Standard urllib proxy/trust handling; never print proxy credentials or disable certificate verification |
+
+Example restricted-network configuration (replace reserved example hostname with
+your organization-approved artifact service):
+
+```powershell
+$env:SAP_LENS_TOOL_CACHE = 'C:\BuildTools\SAP-Lens'
+$env:SAP_LENS_ACTIONLINT_MIRROR = 'https://artifacts.example.invalid/sap-lens'
+.\scripts\build.ps1 -Mode prerequisites -Platform windows -Target desktop -NonInteractive
+```
+
+Mirrors must provide the **same upstream bytes**; they cannot override versions or
+hashes. Initial source URLs cannot embed credentials, query tokens or fragments.
+Use an approved proxy or explicit local artifact if the artifact service needs an
+authentication scheme this downloader does not implement. Diagnostics omit URL
+authentication/query data, internal repository paths and raw network exception
+messages; they report attempted sources, failure category, cache status, required
+checksum, mirror availability and remediation. A User-Agent change is not a fix
+for an authorization policy.
+
+Persistent 403: ask the network/artifact administrator for approved access or a
+mirror, then run prerequisite setup again. Offline cache miss: provision a
+verified artifact through approved channels. Checksum/version mismatch: do not
+execute or allowlist the artifact; investigate the source. Cache permission/disk
+failures: repair only the chosen tool cache. No WDAC, TLS, proxy or endpoint
+controls are bypassed. Native Windows/corporate acquisition must be verified
+separately; mocked network success does not prove access through that network.

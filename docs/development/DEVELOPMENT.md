@@ -407,3 +407,13 @@ checks, but does not bypass restrictions on Windows packaging helpers.
 
 Build modes, versioning, receipt reuse and outputs are documented only in the
 [canonical build guide](../BUILD.md#commands).
+
+### Restricted-network build prerequisites
+
+Resolve selected build tools once with the public prerequisites mode before
+starting packaging. The shared managed-tool engine verifies pinned artifacts,
+reuses persistent caches and supports approved internal mirrors; Python/Node
+system installation remains separately consented. See the authoritative
+[prerequisite and proxy guide](../BUILD.md#centralized-prerequisites-and-restricted-networks).
+Quick/read-only inspection does not download tools; offline mode applies only
+to managed tools, not pip/npm or security-audit network calls.

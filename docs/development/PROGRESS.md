@@ -1162,3 +1162,117 @@ Delivery includes the frozen-code identity fix, initialization/activation
 observability, regression coverage and isolated console-test mode, plus updated
 Windows commands. Preserve App Control and verify the newly built Desktop EXE
 on Windows before declaring the configured native installation fixed.
+
+## Centralized build prerequisites and verified dependency acquisition
+
+Baseline `dd6dee9`, branch `work`. The reported native Windows failure was
+workflow_lint BLOCKED while downloading pinned actionlint 1.7.12 (HTTP 403).
+The previous helper downloaded only when Repository lint ran, after expensive
+frontend/Python/browser preparation. It had one network source, no bounded retry
+policy, non-atomic cache writes and no extracted-tool version check. The exact
+corporate proxy/authorization rule behind the 403 is not established; this task
+does not assert that a User-Agent change or Linux success fixes it.
+
+Audit/ownership:
+
+- Existing `prerequisites.py`, `python_env.py`, `doctor.py` retain Python 3.12 x64
+  discovery, Node 24–25/npm 10–11 compatibility, project venvs and lockfile-based
+  installs. PyInstaller 6.22.3 and build/audit packages remain pinned by existing
+  requirement files. No implicit host Python/Node installation or replacement.
+- New `build_system/managed_tools.py` owns actionlint 1.7.12 archive pins and
+  Inno Setup 7.1.0 bootstrap pins. `testing/ci.py` is an adapter; both Windows
+  installer implementations delegate acquisition to that engine. Existing
+  CURRENTUSER provisioning, compiler receipts and packaging verifiers remain.
+- Host Git, PowerShell, Docker/Compose and service compiler checks remain
+  target-specific. WebView2 remains a separate native runtime prerequisite.
+  No new tool-manager dependency, installer framework or CI trigger was added.
+
+Managed policy: explicit artifact, verified persistent/project/run/legacy caches,
+configured approved HTTPS mirror, official upstream. Default ignored
+`.build-tools/` survives normal build-output cleanup; verified old backend/build
+archives are promoted. Archive SHA-256 precedes exact-member extraction; cached
+and PATH executables must match the trusted archive, and actionlint must report
+the exact version. No constant/unverified fallback. Downloads have size/time
+bounds, three attempts maximum per source with exponential backoff for transient
+failures, no repeated 403/404/TLS retry, no TLS downgrade, fsynced atomic publication
+and kernel-owned cross-process locks. Missing cache in explicit offline mode is
+blocked without network access. URL authentication/query data, internal mirror
+paths and raw network exception text are omitted from failure messages.
+
+Preflight: fresh local Windows validation resolves managed tools before
+Environment/Python/frontend/test stages; packaging-tool versions are checked
+before frontend compilation. Deployment shared validation resolves tools before
+creating environments/frontend/tests, and prefetches the pinned Inno bootstrap
+only on Windows when the selected deployment includes Desktop installers.
+Receipt-reuse paths do not repeat unused lint acquisition; quick/dry-run/check-only
+modes do not download tools. Explicit target prerequisite setup and setup-only
+resolve selected managed tools. Repository lint remains mandatory and nonzero
+when acquisition, checksum, version or lint fails.
+
+Tests use synthetic ZIP/tar artifacts and mocked networking/probes; no unit test
+requires GitHub or installs a tool. Coverage includes cached/missing dependencies,
+legacy cache promotion, PATH reuse, downloads, 403/404, transient 503/timeout/reset/
+proxy/incomplete read, TLS failure/downgrade, checksum/version mismatch, atomic
+publication failure, concurrent resolution, offline hit/miss, mirror success and
+fallback, unsupported platform, link member rejection, Inno delegation and early
+preflight/receipt-reuse contracts. The existing strict Windows stage-sequence
+expectation was updated for the intentional early stage; no safeguards removed.
+A mistyped nonexistent test module in an intermediate command was corrected to
+`test_ci_report`; it was not an application failure.
+
+Final affected validation: nine complete tooling/dependency/workflow/installer
+modules, **211 discovered, 208 executed successfully, 3 PowerShell-only skips**,
+zero failures (`managed-tools-complete-targeted.log` and JSON in build/). The final
+19 resolver/cache tests passed separately after legacy-cache coverage was added;
+scopes overlap. The final CLI error guard's six acquisition tests also passed.
+Ruff, whitespace, workflow contracts and internal Markdown links passed.
+
+Real Linux acceptance: `scripts/testing/ci.py prerequisites` located a previously
+verified archive, used the managed cache without downloading and verified the
+real actionlint executable and exact version. `scripts/testing/ci.py lint` then
+passed actual actionlint workflow lint and documentation links. No native Windows,
+PowerShell/installer execution, corporate 403 recovery, packaging build, system
+tool installation, workflow dispatch or release is claimed. Windows acquisition
+and compiler behavior remain pending on the affected host/network.
+
+Configuration, audit matrix and exact Windows/Linux commands live in
+[Build: centralized prerequisites](../BUILD.md#centralized-prerequisites-and-restricted-networks).
+Use public prerequisites check/setup before another Windows package build;
+configure an organization-approved mirror/local artifact or proxy/trust through
+approved channels when upstream is forbidden. Never bypass security controls.
+
+Final read-only installer inspection coverage additionally passed: 37 prerequisite
+checks and a dedicated no-network/no-cache-write installer-bootstrap case. This
+last tooling-only refinement is covered directly; the application/browser code
+is unchanged. Resolver/cache coverage now contains 20 cases (19 passed together,
+then the additional inspection case passed); scopes overlap earlier counts.
+
+Complete local **REGRESSION passed in 7:52, exit 0**, summary-output mode enabled:
+backend **1495 discovered, 1489 actually passed, 6 Windows-only skipped**;
+critical browser **90/90**, tagged browser **33/33**. Thus **1612 actual passed,
+zero failures, 6 skips**; the profile displays 1618 passed because its backend
+summary includes skipped discoveries. All whitespace, documentation, workflow,
+ownership, Ruff, ESLint, TypeScript and frontend unit checks passed. Evidence:
+`build/test-logs/managed-tools-regression.log` and matching JSON under
+`build/test-artifacts/` (local ignored artifacts). The existing nonfatal unclosed
+file ResourceWarning in `test_validation_entrypoint.py:60` remains unrelated.
+This is REGRESSION, not FULL; the excluded release/packaging tests were covered
+by the separate affected tooling/installer modules above. Unchanged frontend
+assets were reused; no application packaging build was repeated.
+
+Final Windows verification (from repository root, approved network/proxy/mirror
+configuration in place):
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_local_build --test test_windows_ports --test test_prerequisites --jobs 1 --log build/windows-managed-tools.log --report build/windows-managed-tools.json
+.\scripts\build.ps1 -Mode prerequisites -Platform windows -Target desktop -CheckOnly -NonInteractive
+.\scripts\build.ps1 -Mode prerequisites -Platform windows -Target desktop -NonInteractive
+```
+
+Check-only may report missing caches; setup performs verified acquisition. Do not
+start another package build if setup fails. For installer-specific acquisition,
+select `-Target installer`. Confirm cache reuse by repeating prerequisites setup;
+retain sanitized status/error output. Then, if the required tools are verified,
+run the intended native build. No native corporate-download success, PowerShell
+5.1 execution, Windows cache-lock acceptance or Inno compiler acceptance is
+claimed here. No main/version/CI-trigger/release changes were made.

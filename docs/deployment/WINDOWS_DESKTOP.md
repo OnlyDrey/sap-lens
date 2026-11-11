@@ -404,3 +404,15 @@ powershell -NoProfile -File .\scripts\test-windows-exe.ps1 -ExecutablePath .\bac
 
 Retain all four scenario results. Linux source/frozen-loader simulations do not
 establish native Windows/WebView2 success. App Control requirements still apply.
+
+### Resolve build tools before packaging
+
+Run prerequisite setup for the selected target before rebuilding. actionlint
+1.7.12 is acquired and verified before expensive local validation; Inno Setup's
+pinned bootstrap uses the same resolver when an installer target needs it.
+Portable Desktop does not acquire unrelated installer tooling. See the
+[build prerequisite guide](../BUILD.md#centralized-prerequisites-and-restricted-networks)
+for native Windows setup/check commands, persistent caches, internal mirrors,
+offline artifacts and strict checksum/version handling. A corporate HTTP 403
+remains unverified until that setup succeeds on the affected Windows network;
+packaging success or Linux/mock tests cannot establish it.

@@ -117,6 +117,7 @@ def main(argv=None):
                                   clean_paths=list(targets.CLEAN_PATHS) if args.mode=='clean' else []),indent=2))
             return 0
         if args.setup_only:
+            if doctor.needs_managed_tools(args):deps.resolve_managed_tools(ROOT,installer=args.platform=='windows' and args.target=='installer')
             deps.prepare_environment(ROOT,runner,packaging=args.mode in ('build','package'))
         elif args.mode=='clean':targets.clean(args,runner)
         else:

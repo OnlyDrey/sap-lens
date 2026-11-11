@@ -1,6 +1,7 @@
 """Prerequisites report, repair and target-specific preflight. Check mode is strictly read-only; nothing here installs a system tool."""
 import json
 import os
+from pathlib import Path
 import platform
 import shutil
 import sys
@@ -30,6 +31,11 @@ def requirements(args):
                 powershell=windows and packaging,
                 packaging_env=packaging and args.target in PACKAGING_TARGETS,
                 git=args.mode != 'clean', node=args.mode not in ('clean', 'release'))
+
+
+def needs_managed_tools(args):
+    # Skip-setup packaging reuses a source-validation receipt and does not run Repository lint.
+    return needs_packaging(args) and not getattr(args, 'skip_setup', False)
 
 
 def tool_item(name, required):
@@ -90,6 +96,31 @@ def collect(args, root=ROOT):
         items.append(tool_item('docker', True))
     if platform.system() == 'Windows' and not need['powershell']:
         items.append(item('PowerShell', READY if (shutil.which('powershell') or shutil.which('pwsh')) else WARNING, 'only Windows packaging needs it', required=False))
+    if needs_managed_tools(args):
+        from . import managed_tools
+        windows = platform.system() == 'Windows'
+        package = 'windows_amd64.zip' if windows else 'linux_amd64.tar.gz'
+        expected = managed_tools.ACTIONLINT_WINDOWS_SHA256 if windows else managed_tools.ACTIONLINT_SHA256
+        location = managed_tools.cache_directory(root)
+        archive = location / f'actionlint-{managed_tools.ACTIONLINT_VERSION}-{package}'
+        explicit = os.environ.get('SAP_LENS_ACTIONLINT_ARCHIVE')
+        try:
+            available = managed_tools.verified(Path(explicit) if explicit else archive, expected) is not None
+        except (OSError, managed_tools.ToolUnavailable):
+            available = False
+        items.append(item('actionlint', READY if available else MISSING,
+                          'verified archive cached; executable/version checked by build preflight' if available else 'no verified pinned archive cached',
+                          'Run prerequisites setup for this target; configure an approved mirror/local archive for restricted networks.'))
+        if args.platform == 'windows' and args.target == 'installer':
+            explicit = os.environ.get('SAP_LENS_INNO_ARCHIVE')
+            artifact = Path(explicit) if explicit else location / f'innosetup-{managed_tools.INNO_VERSION}-x64.exe'
+            try:
+                available = managed_tools.verified(artifact, managed_tools.INNO_SHA256) is not None
+            except (OSError, managed_tools.ToolUnavailable):
+                available = False
+            items.append(item('Inno Setup bootstrap', READY if available else MISSING,
+                              'pinned installer cached; native compiler provisioning remains separate' if available else 'no verified pinned installer cached',
+                              'Run prerequisites setup for the installer target or configure an approved Inno artifact/mirror.'))
     items.append(item('Security audit', READY, 'not part of prerequisites; run `npm --prefix frontend audit --omit=dev` separately (needs network)', required=False))
     return items
 
@@ -139,6 +170,8 @@ def run_prerequisites(args, runner, root=ROOT):
             if not args.repair:
                 raise BuildError(f'{directory.relative_to(root).as_posix()} {detail}. It was left untouched. Rerun with --repair to rename it aside and recreate it with Python 3.12.', 3)
             print(f'Repair: renamed {directory.name} to {quarantine(directory).name}')
+    if needs_managed_tools(args):
+        deps.resolve_managed_tools(root, installer=args.platform == 'windows' and args.target == 'installer')
     deps.prepare_environment(root, runner, packaging=False, frontend=True, creator=found['path'])
     if packaging:
         deps.prepare_environment(root, runner, packaging=True, frontend=False, creator=found['path'])
@@ -149,7 +182,7 @@ def run_prerequisites(args, runner, root=ROOT):
 
 def preflight(args):
     """Fail before expensive work when a required tool for exactly this platform/target is missing. Read-only."""
-    problems = [row for row in collect(args) if row['required'] and row['status'] in (MISSING, INCOMPATIBLE) and row['name'] not in ('Project .venv', 'Packaging environment')
+    problems = [row for row in collect(args) if row['required'] and row['status'] in (MISSING, INCOMPATIBLE) and row['name'] not in ('Project .venv', 'Packaging environment', 'actionlint', 'Inno Setup bootstrap')
                 and not row['name'].endswith('dependencies') and row['name'] != 'Frontend dependencies']
     if problems:
         raise BuildError('Prerequisite preflight failed before any build step ran:\n' + '\n'.join(f"  - {row['name']}: {row['detail']}\n    {row['action']}" for row in problems), 3)

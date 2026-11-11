@@ -52,3 +52,13 @@ For settings, logs and storage locations see [configuration and recovery](CONFIG
 
 After a restart SAP Lens re-establishes its local session by itself; you should only see "Starting SAP Lens…", "Connecting to local service…" or "Restoring workspace…" for a moment. A recovery screen appears only when that failed: *Retry connection* repeats the attempt.
 If it keeps appearing, close all SAP Lens windows and browser tabs that point at it, then start SAP Lens again. Details of the cause classes are in [Local session lifecycle](../architecture/SECURITY.md#local-session-lifecycle-and-start-up-recovery). Backup & Restore is offered only when the configuration itself could not be loaded.
+
+## Build prerequisite download blocked
+
+`workflow_lint BLOCKED (prerequisite)` or `managed_tools BLOCKED` means a tool
+was not verified, not that application tests failed. Resolve prerequisites
+before another package build. A persistent HTTP 403 needs approved upstream
+access, an internal mirror or a checksum-verified local artifact; repeated
+rebuilds and a different User-Agent do not override policy. See
+[build prerequisite recovery](../BUILD.md#centralized-prerequisites-and-restricted-networks)
+for exact commands, environment variables and cache/version diagnostics.

@@ -9,14 +9,14 @@ import hashlib
 import json
 import re
 import shutil
-import urllib.request
 import uuid
 
 from build_system.windows.stages import ROOT, Process, StageError, venv_python
 
-INNO_VERSION = '7.1.0'
-INNO_URL = 'https://github.com/jrsoftware/issrc/releases/download/is-7_1_0/innosetup-7.1.0-x64.exe'
-INNO_SHA256 = '0362a383ed217d4c4239b5933866dd96d3eb2102737da92f80f6057a4b40df2f'
+from build_system import managed_tools
+INNO_VERSION = managed_tools.INNO_VERSION
+INNO_URL = managed_tools.INNO_URL
+INNO_SHA256 = managed_tools.INNO_SHA256
 
 
 def sha256(path):
@@ -24,7 +24,7 @@ def sha256(path):
 
 
 def download(url, target):
-    urllib.request.urlretrieve(url, target)
+    managed_tools.atomic_write(Path(target), managed_tools.acquire_inno())
 
 
 def build(OutputDirectory, CompileCheck=False, root=ROOT, process=None, environ=None, windows=None, fetch=download, host_python='python'):
