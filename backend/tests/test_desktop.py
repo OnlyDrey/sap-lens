@@ -126,6 +126,46 @@ class DesktopTests(unittest.TestCase):
                     self.assertEqual((health['status'], health['cached_roles']), ('ok', 2) if valid else ('needs_configuration', 0))
                     self.assertEqual(bool(app.state.loader.error), not valid)
 
+    def test_packaged_initial_load_without_loose_python_sources(self):
+        import persistent_cache
+        persistent_cache._code_digest.clear()
+        self.addCleanup(persistent_cache._code_digest.clear)
+        with patch.object(sys, 'frozen', True, create=True), patch.object(persistent_cache, '__file__', str(self.root / 'bundle' / 'persistent_cache.py')):
+            self.test_health_configured_legacy_fixture_and_invalid_source()
+
+    def test_failed_migration_backup_does_not_prevent_packaged_source_load(self):
+        import storage_migration
+        from storage_lease import StorageLease
+        (self.root / 'settings.json').write_text('{"schema_version":3}', encoding='utf-8')
+        lease = StorageLease(self.root, 'desktop').acquire()
+        try:
+            with patch.object(storage_migration.engine, 'backup', side_effect=OSError('synthetic backup failure')):
+                self.assertEqual(storage_migration.run(lease)['state'], 'backup_failed')
+        finally:
+            lease.close()
+        self.test_packaged_initial_load_without_loose_python_sources()
+
+    def test_source_failure_has_safe_diagnostics_and_distinct_initialization_state(self):
+        import asyncio
+        missing = self.root / 'synthetic-private-source.csv'
+        (self.root / 'settings.json').write_text(json.dumps({'schema_version': 3, 'data_csv_path': str(missing)}), encoding='utf-8')
+        config.get_settings.cache_clear()
+        events = []
+        app = create_app(startup_observer=lambda *event: events.append(event))
+        with self.assertLogs(level='WARNING') as logged:
+            with TestClient(app, base_url='http://127.0.0.1') as client:
+                async def finished():
+                    if app.state.loader._result is not None:
+                        await asyncio.wait_for(asyncio.shield(app.state.loader._result), 5)
+                client.portal.call(finished)
+                self.assertEqual(client.get('/health').json()['status'], 'needs_configuration')
+        text = '\n'.join(logged.output)
+        self.assertIn('source=roles phase=read exception=FileNotFoundError', text)
+        self.assertIn('source=roles status=failed category=missing', text)
+        self.assertNotIn(str(missing), text)
+        self.assertIn(('data_loader', 'created', None), events)
+        self.assertIn(('source_initialization', 'failed', None), events)
+
     def drive_gui(self, **kwargs):
         self.navigate.reset_mock()
         worker=threading.Thread(target=kwargs['func'], daemon=True)

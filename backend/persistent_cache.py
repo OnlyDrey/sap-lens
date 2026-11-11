@@ -12,10 +12,14 @@ includes the digest of the code that produced the value, so a code change can ne
 import hashlib
 import hmac
 import io
+import importlib.util
 import logging
+import marshal
 import pickle
 import sqlite3
 import threading
+import sys
+import types
 from pathlib import Path
 
 import store_db
@@ -55,12 +59,25 @@ def file_digest(path):
 
 
 def code_digest(*names):
-    """Digest of the modules that build a cached value: editing them invalidates their cache without a manual version bump."""
-    key = tuple(names)
+    """Hash source in checkouts, or loader-owned bytecode in frozen bundles without loose .py files."""
+    frozen = bool(getattr(sys, 'frozen', False))
+    key = (frozen, tuple(names))
     if key not in _code_digest:
         digest = hashlib.sha256()
         for name in names:
-            digest.update((Path(__file__).parent / name).read_bytes())
+            if frozen:
+                spec = importlib.util.find_spec(Path(name).stem)
+                loader = spec.loader if spec else None
+                code = loader.get_code(spec.name) if loader and hasattr(loader, 'get_code') else None
+                if not isinstance(code, types.CodeType):
+                    raise OSError('Packaged module code is unavailable for source fingerprinting.')
+                def canonical(value):
+                    # One-file extraction locations must not invalidate identical code on every launch.
+                    return value.replace(co_filename='<sap-lens>', co_consts=tuple(canonical(item) if isinstance(item, types.CodeType) else item for item in value.co_consts))
+                digest.update(name.encode() + b'\0' + sys.implementation.cache_tag.encode() + b'\0')
+                digest.update(marshal.dumps(canonical(code)))
+            else:
+                digest.update((Path(__file__).parent / name).read_bytes())
         _code_digest[key] = digest.hexdigest()
     return _code_digest[key]
 

@@ -506,6 +506,8 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
             changed |= has_changes or operation == 'import' and source in forced
             successful.append(source)
         except Exception as error:
+            logger.warning('Source initialization/import failed (source=%s phase=%s exception=%s errno=%s winerror=%s).',
+                           source, phase, type(error).__name__, getattr(error, 'errno', None), getattr(error, 'winerror', None))
             if strict:
                 error.sap_lens_source = source
                 raise

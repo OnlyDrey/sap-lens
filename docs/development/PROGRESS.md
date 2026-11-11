@@ -1064,3 +1064,101 @@ packaging configuration, dependencies, CI triggers or `main` changes. No native
 Windows build, PowerShell execution, WebView2 acceptance, FULL, signing or policy
 modifications were performed. Native acceptance remains pending, and the earlier
 configured-CSV root cause remains unresolved.
+
+## Packaged Windows CSV initialization — loose-source fingerprints
+
+Baseline `69f0f3b`, branch `work`. The supplied native retry log confirms fresh
+first-launch passed ownership/API/frontend/WebView2/CORS/shutdown; configured
+launch was live but remained needs_configuration/zero roles despite a readable
+162-byte Dynamic fixture and matching settings. It also reports backup_failed.
+No private paths or source values from that log are committed.
+
+**Reproduced cause:** `csv_lifecycle.source_fingerprint()` calls
+`persistent_cache.code_digest()` before parsing. The latter read loose backend
+`.py` files by `__file__`. PyInstaller ships those modules in its Python archive,
+not as loose source files (the inspected packaging arguments bundle resources,
+identity and frontend, not backend source). Missing source bytes cause a
+FileNotFoundError before the CSV is parsed. Non-strict lifecycle loading catches
+this as a failed per-source report; DataLoader's old exception-only warning does
+not run, so the original log can have no explicit CSV failure. Cache activation
+never occurs and health correctly reports needs_configuration with zero roles.
+`data_loader: ready` previously meant only that its constructor returned.
+
+The new source-mode test simulates frozen execution and a nonexistent bundle
+source directory. Before the fix its valid case reproduced exactly
+needs_configuration/zero roles instead of ok/two roles
+(`build/test-logs/packaged-csv-reproduce.log`). After the fix it passes both the
+valid and invalid source cases. This proves the failure mechanism; it is not a
+claim that a new native Windows EXE has passed.
+
+**Fix:** frozen fingerprints use the module loader's code objects (PyInstaller's
+installed `PyiFrozenLoader.get_code` reads its PYZ archive), recursively normalize
+extraction filenames, and hash module identity, Python cache tag and marshalled
+code. Source checkouts still hash source bytes. Tests prove unchanged code has
+an unchanged digest across extraction paths, changed nested code invalidates it,
+and unavailable code fails explicitly rather than using a constant fingerprint.
+An additional check verified identical real-module fingerprints across three
+subprocesses with PYTHONHASHSEED 1, 2 and 3. No parser, import schema, activation
+transaction, HMAC, cache payload, health contract or native security boundary
+was relaxed. Built-in modules only; no new dependency or packaging data needed.
+
+**Backup warning:** the same valid configuration/fixture migrates successfully
+in a local source-mode reproduction. A forced pre-migration backup failure is
+also followed by a successful frozen-simulation load, proving that backup_failed
+does not inherently prevent the CSV from activating. Backup verification and
+migration gates remain intact. The exact native backup exception is absent from
+the supplied tail and remains unconfirmed; retain the full local application log
+if it recurs. It is not asserted as the cause of the zero-role failure.
+
+**Diagnostics:** loader construction now reports `created`; independent
+`source_initialization` events report starting/ready/failed/unconfigured. Each
+source activation reports operation, kind, status/category, skip reason and
+record count. Per-source failures report phase, exception class and OS codes.
+Unexpected initialization failures remain recoverable with a controlled message.
+Tests assert missing-source logs contain both failure and activation evidence
+without the private source path. The smoke summary recognizes these failures,
+constructor/unconfigured events and the backup_failed marker. Exact fresh and
+configured counts and all authentication/ownership/cleanup checks are preserved.
+
+**Summary-output assertion:** reproduced behavior came from the console test
+inheriting SAP_LENS_TEST_PROGRESS=summary while asserting per-test success lines.
+The test now explicitly selects `tests` mode inside its environment fixture,
+preserving its color, text and summary assertions and restoring the caller's
+mode afterward. No runner behavior or failing assertion was weakened. All console
+checks passed while the parent process remained in summary mode.
+
+Level 1: four direct fingerprint/frozen-load/backup-failure cases passed, then
+the safe-diagnostics test passed after correcting its log capture to include both
+logger namespaces. Level 2: six complete affected backend modules, **204
+discovered, 198 executed successfully, 6 Windows-only skips**, zero failures,
+with SAP_LENS_TEST_PROGRESS=summary (`packaged-csv-affected.log` and matching JSON
+under build/). Ruff, whitespace and internal documentation links passed. The
+requested complete local REGRESSION is recorded below when it finishes.
+
+Native commands are in
+[Windows Desktop: packaged source initialization](../deployment/WINDOWS_DESKTOP.md#packaged-source-initialization-and-cache-identity).
+Run targeted Windows tests, rebuild only Desktop once to incorporate the Python
+fix, then retain all four EXE smoke scenarios. The old EXE cannot validate this
+code change. Windows parser/mocked OS tests, native configured activation and
+WebView2 acceptance remain pending here. No main, product-version, CI-trigger,
+signing, release or security-policy changes; no Actions dispatched.
+
+Final complete local **REGRESSION passed in one run, 7:34, exit 0**, with
+SAP_LENS_TEST_PROGRESS=summary enabled: backend **1495 discovered, 1489 executed
+successfully, 6 Windows-only skips**; critical browser **90/90**, tagged browser
+**33/33**. Thus **1612 actual passed, zero failures, 6 skips**; the profile displays
+1618 passed because its displayed backend count includes skipped cases. The
+summary-output assertion passed inside this run, not only in an isolated recheck.
+Whitespace, documentation links, workflow contracts, ownership map, Ruff, ESLint,
+TypeScript and frontend unit tests all passed. Logs/report:
+`build/test-logs/packaged-csv-regression.log` and
+`build/test-artifacts/packaged-csv-regression.json` (local artifacts, not committed).
+One existing nonfatal ResourceWarning remains in `test_validation_entrypoint.py:60`
+for an unclosed file wrapper; unrelated code was left unchanged. This is the
+complete REGRESSION profile, not FULL/all available tests. Unchanged frontend
+assets were reused; no new native package or Windows smoke execution is claimed.
+
+Delivery includes the frozen-code identity fix, initialization/activation
+observability, regression coverage and isolated console-test mode, plus updated
+Windows commands. Preserve App Control and verify the newly built Desktop EXE
+on Windows before declaring the configured native installation fixed.

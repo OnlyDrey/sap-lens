@@ -466,7 +466,7 @@ class ColorOutputTests(unittest.TestCase):
             files[0].write_text('{"type":"begin","total":2}\n{"type":"test-end","file":"a.spec.ts","line":3,"title":"x","status":"failed","outcome":"unexpected","duration":10,"error":"boom"}\n'
                                 '{"type":"test-end","file":"a.spec.ts","line":4,"title":"y","status":"passed","outcome":"expected","duration":5}\n', encoding='utf-8')
             terminal = self.Terminal(True)
-            with patch.object(runner, 'PAINT', True), patch('sys.stdout', new=runner.SafeConsole(terminal, 'ansi')):
+            with patch.dict(os.environ, {'SAP_LENS_TEST_PROGRESS': 'tests'}), patch.object(runner, 'PAINT', True), patch('sys.stdout', new=runner.SafeConsole(terminal, 'ansi')):
                 live = runner.LiveProgress('demo', files, [Path(folder) / 'none.txt'], time.perf_counter())
                 live.poll()
                 summary = live.summary(set())

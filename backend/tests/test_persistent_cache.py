@@ -6,6 +6,7 @@ import tempfile
 import threading
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -107,6 +108,26 @@ class StoreTests(CacheCase):
         first = store.code_digest('cache.py')
         self.assertEqual(first, store.code_digest('cache.py'))
         self.assertNotEqual(first, store.code_digest('csv_import.py'))
+
+    def test_frozen_digest_uses_loader_code_and_ignores_extraction_path(self):
+        store._code_digest.clear()
+        self.addCleanup(store._code_digest.clear)
+        def fingerprint(filename, body):
+            code = compile(body, filename, 'exec')
+            spec = SimpleNamespace(name='synthetic', loader=SimpleNamespace(get_code=lambda name: code))
+            store._code_digest.clear()
+            with patch.object(sys, 'frozen', True, create=True), patch.object(store.importlib.util, 'find_spec', return_value=spec), patch.object(Path, 'read_bytes', side_effect=AssertionError('no loose sources')):
+                return store.code_digest('synthetic.py')
+        first = fingerprint('C:/extract-one/synthetic.py', 'def nested():\n return 1\n')
+        self.assertEqual(first, fingerprint('D:/extract-two/synthetic.py', 'def nested():\n return 1\n'))
+        self.assertNotEqual(first, fingerprint('D:/extract-two/synthetic.py', 'def nested():\n return 2\n'))
+
+    def test_frozen_missing_code_never_uses_a_constant_fingerprint(self):
+        store._code_digest.clear()
+        self.addCleanup(store._code_digest.clear)
+        with patch.object(sys, 'frozen', True, create=True), patch.object(store.importlib.util, 'find_spec', return_value=None):
+            with self.assertRaisesRegex(OSError, 'Packaged module code is unavailable'):
+                store.code_digest('missing.py')
 
 
 class LoadIntegration(CacheCase):

@@ -335,8 +335,9 @@ No certificate provisioning or automatic signing is implemented here.
 ### Configured-source failure evidence
 
 The earlier seeded-CSV failure occurred **after** backend startup, unlike the
-subsequent policy block. Its packaged root cause remains unconfirmed. After the
-organization authorizes execution, all four smoke scenarios must pass; a
+subsequent policy block. The loose-source fingerprint defect described below
+has now been reproduced and corrected; native acceptance of that correction is
+still pending. After the organization authorizes execution, all four smoke scenarios must pass; a
 configured installation still requires `ok` and exactly two synthetic roles.
 
 The failure report records settings/source existence, whitelisted source mode,
@@ -350,3 +351,56 @@ database or packaged-resource cause. Preserve the full local application log,
 scenario settings and build identity for investigation, but inspect/redact them
 before sharing; never commit settings, logs, source files, credentials or tokens.
 Native Windows and WebView2 acceptance remain separate from Linux/mock checks.
+
+### Packaged source initialization and cache identity
+
+Frozen PyInstaller modules live in the bundled Python archive; their loose `.py`
+files are not required or distributed. Source fingerprinting previously tried to
+read those files before parsing a configured CSV. That produced a per-source
+failure and left zero roles even when the CSV was valid and readable. The old
+loader exception log did not cover failures returned in a lifecycle report.
+
+Frozen fingerprints now hash module-loader code objects, including nested code,
+module identity and the Python cache tag. Extraction-specific filenames are
+normalized so identical code can reuse its cache across launches. Code changes
+still invalidate fingerprints; unavailable module code fails explicitly rather
+than using a constant fallback. Source checkouts continue hashing source bytes.
+Import validation, atomic replacement, SQLite/HMAC integrity, authentication and
+health-state/count requirements are unchanged.
+
+Startup `data_loader: created` means the loader object exists, not that a source
+has loaded. `source_initialization` separately reports starting, ready, failed or
+unconfigured. Per-source activation records report only operation, source kind,
+status/category, skip reason and record count. Failure records include phase,
+exception class and OS error codes, never file contents or configuration secrets.
+The smoke log summary recognizes lifecycle failures and retains backup-failure
+and source-initialization stage markers.
+
+A forced pre-migration backup failure does not prevent the same valid source
+from loading in the regression test. This is separate from the source-file
+fingerprint defect; the exact native backup warning still needs its full local
+application log for diagnosis. No backup verification or migration safety gate
+was bypassed.
+
+After syncing the fix, run direct tests on Windows:
+
+```powershell
+.\.venv\Scripts\python.exe scripts/run-tests.py targeted --test test_desktop --test test_persistent_cache --test test_csv_lifecycle --test test_storage_migration --test test_desktop_smoke_script --test test_test_profiles --jobs 1 --log build/windows-packaged-csv.log --report build/windows-packaged-csv.json
+```
+
+The existing EXE contains the old fingerprint code. Rebuild the Desktop target
+**once** to test the correction (service packaging need not be repeated):
+
+```powershell
+.\scripts\build.ps1 -Mode build -Platform windows -Target desktop -NonInteractive
+```
+
+The build runs native EXE smoke validation. To inspect that same new artifact
+again without another build:
+
+```powershell
+powershell -NoProfile -File .\scripts\test-windows-exe.ps1 -ExecutablePath .\backend\dist\SAP-Lens.exe
+```
+
+Retain all four scenario results. Linux source/frozen-loader simulations do not
+establish native Windows/WebView2 success. App Control requirements still apply.

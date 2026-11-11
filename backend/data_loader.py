@@ -79,6 +79,10 @@ class DataLoader:
                 result.set_exception(HTTPException(409 if held else 400, error))
             else:
                 self.last_report = report
+                for row in (report or {}).get('sources', []):
+                    logger.log(logging.WARNING if row['status'] == 'failed' else logging.INFO,
+                               'Source activation operation=%s source=%s status=%s category=%s reason=%s records=%s',
+                               operation, row['source'], row['status'], row.get('category', '-'), row.get('reason', '-'), row.get('records', 0))
                 failures = [r for r in (report or {}).get('sources', []) if r['status'] == 'failed']
                 self.source_attempts = {r['source']: {'path': {'roles': settings.data_csv_path, 'users': settings.user_csv_path, 'employees': settings.employee_csv_path, 'sod': settings.sod_csv_path}[r['source']], 'error': r['category']} for r in failures}
                 if failures:

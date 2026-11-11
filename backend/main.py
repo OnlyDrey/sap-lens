@@ -1,11 +1,12 @@
 """Local API and static frontend shared by desktop and development runtimes."""
 import asyncio
 import hmac
+import logging
 import sys
 from datetime import datetime, timezone
 from uuid import uuid4
 from collections.abc import AsyncIterator
-from contextlib import asynccontextmanager, suppress
+from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -42,7 +43,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         if startup_observer: startup_observer(stage, result, error)
     notify('data_loader', 'starting')
     loader = DataLoader()
-    notify('data_loader', 'ready')
+    notify('data_loader', 'created')
     notify('scheduler', 'starting')
     from scheduler import Scheduler
     scheduler = Scheduler(loader)
@@ -62,8 +63,17 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         async def initial_load():
-            with suppress(HTTPException):
-                await loader.load()
+            notify('source_initialization', 'starting')
+            try:
+                report = await loader.load()
+                failed = any(row['status'] == 'failed' for row in report.get('sources', []))
+                notify('source_initialization', 'failed' if failed else 'ready')
+            except Exception as error:
+                # Initialization stays recoverable; report types/codes, never paths or source values.
+                loader.error = loader.error or 'Source initialization failed. Review Data Sources and retry.'
+                logging.getLogger('sap-lens').warning('Source initialization failed (exception=%s status=%s).',
+                                                     type(error).__name__, error.status_code if isinstance(error, HTTPException) else '-')
+                notify('source_initialization', 'failed', error)
 
         scheduled = asyncio.create_task(scheduler.loop())
         task = None
@@ -72,6 +82,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                 task = asyncio.create_task(initial_load())
             else:
                 loader.error = 'Choose a SAP role catalogue or user access CSV in Settings.'
+                notify('source_initialization', 'unconfigured')
             # Start the supervised scheduler and let persisted-data loading mark its state.
             await asyncio.sleep(0)
             if scheduled.done():

@@ -100,6 +100,8 @@ class SmokeScriptContracts(unittest.TestCase):
         summary = SCRIPT[SCRIPT.index('function Get-SmokeLoadSummary'):SCRIPT.index('function Get-LaunchNativeErrorCode')]
         self.assertIn('-Tail 400', summary)
         self.assertIn('csv_failure_seen=$csvFailure', summary)
+        self.assertIn('Source initialization/import failed', summary)
+        self.assertIn("'unconfigured', 'backup_failed'", summary)
         self.assertIn('stage=$($entry.stage), result=$($entry.result)', summary)
         self.assertNotIn('$entry.error', summary)
         self.assertNotIn('$entry.traceback', summary)

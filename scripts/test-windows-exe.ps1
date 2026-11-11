@@ -72,12 +72,12 @@ function Get-SmokeLoadSummary($directory) {
         $events = @()
         $csvFailure = $false
         foreach ($line in @(Get-Content -LiteralPath $log -Tail 400 -ErrorAction Stop)) {
-            if ($line -match 'CSV load unsuccessful; previous data retained') { $csvFailure = $true }
+            if ($line -match 'CSV load unsuccessful; previous data retained|Source initialization/import failed') { $csvFailure = $true }
             if ($line -match 'desktop_startup (\{.*\})$') {
                 try {
                     $entry = $Matches[1] | ConvertFrom-Json
                     # Allowlist fields and values: never output original JSON, exceptions, paths or settings.
-                    if ($entry.stage -match '^[a-z_]{1,40}$' -and $entry.result -in @('starting', 'ready', 'failed', 'unavailable')) {
+                    if ($entry.stage -match '^[a-z_]{1,40}$' -and $entry.result -in @('starting', 'created', 'ready', 'failed', 'unavailable', 'unconfigured', 'backup_failed')) {
                         $events += "stage=$($entry.stage), result=$($entry.result)"
                     }
                 } catch { }
