@@ -430,3 +430,33 @@ another commit, verification intentionally fails. No lifecycle run, release or
 workflow is started. Do not edit a historical manifest to mark acceptance passed.
 A native SCM rerun requires explicit authorization, elevation, no existing SAPLens
 service and a verified package. Packaging success alone is not that authorization.
+
+## SCM cleanup invalid-parameter diagnostics
+
+Cleanup removes files with `Remove-Item -LiteralPath -Force`; it does not first
+rewrite `FileInfo.Attributes`. Directory read-only handling is conditional.
+Windows error 87 means invalid parameter, not evidence of a lock. It is never
+retried as a sharing violation. Failures retain the owner marker/workspace and
+report relative path, entry type, operation and captured attributes. Existing
+same-user ownership/reparse boundaries and narrowly scoped ACL recovery remain.
+
+Management subprocesses have a 180-second limit with periodic RUNNING messages;
+HTTP probes use three-second timeouts and process enumeration uses a bounded CIM
+operation. Cleanup has a cooperative 120-second traversal/deletion deadline,
+checked between filesystem calls; this cannot forcibly interrupt a stalled OS I/O
+call. Only the explicitly created management host is killed on its timeout.
+Cleanup still verifies service removal and waits for workspace-owned processes;
+no unrelated process or production installation is terminated. Every cleanup
+failure prevents successful evidence publication.
+
+From the Windows repository root, without running the SCM lifecycle:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-cleanup-native.log --report build/scm-cleanup-native.json
+```
+
+The helper regression exercises Normal/Read-only
+`data\.application-backups\retention.json` in a private synthetic workspace.
+Run on both Windows PowerShell 5.1 and PowerShell 7 when installed. A full native
+SCM acceptance run is a separate check; Linux/static tests do not establish it.

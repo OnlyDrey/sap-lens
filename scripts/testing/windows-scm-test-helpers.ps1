@@ -55,11 +55,13 @@ function Grant-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
     Assert-NoReparse (Get-Item -LiteralPath $path -Force)
 }
 function Remove-ScmWorkspace($Workspace) {
+    $cleanupDeadline=[DateTime]::UtcNow.AddSeconds(120)
     $root = Assert-ScmTestPath $Workspace $Workspace.Root
     $pending = New-Object 'System.Collections.Generic.Queue[System.IO.DirectoryInfo]'
     $pending.Enqueue((Get-Item -LiteralPath $root -Force))
     $entries = New-Object 'System.Collections.Generic.List[System.IO.FileSystemInfo]'
     while ($pending.Count) {
+        if ([DateTime]::UtcNow -ge $cleanupDeadline) { throw 'Workspace cleanup exceeded 120 seconds; workspace retained.' }
         $directory=$pending.Dequeue()
         $null=Assert-ScmTestPath $Workspace $directory.FullName
         Assert-NoReparse $directory
@@ -78,6 +80,7 @@ function Remove-ScmWorkspace($Workspace) {
     # Reject the whole tree before deleting anything. Keep the marker until all children are gone.
     $marker=Join-Path $root '.scm-test-owner.json'
     foreach ($entry in @($entries | Sort-Object { $_.FullName.Length } -Descending)) {
+        if ([DateTime]::UtcNow -ge $cleanupDeadline) { throw 'Workspace cleanup exceeded 120 seconds; workspace retained.' }
         if ($entry.FullName -eq $marker) { continue }
         $path=Assert-ScmTestPath $Workspace $entry.FullName
         Assert-NoReparse (Get-Item -LiteralPath $path -Force)
@@ -87,7 +90,7 @@ function Remove-ScmWorkspace($Workspace) {
     $null=Assert-ScmTestPath $Workspace $root
     Remove-Item -LiteralPath $marker -Force
     $rootEntry=Get-Item -LiteralPath $root -Force
-    $rootEntry.Attributes=$rootEntry.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly)
+    if ($rootEntry.Attributes -band [IO.FileAttributes]::ReadOnly) { $rootEntry.Attributes=$rootEntry.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly) }
     [IO.Directory]::Delete($root,$false)
 }
 function Get-SafeScmZipPath([string]$Name) {
@@ -181,11 +184,20 @@ function Copy-ScmBundle([string]$InputPath,$Workspace) {
 function Remove-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
     $path=Assert-ScmTestPath $Workspace $Entry.FullName
     for ($attempt=0; $attempt -lt 5; $attempt++) {
+        $operation='inspect entry'; $attributes='unknown'
         try {
             $current=Get-Item -LiteralPath $path -Force -ErrorAction Stop
             Assert-NoReparse $current
-            # Directory.Delete does not implement Remove-Item -Force's read-only handling.
-            $current.Attributes=$current.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly)
+            $operation='inspect attributes'
+            $attributes=[int]$current.Attributes
+            # FileInfo deletion uses Remove-Item -Force; do not round-trip file
+            # attributes through FileInfo.set_Attributes (Windows ERROR_INVALID_PARAMETER).
+            if ($current -is [IO.DirectoryInfo] -and ($attributes -band 1)) {
+                $operation='clear directory read-only'
+                $current.Attributes=[IO.FileAttributes]($attributes -band (-bnot 1))
+            }
+            $operation='delete entry'
+            Write-Host ('[SCM cleanup] '+$path.Substring($Workspace.Root.TrimEnd('\').Length+1))
             if ($Entry -is [IO.DirectoryInfo]) { [IO.Directory]::Delete($path,$false) }
             else { Remove-Item -LiteralPath $path -Force -ErrorAction Stop }
             return
@@ -195,7 +207,7 @@ function Remove-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
             $code=$failureException.HResult -band 0xffff
             if ($code -notin @(5,32,33) -or $attempt -eq 4) {
                 $relative=$path.Substring($Workspace.Root.TrimEnd('\').Length+1)
-                throw "SCM cleanup failed: $relative ($($Entry.GetType().Name), code=$code). Workspace retained."
+                throw "SCM cleanup failed: $relative ($($Entry.GetType().Name), code=$code, operation=$operation, attributes=$attributes). Workspace retained."
             }
             if ($code -eq 5) { Grant-ScmTestEntry $Workspace $Entry }
             # Only confirmed access/sharing/lock failures, bounded to 1.5s total backoff.
@@ -208,7 +220,7 @@ function Wait-ScmWorkspaceProcesses($Workspace) {
     $deadline=[DateTime]::UtcNow.AddSeconds(15)
     do {
         $active=New-Object 'System.Collections.Generic.List[int]'
-        foreach ($process in @(Get-CimInstance Win32_Process -ErrorAction Stop)) {
+        foreach ($process in @(Get-CimInstance Win32_Process -OperationTimeoutSec 5 -ErrorAction Stop)) {
             try {
                 if ($process.ExecutablePath -and $process.ExecutablePath.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) {
                     $active.Add([int]$process.ProcessId)

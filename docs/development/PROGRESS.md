@@ -2027,3 +2027,33 @@ Do not forge evidence for a historical run or change a build manifest to claim
 acceptance. A real SCM rerun still requires explicit authorization. The preceding
 installer receipt changes, previously held locally, are included under this task's
 explicit validated-commit/push authorization.
+
+
+## SCM cleanup ERROR_INVALID_PARAMETER (2026-11-12)
+
+Native report: SCM lifecycle completed, but retention.json cleanup failed with
+FileInfo code 87. The old helper unconditionally assigned Attributes before
+Remove-Item -Force for every file. Removed this unnecessary FileInfo round-trip;
+only read-only directories need explicit attribute handling. Code 87 remains a
+hard failure, never a lock retry. The provided exception did not identify which
+operation raised it or capture the original attributes. Therefore the exact native
+setter/deletion cause is not conclusively reproduced on Linux. New operation and
+attribute diagnostics make that distinction observable if it recurs. No native
+success is claimed.
+
+Added a native Normal/ReadOnly retention.json helper regression and static guards;
+production service ownership, path confinement, retained recovery marker and
+create-only evidence gates remain. Added per-action START/RUNNING/PASS/FAIL,
+elapsed time, cleanup progress, child-host/HTTP/CIM limits and a cooperative
+cleanup deadline. Documentation describes limitations and safe helper commands.
+No native SCM run, build, release or Actions dispatch was performed.
+
+Final local validation: focused cleanup/release modules 45 passed, 9 native skips
+(54 discovered); deployment checks 368 passed, 22 skips (390 discovered). Ruff,
+Markdown links, workflow contracts and whitespace passed. PowerShell parsing and
+runtime tests could not execute: neither Windows PowerShell nor pwsh is installed.
+The bounded child-host runner serializes a named-parameter hashtable (including
+ConfirmRestore), rather than treating quoted parameter names as positional strings.
+Its native helper regression verifies named binding, child exit continuation and
+create-only evidence, but remains skipped here. No full regression or SCM lifecycle
+was run. Native successful cleanup/report publication remains pending.

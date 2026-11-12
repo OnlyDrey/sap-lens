@@ -121,7 +121,9 @@ class EntrypointContracts(unittest.TestCase):
     def test_native_evidence_is_separate_and_management_uses_child_host(self):
         text=self.read('scripts/test-server-service.ps1')
         helper=self.read('scripts/testing/windows-scm-test-helpers.ps1')
-        self.assertIn('& $managementHost -NoProfile -File $manage @args',text)
+        self.assertIn('Start-Process -FilePath $managementHost',text)
+        self.assertIn('WaitForExit(3000)',text)
+        self.assertIn('-EncodedCommand',text)
         self.assertNotIn('& $manage @args',text)
         self.assertIn("$reportPath=$inputBundle+'.scm-verification.json'",text)
         self.assertNotIn("$report.native_service_smoke=",text)
@@ -186,6 +188,13 @@ class ScmCleanupContracts(unittest.TestCase):
         for kind in ('unexpected file', 'missing file', 'reparse point:'):
             self.assertIn(kind, management)
 
+    def test_file_cleanup_avoids_attribute_roundtrip_and_reports_operation(self):
+        self.assertIn('$current -is [IO.DirectoryInfo] -and ($attributes -band 1)', self.helper)
+        self.assertIn('operation=$operation, attributes=$attributes',self.helper)
+        self.assertIn("$operation='delete entry'",self.helper)
+        self.assertIn('-TimeoutSec 3',self.main)
+        self.assertIn('$timer.Elapsed.TotalSeconds -lt 180',self.main)
+
     def test_bundle_input_is_validated_and_copied_before_install(self):
         self.assertLess(self.main.index('Copy-ScmBundle'),self.main.index('-Action Install'))
         for token in ("$source.Extension -ieq '.zip'", 'Get-SafeScmZipPath', 'Duplicate or linked ZIP entry', '2147483648', 'ExtractToFile($entry,$target)', 'manage-server-service.ps1','app/SAP-Lens.exe'):
@@ -206,7 +215,7 @@ SHELLS = [path for path in (shutil.which('powershell'), shutil.which('pwsh')) if
 class EvidenceHostTests(unittest.TestCase):
     def test_child_exit_continues_and_receipt_is_readable_and_create_only(self):
         with tempfile.TemporaryDirectory() as temporary:
-            root=Path(temporary);child=root/'child.ps1';child.write_text('exit 0')
+            root=Path(temporary);child=root/'child.ps1';child.write_text("param([string]$Action)\nif ($Action -ne 'Status') { throw 'Named argument binding failed' }; exit 0")
             helper=str(ROOT/'scripts/testing/windows-scm-test-helpers.ps1').replace("'", "''")
             main=(ROOT/'scripts/test-server-service.ps1').read_text()
             function=main[main.index('function Invoke-ScmManage'):main.index('\ntry {\n    $bundlePath')]
@@ -231,6 +240,22 @@ class NativeSafeScmHelpers(unittest.TestCase):
         encoded=base64.b64encode(source.encode('utf-16-le')).decode()
         done=subprocess.run([shell,'-NoProfile','-NonInteractive','-EncodedCommand',encoded],capture_output=True,text=True,timeout=60)
         self.assertEqual(done.returncode,0,done.stdout+done.stderr)
+
+    def test_retention_json_cleanup_normal_and_readonly(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$folder=Join-Path $workspace.Root 'data/.application-backups'
+New-Item -ItemType Directory -Path $folder -Force | Out-Null
+$path=Join-Path $folder 'retention.json'
+foreach ($attribute in @([IO.FileAttributes]::Normal,[IO.FileAttributes]::ReadOnly)) {
+    [IO.File]::WriteAllText($path,'{"synthetic":true}')
+    [IO.File]::SetAttributes($path,$attribute)
+    Remove-ScmTestEntry $workspace (Get-Item -LiteralPath $path -Force)
+    if (Test-Path -LiteralPath $path) { throw 'Retention file remains' }
+}
+Remove-ScmWorkspace $workspace
+""", parent, shell)
 
     def test_owned_cleanup_and_outside_path_rejection(self):
         for shell in SHELLS:

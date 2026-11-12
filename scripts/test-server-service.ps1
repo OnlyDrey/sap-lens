@@ -41,10 +41,46 @@ function Assert-OwnedScmService {
 }
 function Invoke-ScmManage {
     if (Test-ScmRegistered) { Assert-OwnedScmService }
-    $global:LASTEXITCODE=0
-    # A management script's exit must never terminate this evidence-producing host.
-    & $managementHost -NoProfile -File $manage @args
-    if ($global:LASTEXITCODE -ne 0) { throw "Service management failed (exit $global:LASTEXITCODE)." }
+    $timer=[Diagnostics.Stopwatch]::StartNew()
+    $stage='Service management '+($args -join ' ')
+    Write-Host "[SCM] START | $stage"
+    $child=$null; $passed=$false
+    try {
+        # Encode quoted tokens; neither spaces/Unicode nor PowerShell metacharacters
+        # can turn an argument into executable code. This child alone is owned.
+        $bindings=New-Object 'System.Collections.Generic.List[string]'
+        for ($index=0; $index -lt $args.Count; $index++) {
+            $name=[string]$args[$index]
+            if ($name -notmatch '^-[A-Za-z]+$') { throw 'Invalid management parameter name.' }
+            $key=$name.Substring(1)
+            if ($key -eq 'ConfirmRestore') { $value='$true' }
+            else {
+                $index++
+                if ($index -ge $args.Count) { throw 'Missing management parameter value.' }
+                $value="'"+([string]$args[$index]).Replace("'","''")+"'"
+            }
+            $bindings.Add("'"+$key+"'="+$value)
+        }
+        $quotedManage="'"+$manage.Replace("'","''")+"'"
+        $code='$ErrorActionPreference=''Stop''; $global:LASTEXITCODE=0; $parameters=@{'+($bindings -join ';')+'}; & '+$quotedManage+' @parameters; if (-not $?) { exit 1 }; exit $global:LASTEXITCODE'
+        $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))
+        $child=Start-Process -FilePath $managementHost -ArgumentList @('-NoProfile','-EncodedCommand',$encoded) -NoNewWindow -PassThru
+        while (-not $child.WaitForExit(3000) -and $timer.Elapsed.TotalSeconds -lt 180) {
+            Write-Host ('[SCM] RUNNING | '+$stage+' | elapsed '+[int]$timer.Elapsed.TotalSeconds+'s')
+        }
+        if (-not $child.HasExited) {
+            $child.Kill()
+            $null=$child.WaitForExit(10000)
+            throw 'Owned management host exceeded 180 seconds; inspect service state and retained workspace.'
+        }
+        if ($child.ExitCode -ne 0) { throw "Service management failed (exit $($child.ExitCode))." }
+        $passed=$true
+    } finally {
+        if ($child) { $child.Dispose() }
+        $timer.Stop()
+        $status=if ($passed) { 'PASS' } else { 'FAIL' }
+        Write-Host ("[SCM] $status | $stage | elapsed {0:N1}s" -f $timer.Elapsed.TotalSeconds)
+    }
 }
 try {
     $bundlePath=Copy-ScmBundle $inputBundle $workspace
@@ -74,10 +110,10 @@ try {
     $deadline=(Get-Date).AddSeconds(40)
     $ready=$false
     while ((Get-Date) -lt $deadline) {
-        try { $health=Invoke-RestMethod "http://127.0.0.1:$port/health/ready"; if ($health.status -eq 'ready') { $ready=$true;break } } catch { Start-Sleep -Milliseconds 250 }
+        try { $health=Invoke-RestMethod "http://127.0.0.1:$port/health/ready" -TimeoutSec 3; if ($health.status -eq 'ready') { $ready=$true;break } } catch { Start-Sleep -Milliseconds 250 }
     }
     if (-not $ready -or (Get-ScmStatus) -ne 'Running') { throw 'Service did not become ready in SCM.' }
-    $version=Invoke-RestMethod "http://127.0.0.1:$port/api/version"
+    $version=Invoke-RestMethod "http://127.0.0.1:$port/api/version" -TimeoutSec 3
     if ($version.version -ne $expected.version) { throw 'Service version differs from the package identity.' }
     Invoke-ScmManage -Action Stop -InstallDirectory $bundlePath
     if ((Get-ScmStatus) -ne 'Stopped') { throw 'SCM did not stop the service.' }
@@ -90,7 +126,7 @@ try {
     # without fabricating a versioned executable or compiling a second package.
     Invoke-ScmManage -Action Upgrade -InstallDirectory $bundlePath -NewBundleDirectory $replacement -BackupDirectory $backups
     if ((Get-ScmStatus) -ne 'Running') { throw 'Staged upgrade did not restart the service.' }
-    if ((Invoke-RestMethod "http://127.0.0.1:$port/api/version").version -ne $expected.version) { throw 'Upgrade changed embedded version identity unexpectedly.' }
+    if ((Invoke-RestMethod "http://127.0.0.1:$port/api/version" -TimeoutSec 3).version -ne $expected.version) { throw 'Upgrade changed embedded version identity unexpectedly.' }
     Invoke-ScmManage -Action Uninstall -InstallDirectory $bundlePath
     $deadline=(Get-Date).AddSeconds(10)
     while ((Test-ScmRegistered) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }
@@ -109,8 +145,13 @@ try {
         if (Test-ScmRegistered) { throw 'Service registration remains; test workspace retained.' }
     } catch { $safeToRemove=$false; $cleanupErrors.Add($_.Exception.Message) }
     if ($safeToRemove) {
-        try { Wait-ScmWorkspaceProcesses $workspace; Remove-ScmWorkspace $workspace }
-        catch { $cleanupErrors.Add($_.Exception.Message) }
+        try {
+            $cleanupTimer=[Diagnostics.Stopwatch]::StartNew()
+            Write-Host '[SCM] START | owned workspace cleanup'
+            Wait-ScmWorkspaceProcesses $workspace; Remove-ScmWorkspace $workspace
+            Write-Host ('[SCM] PASS | owned workspace cleanup | elapsed {0:N1}s' -f $cleanupTimer.Elapsed.TotalSeconds)
+        }
+        catch { Write-Host '[SCM] FAIL | owned workspace cleanup; evidence not published'; $cleanupErrors.Add($_.Exception.Message) }
     }
 }
 if ($primary -or $cleanupErrors.Count) {
