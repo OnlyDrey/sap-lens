@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type Page } from '@playwright/test'
 import {
   mkdtempSync,
@@ -179,7 +180,7 @@ test('review findings, license filter, local decision persistence and spreadshee
     })
     .click()
   await expect(page.getByRole('dialog',{name:/^Review account ·/})).toBeFocused()
-  await page.getByLabel('Reviewer', { exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(page.getByLabel('Reviewer', { exact: true }))
   await page
     .getByLabel('Decision', { exact: true })
     .selectOption('Investigating')

@@ -1,6 +1,6 @@
+import {useReviewerIdentity} from '@/hooks/useReviewerIdentity'
 import { useRef, useState } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiRequest } from '@/api/client'
+import { useQueryClient } from '@tanstack/react-query'
 import { sodPost, type OverviewAssignment, type Subject } from '@/api/sod'
 import { invalidateSod } from './SodShared'
 
@@ -13,18 +13,18 @@ const rememberedReviewer = () => { try { return sessionStorage.getItem(reviewerK
  *  one assignment at a time, and a row changes only after the server confirmed it. */
 export function useAssignmentQuickReview(user: string, params: URLSearchParams, data: Subject | undefined) {
   const qc = useQueryClient()
+  const identity=useReviewerIdentity()
   const [quickReviewer, setQuickReviewer] = useState(rememberedReviewer)
   const [quickRationale, setQuickRationale] = useState('')
   const [quickBusy, setQuickBusy] = useState<Map<string, string>>(new Map())
   const [quickError, setQuickError] = useState('')
-  const runtime = useQuery({ queryKey: ['review-runtime-identity'], queryFn: () => apiRequest<{ username: string; role: string }>('/api/runtime'), retry: false })
-  const authenticated = !!runtime.data?.username
-  const reviewer = runtime.data?.username || quickReviewer
+  const authenticated = identity.authenticated
+  const reviewer = identity.name || quickReviewer
   const item = (key: string, ref: string, version: string) => ({ key, user, ref, evidence_version: version })
   const queue = useRef<Promise<void>>(Promise.resolve())
   const pendingRows=useRef(new Set<string>())
   const quickDecide = (row: OverviewAssignment, decision: 'Keep' | 'Remove' | 'Investigate') => {
-    if(pendingRows.current.has(row.id))return
+    if(pendingRows.current.has(row.id)||!identity.canReview||identity.loading)return
     setQuickError('')
     if (!reviewer.trim()) { setQuickError('Enter a reviewer name above before recording a decision. It is self-reported and stored with each decision.'); return }
     pendingRows.current.add(row.id)
@@ -66,5 +66,5 @@ export function useAssignmentQuickReview(user: string, params: URLSearchParams, 
     }
     queue.current = queue.current.then(save)
   }
-  return { reviewer, authenticated, setQuickReviewer, quickRationale, setQuickRationale, quickBusy, quickError, setQuickError, quickDecide }
+  return { reviewer, authenticated, canDecide:identity.canReview&&!identity.loading&&!!identity.name, setQuickReviewer, quickRationale, setQuickRationale, quickBusy, quickError, setQuickError, quickDecide }
 }

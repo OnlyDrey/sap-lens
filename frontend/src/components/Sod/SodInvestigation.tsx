@@ -1,3 +1,4 @@
+import {useReviewerName} from '@/hooks/useReviewerIdentity'
 import { decisionVariant } from '@/components/Shared/DecisionChoice'
 import {useSodReviewSwitchGuard} from '@/hooks/useSodReviewNavigation'
 import {SodDecisionStatus} from './SodDecisionStatus'
@@ -69,13 +70,13 @@ function InvestigationContent({context,user,risk,activity,onScope,reviewTab,setR
   const query = useQuery({ queryKey: ['sod-subject', params.toString()], queryFn: () => sod<Subject>('/api/sod/subject', params) })
   const tabId=useId()
   const data = query.data
-  const ok = !!data?.reviewable
   useEffect(() => { if (form) formRef.current?.scrollIntoView?.({ block: 'nearest' }) }, [form])
   const simulate = async (removed: string[]) => {
     setError('')
     try { setSimulation(await sodPost('/api/sod/simulate', { context, user, removed })) } catch (cause) { setError(cause instanceof Error ? cause.message : 'Simulation failed.') }
   }
-  const { reviewer, authenticated, setQuickReviewer, quickRationale, setQuickRationale, quickBusy, quickError, quickDecide } = useAssignmentQuickReview(user, params, data)
+  const { reviewer, authenticated, canDecide, setQuickReviewer, quickRationale, setQuickRationale, quickBusy, quickError, quickDecide } = useAssignmentQuickReview(user, params, data)
+  const ok=!!data?.reviewable&&canDecide
   const toggle = (id: string) => { setSimulation(null); setSelection((previous) => (previous.includes(id) ? previous.filter((value) => value !== id) : [...previous, id])) }
   const pick = (kind: Kind, key: string) => setPicked((previous) => ({ ...previous, [kind]: previous[kind].includes(key) ? previous[kind].filter((value) => value !== key) : [...previous[kind], key] }))
   const item = (key: string, ref: string, version: string): Item => ({ key, user, ref, evidence_version: version })
@@ -110,7 +111,7 @@ function InvestigationContent({context,user,risk,activity,onScope,reviewTab,setR
         </section>
 
 
-        <FormField label={authenticated?'Reviewer (authenticated)':'Reviewer (self-reported)'}><Input value={reviewer} readOnly={authenticated} maxLength={120} placeholder="Your name" onChange={event=>{setQuickReviewer(event.target.value);try{sessionStorage.setItem(reviewerKey,event.target.value)}catch{/* optional convenience */}}}/></FormField>
+        <FormField label={authenticated?'Reviewer (authenticated)':'Reviewer (local profile, self-reported)'}><Input value={reviewer} readOnly maxLength={120} placeholder="Your name" onChange={event=>{setQuickReviewer(event.target.value);try{sessionStorage.setItem(reviewerKey,event.target.value)}catch{/* optional convenience */}}}/></FormField>
         <ContentTabList label="Subject review sections" value={reviewTab} onChange={value=>setReviewTab(value as Kind)} idPrefix={tabId} panelId={value=>`${tabId}-panel-${value}`} items={[
           {value:'assignment',label:`Roles ${progressOf(assignments)}/${assignments.length}`,icon:<Layers size={16} aria-hidden="true"/>},
           {value:'activity',label:`Activities ${progressOf(activities)}/${activities.length}`,icon:<ListChecks size={16} aria-hidden="true"/>},
@@ -317,8 +318,8 @@ function DecisionHistory({ kind, context, keyId, label }: { kind: Kind; context:
 export function DecisionForm({ form, subject, sharedReviewer, onCancel, onSaved }: { sharedReviewer?: string; form: FormState; subject: Pick<Subject, 'context' | 'revision' | 'generation'>; onCancel: () => void; onSaved: () => Promise<void> }) {
   const options = OPTIONS[form.kind],
     [decision, setDecision] = useState(form.decision || options[0].value),
-    [reviewer, setReviewer] = useState(rememberedReviewer),
-    [approver, setApprover] = useState(''),
+    [reviewer, setReviewer,reviewIdentity] = useReviewerName(rememberedReviewer),
+    [approverDraft, setApprover] = useState(''),
     [justification, setJustification] = useState(''),
     [controls, setControls] = useState(''),
     [expires, setExpires] = useState(''),
@@ -326,6 +327,7 @@ export function DecisionForm({ form, subject, sharedReviewer, onCancel, onSaved 
     [confirmed, setConfirmed] = useState(form.items.length < 2),
     [busy, setBusy] = useState(false)
   const effectiveReviewer=sharedReviewer??reviewer
+  const approver=form.kind==='acceptance'?(reviewIdentity.name||approverDraft):''
   const needsControls = form.kind === 'activity' && decision === 'Conditional' || form.kind === 'acceptance' && decision === 'Accepted'
   const formal = form.kind === 'acceptance' && decision !== 'Pending'
   const save = async () => {
@@ -346,19 +348,19 @@ export function DecisionForm({ form, subject, sharedReviewer, onCancel, onSaved 
   return (
     <section className="sod-section" aria-label={form.heading}>
       <h3>{form.heading}</h3>
-      <p className="ui-description">Names are self-reported, not verified identities or signatures. Every save adds an immutable history event with the evidence it was based on. This does not change SAP or the detected conflict.</p>
+      <p className="ui-description">Identity provenance is recorded with each action. Desktop profiles are self-reported; server actions use the authenticated account. These are not digital signatures. Every save adds an immutable history event with the evidence it was based on. This does not change SAP or the detected conflict.</p>
       <FormField label={`${KIND_LABEL[form.kind]} decision`}>
         <Select value={decision} onChange={(event) => setDecision(event.target.value)}>{options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</Select>
       </FormField>
-      {sharedReviewer===undefined&&<FormField label="Reviewer (self-reported)"><Input value={reviewer} maxLength={120} onChange={(event) => setReviewer(event.target.value)} /></FormField>}
-      {formal && <FormField label="Approver (must differ from reviewer)"><Input value={approver} maxLength={120} onChange={(event) => setApprover(event.target.value)} /></FormField>}
+      {sharedReviewer===undefined&&<FormField label="Reviewer"><Input readOnly value={reviewer} maxLength={120} onChange={(event) => setReviewer(event.target.value)} /></FormField>}
+      {formal && <FormField label="Approver (self-approval permitted)"><Input readOnly value={approver} maxLength={120} onChange={(event) => setApprover(event.target.value)} /></FormField>}
       <FormField label="Justification"><textarea className="ui-control min-h-20" value={justification} maxLength={4000} onChange={(event) => setJustification(event.target.value)} /></FormField>
       {(needsControls || form.kind === 'acceptance' && formal) && <FormField label={form.kind === 'activity' ? 'Conditions' : 'Compensating controls (optional)'}><textarea className="ui-control min-h-16" value={controls} maxLength={8000} onChange={(event) => setControls(event.target.value)} /></FormField>}
       {form.kind === 'acceptance' && decision === 'Accepted' && <NorwegianDateInput label="Acceptance expires (optional)" value={expires} onChange={setExpires} />}
       {form.items.length > 1 && <Checkbox checked={confirmed} onChange={(event) => setConfirmed(event.target.checked)}>Record this decision for {form.items.length} selected {KIND_LABEL[form.kind].toLowerCase()} items, each with its own history entry</Checkbox>}
       {error && <p role="alert">{error}</p>}
       <Toolbar>
-        <Button loading={busy} disabled={!confirmed || !effectiveReviewer.trim() || !justification.trim() || formal && !approver.trim() || form.kind === 'activity' && decision === 'Conditional' && !controls.trim()} onClick={() => void save()}>Save decision</Button>
+        <Button loading={busy} disabled={!reviewIdentity.canReview || reviewIdentity.loading || !confirmed || !effectiveReviewer.trim() || !justification.trim() || formal && !approver.trim() || form.kind === 'activity' && decision === 'Conditional' && !controls.trim()} onClick={() => void save()}>Save decision</Button>
         <Button variant="ghost" onClick={onCancel}>Cancel</Button>
       </Toolbar>
     </section>

@@ -492,6 +492,8 @@ class Api(unittest.TestCase):
         import test_account_review as base
         self.write_users = lambda: base.AccountReviewTests.write_users(self)
         base.AccountReviewTests.setUp(self)
+        from review_identity import profile
+        profile('Rev',0)
         self.base = base
 
     def tearDown(self):
@@ -506,7 +508,7 @@ class Api(unittest.TestCase):
         user = '/users/DEMO_NORMAL'
         self.assertEqual(self.call('GET', user).json()['classification']['status'], 'Unassigned')
         self.assertEqual(self.call('PUT', '/users/NOPE', json=dict(group_id=created['id'], reviewer='R', expected_revision=0)).status_code, 404)
-        self.assertEqual(self.call('PUT', user, json=dict(group_id=created['id'], expected_revision=0)).status_code, 422)  # reviewer required
+        self.assertEqual(self.call('PUT', user, json=dict(group_id=created['id'], expected_revision=999)).status_code, 409)  # stale revision remains protected
         saved = self.call('PUT', user, json=dict(group_id=created['id'], reviewer='Rev', rationale='Buys', expected_revision=0))
         self.assertEqual(saved.json()['status'], 'Confirmed')
         self.assertEqual(self.call('PUT', user, json=dict(group_id=None, reviewer='Rev', expected_revision=1)).status_code, 422)  # rationale to clear
@@ -740,7 +742,7 @@ class Api(unittest.TestCase):
         a = self.call('POST', '', json=dict(name='A')).json()['id']
         b = self.call('POST', '', json=dict(name='B')).json()['id']
         body = dict(username='DEMO_NORMAL', group_id=a, reviewer='Rev', rationale='x', expected_revision=0)
-        self.assertEqual(self.call('POST', '/memberships', json=dict(body, reviewer='')).status_code, 422)
+        self.assertEqual(self.call('POST', '/memberships', json=dict(body, expected_revision=999)).status_code, 409)
         self.assertEqual(self.call('POST', '/memberships', json=dict(body, username='NOPE')).status_code, 404)
         first = self.call('POST', '/memberships', json=body).json()
         self.assertEqual((first['outcome'], first['classification']['revision']), ('added', 1))

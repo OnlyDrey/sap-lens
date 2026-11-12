@@ -26,16 +26,16 @@ export function RoleEvidenceReview({ context, user, risk, roles }: { context: st
   const assignments = (query.data?.overview.assignments ?? []).filter(row => row.risks.includes(risk))
   const byRole = new Map<string, OverviewAssignment[]>()
   for (const row of assignments) byRole.set(row.role, [...(byRole.get(row.role) ?? []), row])
-  const reviewable = !!query.data?.reviewable
+  const reviewable = !!query.data?.reviewable&&review.canDecide
   const rows = roles.flatMap(role => (byRole.get(role) ?? [undefined]).map(assignment => ({ role, assignment, several: (byRole.get(role)?.length ?? 0) > 1 })))
   return (
     <>
       {reviewable && !review.authenticated && (
-        <FormField label="Reviewer (self-reported)"><Input value={review.reviewer} maxLength={120} placeholder="Your name" onChange={event => review.setQuickReviewer(event.target.value)} /></FormField>
+        <FormField label={review.authenticated?'Reviewer (authenticated)':'Reviewer (local profile, self-reported)'}><Input readOnly value={review.reviewer} maxLength={120} placeholder="Your name" onChange={event => review.setQuickReviewer(event.target.value)} /></FormField>
       )}
       {reviewable && <FormField label="Rationale (optional)"><Input value={review.quickRationale} maxLength={400} placeholder={QUICK_RATIONALE} onChange={event => review.setQuickRationale(event.target.value)} /></FormField>}
       {query.isError && <p role="alert">Review decisions could not be loaded. The roles are shown without review actions.</p>}
-      {query.data && !reviewable && <p className="ui-description">Decisions are not available for this review context (for example a frozen or historical period).</p>}
+      {query.data && !reviewable && <p className="ui-description">Decisions are not available for this review context (for example a frozen/historical period or read-only account).</p>}
       {review.quickError && <p role="alert" className="text-[var(--error)]">{review.quickError}</p>}
       <div className="evidence-scroll" tabIndex={0} role="region" aria-label="Roles supplying this evidence">
         <DataTable caption="Roles supplying this evidence" density="compact">

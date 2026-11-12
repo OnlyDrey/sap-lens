@@ -10,6 +10,8 @@ async function importSource(request:APIRequestContext,source:'roles'|'users'){
 }
 test.beforeEach(async({request})=>{
  directory=await seedGovernance(request)
+ const profile=await(await request.get('/api/reviewer-profile',{headers})).json()
+ expect((await request.post('/api/reviewer-profile',{headers,data:{display_name:'Synthetic Bulk Reviewer',expected_revision:profile.revision}})).ok()).toBeTruthy()
  const catalogue=path.join(directory,'roles.csv'),users=path.join(directory,'users.csv')
  writeFileSync(catalogue,readFileSync(catalogue,'utf8')+`${family},Synthetic reporting,ZS:REPORT,X9\nZC:MM:SYN_BUY:*,Synthetic purchasing,ZS:BUY,X1\n`)
  await importSource(request,'roles')
@@ -40,7 +42,8 @@ for(const [action,decision,confirm] of [['Keep','Keep','Keep 2 assignments'],['R
  await page.getByRole('button',{name:'Review 2 assignments',exact:true}).click()
  const dialog=page.getByRole('dialog')
  await expect(dialog).toContainText('Filter scope:')
- await dialog.getByRole('textbox',{name:'Reviewer',exact:true}).fill('Synthetic Bulk Reviewer')
+ await expect(dialog.getByRole('textbox',{name:'Reviewer',exact:true})).toHaveValue('Synthetic Bulk Reviewer')
+ await expect(dialog.getByRole('textbox',{name:'Reviewer',exact:true})).toHaveAttribute('readonly','')
  await dialog.getByRole('textbox',{name:'Rationale',exact:true}).fill('Synthetic confirmed assignment scope')
  await dialog.getByRole('button',{name:confirm,exact:true}).click()
  await expect(dialog.getByRole('status')).toContainText('2 of 2 assignments saved')
@@ -90,7 +93,7 @@ test('a replacement import rejects an already frozen confirmation without partia
  await page.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:'Keep',exact:true}).click() // the decision is always chosen explicitly
  await page.getByRole('button',{name:'Review 2 assignments',exact:true}).click()
  const dialog=page.getByRole('dialog')
- await dialog.getByRole('textbox',{name:'Reviewer',exact:true}).fill('Synthetic Reviewer')
+ await expect(dialog.getByRole('textbox',{name:'Reviewer',exact:true})).toHaveValue('Synthetic Bulk Reviewer')
  await dialog.getByRole('textbox',{name:'Rationale',exact:true}).fill('Synthetic frozen preview')
  const file=path.join(directory,'users.csv')
  writeFileSync(file,readFileSync(file,'utf8')+`${names.b},${readRole},P2P,20000101,99991231\n`)

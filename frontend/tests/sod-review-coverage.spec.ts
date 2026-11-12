@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import {test,expect} from '@playwright/test'
 import {cleanup,seedGovernance,openSod,names,headers,decide} from './sod-fixture'
 import { layoutMatrix } from './matrix'
@@ -8,7 +9,7 @@ test.afterEach(async({request})=>{await cleanup(request,directory)})
 test('review tabs preserve shared reviewer, unsaved input and match derived queue progress',async({page,request})=>{
  await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
  const panel=page.getByRole('dialog');const tabs=panel.getByRole('tab');await expect(tabs).toHaveText(['Roles 0/4','Activities 0/3','Risks 0/2'])
- await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic Shared Reviewer')
+ await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  await panel.getByRole('tab',{name:/^Activities/}).click();await panel.getByRole('button',{name:'Review activity A',exact:true}).click();await panel.getByRole('textbox',{name:'Justification',exact:true}).fill('Unsaved synthetic rationale')
  await panel.getByRole('tab',{name:/^Roles/}).click();await expect(panel.getByRole('textbox',{name:'Justification',exact:true})).not.toBeVisible()
  await panel.getByRole('tab',{name:/^Activities/}).click();await expect(panel.getByRole('textbox',{name:'Justification',exact:true})).toHaveValue('Unsaved synthetic rationale');await expect(panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true})).toHaveValue('Synthetic Shared Reviewer')
@@ -34,7 +35,7 @@ for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`review co
 test('role decisions update immediately and activity approval derives without a synthetic event',async({page})=>{
  await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
  const panel=page.getByRole('dialog'),roles=panel.getByRole('region',{name:'Role Assignment Review',exact:true})
- await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic status reviewer')
+ await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  const first=roles.getByRole('listitem').filter({hasText:'ROLE_A1'}),status=first.getByRole('button',{name:'Review method for ROLE_A1',exact:true})
  await expect(status).toHaveText('Pending')
  for(const [action,label,tone] of [['Keep','Approved','success'],['Remove','Remove','error'],['Investigate','Investigate','warning']]){
@@ -56,7 +57,7 @@ test('bulk Keep and Remove immediately show authoritative role statuses and inde
   await preview.getByRole('group',{name:'Proposed decision',exact:true}).getByRole('button',{name:action,exact:true}).click() // the decision is always chosen explicitly
   await preview.getByRole('checkbox',{name:'Select eligible assignments on current page',exact:true}).check();await preview.getByRole('button',{name:'Review 6 assignments',exact:true}).click()
   const confirm=page.getByRole('dialog',{name:action==='Keep'?'Keep assignments':'Recommend removal',exact:true})
-  await confirm.getByRole('textbox',{name:'Reviewer',exact:true}).fill('Synthetic Bulk Reviewer');await confirm.getByRole('textbox',{name:'Rationale',exact:true}).fill('Synthetic decision-status validation')
+  await expectReviewerProfile(confirm.getByRole('textbox',{name:'Reviewer',exact:true}));await confirm.getByRole('textbox',{name:'Rationale',exact:true}).fill('Synthetic decision-status validation')
   if(action==='Remove')await confirm.getByRole('checkbox',{name:/Replace the existing decisions/}).check()
   await confirm.getByRole('button',{name:action==='Keep'?'Keep 6 assignments':'Mark 6 role assignments for removal',exact:true}).click();await expect(confirm).toContainText('6 of 6 assignments saved');await confirm.getByRole('button',{name:'Done',exact:true}).click()
   await page.getByRole('tab',{name:'Work queue',exact:true}).click();await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click();const panel=page.getByRole('dialog'),roles=panel.getByRole('region',{name:'Role Assignment Review',exact:true})
@@ -68,7 +69,7 @@ test('bulk Keep and Remove immediately show authoritative role statuses and inde
 
 test('normal risk decisions remain independent of formal acceptance and disclose remediation planning',async({page,request})=>{
  await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
- const panel=page.getByRole('dialog');await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic normal risk reviewer')
+ const panel=page.getByRole('dialog');await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  await panel.getByRole('tab',{name:/^Risks/}).click()
  const trigger=panel.getByRole('button',{name:'Review method for R1',exact:true})
  for(const [decision,label] of [['Approved','Approved'],['Remove','Remove'],['Investigate','Investigate']]){
@@ -98,6 +99,6 @@ test('conditional activity approval retains its conditions without a fifth prima
  const panel=page.getByRole('dialog');await panel.getByRole('tab',{name:/^Activities/}).click()
  const status=panel.getByRole('button',{name:'Review method for A',exact:true});await expect(status).toHaveText('Approved');await status.click()
  const popup=page.getByRole('dialog',{name:'Review method for A',exact:true});await expect(popup).toContainText('Approved with conditions');await expect(popup).toContainText('Synthetic dual-control condition');await page.keyboard.press('Escape')
- await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic compatibility reviewer');await panel.getByRole('button',{name:'Review activity A',exact:true}).click()
+ await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}));await panel.getByRole('button',{name:'Review activity A',exact:true}).click()
  const form=panel.getByRole('region',{name:'Activity review · A',exact:true});await form.getByLabel('Activity decision',{exact:true}).selectOption('Conditional');await form.getByRole('textbox',{name:'Justification',exact:true}).fill('Synthetic retained workflow');await expect(form.getByRole('button',{name:'Save decision',exact:true})).toBeDisabled();await form.getByRole('textbox',{name:'Conditions',exact:true}).fill('Synthetic recorded control');await expect(form.getByRole('button',{name:'Save decision',exact:true})).toBeEnabled();await form.getByRole('button',{name:'Cancel',exact:true}).click()
 })

@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, createPeriod, openSod, seedGovernance, uniqueName } from './sod-fixture'
 
@@ -51,7 +52,7 @@ for (const width of [375, 1280]) test(`Delete review period: confirmation fields
   await icon(dialog.getByRole('button', { name: 'Cancel', exact: true })); await icon(dialog.getByRole('button', { name: 'Delete permanently', exact: true }))
   const remove = dialog.getByRole('button', { name: 'Delete permanently', exact: true })
   await expect(remove).toBeDisabled() // the name confirmation is still required
-  await dialog.getByRole('textbox', { name: /Recorded by/ }).fill('Synthetic Actor')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: /Recorded by/ }))
   await dialog.getByRole('textbox', { name: /Type the period name/ }).fill(draft.slice(0, -1))
   await expect(remove).toBeDisabled()
   await dialog.getByRole('textbox', { name: /Type the period name/ }).fill(draft)

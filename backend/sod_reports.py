@@ -32,8 +32,8 @@ LEGACY_STATUSES={'For review':'Reviewed','Approved snapshot':'Approved'}
 # What each label does and does not establish; names are entered locally and are never authenticated by SAP Lens.
 STATUS_STATEMENTS={
  'Draft':'Draft: this document has not been reviewed or approved.',
- 'Reviewed':'Reviewed: a reviewer is named by the preparer. SAP Lens does not authenticate the name, so this is not an approval.',
- 'Approved':'Approved in SAP Lens: the review period has a recorded approval and is frozen. Reviewer and approver names are entered locally and are not authenticated.',
+ 'Reviewed':'Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.',
+ 'Approved':'Approved in SAP Lens: the review period has an explicit recorded approval and is frozen. Identity provenance is retained; Desktop/legacy names are self-reported and not authenticated. This is not a digital signature. Self-approval is permitted.',
  'Externally signed':'Externally signed: the preparer states that this document was signed outside SAP Lens. SAP Lens cannot verify the signature.'}
 GLOSSARY=[['Term','Meaning'],
  ['Segregation of duties (SoD)','A control principle: no single person should hold access that lets them both start and approve, or both execute and conceal, a sensitive business step.'],
@@ -88,7 +88,7 @@ def localized_stamp(value):
 
 
 
-LIMITATION='Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Names are self-reported and are not verified digital signatures.'
+LIMITATION='Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.'
 
 
 def _table(header,rows):

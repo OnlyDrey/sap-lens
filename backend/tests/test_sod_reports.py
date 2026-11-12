@@ -70,7 +70,7 @@ class FormalReportTests(ReportCase):
         data = self.model()
         self.assertEqual([section['title'] for section in data['sections']], SECTION_TITLES)
         text = str(data['sections'])
-        for needle in ('Quarterly supervisor sign-off', 'Synthetic Approver', 'Monitoring report', 'SYN_A / ROLE_A2', 'Removal required', 'Rejected'):
+        for needle in ('Quarterly supervisor sign-off', 'Synthetic Reviewer', 'Monitoring report', 'SYN_A / ROLE_A2', 'Removal required', 'Rejected'):
             self.assertIn(needle, text)
         remediation = next(section for section in data['sections'] if section['key'] == 'remediation')
         self.assertIn('not proof that access was removed', ' '.join(remediation['paragraphs']))

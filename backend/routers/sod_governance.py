@@ -524,7 +524,7 @@ class DecisionBody(StrictModel):
     expected_generation: str = Field(pattern=r'^[a-f0-9]{64}$')
     items: list[DecisionItem] = Field(min_length=1, max_length=decisions.MAX_BATCH)
     decision: str = Field(max_length=40)
-    reviewer: str = Field(min_length=1, max_length=120)
+    reviewer: str = Field(default='', max_length=120)
     approver: str = Field(default='', max_length=120)
     justification: str = Field(min_length=1, max_length=4000)
     controls: str = Field(default='', max_length=8000)
@@ -606,7 +606,7 @@ class BulkAssignmentBody(StrictModel):
     expected_generation: str = Field(pattern=r'^[a-f0-9]{64}$')
     items: list[DecisionItem] = Field(min_length=1, max_length=BULK_MAX)
     action: Literal['Keep', 'Remove', 'Investigate']
-    reviewer: str = Field(min_length=1, max_length=120)
+    reviewer: str = Field(default='', max_length=120)
     justification: str = Field(min_length=1, max_length=4000)
     replace_existing: bool = False
     atomic: bool = False

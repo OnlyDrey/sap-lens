@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import {test,expect,type Page,type APIRequestContext} from '@playwright/test'
 import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs'
 import {randomUUID} from 'node:crypto'
@@ -61,7 +62,7 @@ test('tasks 22–26: dashboard uses observed distributions, review population an
 })
 test('tasks 24 and 28: review findings precede decisions, saves retain real history and Cancel protects drafts',async({page,request})=>{
  await page.goto('/#session=browser-test-session');let dialog=await review(page);await expect(dialog.getByRole('region',{name:'SAP identity',exact:true}).getByRole('button',{name:/Investigate SAP user/})).toBeVisible();await expect(dialog.getByRole('region',{name:'Current review findings',exact:true})).toHaveCount(0)
- await dialog.getByLabel('Reviewer',{exact:true}).fill('Synthetic reviewer');await dialog.getByLabel('Rationale',{exact:true}).fill('Reviewing current source evidence')
+ await expectReviewerProfile(dialog.getByLabel('Reviewer',{exact:true}));await dialog.getByLabel('Rationale',{exact:true}).fill('Reviewing current source evidence')
  page.once('dialog',d=>d.dismiss());await page.keyboard.press('Escape');await expect(dialog).toBeVisible()
  await dialog.getByRole('button',{name:'Save review decision',exact:true}).click();await expect(dialog).toBeHidden()
  const row=page.getByRole('row').filter({has:page.getByRole('link',{name:userA,exact:true})});await row.getByRole('button',{name:'Needs review',exact:true}).click();dialog=page.getByRole('dialog',{name:`Review account · ${userA}`,exact:true})

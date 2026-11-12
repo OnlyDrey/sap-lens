@@ -147,3 +147,27 @@ class SessionApiTests(unittest.TestCase):
         self.assertNotIn('/private/',response.text)
         self.assertEqual(response.json()['settings']['data_csv_path'],'')
         self.assertEqual(self.client.get('/api/branding/preview?path=/private/image.png').status_code,403)
+
+    def test_session_reviewer_identity_is_authoritative_for_sod_and_self_acceptance(self):
+        import cache
+        from test_sod_governance import snapshot
+        from config_models import SourceSnapshot
+        self.addCleanup(cache.clear_cache)
+        cache._cache=snapshot()
+        settings=config.get_settings().model_copy(deep=True)
+        settings.features.sod=True
+        settings.data_lifecycle.sources['sod']=SourceSnapshot(snapshot='a'*64,path=str(self.settings.data/'synthetic.csv'),imported_at='2026-10-27T00:00:00+00:00',checked_at='2026-10-27T00:00:00+00:00')
+        config.save_configuration(settings,settings.revision)
+        admin=self.store.login('admin',PASSWORD,'fixture')[0]
+        user=self.store.create_user(admin,'reviewer','Verified reviewer','reviewer',PASSWORD)
+        headers=self.login('reviewer')
+        data=self.client.get('/api/sod/subject?user=SYN_A&risk=R1').json()
+        found=data['risk']
+        body=dict(context='current',expected_revision=data['revision'],expected_generation=data['generation'],items=[dict(key=found['finding_id'],user='SYN_A',ref='R1',evidence_version=found['evidence_version'])],decision='Accepted',reviewer='Forged actor',approver='Forged approver',justification='Explicit self-acceptance')
+        response=self.client.post('/api/sod/decisions/acceptance',json=body,headers=headers)
+        self.assertEqual(response.status_code,200,response.text)
+        event=response.json()['events'][0]
+        self.assertEqual(event['reviewer'],'reviewer')
+        self.assertEqual(event['approver'],'reviewer')
+        self.assertEqual(event['actor_identity'],dict(id=user['id'],username='reviewer',display_name='Verified reviewer',provenance='server-session'))
+        self.assertEqual(self.client.post('/api/sod/decisions/acceptance',json=body,headers=headers).status_code,409)

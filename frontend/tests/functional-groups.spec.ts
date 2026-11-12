@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type APIRequestContext } from '@playwright/test'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -79,11 +80,11 @@ test('User Details classifies a user explicitly and keeps it separate from impor
   await expect(dialog.getByRole('button', { name: 'Add groups' })).toBeDisabled() // nothing is preselected
   await dialog.getByRole('combobox', { name: 'Search or create a Functional Group' }).fill(name)
   await dialog.getByRole('option', { name }).click()
-  await dialog.getByLabel('Reviewer').fill('Reviewer One')
+  await expectReviewerProfile(dialog.getByLabel('Reviewer'))
   await dialog.getByRole('button', { name: 'Add 1 group' }).click()
   await expect(panel).toContainText(name)
   await expect(panel).toContainText('Confirmed')
-  await expect(panel).toContainText('Reviewer One')
+  await expect(panel).toContainText((await(await request.get('/api/reviewer-profile',{headers})).json()).identity.display_name)
   // Stale write is refused over HTTP and surfaces no overwrite.
   const stale = await request.put('/api/functional-groups/users/DEMO_FG', { headers, data: { group_id: null, rationale: 'x', reviewer: 'R', expected_revision: 0 } })
   expect(stale.status()).toBe(409)
@@ -128,14 +129,15 @@ test('a Department change requires explicit Functional Group reconfirmation in A
   await expect(section).toContainText('Procurement')
   await section.getByRole('button', { name: 'Review Functional Groups' }).click()
   const manage = page.getByRole('dialog', { name: 'Functional Groups for DEMO_FG' })
-  await expect(manage.getByRole('button', { name: `Confirm ${name}` })).toBeDisabled()              // a reviewer is required first
-  await manage.getByLabel('Reviewer', { exact: true }).fill('Reviewer Two')
+  await expect(manage.getByRole('button', { name: `Confirm ${name}` })).toBeEnabled() // Stable reviewer is supplied; confirmation remains explicit.
+  expect((await(await request.get('/api/functional-groups/users/DEMO_FG',{headers})).json()).classification.status).toBe('Needs review')
+  await expectReviewerProfile(manage.getByLabel('Reviewer', { exact: true }))
   await manage.getByRole('button', { name: `Confirm ${name}` }).click()
   await expect(section).toContainText('Confirmed')
   const detail = await (await request.get('/api/functional-groups/users/DEMO_FG', { headers })).json()
   expect(detail.classification.status).toBe('Confirmed')
   expect(detail.classification.group_id).toBe(group)
-  expect(detail.classification.memberships[0].confirmed_by).toBe('Reviewer Two')
+  expect(detail.classification.memberships[0].confirmed_by).toBe((await(await request.get('/api/reviewer-profile',{headers})).json()).identity.display_name)
 })
 
 test('Account Review filters by Functional Group and Manager', async ({ page, request }) => {

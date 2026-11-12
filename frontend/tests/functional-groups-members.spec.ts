@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -80,7 +81,7 @@ test('a user holds several groups: add keeps the others, remove is per membershi
   await dialog.getByRole('option', { name: `Create group “${created}”` }).click()
   await expect(dialog.getByRole('list', { name: 'Selected Functional Groups' })).toContainText(created)
   await expect(dialog.getByRole('list', { name: 'Selected Functional Groups' })).toContainText(two)
-  await dialog.getByLabel('Reviewer', { exact: true }).fill('Reviewer One')
+  await expectReviewerProfile(dialog.getByLabel('Reviewer', { exact: true }))
   await dialog.getByRole('button', { name: 'Add 2 groups' }).click()
   for (const name of [one, two, created]) await expect(panel).toContainText(name)
   // remove one membership: it needs a rationale, and the others stay
@@ -122,7 +123,7 @@ test('View Members lists members with Directory context, filters, and removes a 
   // remove FG_A from this group only
   await table.getByRole('button', { name: `Remove FG_A from ${name}` }).click()
   const removal = dialog.getByRole('group', { name: 'Remove members' })
-  await removal.getByLabel('Reviewer').fill('Reviewer One')
+  await expectReviewerProfile(removal.getByLabel('Reviewer'))
   await removal.getByLabel('Rationale (required)').fill('moved')
   await removal.getByRole('button', { name: 'Remove from group' }).click()
   await expect(table.getByRole('row')).toHaveCount(3)
@@ -199,7 +200,7 @@ test('suggestion rule: contains matching, View Matches, select all, and assignme
   await dialog.getByRole('button', { name: 'Select all not yet in the group' }).click()
   await dialog.getByRole('button', { name: new RegExp(`^Add ${name} to 2 selected`) }).click()
   const assign = page.getByRole('dialog', { name: 'Assign Functional Groups' })
-  await assign.getByLabel('Reviewer').fill('Reviewer One')
+  await expectReviewerProfile(assign.getByLabel('Reviewer'))
   await assign.getByRole('checkbox').check()
   await assign.getByRole('button', { name: 'Assign groups' }).click()
   await expect(assign).toContainText('2 users updated')

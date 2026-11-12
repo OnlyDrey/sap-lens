@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, names, openSod, seedGovernance } from './sod-fixture'
 
@@ -33,7 +34,7 @@ test('Keep, Remove and Investigate persist per role assignment, survive reopenin
   const dialog = await open(page)
   const rowA = dialog.locator('tbody tr').first()
   const roleName = (await rowA.locator('td').first().innerText()).split('\n')[0].trim()
-  await dialog.getByLabel('Reviewer (self-reported)').fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByLabel('Reviewer (local profile, self-reported)'))
   await rowA.getByRole('button', { name: `Keep ${roleName}` }).click()
   await expect(rowA.getByRole('button', { name: `Keep ${roleName}` })).toHaveAttribute('aria-pressed', 'true')
   await expect(rowA.getByRole('button', { name: `Remove ${roleName}` })).toHaveAttribute('aria-pressed', 'false')
@@ -55,14 +56,12 @@ test('Keep, Remove and Investigate persist per role assignment, survive reopenin
   await expect(page.getByRole('button', { name: `Investigate ${roleName}` }).last()).toHaveAttribute('aria-pressed', 'true')
 })
 
-test('a reviewer is required, a failed save is reported and nothing is marked saved', async ({ page }) => {
+test('a stable reviewer is supplied, a failed save is reported and nothing is marked saved', async ({ page }) => {
   const dialog = await open(page)
   const rowA = dialog.locator('tbody tr').first()
   const roleName = (await rowA.locator('td').first().innerText()).split('\n')[0].trim()
-  await rowA.getByRole('button', { name: `Keep ${roleName}` }).click()
-  await expect(dialog.getByRole('alert')).toContainText('reviewer')
   await expect(rowA.getByRole('button', { name: `Keep ${roleName}` })).toHaveAttribute('aria-pressed', 'false')
-  await dialog.getByLabel('Reviewer (self-reported)').fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByLabel('Reviewer (local profile, self-reported)'))
   await page.route('**/api/sod/decisions/assignment', route => route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ detail: 'Synthetic save failure' }) }))
   await rowA.getByRole('button', { name: `Keep ${roleName}` }).click()
   await expect(dialog.getByRole('alert')).toContainText('was not saved')

@@ -53,6 +53,8 @@ class GovernanceCase(unittest.TestCase):
         self.env = patch.dict(os.environ, {'SAP_LENS_CONFIG_DIR': str(self.root), 'DATA_CSV_PATH': ''})
         self.env.start()
         config.get_settings.cache_clear()
+        from review_identity import profile
+        profile('Synthetic Reviewer',0)
         cache.clear_cache()
         cache._cache = snapshot()
         settings = config.get_settings().model_copy(deep=True)
@@ -352,14 +354,16 @@ class DecisionTests(GovernanceCase):
         ids = {item['id'] for row in self.subject('SYN_D')['activities'] for item in row['assignments'] if item['role'] == 'ROLE_A1'}
         self.assertEqual(len(ids), 2)
 
-    def test_risk_acceptance_is_separate_with_separation_expiry_and_history(self):
+    def test_explicit_self_acceptance_is_separate_with_expiry_and_history(self):
         item = self.acceptance_item('SYN_B', 'R1')
-        self.decide('acceptance', [item], 'Accepted', status=422)
-        self.decide('acceptance', [item], 'Accepted', status=422, approver='Synthetic Reviewer')
+        self.assertEqual(self.subject('SYN_B', risk='R1')['risk']['acceptance'], 'Pending')
         self.decide('acceptance', [item], 'Accepted', status=422, approver='Approver', expires=(date.today() - timedelta(days=1)).isoformat())
         self.decide('acceptance', [item], 'Accepted', approver='Synthetic Approver', controls='Monitoring report', expires=(date.today() + timedelta(days=90)).isoformat())
         risk = self.subject('SYN_B', risk='R1')['risk']
         self.assertEqual(risk['acceptance'], 'Accepted')
+        event=decisions.latest('current')['acceptance'][item['key']]
+        self.assertEqual(event.reviewer,event.approver)
+        self.assertEqual(event.actor_identity.provenance,'desktop-local')
         self.assertEqual(self.risk_matrix()['rows'][1]['cells']['R1']['acceptance'], 'Accepted')
         self.assertIn('R1', self.risk_matrix()['rows'][1]['cells'])
         self.decide('acceptance', [item], 'Rejected', approver='Synthetic Approver')

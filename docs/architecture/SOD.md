@@ -52,8 +52,8 @@ the matrix version is unchanged, otherwise **Historical**.
 
 Portable configuration and diagnostics exports exclude all of them. Desktop/shared-access names are self-reported. Individual-account server mode
 uses the authenticated actor for supported decision writes and period approval;
-these records are not digital signatures. Approval currently compares supplied
-reviewer and approver names, not the complete contributor set. See the
+these records are not digital signatures. Explicit self-approval is permitted;
+confirmation and evidence/revision gates remain mandatory. See the
 [security limitations](../deployment/SECURITY.md#individual-accounts-and-remaining-multi-user-limits).
 
 ## Workflow
@@ -61,7 +61,7 @@ reviewer and approver names, not the complete contributor set. See the
 `Draft → In review → Ready for approval → Approved → Closed`, with `Rejected` (reason
 required) returning to `In review`. Gates: entering Ready/Approved requires every conflict
 relevant activity and every risk acceptance to be decided and current. Role assignment
-decisions are recommended but do not block approval. Approval needs a different reviewer
+decisions are recommended but do not block approval. Approval permits the same reviewer
 and approver, an approval date and confirmation, freezes the snapshot together with a copy
 of the decisions, actions and verification, and cannot be undone. Closing is final.
 Reopening an approved period is not supported; create a new period.
@@ -255,3 +255,22 @@ retained. Browser DOM confirmation after request release improved from one sampl
 of 67.9 ms to 43.0 ms. A blocked-subject-read regression verifies confirmed row
 feedback does not depend on that read finishing. These figures do not establish
 Windows or production-dataset latency guarantees.
+
+
+## Stable reviewer attribution (2026-11-12)
+
+New session-authenticated actions carry `actor_identity` with account UUID,
+username/display snapshots and `server-session` provenance. Backend request
+context replaces client aliases in role/activity/risk decisions, remediation,
+legacy finding annotations, Account Review and period transitions. Desktop's
+`reviewer-profile.json` keeps a stable UUID and editable self-reported display
+name (`desktop-local`); it is not authentication. Legacy events omit the new
+field rather than inventing attribution, including on serialization; frozen
+content-addressed snapshots are never rewritten.
+
+Self-approval is explicitly permitted and supersedes the earlier name-comparison
+policy above. Review, formal acceptance and period approval remain separate,
+explicit events. Confirmation, current evidence, revision checks and finalized
+period protection remain enforced. Ordinary access review never grants formal
+acceptance or approval. Reports distinguish self-reported/local provenance from
+session-authenticated attribution; neither is a digital signature.

@@ -38,7 +38,7 @@ One **review context bar** sits beneath the SoD navigation on every page: choose
    Pending. Risk Approved means acceptable for this review; it is not formal acceptance.
    Risk Remove requires a specific remediation plan and never removes roles automatically.
 4. **Formal risk acceptance** (user + risk): Accepted, Rejected or Pending, with a named
-   approver different from the reviewer, justification, optional controls and expiry.
+   acting approver, justification, optional controls and expiry. Self-approval is permitted.
    It remains independent of normal risk review and retains its approval gates.
 
 Decisions never change what is detected: an approved activity can still produce an active
@@ -59,11 +59,13 @@ are shown rather than one recommendation.
 
 Create a period (name, range, evaluation date) to freeze evidence, then
 `Draft → In review → Ready for approval → Approved → Closed` (or `Rejected` with a reason).
-Approval needs every activity and risk decision current, a different reviewer and approver,
-and freezes the snapshot with its decisions. This is currently a name-comparison
-gate, not complete authenticated independence from all period contributors;
-Reviewer API approval permissions also remain incomplete. See
-[server identity limitations](../deployment/SECURITY.md#individual-accounts-and-remaining-multi-user-limits).
+Approval requires every activity and risk decision to be current and an explicit
+confirmation. It freezes the snapshot with its decisions. Review and approval
+remain separate events; reviewers may approve their own work. Session servers
+record the authenticated account UUID and username/display snapshots, while
+passwordless Desktop uses a stable, explicitly self-reported local profile.
+Legacy reviewer strings and frozen evidence are retained without invented account
+mappings. See [application accounts](../getting-started/CONFIGURATION.md#application-accounts-session-authenticated-servers).
 Reports: PDF and DOCX formal review (executive summary, scope, sources,
 risk overview, activity, assignment and acceptance results, controls, remediation, changes,
 conclusion and signature lines, technical appendix) and an access remediation report with
@@ -156,7 +158,7 @@ Every period status can be deleted from the row action menu or the period dialog
   approved period are classified as new instead of reopened in later comparisons. Other periods and current decisions are never changed (no cascade).
 
 
-The **Create SoD review period** dialog is a two-column grid (name and evaluation date, then period start and end) that stacks on narrow screens; Cancel and Capture review period carry icons. In the delete dialog, *Recorded by (self-reported)* and the period-name confirmation share a grid row, consequences and impact stay full width, and Cancel and Delete permanently (or Archive period) carry icons; the confirmation rules and audit behavior are unchanged. In the Review Periods toolbar, *Compare periods* stays disabled with fewer than two eligible periods and explains why through a tooltip and an accessible description (no inline text), and *Show archived periods* is a visible toggle button with an archive icon that only changes visibility, never a period status.
+The **Create SoD review period** dialog is a two-column grid (name and evaluation date, then period start and end) that stacks on narrow screens; Cancel and Capture review period carry icons. In the delete dialog, *Recorded by* and the period-name confirmation share a grid row, consequences and impact stay full width, and Cancel and Delete permanently (or Archive period) carry icons; the confirmation rules and audit behavior are unchanged. In the Review Periods toolbar, *Compare periods* stays disabled with fewer than two eligible periods and explains why through a tooltip and an accessible description (no inline text), and *Show archived periods* is a visible toggle button with an archive icon that only changes visibility, never a period status.
 
 ## SAP User Group heatmap
 
@@ -561,3 +563,16 @@ Both use the established CSV conventions (semicolon delimiter, all fields quoted
 ## Role Evidence: inline Role Assignment Review
 
 The Role Evidence modal of Access Explorer lists every role supplying a risk's activities with its **Status** and **Review actions** (Investigate, Keep, Remove, in that order). The actions use the same service as the Role Assignment Review in the investigation panel (`POST /api/sod/decisions/assignment`), keyed by the assignment id of that SAP user, so a decision never reaches other users with the same role. A role with several assignment intervals shows one row per interval. The reviewer is the authenticated user or a self-reported name entered above the table; an optional rationale is stored with the decision. A row changes only after the server confirmed the save, loading and errors belong to the row, and decisions are not offered where the context is not reviewable (for example frozen periods). Remove records a removal recommendation only: SAP assignments, mappings and evidence snapshots are not modified, and the risk still needs its own approval and formal acceptance. After a save the shared SoD queries (explorer tables, matrices, overview) are refreshed.
+
+
+## Acting reviewer profile
+
+Server review forms use the signed-in account; submitted reviewer/approver aliases
+cannot change the backend actor. Use **My Profile** to change your display name.
+Desktop stays passwordless: use **Reviewer profile** in the header to edit its
+stable local identity. Review dialogs display that profile automatically rather
+than asking for a name for every action. Local profiles are self-reported and are
+not equivalent to verified server accounts. Profile/name changes affect future
+actions; prior events retain their UUID/name/provenance snapshots. Completing an
+activity or role review never automatically grants formal risk acceptance or
+period approval. Explicit approval confirmation and evidence/revision gates remain.

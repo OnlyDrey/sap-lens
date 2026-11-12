@@ -68,19 +68,20 @@ class WorkflowTests(PeriodV2Case):
         self.move(pid, 'Ready for approval')
         self.assertEqual(self.get('/api/sod/queue', context=pid, status='Awaiting approval')['total'], 8)
 
-    def test_reviewer_and_approver_must_differ_and_actor_is_recorded(self):
+    def test_explicit_self_approval_records_actor_and_preserves_confirmation_gate(self):
         pid = self.new_period()
         self.decide_everything(pid)
         self.move(pid, 'In review')
-        self.move(pid, 'Ready for approval', actor='  ', status=422)
         self.move(pid, 'Ready for approval')
-        self.move(pid, 'Approved', status=422, reviewer='Same Person', approver='same person', approval_date='2026-10-27', confirm=True)
         self.move(pid, 'Approved', status=422, reviewer='A', approver='B', approval_date='2026-10-27', confirm=False)
-        result = self.approve(pid)
+        result = self.move(pid,'Approved',reviewer='Forged Reviewer',approver='Forged Approver',approval_date='2026-10-27',confirm=True)
         self.assertEqual(result['period']['state'], 'Approved')
+        self.assertEqual(result['period']['reviewer'],result['period']['approver'])
         history = self.get(f'/api/sod/periods/{pid}')['period']['history']
         self.assertEqual([item['to_state'] for item in history], ['In review', 'Ready for approval', 'Approved'])
-        self.assertTrue(all(item['actor'] == 'Synthetic Actor' for item in history))
+        self.assertEqual(len({item['actor_identity']['id'] for item in history}),1)
+        self.assertTrue(all(item['actor']==item['actor_identity']['display_name'] for item in history))
+        self.assertTrue(all(item['actor_identity']['provenance']=='desktop-local' for item in history))
 
     def test_rejection_requires_reason_returns_to_review_and_keeps_history(self):
         pid = self.new_period()

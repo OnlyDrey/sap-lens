@@ -50,6 +50,9 @@ def validate_storage(data):
         if not re.fullmatch(r'[a-f0-9]{64}',item['evidence_version']) or len(item['reviewer'])>120 or len(item['rationale'])>2000: raise ValueError()
         datetime.fromisoformat(item['timestamp'])
         if item.get('evidence_schema',1) not in {1,2}: raise ValueError()
+        if 'actor_identity' in item:
+            from review_identity import ActorSnapshot
+            ActorSnapshot.model_validate(item['actor_identity'])
         if 'identity_version' in item and not re.fullmatch(r'[a-f0-9]{64}',item['identity_version']): raise ValueError()
         if 'absent_since' in item: datetime.fromisoformat(item['absent_since'])
     for key,item in data['decisions'].items():
@@ -141,7 +144,10 @@ def write_decisions(data):
 
 def save_decision(username, decision):
     from server_access import actor
-    decision = {**decision, 'reviewer': actor(decision.get('reviewer', ''))}
+    from review_identity import snapshot
+    reviewer=actor(decision.get('reviewer', ''))
+    attribution=snapshot(reviewer)
+    decision = {**decision, 'reviewer': reviewer, **({'actor_identity':attribution} if attribution else {})}
     with lock:
         data=decisions();key=digest(username.strip().upper());previous=data.get(key)
         history=[*previous.get('history',[]),{k:v for k,v in previous.items() if k!='history'}] if previous else []

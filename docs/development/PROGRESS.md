@@ -2411,3 +2411,42 @@ Ruff, affected ESLint, documentation and ownership/whitespace checks passed.
 375/800/1280/1600 settings overflow checks passed; login screenshots inspected in
 light/dark at 375. No full suite, native C#/PowerShell/Windows installer/SCM, real
 systemd or Docker acceptance was run. Phases 5–8 remain pending.
+
+Phase 5 implements backend actor snapshots (stable UUID, username/display snapshot,
+provenance) in SoD role/activity/risk/acceptance events, remediation history, period
+transitions/deletions/approval evidence, legacy finding events, Account Review and
+report-generation audit. Client aliases do not override a session actor. Desktop
+remains passwordless: reviewer-profile.json has an editable, stable self-reported
+identity; a submitted alias cannot initialize it. Forms use the current profile
+without repeated name entry. Shared Functional Group forms use that same profile.
+Legacy strings remain readable; serialization omits missing identity metadata
+instead of inventing mappings. Old frozen snapshots are not rewritten.
+
+Explicit self-approval replaces the superseded name-difference rule. Review,
+formal acceptance and period approval remain separate actions. Justification,
+explicit confirmation, current-evidence/expiry, stale-revision and frozen-period
+gates remain enforced. Reports explain provenance and remain unsigned documents.
+Profile failures preserve storage and prevent review writes. Backup upload also
+uses the shared CSRF headers (a missed integration from the session rollout).
+
+Validation found a real integration defect: the new automatic approver was sent
+for ordinary activity decisions, correctly rejected by the backend. The form now
+sends it only for formal acceptance; backend validation was not relaxed. Other
+failures were expectations for per-action aliases, missing manually typed names,
+and the explicitly superseded two-person rule. Updated fixtures explicitly edit
+the local profile when testing different name snapshots; browser helpers assert
+both the authoritative profile value and read-only fields. Department-change
+reconfirmation still requires an explicit action despite automatic attribution.
+
+Phase 5 validation: initial nine-module backend selection 239 discovered, 235
+passed and four identified alias/report expectations failed. Affected rechecks
+passed 21 tests; final related Functional Group/governance/report selection passed
+100 tests. Final auth/identity boundary selection passed 15, then report-attribution
+coverage passed four. Earlier direct provisioning/identity checks also passed.
+Browser identity + complete-bulk specs passed 10/10. Four affected specs then ran
+29 tests (23 passed, six failed: the actual form defect and obsolete identity
+expectations); all six passed focused corrections. Five UI tests passed again
+after the final permission/loading changes. Production TypeScript/build, scoped
+ESLint/Ruff, ownership, docs and whitespace passed; no skips in these selections.
+Complete final integration remains Phase 8; do not interpret targeted results as
+FULL or native Windows/SCM acceptance. Phases 6–8 are pending.

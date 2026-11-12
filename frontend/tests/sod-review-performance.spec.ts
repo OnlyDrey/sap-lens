@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import {test,expect} from '@playwright/test'
 import {cleanup,seedGovernance,openSod,names,headers} from './sod-fixture'
 let directory=''
@@ -6,7 +7,7 @@ test.afterEach(async({request})=>{await cleanup(request,directory)})
 test('review saving shows immediate action feedback and preserves confirmed decisions',async({page},info)=>{
  await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
  const panel=page.getByRole('dialog'),keep=panel.getByRole('button',{name:'Keep ROLE_B',exact:true}),remove=panel.getByRole('button',{name:'Remove ROLE_B',exact:true})
- await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic Performance Reviewer')
+ await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  let release:()=>void=()=>{};const gate=new Promise<void>(resolve=>{release=resolve})
  await page.route('**/api/sod/decisions/assignment',async route=>{await gate;await route.continue()})
  const gets:string[]=[];page.on('request',request=>{if(request.method()==='GET'&&request.url().includes('/api/sod/'))gets.push(new URL(request.url()).pathname)})
@@ -45,7 +46,7 @@ test('review saving shows immediate action feedback and preserves confirmed deci
 test('failed decisions restore row controls and never claim a saved choice',async({page})=>{
  await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
  const panel=page.getByRole('dialog'),keep=panel.getByRole('button',{name:'Keep ROLE_B',exact:true})
- await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic Reviewer')
+ await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  await page.route('**/api/sod/decisions/assignment',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({detail:'Synthetic unavailable storage'})}))
  await keep.click();await expect(panel.getByRole('alert')).toContainText('was not saved');await expect(keep).toBeEnabled();await expect(keep).toHaveAttribute('aria-pressed','false');await expect(keep).not.toHaveAttribute('aria-busy','true')
  await page.unroute('**/api/sod/decisions/assignment');await keep.click();await expect(keep).toHaveAttribute('aria-pressed','true');await expect(keep).toBeEnabled()
@@ -54,7 +55,7 @@ test('failed decisions restore row controls and never claim a saved choice',asyn
 
 test('a concurrent decision on the same assignment is not automatically overwritten',async({page,request})=>{
  await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
- const panel=page.getByRole('dialog');await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic Local Reviewer')
+ const panel=page.getByRole('dialog');await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  const subject=await(await request.get('/api/sod/subject',{headers,params:{user:names.a}})).json() as import('../src/api/sod').Subject
  const row=subject.overview.assignments.find(item=>item.role==='ROLE_B')!
  let posts=0
@@ -75,7 +76,7 @@ test('a concurrent decision on the same assignment is not automatically overwrit
 test('confirmed assignment feedback does not wait for a slow subject refresh',async({page})=>{
  await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
  const panel=page.locator('.ui-side-panel'),keep=panel.getByRole('button',{name:'Keep ROLE_B',exact:true})
- await panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true}).fill('Synthetic Reviewer')
+ await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  let release!:()=>void;const blocked=new Promise<void>(resolve=>{release=resolve})
  await page.route('**/api/sod/subject?*',async route=>{await blocked;await route.continue()})
  try{

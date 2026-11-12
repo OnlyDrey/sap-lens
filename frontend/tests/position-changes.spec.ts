@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type APIRequestContext } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -75,7 +76,7 @@ test('a department change becomes a priority review that uses the existing Accou
   await expect(dialog.getByRole('heading', { name: 'Organizational position changes' })).toBeVisible()
   await expect(dialog.getByText('Current findings and evidence')).toHaveCount(0)
   await expect(dialog.getByRole('button', { name: /Investigate SAP user/ })).toBeVisible()
-  await dialog.getByLabel('Reviewer', { exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByLabel('Reviewer', { exact: true }))
   await dialog.getByLabel('Rationale', { exact: true }).fill('Move confirmed with the line manager.')
   await dialog.getByLabel('Decision', { exact: true }).selectOption('No action required')
   await dialog.getByRole('button', { name: /Save/ }).click()

@@ -1,3 +1,4 @@
+import {useReviewerName} from '@/hooks/useReviewerIdentity'
 import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
@@ -51,7 +52,7 @@ export function ActionDialog({ context, revision, user, assignment, row, risk, o
     [due, setDue] = useState(existing?.due_date ? formatDate(existing.due_date, '') : ''),
     [status, setStatus] = useState(existing?.status || 'Open'),
     [evidence, setEvidence] = useState(existing?.completion_evidence || ''),
-    [actor, setActor] = useState(remembered),
+    [actor, setActor,reviewIdentity] = useReviewerName(remembered),
     [error, setError] = useState(''),
     [busy, setBusy] = useState(false)
   const role = assignment?.role || row?.role || '', assignmentId = assignment?.id || row?.assignment_id || ''
@@ -75,7 +76,7 @@ export function ActionDialog({ context, revision, user, assignment, row, risk, o
   }
   return (
     <Dialog title={existing ? 'Update remediation action' : 'Track remediation action'} onClose={onClose}
-      footer={<><Button loading={busy} disabled={!actor.trim() || !reason.trim()} onClick={() => void save()}>Save action</Button><Button variant="ghost" onClick={onClose}>Cancel</Button></>}>
+      footer={<><Button loading={busy} disabled={!reviewIdentity.canReview || reviewIdentity.loading || !actor.trim() || !reason.trim()} onClick={() => void save()}>Save action</Button><Button variant="ghost" onClick={onClose}>Cancel</Button></>}>
       <p>{user}{role ? ` · ${role}` : ''}</p>
       <AlertNote>A completed action is a manual statement. It does not prove access was removed; only later source evidence can show that.</AlertNote>
       <FormField label="Recommended handling"><Select value={recommended} onChange={(event) => setRecommended(event.target.value)}>{GROUPS.map((value) => <option key={value}>{value}</option>)}</Select></FormField>
@@ -84,7 +85,7 @@ export function ActionDialog({ context, revision, user, assignment, row, risk, o
       <NorwegianDateInput label="Due date" value={due} onChange={setDue} />
       <FormField label="Status"><Select value={status} onChange={(event) => setStatus(event.target.value)}>{STATUSES.map((value) => <option key={value}>{value}</option>)}</Select></FormField>
       {status === 'Completed' && <FormField label="Completion evidence"><textarea className="ui-control min-h-16" value={evidence} maxLength={4000} onChange={(event) => setEvidence(event.target.value)} /></FormField>}
-      <FormField label="Recorded by (self-reported)"><Input value={actor} maxLength={120} onChange={(event) => setActor(event.target.value)} /></FormField>
+      <FormField label="Recorded by"><Input readOnly value={actor} maxLength={120} onChange={(event) => setActor(event.target.value)} /></FormField>
       {error && <p role="alert">{error}</p>}
     </Dialog>
   )

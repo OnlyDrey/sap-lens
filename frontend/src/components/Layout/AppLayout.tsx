@@ -1,3 +1,4 @@
+import {LocalReviewerProfile} from '@/components/Auth/LocalReviewerProfile'
 import {useAuthentication,MyProfile} from '@/components/Auth/Authentication'
 import { ApplicationFooter } from '@/components/Shared/ApplicationFooter'
 import { Button, IconButton } from '@/components/Shared/Button'
@@ -132,7 +133,7 @@ export function AppLayout({
 
           <div className="app-utilities">
             <IconButton label={isDark?'Switch to light mode':'Switch to dark mode'} variant="ghost" disabled={!auth.canAdmin||themeBusy||settingsOpen} loading={themeBusy} onClick={()=>{setErr(null);setThemeBusy(true);void onToggleTheme().catch(e=>setErr(e instanceof Error?e.message:'Could not save the theme.')).finally(()=>setThemeBusy(false))}}>{!themeBusy&&(isDark?<Sun size={17} aria-hidden="true"/>:<Moon size={17} aria-hidden="true"/>)}</IconButton>
-            {auth.session&&<Button onClick={()=>setProfileOpen(true)}>My Profile</Button>}
+            <Button onClick={()=>setProfileOpen(true)}>{auth.session?'My Profile':'Reviewer profile'}</Button>
             <IconButton disabled={!auth.canAdmin} label="Open settings" tooltip="Settings" variant="ghost" onClick={()=>setSettingsOpen(true)}><Settings size={17} aria-hidden="true"/></IconButton>
             <IconButton label={busy?'Refreshing data':'Refresh role data from CSV'} tooltip="Refresh data" variant="ghost" disabled={!auth.canAdmin||busy||settingsOpen} loading={busy} onClick={()=>void handleRefresh()}>{!busy&&<RefreshCw size={17} aria-hidden="true"/>}</IconButton>
           </div>
@@ -142,7 +143,7 @@ export function AppLayout({
         {err && <Notification variant="error" onDismiss={()=>setErr(null)}>{err}</Notification>}
       </header>
 
-      {profileOpen&&<MyProfile onClose={()=>setProfileOpen(false)}/>}
+      {profileOpen&&(auth.session?<MyProfile onClose={()=>setProfileOpen(false)}/>:<LocalReviewerProfile onClose={()=>setProfileOpen(false)}/>)}
       {auth.canAdmin&&(settingsOpen || settingsMounted) && <Suspense fallback={null}>
       <SettingsView
         applicationFooter={<ApplicationFooter version={application?.version} mode={application?.mode} note={organization?.footer}/>}

@@ -1,3 +1,4 @@
+import {useReviewerName} from '@/hooks/useReviewerIdentity'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
@@ -23,7 +24,7 @@ export function GroupMembersDialog({ group, onClose }: { group: FunctionalGroup;
   const client = useQueryClient()
   const [search, setSearch] = useState(''), [status, setStatus] = useState(''), [offset, setOffset] = useState(0), [picked, setPicked] = useState<Set<string>>(new Set())
   const [adding, setAdding] = useState(false), [names, setNames] = useState(''), [assign, setAssign] = useState<string[] | null>(null)
-  const [removal, setRemoval] = useState<GroupMember[] | null>(null), [reviewer, setReviewer] = useState(() => { try { return localStorage.getItem('sap-lens-reviewer') ?? '' } catch { return '' } }), [rationale, setRationale] = useState('')
+  const [removal, setRemoval] = useState<GroupMember[] | null>(null), [reviewer, setReviewer] = useReviewerName(), [rationale, setRationale] = useState('')
   const query = useQuery({ queryKey: ['functional-group-members', group.id, search, status, offset], queryFn: () => fetchGroupMembers(group.id, { search, status, offset, limit: PAGE }), placeholderData: previous => previous })
   const refresh = () => Promise.all([['functional-group-members'], ['functional-groups'], ['functional-group-analysis'], ['functional-group-options'], ['access-users'], ['access-user'], ['functional-group-user'], ['functional-group-rules']].map(queryKey => client.invalidateQueries({ queryKey })))
   const remove = useMutation({
@@ -64,7 +65,7 @@ export function GroupMembersDialog({ group, onClose }: { group: FunctionalGroup;
         {removal && (
           <div role="group" aria-label="Remove members" className="fg-remove">
             <p>Remove {removal.length === 1 ? <strong>{removal[0].username}</strong> : `${removal.length} members`} from <strong>{group.name}</strong>? Their other groups are kept; each removal is recorded in the history.</p>
-            <FormField label="Reviewer"><input className={controlClass} value={reviewer} maxLength={120} onChange={event => setReviewer(event.target.value)} /></FormField>
+            <FormField label="Reviewer"><input className={controlClass} readOnly value={reviewer} maxLength={120} onChange={event => setReviewer(event.target.value)} /></FormField>
             <FormField label="Rationale (required)"><textarea className={controlClass} rows={2} maxLength={2000} value={rationale} onChange={event => setRationale(event.target.value)} /></FormField>
             {remove.isError && <p role="alert">{message(remove.error)}</p>}
             <div className="ui-toolbar"><Button onClick={() => setRemoval(null)}>Keep members</Button>

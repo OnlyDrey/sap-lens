@@ -1,6 +1,5 @@
+import {useReviewerName} from '@/hooks/useReviewerIdentity'
 import { useRef,useState } from 'react'
-import {useQuery} from '@tanstack/react-query'
-import {apiRequest} from '@/api/client'
 import {invalidateSod} from './SodShared'
 import { useQueryClient } from '@tanstack/react-query'
 import { AlertTriangle, CheckCircle2 } from 'lucide-react'
@@ -28,13 +27,12 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
   const copy = COPY[action], qc = useQueryClient()
   // The dialog reports on the selection it was opened with, even after saved assignments leave the live selection.
   const [picks] = useState(livePicks)
-  const [reviewer, setReviewer] = useState(rememberedReviewer), [rationale, setRationale] = useState(''), [replace, setReplace] = useState(false), [track, setTrack] = useState(false)
+  const [reviewer, setReviewer,reviewIdentity] = useReviewerName(rememberedReviewer), [rationale, setRationale] = useState(''), [replace, setReplace] = useState(false), [track, setTrack] = useState(false)
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [result, setResult] = useState<BulkResult | null>(null)
-  const runtime=useQuery({queryKey:['review-runtime-identity'],queryFn:()=>apiRequest<{username:string}>('/api/runtime'),retry:false})
-  const effectiveReviewer=runtime.data?.username||reviewer
+  const effectiveReviewer=reviewer
   const users = counted(picks.map((pick) => pick.user)), suffixes = counted(picks.map((pick) => pick.suffix || 'No suffix')), roles = new Set(picks.map((pick) => pick.ref)).size
   const reviewed = picks.filter((pick) => atomic&&pick.has_review || pick.decision === 'Keep' || pick.decision === 'Removal required')
-  const ready = !!effectiveReviewer.trim() && !!rationale.trim() && (!reviewed.length || replace) && !busy
+  const ready = reviewIdentity.canReview && !reviewIdentity.loading && !!effectiveReviewer.trim() && !!rationale.trim() && (!reviewed.length || replace) && !busy
   const apply = async () => {
     if(saveLock.current)return
     saveLock.current=true
@@ -44,7 +42,7 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
         context: info.context, expected_revision: info.revision, expected_generation: info.generation, action, atomic, reviewer: effectiveReviewer.trim(), justification: rationale.trim(), replace_existing: replace, track_action: !atomic && action === 'Investigate' && track,
         items: picks.map((pick) => ({ key: pick.key, user: pick.user, ref: pick.ref, evidence_version: pick.evidence_version })),
       })
-      if(!runtime.data?.username)rememberReviewer(reviewer)
+      if(!reviewIdentity.authenticated)rememberReviewer(reviewer)
       setResult(response)
       onApplied(response.recorded)
       await invalidateSod(qc)
@@ -102,10 +100,10 @@ export function BulkReviewDialog({ action, picks: livePicks, info:liveInfo, atom
         )}
         {action === 'Investigate' && !atomic && <Checkbox checked={track} onChange={(event) => setTrack(event.target.checked)}>Also track one investigation action per assignment (existing open actions are reused)</Checkbox>}
         <div className="review-dialog-fields">
-          <FormField label="Reviewer"><Input maxLength={120} value={effectiveReviewer} readOnly={!!runtime.data?.username} placeholder="Your name (self-declared)" onChange={(event) => setReviewer(event.target.value)} /></FormField>
+          <FormField label="Reviewer"><Input maxLength={120} value={effectiveReviewer} readOnly placeholder="Your name (self-declared)" onChange={(event) => setReviewer(event.target.value)} /></FormField>
           <FormField label="Rationale"><Input maxLength={2000} value={rationale} placeholder="Why this applies to the selected assignments" onChange={(event) => setRationale(event.target.value)} /></FormField>
         </div>
-        <p className="ui-description">{runtime.data?.username?'The authenticated account is recorded as reviewer.':'The reviewer name is self-declared.'} Nothing is sent to or changed in SAP.</p>
+        <p className="ui-description">{reviewIdentity.authenticated?'The authenticated account is recorded as reviewer.':'The stable local profile is self-reported and recorded with this decision.'} Nothing is sent to or changed in SAP.</p>
         {error && <p role="alert" className="text-[var(--error)]">{error}</p>}
       </div>
     </Dialog>

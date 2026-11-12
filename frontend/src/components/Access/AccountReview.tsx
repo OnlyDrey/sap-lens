@@ -1,3 +1,4 @@
+import {useReviewerName} from '@/hooks/useReviewerIdentity'
 import { Dialog } from '@/components/Shared/Dialog'
 import { type ReviewEvidence } from '@/components/Shared/ReviewFindings'
 import { PageHeader, MetadataList } from '@/components/Shared/Presentation'
@@ -143,7 +144,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
 
     }
   }, [editing])
-  const [reviewer, setReviewer] = useState(''),
+  const [reviewer, setReviewer,reviewIdentity] = useReviewerName(),
     [rationale, setRationale] = useState(''),
     [decision, setDecision] = useState('Needs review')
   useEffect(() => {
@@ -243,7 +244,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
   })
   const closeEditor=()=>{
     if(busy)return
-    const dirty=editing&&(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state)
+    const dirty=editing&&(rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state)
     if(dirty&&!window.confirm('Discard unsaved review changes?'))return
     setEditing(null)
   }
@@ -613,7 +614,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               {label:'SAP User Group',value:editing.groups.join(', ')||'Group unavailable'},
               {label:'Directory match',value:matchLabel(editing.match_status)},
             ]}/>
-            <div className="ui-toolbar"><Button onClick={()=>{if(reviewer!==(editing.decision?.reviewer||'')||rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}><ArrowUpRight size={16} aria-hidden="true"/>Investigate SAP user</Button></div>
+            <div className="ui-toolbar"><Button onClick={()=>{if(rationale!==(editing.decision?.rationale||'')||decision!==editing.review_state){if(!window.confirm('Discard unsaved review changes and investigate this user?'))return}setEditing(null);onUser(editing.username)}}><ArrowUpRight size={16} aria-hidden="true"/>Investigate SAP user</Button></div>
           </section>
           {editing.classification.status !== 'Unassigned' && <FunctionalGroupReview username={editing.username}
             department={editing.position_change?.fields.includes('department') ? { previous: editing.position_change.previous_department, current: editing.position_change.current_department } : undefined}
@@ -635,7 +636,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
               className={inputClass}
               disabled={busy}
               maxLength={120}
-              placeholder="Your name (self-declared)"
+              readOnly
               value={reviewer}
               onChange={(e) => setReviewer(e.target.value)}
             />
@@ -666,13 +667,13 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
             />
           </Filter>
           <p className="text-xs">
-            Review decisions are local annotations: the reviewer name is
+            Review decisions are application annotations. Identity provenance is recorded; Desktop profiles are
             self-declared, not an authenticated approval, and nothing is sent to
             or changed in SAP or Active Directory.
           </p>
           <div className="review-decision-actions"><Button
             variant="primary"
-            disabled={busy || !reviewer.trim() || !rationale.trim()}
+            disabled={!reviewIdentity.canReview || reviewIdentity.loading || busy || !reviewer.trim() || !rationale.trim()}
             onClick={() =>
               void action(async () => {
                 await apiRequest(

@@ -262,6 +262,7 @@
     "sod-role-evidence-review",
     "session-recovery",
     "authentication",
+    "reviewer-identity",
     "tooltip-visibility",
     "startup-recovery",
     "shared-ui-r5",
@@ -320,6 +321,7 @@
     "test_server_setup",
     "test_auth_store",
     "test_auth_provisioning",
+    "test_review_identity",
     "test_session_auth_api"
    ],
    "browser": [

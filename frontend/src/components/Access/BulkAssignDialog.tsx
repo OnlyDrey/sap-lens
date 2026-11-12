@@ -1,3 +1,4 @@
+import {useReviewerName} from '@/hooks/useReviewerIdentity'
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { UsersRound } from 'lucide-react'
@@ -18,7 +19,7 @@ export function BulkAssignDialog({ usernames, onClose, onChanged, lockedGroupIds
   const client = useQueryClient()
   const groups = useQuery({ queryKey: groupsKey, queryFn: fetchGroups })
   const [names, setNames] = useState(usernames)
-  const [picked, setPicked] = useState<string[]>(lockedGroupIds ?? []), [reviewer, setReviewer] = useState(reviewerOf), [rationale, setRationale] = useState(''), [confirmed, setConfirmed] = useState(false)
+  const [picked, setPicked] = useState<string[]>(lockedGroupIds ?? []), [reviewer, setReviewer] = useReviewerName(reviewerOf), [rationale, setRationale] = useState(''), [confirmed, setConfirmed] = useState(false)
   const [result, setResult] = useState<BulkResult | null>(null)
   const preview = useQuery({ queryKey: ['bulk-preview', picked, names], enabled: picked.length > 0, queryFn: () => bulkPreview(picked, names), staleTime: 0, gcTime: 0 })
   const operation = useRef('')
@@ -71,7 +72,7 @@ export function BulkAssignDialog({ usernames, onClose, onChanged, lockedGroupIds
               <p className="ui-description">Adds {plural(additions, 'membership')} and keeps all existing groups{data.counts.existing > 0 ? `; ${plural(data.counts.existing, 'membership')} already held stay unchanged` : ''}. SAP access is not changed.</p>
             </div>
           ))}
-          <FormField label="Reviewer"><input className={controlClass} value={reviewer} maxLength={120} onChange={event => setReviewer(event.target.value)} /></FormField>
+          <FormField label="Reviewer"><input className={controlClass} readOnly value={reviewer} maxLength={120} onChange={event => setReviewer(event.target.value)} /></FormField>
           <FormField label="Rationale (optional)"><textarea className={controlClass} rows={2} maxLength={1000} value={rationale} onChange={event => setRationale(event.target.value)} /></FormField>
           {data && <Checkbox checked={confirmed} onChange={event => setConfirmed(event.target.checked)}>
             Add {picked.map(id => byId.get(id) ?? id).join(', ')} to {plural(names.length, 'selected user')}</Checkbox>}

@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type Page } from '@playwright/test'
 import { cellButton, cleanup, headers, names, openSod, seedGovernance, wideMatrix } from './sod-fixture'
 import { pickMulti } from './support'
@@ -38,7 +39,7 @@ test('activity, role assignment and risk acceptance are separate decisions and n
   const activities = panel.getByRole('region', { name: 'Activity Review', exact: true })
   await activities.getByRole('button', { name: 'Review activity A', exact: true }).click()
   const form = panel.getByRole('region', { name: 'Activity review · A' })
-  await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(panel.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true }))
   const save = form.getByRole('button', { name: 'Save decision', exact: true })
   await expect(save).toBeDisabled()
   await form.getByRole('textbox', { name: 'Justification', exact: true }).fill('Needed for synthetic purchasing')
@@ -49,7 +50,7 @@ test('activity, role assignment and risk acceptance are separate decisions and n
   const assignments = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
   const duplicate = assignments.getByRole('listitem').filter({ hasText: 'ROLE_A2' })
   const quick = assignments
-  await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(panel.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true }))
   await quick.getByRole('textbox', { name: 'Rationale (optional)', exact: true }).fill('Duplicate coverage')
   await duplicate.getByRole('button', { name: 'Remove ROLE_A2', exact: true }).click()
   await expect(duplicate.getByRole('button', { name: 'Remove ROLE_A2', exact: true })).toHaveAttribute('aria-pressed', 'true') // shown only after the server confirmed it
@@ -58,13 +59,16 @@ test('activity, role assignment and risk acceptance are separate decisions and n
   await panel.getByRole('tab', { name: /^Risks/ }).click()
   await panel.getByRole('button', { name: 'Decide risk acceptance R1', exact: true }).click()
   const acceptance = panel.getByRole('region', { name: 'Risk acceptance · R1' })
-  await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
-  await acceptance.getByRole('textbox', { name: 'Approver (must differ from reviewer)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(panel.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true }))
+  await expectReviewerProfile(acceptance.getByRole('textbox', { name: 'Approver (self-approval permitted)', exact: true }))
   await acceptance.getByRole('textbox', { name: 'Justification', exact: true }).fill('Accepted with monitoring')
   await acceptance.getByRole('button', { name: 'Save decision', exact: true }).click()
-  await expect(acceptance.getByRole('alert')).toContainText('different people')
-  await acceptance.getByRole('textbox', { name: 'Approver (must differ from reviewer)', exact: true }).fill('Synthetic Approver')
-  await acceptance.getByRole('button', { name: 'Save decision', exact: true }).click()
+  await expect(acceptance).toHaveCount(0)
+  const recorded=await(await request.get('/api/sod/subject',{headers,params:{user:names.a,risk:'R1'}})).json()
+  expect(recorded.risk.acceptance).toBe('Accepted')
+  const profile=(await(await request.get('/api/reviewer-profile',{headers})).json()).identity
+  const accepted=(await(await request.get('/api/sod/decisions/acceptance/history',{headers,params:{key:recorded.risk.finding_id}})).json()).items[0]
+  expect(accepted.reviewer).toBe(profile.display_name);expect(accepted.approver).toBe(profile.display_name);expect(accepted.actor_identity.id).toBe(profile.id)
   // Review and formal acceptance are separate: the row badge keeps the review state, acceptance is shown in the status popover.
   const riskReview = panel.getByRole('region', { name: 'Risk Review', exact: true })
   await riskReview.getByRole('button', { name: 'Review method for R1', exact: true }).click()
@@ -165,7 +169,7 @@ test('activity matrix is a review entry point and shows role counts and decision
   await panel.getByRole('button', { name: 'Review activity A', exact: true }).click()
   const form = panel.getByRole('region', { name: 'Activity review · A' })
   await form.getByRole('combobox', { name: 'Activity decision', exact: true }).selectOption('Remove')
-  await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(panel.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true }))
   await form.getByRole('textbox', { name: 'Justification', exact: true }).fill('Not required by this user')
   await form.getByRole('button', { name: 'Save decision', exact: true }).click()
   await page.keyboard.press('Escape')
@@ -191,7 +195,7 @@ test('work queue has one row per user, batch review lives in the workspace and t
   await activities.getByRole('checkbox', { name: 'Select C' }).check()
   await activities.getByRole('button', { name: /^Review selected \(2\)$/ }).click()
   const form = panel.getByRole('region', { name: /Batch activity review \(2\)/ })
-  await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(panel.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true }))
   await form.getByRole('textbox', { name: 'Justification', exact: true }).fill('Same business need')
   await expect(form.getByRole('button', { name: 'Save decision', exact: true })).toBeDisabled() // a batch needs explicit confirmation
   await form.getByRole('checkbox', { name: /Record this decision for 2 selected activity items/ }).check()
@@ -215,7 +219,7 @@ test('remediation separates proposals from verification and keeps tracked action
   const panel = page.getByRole('dialog', { name: `${names.a} · R1` })
   const row = panel.getByRole('region', { name: 'Role Assignment Review', exact: true }).getByRole('listitem').filter({ hasText: 'ROLE_A2' })
   const quick = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
-  await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(panel.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true }))
   await quick.getByRole('textbox', { name: 'Rationale (optional)', exact: true }).fill('Duplicate coverage')
   await row.getByRole('button', { name: 'Remove ROLE_A2', exact: true }).click()
   await expect(row.getByRole('button', { name: 'Remove ROLE_A2', exact: true })).toHaveAttribute('aria-pressed', 'true')
@@ -223,7 +227,7 @@ test('remediation separates proposals from verification and keeps tracked action
   await row.getByRole('button', { name: 'Track action', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Track remediation action' })
   await dialog.getByRole('textbox', { name: 'Assigned owner', exact: true }).fill('Access team')
-  await dialog.getByRole('textbox', { name: 'Recorded by (self-reported)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: 'Recorded by', exact: true }))
   await dialog.getByRole('button', { name: 'Save action', exact: true }).click()
   await expect(dialog).toHaveCount(0)
   await page.keyboard.press('Escape')

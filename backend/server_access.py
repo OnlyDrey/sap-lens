@@ -25,7 +25,8 @@ _lock = threading.RLock()
 
 
 def actor(fallback=''):
-    return ACTOR.get() or fallback
+    from review_identity import name
+    return name(ACTOR.get() or fallback)
 
 
 def read_accounts(path):

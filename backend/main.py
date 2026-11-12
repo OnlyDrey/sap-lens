@@ -199,6 +199,9 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         from server_access import ACTOR
         principal = getattr(request.state, 'server_principal', None)
         actor_token = ACTOR.set(principal[0] if principal else '')
+        from review_identity import IDENTITY, MODE
+        identity_token=IDENTITY.set(request.state.auth_principal.snapshot() if getattr(request.state,'auth_principal',None) else None)
+        mode_token=MODE.set('desktop' if not server else 'server')
         # Read before the handler runs: data published while it runs makes the token older than the data (a harmless re-fetch), never newer.
         data_token = cache.revision_token() if request.url.path.startswith('/api/') else ''
         try:
@@ -207,6 +210,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             response=failure_response(request,error)
         finally:
             ACTOR.reset(actor_token)
+            IDENTITY.reset(identity_token);MODE.reset(mode_token)
         if identity_store and request.url.path.startswith('/api/'):
             response.headers['Cache-Control']='no-store'
         response.headers['X-Request-ID']=request.state.request_id
@@ -261,6 +265,20 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     @app.get('/api/version', tags=['Application'])
     def application_version():
         return {'app': 'SAP Lens', 'version': VERSION, 'mode': BUILD_INFO['mode']}
+
+    @app.get('/api/reviewer-profile')
+    def reviewer_profile():
+        if server: return JSONResponse({'detail':'Use the authenticated account profile.'},status_code=403)
+        from review_identity import profile
+        return profile()
+
+    @app.post('/api/reviewer-profile')
+    def save_reviewer_profile(body: dict):
+        if server: return JSONResponse({'detail':'Use the authenticated account profile.'},status_code=403)
+        from review_identity import profile
+        if set(body)!={'display_name','expected_revision'}:
+            return JSONResponse({'detail':'Specify display name and revision only.'},status_code=422)
+        return profile(body['display_name'],body['expected_revision'])
 
     @app.get('/api/runtime')
     def runtime_capabilities(request: Request):

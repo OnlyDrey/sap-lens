@@ -259,8 +259,14 @@ class IndependentDecisionTests(BulkCase):
         self.assertEqual(self.decisions_of(), {'ZC:MM:BUY:CDK': 'Keep', 'ZC:MM:BUY:EMS': 'Removal required', 'ZC:MM:SEL:CDK': 'Keep'})
 
     def test_changing_one_decision_leaves_the_others_and_their_history_alone(self):
+        def profile(name):
+            current=self.get('/api/reviewer-profile')
+            self.post('/api/reviewer-profile',dict(display_name=name,expected_revision=current['revision']))
+        profile('Alice')
         keep, _ = self.one('ZC:MM:BUY:CDK', 'Keep', reviewer='Alice')
+        profile('Bob')
         remove, _ = self.one('ZC:MM:BUY:EMS', 'Remove', reviewer='Bob')
+        profile('Carol')
         self.one('ZC:MM:BUY:CDK', 'Remove', reviewer='Carol')
         self.assertEqual(self.decisions_of()['ZC:MM:BUY:EMS'], 'Removal required')
         self.assertEqual(self.decisions_of()['ZC:MM:BUY:CDK'], 'Removal required')

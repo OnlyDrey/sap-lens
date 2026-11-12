@@ -1,3 +1,4 @@
+import {useReviewerName} from '@/hooks/useReviewerIdentity'
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Plus, Settings2, Trash2, UsersRound } from 'lucide-react'
@@ -63,7 +64,7 @@ function MembershipRow({ item, busy, onConfirm, onRemove }: { item: Membership; 
 
 /** Reviewer and rationale shared by the actions of one dialog. The reviewer is self-reported unless the server authenticates one. */
 function useReviewer() {
-  const [reviewer, setReviewer] = useState(lastReviewer), [rationale, setRationale] = useState('')
+  const [reviewer, setReviewer] = useReviewerName(lastReviewer), [rationale, setRationale] = useState('')
   return { reviewer, setReviewer, rationale, setRationale }
 }
 
@@ -107,7 +108,7 @@ export function ManageGroupsDialog({ username, data, changeId = '', onClose }: {
         )}
         <Suggestions items={data.suggestion?.groups ?? []} pending={run.isPending || needReviewer} onAdd={group => setPicked(previous => (previous.includes(group) ? previous : [...previous, group]))} />
         <GroupPicker selected={picked} onChange={setPicked} disabledIds={held} />
-        <FormField label="Reviewer"><input className={controlClass} value={reviewer} maxLength={120} onChange={event => setReviewer(event.target.value)} /></FormField>
+        <FormField label="Reviewer"><input className={controlClass} readOnly value={reviewer} maxLength={120} onChange={event => setReviewer(event.target.value)} /></FormField>
         <FormField label="Rationale (optional when adding)"><textarea className={controlClass} rows={2} maxLength={2000} value={rationale} onChange={event => setRationale(event.target.value)} /></FormField>
         {run.isError && <p role="alert">{message(run.error, 'The change could not be saved.')}</p>}
       </div>

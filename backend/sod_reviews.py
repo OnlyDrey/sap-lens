@@ -15,6 +15,7 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 from config import atomic_write, config_dir
 from config_models import StrictModel
 from csv_lifecycle import read_private, write_private
+from review_identity import IdentityRecorded, snapshot
 
 lock = threading.RLock()
 MAX_BYTES = 20 * 1024 * 1024
@@ -22,7 +23,7 @@ MAX_FINDING_BYTES = 4 * 1024 * 1024
 MAX_REVIEWS = 10000
 MAX_EVENTS = 1000
 CONTEXT_PATTERN = r'^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'
-IDENTITY_NOTICE = 'Self-reported in desktop/shared-credential mode; individual server accounts record the authenticated username.'
+IDENTITY_NOTICE = 'Identity provenance is retained with events. Self-reported Desktop/legacy attribution is distinct from server identity; session-authenticated server actions retain account identity snapshots. This is not a digital signature.'
 Decision = Literal['Pending review', 'Accepted with mitigating controls', 'Access removal required',
                    'Not applicable / false positive', 'Further investigation required']
 ActionStatus = Literal['Not started', 'In progress', 'Completed', 'Not applicable']
@@ -144,7 +145,7 @@ class Finding(StrictModel):
         return self
 
 
-class ReviewEvent(StrictModel):
+class ReviewEvent(IdentityRecorded):
     model_config = ConfigDict(extra='forbid', validate_default=True, frozen=True)
     event_id: str = Field(pattern=r'^[a-f0-9]{32}$')
     context: str = Field(pattern=CONTEXT_PATTERN)
@@ -249,7 +250,7 @@ def save(finding, annotation, expected_revision, expected_evidence_version, cont
         event = ReviewEvent(event_id=uuid4().hex, context=context,
                             timestamp=datetime.now(timezone.utc).isoformat(),
                             finding_id=finding.finding_id, evidence_version=finding.evidence_version,
-                            annotation=annotation, finding_snapshot=identity,
+                            annotation=annotation, actor_identity=snapshot(annotation.reviewer), finding_snapshot=identity,
                             subject=finding.subject, risk_id=finding.risk_id)
         data.contexts[context] = {**reviews, finding.finding_id: [*events, event]}
         data.revision += 1

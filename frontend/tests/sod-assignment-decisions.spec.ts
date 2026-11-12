@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, headers, names, openSod, seedGovernance } from './sod-fixture'
 
@@ -16,7 +17,7 @@ async function openUser(page: Page) {
   await openSod(page, 'Risk Matrix')
   await page.getByRole('button', { name: `Open ${names.a} in SoD Review`, exact:true }).click()
   const quick = page.getByRole('dialog', { name: new RegExp(`^${names.a}`) })
-  await quick.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(quick.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true }))
 }
 
 test('each role assignment of one user keeps its own decision when others are decided, changed or the page is reloaded', async ({ page }) => {

@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { cellButton, cleanup, headers, names, openSod, seedGovernance } from './sod-fixture'
 
@@ -67,7 +68,7 @@ test('the role assignment row offers Investigate, Keep, Remove in that order and
   await cellButton(page, `${names.a}`, 'R1').click()
   const panel = page.getByRole('dialog', { name: `${names.a} · R1` })
   await panel.getByRole('tab', { name: /^Roles/ }).click()
-  await panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(panel.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true }))
   const row = panel.getByRole('group', { name: 'Decision for ROLE_A1', exact: true })
   const labels = await row.getByRole('button').evaluateAll((items) => items.map((item) => item.getAttribute('aria-label')))
   expect(labels).toEqual(['Investigate ROLE_A1', 'Keep ROLE_A1', 'Remove ROLE_A1'])
@@ -99,7 +100,7 @@ test('Bulk Review starts without a decision, needs an explicit choice to confirm
   await review.click()
   const dialog = page.getByRole('dialog', { name: 'Mark for further investigation' })
   await expect(dialog).toBeVisible()
-  await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: 'Reviewer' }))
   const confirm = dialog.getByRole('button', { name: /^Mark for/ })
   await expect(confirm).toBeDisabled()                                                                                             // rationale validation is unchanged
   await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Needs a second look')

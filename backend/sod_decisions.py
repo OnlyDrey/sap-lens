@@ -18,6 +18,7 @@ from config import atomic_write, config_dir
 from config_models import StrictModel
 from csv_lifecycle import read_private, write_private
 from sod_reviews import CONTEXT_PATTERN, IDENTITY_NOTICE
+from review_identity import IdentityRecorded, snapshot
 
 lock = threading.RLock()
 MAX_BYTES = 64 * 1024 * 1024
@@ -46,7 +47,7 @@ def _clean(value):
     return value
 
 
-class Event(StrictModel):
+class Event(IdentityRecorded):
     model_config = ConfigDict(extra='forbid', validate_default=True, frozen=True)
     event_id: str = Field(pattern=r'^[a-f0-9]{32}$')
     bulk_operation_id: str = Field(default='',pattern=r'^([a-f0-9]{32})?$')
@@ -91,14 +92,12 @@ class Event(StrictModel):
         if self.kind == 'acceptance' and self.decision != 'Pending':
             if not self.approver:
                 raise ValueError('Risk acceptance and rejection require a named approver.')
-            if self.approver.casefold() == self.reviewer.casefold():
-                raise ValueError('Reviewer and approver must be different people.')
         if self.kind != 'acceptance' and (self.approver or self.expires):
             raise ValueError('Approver and expiry apply to risk acceptance only.')
         return self
 
 
-class ActionEvent(StrictModel):
+class ActionEvent(IdentityRecorded):
     timestamp: str
     actor: str = Field(max_length=120)
     note: str = Field(max_length=2000)
@@ -139,7 +138,7 @@ class Action(StrictModel):
         return self
 
 
-class ReportEntry(StrictModel):
+class ReportEntry(IdentityRecorded):
     id: str = Field(pattern=r'^[a-f0-9]{32}$')
     period_id: str = Field(pattern=CONTEXT_PATTERN)
     kind: str = Field(max_length=40)
@@ -231,7 +230,8 @@ def record(kind, context, items, decision, reviewer, justification, expected_rev
     """Append one event per item atomically; all items share one decision and justification."""
     from server_access import actor
     reviewer = actor(reviewer)
-    if approver: approver = actor(approver)
+    if kind == 'acceptance' and decision != 'Pending': approver = actor(approver)
+    attribution = snapshot(reviewer)
     context = check_context(context)
     limit=1000 if bulk_operation_id else MAX_BATCH
     if not items or len(items) > limit or len({item['key'] for item in items}) != len(items):
@@ -252,7 +252,7 @@ def record(kind, context, items, decision, reviewer, justification, expected_rev
                 raise HTTPException(409, 'SoD decision evidence could not be staged. Previous decisions are retained.') from None
             previous=subjects.get(item['key'],[])
             event = Event(event_id=uuid4().hex,bulk_operation_id=bulk_operation_id,previous_decision=previous[-1].decision if previous else '', kind=kind, context=context, timestamp=stamp, key=item['key'], user=item['user'], ref=item['ref'],
-                          decision=decision, reviewer=reviewer, approver=approver, justification=justification, controls=controls,
+                          decision=decision, reviewer=reviewer, approver=approver, actor_identity=attribution, justification=justification, controls=controls,
                           expires=expires, evidence_version=item['evidence_version'], evidence_snapshot=identity,
                           source_versions=source_versions or {})
             history = subjects.get(item['key'], [])
@@ -328,10 +328,10 @@ def save_action(context, payload, actor, expected_revision, action_id=''):
         if previous:
             changes = [f'{name}: {getattr(previous, name) or "-"} → {values[name] or "-"}' for name in values
                        if name in {'recommended', 'reason', 'owner', 'due_date', 'status', 'completion_evidence'} and str(getattr(previous, name) or '') != str(values[name] or '')]
-            entry = previous.model_copy(update={**values, 'modified': stamp, 'history': [*previous.history, ActionEvent(timestamp=stamp, actor=actor, note='; '.join(changes) or 'Reviewed')]})
+            entry = previous.model_copy(update={**values, 'modified': stamp, 'history': [*previous.history, ActionEvent(timestamp=stamp, actor=actor, actor_identity=snapshot(actor), note='; '.join(changes) or 'Reviewed')]})
         else:
             entry = Action(id=uuid4().hex, context=context, created=stamp, modified=stamp, created_by=actor,
-                           history=[ActionEvent(timestamp=stamp, actor=actor, note='Created')], **values)
+                           history=[ActionEvent(timestamp=stamp, actor=actor, actor_identity=snapshot(actor), note='Created')], **values)
         entry = Action.model_validate(entry.model_dump())
         data.actions[entry.id] = entry
         data.revision += 1
@@ -353,7 +353,7 @@ def log_report(period_id, kind, title, status, document_version, model_checksum,
             raise HTTPException(409, 'Report log capacity is reached. Existing entries are retained.')
         entry = ReportEntry(id=uuid4().hex, period_id=period_id, kind=kind, title=title, status=status, document_version=document_version,
                             model_checksum=model_checksum, previous_period_id=previous_period_id,
-                            timestamp=datetime.now(timezone.utc).isoformat(), prepared_by=prepared_by)
+                            timestamp=datetime.now(timezone.utc).isoformat(), prepared_by=prepared_by, actor_identity=snapshot(prepared_by))
         data.reports.append(entry)
         _write(data)
         return entry.model_dump(mode='json')

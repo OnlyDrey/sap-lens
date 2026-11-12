@@ -12,6 +12,7 @@ import sod_decisions as decisions
 from sod_analysis import analyze
 from config import atomic_write,config_dir,get_settings
 from config_models import StrictModel
+from review_identity import IdentityRecorded, snapshot as actor_snapshot
 from csv_lifecycle import read_private,write_private,private_path
 
 lock=threading.RLock()
@@ -20,14 +21,14 @@ V2_ALLOWED={'Draft':{'In review'},'In review':{'Draft','Ready for approval'},'Re
 STATES=('Draft','In review','Ready for approval','Rejected','Approved','Closed','Approved / closed')
 FROZEN=frozenset({'Approved','Closed','Approved / closed'})
 
-class PeriodEvent(StrictModel):
+class PeriodEvent(IdentityRecorded):
     timestamp:str
     from_state:str
     to_state:str
     actor:str=Field(default='',max_length=120)
     note:str=Field(default='',max_length=2000)
 
-class Deletion(StrictModel):
+class Deletion(IdentityRecorded):
     id:str=Field(pattern=r'^[a-f0-9]{32}$')
     name:str=Field(max_length=120)
     state:str=Field(max_length=40)
@@ -241,11 +242,10 @@ def _v2_transition(index,period,saved,state,expected_review_revision,reviewer,ap
         if gaps['blocking']:raise HTTPException(409,'Complete or renew all activity reviews and risk acceptance decisions before approval preparation.')
     if state=='Approved':
         if not confirm or not reviewer.strip() or not approver.strip() or approval_date is None:raise HTTPException(422,'Confirm approval with self-reported reviewer, approver and approval date.')
-        if reviewer.strip().casefold()==approver.strip().casefold():raise HTTPException(422,'Reviewer and approver must be different people.')
         import sod_scope as scope
         frozen=decisions.freeze(period.id);actions=[decisions.Action.model_validate(item) for item in frozen['actions']]
         period.reviewer=reviewer.strip();period.approver=approver.strip();period.approval_date=approval_date
-        saved={**overlaid(period,saved),'approval':dict(reviewer=period.reviewer,approver=period.approver,date=approval_date.isoformat(),actor=actor.strip(),identity_notice=reviews.IDENTITY_NOTICE),
+        saved={**overlaid(period,saved),'approval':dict(reviewer=period.reviewer,approver=period.approver,date=approval_date.isoformat(),actor=actor.strip(),actor_identity=actor_snapshot(actor),identity_notice=reviews.IDENTITY_NOTICE),
                'decisions':{**frozen,'verification':scope.verification_map(actions)},'decision_summary':outstanding(period)}
         if len(period.snapshots)>=100:raise HTTPException(409,'Period snapshot capacity reached.')
         period.snapshot=write_private('snapshots',saved);period.snapshots.append(period.snapshot)
@@ -257,12 +257,13 @@ def _v2_transition(index,period,saved,state,expected_review_revision,reviewer,ap
 def transition(identifier,state,expected_revision,expected_review_revision,reviewer='',approver='',approval_date=None,confirm=False,actor='',reason=''):
     from server_access import actor as authenticated_actor
     actor = authenticated_actor(actor)
+    reviewer = authenticated_actor(reviewer)
     if state in {'Approved','Approved / closed'}: approver = authenticated_actor(approver)
     with lock,reviews.lock,decisions.lock:
         index=read();expect(index,expected_revision);period=find(index,identifier);saved=snapshot(period);previous=period.state
         if saved.get('model')==2:who=_v2_transition(index,period,saved,state,expected_review_revision,reviewer,approver,approval_date,confirm,actor,reason)
         else:_legacy_transition(index,period,saved,state,expected_review_revision,reviewer,approver,approval_date,confirm);who=(actor.strip(),reason.strip())
-        stamp=now();period.history=[*period.history,PeriodEvent(timestamp=stamp,from_state=previous,to_state=state,actor=who[0],note=who[1])][-500:]
+        stamp=now();period.history=[*period.history,PeriodEvent(timestamp=stamp,from_state=previous,to_state=state,actor=who[0],actor_identity=actor_snapshot(who[0]),note=who[1])][-500:]
         period.state=state;period.modified=stamp;index.revision+=1;write(index)
         return dict(period=period.model_dump(mode='json'),revision=index.revision)
 
@@ -350,11 +351,11 @@ def delete(identifier,expected_revision,confirm_name,confirm_impact,actor,reason
         if impact['requires_history_confirmation'] and not confirm_history:raise HTTPException(422,'Confirm that approved evidence, issued reports and dependent comparisons are retained but no longer available for active work.')
         if impact['requires_reason'] and not reason.strip():raise HTTPException(422,'A reason is required to delete an approved or closed period.')
         if not actor.strip():raise HTTPException(422,'Record the person deleting this period.')
-        stamp=now();record=Deletion(id=period.id,name=period.name,state=period.state,mode='permanent' if impact['mode']=='permanent' else 'archived',timestamp=stamp,actor=actor.strip(),counts=impact['counts'],reason=reason.strip(),frozen=period.state in FROZEN)
+        stamp=now();record=Deletion(id=period.id,name=period.name,state=period.state,mode='permanent' if impact['mode']=='permanent' else 'archived',timestamp=stamp,actor=actor.strip(),actor_identity=actor_snapshot(actor),counts=impact['counts'],reason=reason.strip(),frozen=period.state in FROZEN)
         snapshots=list(period.snapshots)
         if impact['mode']=='permanent':index.items=[item for item in index.items if item.id!=identifier]
         else:
-            period.history=[*period.history,PeriodEvent(timestamp=stamp,from_state=period.state,to_state='Archived',actor=actor.strip(),note=reason.strip())][-500:]
+            period.history=[*period.history,PeriodEvent(timestamp=stamp,from_state=period.state,to_state='Archived',actor=actor.strip(),actor_identity=actor_snapshot(actor),note=reason.strip())][-500:]
             period.deleted_at=stamp;period.modified=stamp
         index.deletions=[*index.deletions,record][-500:];index.revision+=1;write(index)
         if impact['mode']=='permanent':

@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -186,7 +187,7 @@ test('batch Keep is confirmed with a summary, persists per assignment and keeps 
   await expect(dialog.getByRole('region', { name: 'Selected SAP users' })).toContainText(user.a)
   const apply = dialog.getByRole('button', { name: 'Keep 3 assignments' })
   await expect(apply).toBeDisabled()
-  await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: 'Reviewer' }))
   await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Needed for synthetic purchasing')
   await apply.click()
   await expect(dialog.getByRole('status')).toContainText('3 of 3 assignments saved.')
@@ -219,7 +220,7 @@ test('Recommend removal for suffix and users, existing decisions need explicit r
   await toolbar(page).getByRole('button', { name: 'Recommend removal', exact: true }).click()
   let dialog = page.getByRole('dialog', { name: 'Recommend removal' })
   await expect(dialog).toContainText('no role is removed from SAP')
-  await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: 'Reviewer' }))
   await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Not needed after reorganization')
   await dialog.getByRole('button', { name: 'Recommend removal for 4 assignments' }).click()
   await expect(dialog.getByRole('status')).toContainText('4 of 4 assignments saved.')
@@ -233,7 +234,7 @@ test('Recommend removal for suffix and users, existing decisions need explicit r
   await page.getByRole('button', { name: /select all 4 matching/i }).first().click()
   await toolbar(page).getByRole('button', { name: 'Keep', exact: true }).click()
   dialog = page.getByRole('dialog', { name: 'Keep assignments' })
-  await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: 'Reviewer' }))
   await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Reconsidered')
   const keep = dialog.getByRole('button', { name: 'Keep 4 assignments' })
   await expect(dialog.getByRole('region', { name: 'Existing decisions' })).toContainText('4 assignments have an earlier review decision')
@@ -250,7 +251,7 @@ test('Recommend removal for suffix and users, existing decisions need explicit r
   await page.getByRole('button', { name: /select all 4 matching/i }).first().click()
   await toolbar(page).getByRole('button', { name: 'Investigate', exact: true }).click()
   dialog = page.getByRole('dialog', { name: 'Mark for further investigation' })
-  await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: 'Reviewer' }))
   await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Check with the line manager')
   await dialog.getByRole('checkbox', { name: /Also track one investigation action/ }).check()
   await expect(dialog.getByRole('region', { name: 'Existing decisions' })).toContainText('4 assignments have an earlier review decision')
@@ -279,7 +280,7 @@ test('partial failures are reported accurately and failed assignments stay selec
   })
   await toolbar(page).getByRole('button', { name: 'Keep', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Keep assignments' })
-  await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: 'Reviewer' }))
   await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Partial result check')
   await dialog.getByRole('button', { name: 'Keep 3 assignments' }).click()
   await expect(dialog.getByRole('status')).toContainText('1 of 3 assignments saved; 0 skipped and 2 failed.')
@@ -318,7 +319,7 @@ test('a rejected request never reports success', async ({ page }) => {
   await page.route('**/api/sod/decisions/assignment/bulk', (route) => route.fulfill({ status: 409, json: { detail: 'SoD evidence changed. Reload before reviewing.' } }))
   await toolbar(page).getByRole('button', { name: 'Recommend removal', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Recommend removal' })
-  await dialog.getByRole('textbox', { name: 'Reviewer' }).fill('Synthetic Reviewer')
+  await expectReviewerProfile(dialog.getByRole('textbox', { name: 'Reviewer' }))
   await dialog.getByRole('textbox', { name: 'Rationale' }).fill('Conflict check')
   await dialog.getByRole('button', { name: 'Recommend removal for 1 assignment' }).click()
   await expect(dialog.getByRole('alert')).toContainText('SoD evidence changed')

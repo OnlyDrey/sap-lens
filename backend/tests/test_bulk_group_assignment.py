@@ -15,6 +15,8 @@ BASE = '/api/functional-groups'
 class Bulk(TransactionFilterCase):
     def setUp(self):
         super().setUp()
+        from review_identity import profile
+        profile('Admin One',0)
         self.a = self.client.post(BASE, headers=H, json={'name': 'Purchasing', 'description': ''}).json()['id']
         self.b = self.client.post(BASE, headers=H, json={'name': 'Logistics', 'description': ''}).json()['id']
 
@@ -145,9 +147,11 @@ class Bulk(TransactionFilterCase):
             self.assertFalse(may_access(role, 'POST', BASE + '/bulk'), role)
             self.assertFalse(may_access(role, 'POST', BASE + '/bulk/preview'), role)
 
-    def test_a_reviewer_name_is_required(self):
+    def test_current_profile_supplies_identity_without_a_client_alias(self):
         response = self.post('/bulk', group_ids=[self.a], usernames=['U1'], expected={'U1': 0}, operation_id='o' * 10, reviewer='')
-        self.assertEqual(response.status_code, 422)
+        self.assertEqual(response.status_code, 200,response.text)
+        event=fg.read()['history'][-1]
+        self.assertEqual(event['actor'],'Admin One')
 
     def test_the_selection_endpoint_lists_the_filtered_usernames_in_order(self):
         everyone = self.client.get('/api/access/users-selection', headers=H).json()

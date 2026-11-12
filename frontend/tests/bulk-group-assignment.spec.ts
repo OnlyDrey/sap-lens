@@ -1,3 +1,4 @@
+import {expectReviewerProfile} from './reviewer-profile'
 import { expect, test, type APIRequestContext, type Page } from '@playwright/test'
 import { readFileSync } from 'node:fs'
 import { goTo, headers, seedSources, type SeededSources } from './support'
@@ -51,7 +52,7 @@ test('bulk assignment: toolbar order, replacement confirmation, results, profile
   await expect(dialog.getByRole('list', { name: 'Selected Functional Groups' })).toContainText(other)
   await expect(dialog).toContainText('Current assignments'); await expect(dialog).toContainText(`${other}: 1 user`); await expect(dialog).toContainText('Unassigned: 1 user')
   await expect(dialog).toContainText('keeps all existing groups')                                           // adding, never replacing
-  await dialog.getByLabel('Reviewer').fill('Reviewer One')
+  await expectReviewerProfile(dialog.getByLabel('Reviewer'))
   await expect(submit).toBeDisabled()                                                                       // explicit confirmation first
   await dialog.getByRole('checkbox').check()
   await submit.click()
