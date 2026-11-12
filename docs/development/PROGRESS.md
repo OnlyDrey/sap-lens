@@ -2095,3 +2095,41 @@ python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs
 
 Run with PowerShell 5.1 and 7 available; helper tests do not install a service.
 A verified native SCM lifecycle/report remains separate and is not claimed passed.
+
+
+## SCM workspace cleanup deadline (2026-11-12)
+
+The native report proves the old cooperative deadline expired after successful
+SCM operations; it does not identify a blocked call or establish a Defender cause.
+Source inspection confirms repeated work: provider-based root/ancestor walks and
+marker JSON parsing for each path, repeated again before the deletion helper.
+Removed redundant outer deletion checks; full per-operation ownership/boundary/
+ancestor/reparse validation remains in the helper, using direct .NET attribute
+checks. Marker text is re-read each time and compared exactly against initially
+validated token/root/SID; changes fail closed. Caller identity handles are disposed
+after each check instead of waiting for GC. No before/after Windows timing is
+claimed, and error 87 is not assumed to share the timeout's cause.
+
+Cleanup runs in an owned child with an unchanged 120-second parent deadline, so a
+blocked enumeration, ACL tool or single filesystem call cannot bypass the watchdog.
+Only the explicitly owned child may be terminated. Streaming progress/heartbeats
+run approximately every five seconds; checkpoints include phase, elapsed time,
+counts and relative path. The diagnostic file and ownership marker remain until
+final deletion; failed root deletion attempts restore metadata after rechecking
+ancestors. Existing service ownership, process-exit checks, narrow ACL recovery,
+readonly handling and hard evidence-after-cleanup gate remain. No bundle, backup,
+replacement or dependency subtree is excluded to obtain a pass. Archives are
+removed as files without inspecting their contents.
+
+Added native large nested workspace (620 files including retention.json), ReadOnly
+files/directories, cleanup-to-evidence and blocked-worker timeout/diagnostic
+preservation cases. Existing locks, SYSTEM-owner/inaccessible paths, junctions,
+marker and boundary tests remain. Native cases are defined but not executed here.
+Final focused cleanup/release: 46 passed, 12 skips (58 discovered); final SCM-only
+recheck after identity-handle disposal: 15 passed, 12 skips (27 discovered).
+Deployment: 368 passed, 22 skips (390 discovered). Ruff, links, workflow contracts
+and whitespace passed. PowerShell parser/runtime is unavailable on this Linux
+host; no native SCM acceptance, package rebuild, FULL or GitHub Actions run was
+performed. Exact helper and checksum-verified native commands are in the Windows
+Service guide, section "Cleanup traversal and external watchdog". A successful
+native cleanup and read-back-verified evidence receipt remain acceptance gates.

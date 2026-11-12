@@ -1,5 +1,6 @@
 # Test-only helpers. No production data or service API imports.
 $ErrorActionPreference = 'Stop'
+$script:ScmHelperFile=$PSCommandPath
 function Assert-NoReparse([IO.FileSystemInfo]$Entry) {
     if ($Entry.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'SCM acceptance refuses reparse points.' }
 }
@@ -22,23 +23,38 @@ function New-ScmWorkspace([string]$Parent) {
     return $workspace
 }
 function Assert-ScmTestPath($Workspace,[string]$Path) {
-    if ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value -ne $Workspace.Sid) { throw 'SCM workspace belongs to another caller.' }
+    $caller=[Security.Principal.WindowsIdentity]::GetCurrent()
+    try {
+        if ($caller.User.Value -ne $Workspace.Sid) { throw 'SCM workspace belongs to another caller.' }
+    } finally { $caller.Dispose() }
     $root = [IO.Path]::GetFullPath($Workspace.Root).TrimEnd('\')
     if ((Split-Path $root -Leaf) -notmatch '^sap-lens-scm-[a-f0-9]{32}$' -or
         (Split-Path $root -Parent) -ne $Workspace.Parent) { throw 'Invalid SCM workspace boundary.' }
-    $item = Get-Item -LiteralPath $root -Force
-    while ($item) { Assert-NoReparse $item; $item=$item.Parent }
-    $marker = Join-Path $root '.scm-test-owner.json'
-    Assert-NoReparse (Get-Item -LiteralPath $marker -Force)
-    $saved = Get-Content -LiteralPath $marker -Raw | ConvertFrom-Json
-    if ($saved.Token -ne $Workspace.Token -or $saved.Root -ne $root -or $saved.Sid -ne $Workspace.Sid) { throw 'SCM workspace ownership marker differs.' }
     if (-not [IO.Path]::IsPathRooted($Path)) { throw 'Use an absolute test path.' }
     $full = [IO.Path]::GetFullPath($Path).TrimEnd('\')
     if ($full -ne $root -and -not $full.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Path is outside the SCM test workspace.' }
-    $parent=Split-Path $full -Parent
+    # Preserve per-operation boundary/link checks, avoiding PowerShell provider
+    # round-trips for every ancestor of every file.
+    $ancestor=$root
+    while ($ancestor) {
+        if ([IO.File]::GetAttributes($ancestor) -band [IO.FileAttributes]::ReparsePoint) { throw 'SCM acceptance refuses reparse points.' }
+        $ancestor=[IO.Path]::GetDirectoryName($ancestor)
+    }
+    $marker=Join-Path $root '.scm-test-owner.json'
+    if ([IO.File]::GetAttributes($marker) -band [IO.FileAttributes]::ReparsePoint) { throw 'SCM acceptance refuses reparse points.' }
+    $text=[IO.File]::ReadAllText($marker)
+    $proof=$Workspace['_MarkerProof']
+    if (-not $proof) {
+        $saved=$text | ConvertFrom-Json
+        if ($saved.Token -ne $Workspace.Token -or $saved.Root -ne $root -or $saved.Sid -ne $Workspace.Sid) { throw 'SCM workspace ownership marker differs.' }
+        $proof=@{Text=$text;Token=$saved.Token;Root=$saved.Root;Sid=$saved.Sid}
+        $Workspace['_MarkerProof']=$proof
+    }
+    if ($text -cne $proof.Text -or $proof.Token -ne $Workspace.Token -or $proof.Root -ne $root -or $proof.Sid -ne $Workspace.Sid) { throw 'SCM workspace ownership marker differs.' }
+    $parent=[IO.Path]::GetDirectoryName($full)
     while ($parent -and ($parent -eq $root -or $parent.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase))) {
-        if (Test-Path -LiteralPath $parent) { Assert-NoReparse (Get-Item -LiteralPath $parent -Force) }
-        $parent=Split-Path $parent -Parent
+        if ([IO.File]::GetAttributes($parent) -band [IO.FileAttributes]::ReparsePoint) { throw 'SCM acceptance refuses reparse points.' }
+        $parent=[IO.Path]::GetDirectoryName($parent)
     }
     return $full
 }
@@ -54,15 +70,31 @@ function Grant-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
     if ($global:LASTEXITCODE -ne 0) { throw 'Test-only current-user ACL recovery failed.' }
     Assert-NoReparse (Get-Item -LiteralPath $path -Force)
 }
+function Write-ScmCleanupProgress($Workspace,$State,[switch]$Force) {
+    if (-not $Force -and $State.Clock.Elapsed.TotalSeconds-$State.Last -lt 5) { return }
+    $State.Last=$State.Clock.Elapsed.TotalSeconds
+    $snapshot=@{phase=$State.Phase;elapsed=[int]$State.Clock.Elapsed.TotalSeconds;files=$State.Files;directories=$State.Directories;deleted=$State.Deleted;last=$State.LastPath}
+    $path=Join-Path $Workspace.Root '.scm-cleanup-progress.json'
+    $null=Assert-ScmTestPath $Workspace $path
+    try {
+        if ([IO.File]::GetAttributes($path) -band [IO.FileAttributes]::ReparsePoint) { throw 'Cleanup diagnostic must not be a reparse point.' }
+    } catch [IO.FileNotFoundException] { } # First checkpoint; all other errors fail closed.
+    [IO.File]::WriteAllText($path,($snapshot | ConvertTo-Json),[Text.UTF8Encoding]::new($false))
+    Write-Host ('[SCM cleanup] '+($snapshot | ConvertTo-Json -Compress))
+}
 function Remove-ScmWorkspace($Workspace) {
+    $state=@{Clock=[Diagnostics.Stopwatch]::StartNew();Last=-5;Phase='validate';Files=0;Directories=0;Deleted=0;LastPath='.'}
     $cleanupDeadline=[DateTime]::UtcNow.AddSeconds(120)
     $root = Assert-ScmTestPath $Workspace $Workspace.Root
+    Write-ScmCleanupProgress $Workspace $state -Force
     $pending = New-Object 'System.Collections.Generic.Queue[System.IO.DirectoryInfo]'
     $pending.Enqueue((Get-Item -LiteralPath $root -Force))
     $entries = New-Object 'System.Collections.Generic.List[System.IO.FileSystemInfo]'
     while ($pending.Count) {
         if ([DateTime]::UtcNow -ge $cleanupDeadline) { throw 'Workspace cleanup exceeded 120 seconds; workspace retained.' }
         $directory=$pending.Dequeue()
+        $state.Phase='enumerate'; $state.LastPath=$directory.FullName.Substring($root.Length).TrimStart('\')
+        Write-ScmCleanupProgress $Workspace $state
         $null=Assert-ScmTestPath $Workspace $directory.FullName
         Assert-NoReparse $directory
         try { $children=@(Get-ChildItem -LiteralPath $directory.FullName -Force -ErrorAction Stop) }
@@ -74,24 +106,48 @@ function Remove-ScmWorkspace($Workspace) {
             $null=Assert-ScmTestPath $Workspace $entry.FullName
             Assert-NoReparse $entry
             $entries.Add($entry)
-            if ($entry -is [IO.DirectoryInfo]) { $pending.Enqueue($entry) }
+            if ($entry -is [IO.DirectoryInfo]) { $state.Directories++; $pending.Enqueue($entry) } else { $state.Files++ }
+            Write-ScmCleanupProgress $Workspace $state
         }
     }
     # Reject the whole tree before deleting anything. Keep the marker until all children are gone.
     $marker=Join-Path $root '.scm-test-owner.json'
     foreach ($entry in @($entries | Sort-Object { $_.FullName.Length } -Descending)) {
         if ([DateTime]::UtcNow -ge $cleanupDeadline) { throw 'Workspace cleanup exceeded 120 seconds; workspace retained.' }
-        if ($entry.FullName -eq $marker) { continue }
-        $path=Assert-ScmTestPath $Workspace $entry.FullName
-        Assert-NoReparse (Get-Item -LiteralPath $path -Force)
+        if ($entry.FullName -eq $marker -or $entry.FullName -eq (Join-Path $root '.scm-cleanup-progress.json')) { continue }
+        $state.Phase='delete';$state.LastPath=$entry.FullName.Substring($root.Length+1)
+        Write-ScmCleanupProgress $Workspace $state
         Remove-ScmTestEntry $Workspace $entry
+        $state.Deleted++
 
     }
     $null=Assert-ScmTestPath $Workspace $root
-    Remove-Item -LiteralPath $marker -Force
+    $ownerText=[IO.File]::ReadAllText($marker)
     $rootEntry=Get-Item -LiteralPath $root -Force
     if ($rootEntry.Attributes -band [IO.FileAttributes]::ReadOnly) { $rootEntry.Attributes=$rootEntry.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly) }
-    [IO.Directory]::Delete($root,$false)
+    try {
+        Remove-Item -LiteralPath (Join-Path $root '.scm-cleanup-progress.json') -Force
+        Remove-Item -LiteralPath $marker -Force
+        [IO.Directory]::Delete($root,$false)
+    } catch {
+        $primaryFailure=$_
+        try {
+            # Root deletion can fail after children were removed. Restore diagnostics
+            # only after verifying its ancestor chain again; never follow a link.
+            $ancestor=$root
+            while ($ancestor) {
+                if ([IO.File]::GetAttributes($ancestor) -band [IO.FileAttributes]::ReparsePoint) { throw 'Root recovery refuses reparse points.' }
+                $ancestor=[IO.Path]::GetDirectoryName($ancestor)
+            }
+            if (-not [IO.File]::Exists($marker)) {
+                $stream=[IO.File]::Open($marker,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
+                try { $bytes=[Text.Encoding]::UTF8.GetBytes($ownerText);$stream.Write($bytes,0,$bytes.Length) } finally { $stream.Dispose() }
+            }
+            $state.Phase='remove-root';$state.LastPath='.'
+            Write-ScmCleanupProgress $Workspace $state -Force
+        } catch { Write-Warning 'Unable to restore final cleanup metadata; preserve the failed workspace and console diagnostics.' }
+        throw $primaryFailure
+    }
 }
 function Get-SafeScmZipPath([string]$Name) {
     $name=$Name.Replace('\','/')
@@ -197,7 +253,7 @@ function Remove-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
                 $current.Attributes=[IO.FileAttributes]($attributes -band (-bnot 1))
             }
             $operation='delete entry'
-            Write-Host ('[SCM cleanup] '+$path.Substring($Workspace.Root.TrimEnd('\').Length+1))
+
             if ($Entry -is [IO.DirectoryInfo]) { [IO.Directory]::Delete($path,$false) }
             else { Remove-Item -LiteralPath $path -Force -ErrorAction Stop }
             return
@@ -279,7 +335,7 @@ function Get-ScmExitCode($Process) {
     if ($null -eq $code -or $code -isnot [int]) { throw 'Management process exited without an available integer exit code; acceptance refused.' }
     return $code
 }
-function Invoke-ScmManagementHost([string]$HostPath,[string]$EncodedCommand,[string]$Stage,[ValidateRange(1,180)][int]$TimeoutSeconds=180) {
+function Invoke-ScmManagementHost([string]$HostPath,[string]$EncodedCommand,[string]$Stage,[ValidateRange(1,180)][int]$TimeoutSeconds=180,[switch]$StreamProgress) {
     $child=[Diagnostics.Process]::new()
     $stdout=$null; $stderr=$null; $started=$false
     $watch=[Diagnostics.Stopwatch]::StartNew()
@@ -296,17 +352,41 @@ function Invoke-ScmManagementHost([string]$HostPath,[string]$EncodedCommand,[str
         $started=$true
         $null=$child.Handle
         # Drain both pipes concurrently without PowerShell event callbacks.
-        $stdout=$child.StandardOutput.ReadToEndAsync()
+        $stdout=if ($StreamProgress) { $child.StandardOutput.ReadLineAsync() } else { $child.StandardOutput.ReadToEndAsync() }
         $stderr=$child.StandardError.ReadToEndAsync()
-        while (-not $child.WaitForExit(1000) -and $watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
-            Write-Host ('[SCM] RUNNING | '+$Stage+' | elapsed '+[int]$watch.Elapsed.TotalSeconds+'s')
-        }
+        $lastHeartbeat=-5
+        do {
+            if ($StreamProgress) {
+                while ($stdout -and $stdout.IsCompleted) {
+                    $line=$stdout.Result
+                    if ($null -eq $line) { $stdout=$null; break }
+                    Write-Host $line
+                    $stdout=$child.StandardOutput.ReadLineAsync()
+                }
+            }
+            if ($watch.Elapsed.TotalSeconds-$lastHeartbeat -ge 5) {
+                Write-Host ('[SCM] RUNNING | '+$Stage+' | elapsed '+[int]$watch.Elapsed.TotalSeconds+'s')
+                $lastHeartbeat=$watch.Elapsed.TotalSeconds
+            }
+            $exited=$child.WaitForExit(250)
+        } while (-not $exited -and $watch.Elapsed.TotalSeconds -lt $TimeoutSeconds)
         if (-not $child.HasExited) {
             $child.Kill()
             if (-not $child.WaitForExit(10000)) { throw 'Owned management host did not exit after termination; workspace retained.' }
             throw "Owned management host exceeded $TimeoutSeconds seconds; inspect service state and retained workspace."
         }
-        if (-not $stdout.Wait(5000) -or -not $stderr.Wait(5000)) { throw 'Management output capture did not complete; acceptance refused.' }
+        if ($StreamProgress) {
+            $drain=[Diagnostics.Stopwatch]::StartNew()
+            while ($stdout) {
+                $remaining=[math]::Max(0,5000-[int]$drain.ElapsedMilliseconds)
+                if (-not $stdout.Wait($remaining)) { throw 'Management output capture did not complete; acceptance refused.' }
+                $line=$stdout.Result
+                if ($null -eq $line) { $stdout=$null;break }
+                Write-Host $line
+                $stdout=$child.StandardOutput.ReadLineAsync()
+            }
+        }
+        if (($stdout -and -not $stdout.Wait(5000)) -or -not $stderr.Wait(5000)) { throw 'Management output capture did not complete; acceptance refused.' }
         $exitCode=Get-ScmExitCode $child
         if ($exitCode -ne 0) { throw "Service management failed (exit $exitCode)." }
     } finally {
@@ -328,4 +408,16 @@ function Invoke-ScmManagementHost([string]$HostPath,[string]$EncodedCommand,[str
         }
         $child.Dispose()
     }
+}
+
+function Invoke-ScmCleanupWorker($Workspace,[ValidateRange(1,120)][int]$TimeoutSeconds=120) {
+    # The watchdog lives outside filesystem traversal: even a blocked filesystem
+    # or ACL command is bounded. Only this explicitly created child may be killed.
+    $helper=$script:ScmHelperFile
+    $values=@('Root','Parent','Sid','Token') | ForEach-Object {
+        "'"+$_+"'='"+([string]$Workspace[$_]).Replace("'","''")+"'"
+    }
+    $code="$"+'ErrorActionPreference=''Stop''; . '+"'"+$helper.Replace("'","''")+"'; "+'$workspace=@{'+($values -join ';')+'}; Remove-ScmWorkspace $workspace'
+    $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))
+    Invoke-ScmManagementHost (Get-Process -Id $PID).Path $encoded 'workspace cleanup' $TimeoutSeconds -StreamProgress
 }

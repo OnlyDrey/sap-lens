@@ -130,7 +130,7 @@ class EntrypointContracts(unittest.TestCase):
         self.assertNotIn('& $manage @args',text)
         self.assertIn("$reportPath=$inputBundle+'.scm-verification.json'",text)
         self.assertNotIn("$report.native_service_smoke=",text)
-        self.assertLess(text.index('Write-ScmEvidence $reportPath $receipt'),text.index('Write-Host "SCM lifecycle'))
+        self.assertLess(text.index('Write-ScmEvidence $reportPath $receipt'),text.index('Write-Host "SCM PASSED:'))
         for guard in ('CreateNew','ConvertFrom-Json','read-back validation failed','Flush($true)'):
             self.assertIn(guard,helper)
 
@@ -173,14 +173,14 @@ class ScmCleanupContracts(unittest.TestCase):
         self.assertIn('$service.PathName.Trim().Trim',self.main)
         self.assertIn('$service.Dispose()',self.main)
         self.assertIn('if ($safeToRemove)',self.main)
-        self.assertLess(self.main.index('Remove-ScmWorkspace $workspace'),self.main.index('Write-ScmEvidence $reportPath $receipt'))
+        self.assertLess(self.main.index('Invoke-ScmCleanupWorker $workspace'),self.main.index('Write-ScmEvidence $reportPath $receipt'))
         self.assertIn('$global:LASTEXITCODE=1',self.main)
         self.assertTrue(self.main.rstrip().endswith('exit 0'))
 
     def test_pristine_replacement_precedes_runtime_and_cleanup_waits_for_owned_processes(self):
         self.assertLess(self.main.index('Copy-ScmReplacementBundle'), self.main.index('-Action Install'))
         self.assertNotIn('Get-ChildItem $bundlePath | Where-Object', self.main)
-        self.assertLess(self.main.index('Wait-ScmWorkspaceProcesses $workspace'), self.main.index('Remove-ScmWorkspace $workspace'))
+        self.assertLess(self.main.index('Wait-ScmWorkspaceProcesses $workspace'), self.main.index('Invoke-ScmCleanupWorker $workspace'))
         self.assertIn("$Report.files.PSObject.Properties.Name", self.helper)
         self.assertIn("$attempt -lt 5", self.helper)
         self.assertIn("$code -notin @(5,32,33)", self.helper)
@@ -190,6 +190,16 @@ class ScmCleanupContracts(unittest.TestCase):
         management=(ROOT/'scripts/manage-server-service.ps1').read_text()
         for kind in ('unexpected file', 'missing file', 'reparse point:'):
             self.assertIn(kind, management)
+
+    def test_cleanup_has_external_watchdog_and_progress_without_skipping_artifacts(self):
+        self.assertIn('Invoke-ScmCleanupWorker $workspace',self.main)
+        self.assertIn("'workspace cleanup' $TimeoutSeconds -StreamProgress",self.helper)
+        self.assertIn("$Workspace['_MarkerProof']",self.helper)
+        self.assertIn('[IO.File]::ReadAllText($marker)',self.helper)
+        self.assertIn('$text -cne $proof.Text',self.helper)
+        self.assertIn('.scm-cleanup-progress.json',self.helper)
+        self.assertIn("$State.Clock.Elapsed.TotalSeconds-$State.Last -lt 5",self.helper)
+        self.assertNotIn("[SCM cleanup] '+$path",self.helper)
 
     def test_file_cleanup_avoids_attribute_roundtrip_and_reports_operation(self):
         self.assertIn('$current -is [IO.DirectoryInfo] -and ($attributes -band 1)', self.helper)
@@ -274,6 +284,41 @@ class NativeSafeScmHelpers(unittest.TestCase):
         encoded=base64.b64encode(source.encode('utf-16-le')).decode()
         done=subprocess.run([shell,'-NoProfile','-NonInteractive','-EncodedCommand',encoded],capture_output=True,text=True,timeout=60)
         self.assertEqual(done.returncode,0,done.stdout+done.stderr)
+
+    def test_large_nested_cleanup_then_evidence(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+for ($d=0; $d -lt 20; $d++) {
+    $folder=Join-Path $workspace.Root ('data/nested'+$d+'/.application-backups')
+    [IO.Directory]::CreateDirectory($folder) | Out-Null
+    for ($f=0; $f -lt 30; $f++) { [IO.File]::WriteAllText((Join-Path $folder ($f.ToString()+'.json')),'synthetic') }
+    $retention=Join-Path $folder 'retention.json'
+    [IO.File]::WriteAllText($retention,'{}')
+    [IO.File]::SetAttributes($retention,[IO.FileAttributes]::ReadOnly)
+    [IO.File]::SetAttributes($folder,[IO.File]::GetAttributes($folder) -bor [IO.FileAttributes]::ReadOnly)
+}
+Invoke-ScmCleanupWorker $workspace
+if (Test-Path -LiteralPath $workspace.Root) { throw 'Cleanup did not complete' }
+$receipt=@{schema=1;kind='windows-scm';status='passed';package_sha256=('a'*64);cleanup_complete=$true;identity=@{version='1.0.0'}}
+Write-ScmEvidence (Join-Path $workspace.Parent 'test-receipt.json') $receipt
+""",parent,shell)
+
+    def test_cleanup_watchdog_preserves_diagnostic_and_owner(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+# Simulate a blocked filesystem operation in the child, not in the watchdog.
+$fake=Join-Path $workspace.Root 'blocked-helper.ps1'
+[IO.File]::WriteAllText($fake,'function Remove-ScmWorkspace($w) { [IO.File]::WriteAllText((Join-Path $w.Root ''.scm-cleanup-progress.json''),''blocked synthetic operation''); Start-Sleep -Seconds 30 }')
+$script:ScmHelperFile=$fake
+$failed=$false
+try { Invoke-ScmCleanupWorker $workspace 1 } catch { $failed=$_.Exception.Message -match 'exceeded 1 seconds' }
+if (-not $failed) { throw 'Watchdog did not reject blocked cleanup' }
+if (-not (Test-Path (Join-Path $workspace.Root '.scm-test-owner.json'))) { throw 'Owner marker lost' }
+if (-not (Test-Path (Join-Path $workspace.Root '.scm-cleanup-progress.json'))) { throw 'Diagnostic lost' }
+if (Test-Path (Join-Path $workspace.Parent 'test-receipt.json')) { throw 'False successful evidence' }
+""",parent,shell)
 
     def test_retention_json_cleanup_normal_and_readonly(self):
         for shell in SHELLS:

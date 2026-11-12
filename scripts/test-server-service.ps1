@@ -42,7 +42,7 @@ function Assert-OwnedScmService {
 function Invoke-ScmManage {
     if (Test-ScmRegistered) { Assert-OwnedScmService }
     $timer=[Diagnostics.Stopwatch]::StartNew()
-    $stage='Service management '+($args -join ' ')
+    $stage='service '+[string]$args[1]
     Write-Host "[SCM] START | $stage"
     $passed=$false
     try {
@@ -138,7 +138,7 @@ try {
         try {
             $cleanupTimer=[Diagnostics.Stopwatch]::StartNew()
             Write-Host '[SCM] START | owned workspace cleanup'
-            Wait-ScmWorkspaceProcesses $workspace; Remove-ScmWorkspace $workspace
+            Wait-ScmWorkspaceProcesses $workspace; Invoke-ScmCleanupWorker $workspace
             Write-Host ('[SCM] PASS | owned workspace cleanup | elapsed {0:N1}s' -f $cleanupTimer.Elapsed.TotalSeconds)
         }
         catch { Write-Host '[SCM] FAIL | owned workspace cleanup; evidence not published'; $cleanupErrors.Add($_.Exception.Message) }
@@ -146,6 +146,7 @@ try {
 }
 if ($primary -or $cleanupErrors.Count) {
     $global:LASTEXITCODE=1
+    Write-Host '[SCM] FAILED | acceptance; evidence not published'
     $detail=if ($primary) { 'Primary acceptance failure: '+$primary.Message } else { 'SCM lifecycle completed but cleanup failed.' }
     if ($cleanupErrors.Count) { $detail += "`nCleanup failure(s): " + ($cleanupErrors -join '; ') + "`nRetained workspace: " + $workspace.Root }
     if ($primary) { throw (New-Object System.Exception($detail,$primary)) }
@@ -163,6 +164,6 @@ try {
     if ($currentFingerprint -ne $packageFingerprint) { throw 'Input package changed during acceptance; evidence refused.' }
     Write-ScmEvidence $reportPath $receipt
 } catch { throw "SCM lifecycle completed but acceptance evidence publication failed: $($_.Exception.Message). No successful report is claimed." }
-Write-Host "SCM lifecycle, service removal and isolated-data cleanup passed. Evidence: $reportPath. Reboot, recovery and UNC were not tested."
+Write-Host "SCM PASSED: lifecycle, service removal and isolated-data cleanup passed. Evidence: $reportPath. Reboot, recovery and UNC were not tested."
 $global:LASTEXITCODE=0
 exit 0

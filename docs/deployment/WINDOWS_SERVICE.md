@@ -442,9 +442,9 @@ same-user ownership/reparse boundaries and narrowly scoped ACL recovery remain.
 
 Management subprocesses have a 180-second limit with periodic RUNNING messages;
 HTTP probes use three-second timeouts and process enumeration uses a bounded CIM
-operation. Cleanup has a cooperative 120-second traversal/deletion deadline,
-checked between filesystem calls; this cannot forcibly interrupt a stalled OS I/O
-call. Only the explicitly created management host is killed on its timeout.
+operation. Cleanup has a cooperative 120-second traversal/deletion deadline inside a
+separately supervised child. The external watchdog can terminate that owned child
+even when traversal is blocked in an OS I/O call. Only the explicitly created management host is killed on its timeout.
 Cleanup still verifies service removal and waits for workspace-owned processes;
 no unrelated process or production installation is terminated. Every cleanup
 failure prevents successful evidence publication.
@@ -490,3 +490,54 @@ Run with Windows PowerShell 5.1 and PowerShell 7 installed when possible: the he
 cases cover both detected shells, success, explicit nonzero exit, timeout,
 unavailable exit status, output capture and paths containing spaces/apostrophes.
 A helper pass does not establish native SCM installation/upgrade/cleanup acceptance.
+
+## Cleanup traversal and external watchdog
+
+Cleanup retains the 120-second limit. The main acceptance process now supervises
+an explicitly owned cleanup child, so blocked enumeration, ACL tools or filesystem
+calls cannot prevent the parent from timing out and failing acceptance. Its last
+`.scm-cleanup-progress.json` checkpoint and owner marker remain in the workspace on
+failure. No successful evidence is written after a failed or timed-out worker.
+
+Full ownership validation previously repeatedly reparsed the same JSON marker and
+used PowerShell provider operations to walk ancestors for every file, often more
+than once during deletion. The helper now uses direct .NET attribute checks and
+compares the marker's exact text against its initially validated fields. It still
+reads/rechecks the marker, caller identity, boundaries and ancestors on each
+operation; a changed marker or reparse point fails closed. Redundant outer delete
+checks are removed because the deletion helper performs them. All bundle,
+replacement, data, restored-data and backup entries remain subject to cleanup;
+archives are deleted as files, not opened and recursively expanded.
+
+Progress is streamed approximately every five seconds with phase, elapsed time,
+file/directory/deletion counts and relative checkpoint path. A stalled call cannot
+emit a new checkpoint; the parent's heartbeat continues and the external deadline
+still applies. No Defender/antivirus cause is assumed. The observed 120-second
+failure proves expiration, not which operation consumed the time. Native timings
+are still required to attribute additional environmental overhead.
+
+Run helper tests first (no service installation):
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-traversal-native.log --report build/scm-traversal-native.json
+```
+
+After they pass, use an elevated PowerShell for the native lifecycle against your
+existing verified package; this does not require rebuilding every artifact:
+
+```powershell
+$ErrorActionPreference='Stop'
+$bundle=Read-Host 'Absolute path to the existing verified Windows Service ZIP'
+$bundle=(Get-Item -LiteralPath $bundle -ErrorAction Stop).FullName
+$expected=((Get-Content -LiteralPath ($bundle+'.sha256') -Raw).Trim() -split '\s+')[0]
+if ($expected -notmatch '^[a-fA-F0-9]{64}$' -or (Get-FileHash -LiteralPath $bundle -Algorithm SHA256).Hash -ine $expected) { throw 'Package checksum verification failed.' }
+.\scripts\test-server-service.ps1 -Bundle $bundle
+if ($LASTEXITCODE -ne 0) { throw 'Native acceptance failed; preserve workspace and diagnostics.' }
+Get-Content -LiteralPath ($bundle+'.scm-verification.json') -Raw | ConvertFrom-Json
+```
+
+An existing SAPLens service remains a hard stop. An existing successful sidecar is
+preserved; do not overwrite it or fabricate evidence. Retain native console output
+and the latest progress checkpoint if cleanup fails. Helper/contract passes alone
+never establish native SCM acceptance.

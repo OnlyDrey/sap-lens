@@ -459,3 +459,12 @@ Run with Windows PowerShell 5.1 and PowerShell 7 installed when possible: the he
 cases cover both detected shells, success, explicit nonzero exit, timeout,
 unavailable exit status, output capture and paths containing spaces/apostrophes.
 A helper pass does not establish native SCM installation/upgrade/cleanup acceptance.
+
+### SCM large-workspace regression
+
+The acceptance helper module includes a 620-file nested workspace (including
+Read-only `retention.json` and directories), child cleanup followed by create-only
+evidence, and a simulated blocked-operation watchdog preserving diagnostics and
+ownership. Existing lock, inaccessible/SYSTEM-owner, junction, marker and boundary
+tests remain. Native helper cases require Windows/PowerShell and do not install
+SCM services. See [cleanup diagnostics and native commands](../deployment/WINDOWS_SERVICE.md#cleanup-traversal-and-external-watchdog).
