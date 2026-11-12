@@ -1,4 +1,6 @@
 name: sap-lens
+# Session accounts over TLS. Nothing here is a credential: accounts are created in SAP Lens after a local one-time activation code.
+# local-config/ holds the host-only files (certificate, private key, backup recovery key); see docs/deployment/LINUX_DOCKER.md.
 services:
   sap-lens:
     build: .
@@ -7,19 +9,29 @@ services:
     ports:
       - "${SAP_LENS_PUBLISH_ADDRESS:-127.0.0.1}:${SAP_LENS_PUBLISH_PORT:-18743}:18743"
     environment:
-      SAP_LENS_PUBLIC_ORIGIN: ${SAP_LENS_PUBLIC_ORIGIN:-http://127.0.0.1:18743}
-      SAP_LENS_ALLOWED_HOSTS: ${SAP_LENS_ALLOWED_HOSTS:-127.0.0.1}
-      SAP_LENS_AUTH: ${SAP_LENS_AUTH:-basic}
-      SAP_LENS_AUTH_SECRET_FILE: /run/secrets/access
-      # The host file is owned by the installing user and readable by the container's group (0640, group 10001); see docs/deployment/LINUX_DOCKER.md.
-      SAP_LENS_AUTH_SECRET_GROUP_READ: "1"
+      SAP_LENS_PUBLIC_ORIGIN: ${SAP_LENS_PUBLIC_ORIGIN:-https://localhost:18743}
+      SAP_LENS_ALLOWED_HOSTS: ${SAP_LENS_ALLOWED_HOSTS:-localhost}
+      SAP_LENS_AUTH: sessions
+      # In-container TLS (default). Set both to empty only behind a trusted TLS-terminating proxy, together with SAP_LENS_TRUSTED_PROXIES.
+      SAP_LENS_TLS_CERT_FILE: ${SAP_LENS_TLS_CERT_FILE-/run/secrets/tls_cert}
+      SAP_LENS_TLS_KEY_FILE: ${SAP_LENS_TLS_KEY_FILE-/run/secrets/tls_key}
+      # Encrypted backups and migrations; the key stays outside the data volume. Keep a separate recovery copy.
+      SAP_LENS_BACKUP_KEY_FILE: /run/secrets/backup_key
+      SAP_LENS_BACKUP_KEY_GROUP_READ: "1"
+      # Trusted proxy only: exact proxy addresses/CIDRs and the token the proxy sends as X-SAP-Lens-Proxy-Token. Read only when proxies are set.
       SAP_LENS_TRUSTED_PROXIES: ${SAP_LENS_TRUSTED_PROXIES:-}
+      SAP_LENS_AUTH_SECRET_FILE: /run/secrets/proxy_token
+      # Host files are owned by the installing user and readable by the container's group (0640, group 10001).
+      SAP_LENS_AUTH_SECRET_GROUP_READ: "1"
     volumes:
       - sap-lens-data:/data
       # Optional read-only source mount; paths configured in SAP Lens use /sources/...
       # - ./sources:/sources:ro
     secrets:
-      - access
+      - tls_cert
+      - tls_key
+      - backup_key
+      - proxy_token
     read_only: true
     tmpfs:
       - /tmp:size=64m,mode=1777
@@ -27,7 +39,13 @@ services:
     security_opt: [no-new-privileges:true]
     stop_grace_period: 25s
 secrets:
-  access:
-    file: ./local-config/server-access.secret
+  tls_cert:
+    file: ./local-config/tls.crt
+  tls_key:
+    file: ./local-config/tls.key
+  backup_key:
+    file: ./local-config/backup.key
+  proxy_token:
+    file: ./local-config/proxy-token.secret
 volumes:
   sap-lens-data:

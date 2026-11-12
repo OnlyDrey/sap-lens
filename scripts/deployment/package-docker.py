@@ -36,7 +36,7 @@ def main(output=None, no_cache=False):
         subprocess.run(['docker','save','-o',str(target/'image.tar'),tag],check=True)
         # This is a deployment file for a locally loaded, already-built image.
         (target/'compose.yml').write_text((ROOT/'compose.yml').read_text().replace('    build: .','    image: '+tag),encoding='utf-8')
-        (target/'compose.env.example').write_text('SAP_LENS_PUBLISH_ADDRESS=127.0.0.1\nSAP_LENS_PUBLISH_PORT=18743\nSAP_LENS_PUBLIC_ORIGIN=http://127.0.0.1:18743\nSAP_LENS_ALLOWED_HOSTS=127.0.0.1\nSAP_LENS_AUTH=basic\n')
+        # compose.env is written by manage.sh install (HTTPS origin for the chosen host name and port); the package ships no access mode or credential.
         shutil.copyfile(ROOT/'deploy/docker/manage.sh',target/'manage.sh')
         (target/'manage.sh').chmod(0o755)
         shutil.copyfile(ROOT/'LICENSE.md',target/'LICENSE.md')

@@ -12,7 +12,15 @@ class DeploymentContracts(unittest.TestCase):
         config=yaml.safe_load((ROOT/'compose.yml').read_text())
         service=config['services']['sap-lens']
         self.assertIn('127.0.0.1',service['ports'][0])
-        self.assertEqual(service['environment']['SAP_LENS_AUTH'],'${SAP_LENS_AUTH:-basic}')
+        environment=service['environment']
+        self.assertEqual(environment['SAP_LENS_AUTH'],'sessions')                       # fixed: no variable can select shared or local access
+        self.assertTrue(environment['SAP_LENS_PUBLIC_ORIGIN'].startswith('${SAP_LENS_PUBLIC_ORIGIN:-https://'))
+        self.assertEqual(environment['SAP_LENS_TLS_CERT_FILE'],'${SAP_LENS_TLS_CERT_FILE-/run/secrets/tls_cert}')   # TLS unless deliberately emptied for a trusted proxy
+        self.assertEqual(environment['SAP_LENS_BACKUP_KEY_FILE'],'/run/secrets/backup_key')
+        self.assertEqual(set(config['secrets']),{'tls_cert','tls_key','backup_key','proxy_token'})
+        self.assertTrue(all(item['file'].startswith('./local-config/') for item in config['secrets'].values()))   # host files, never the data volume
+        text=(ROOT/'compose.yml').read_text()
+        for retired in ('basic','allow_http','http://'):self.assertNotIn(retired,text.lower())
         self.assertIn('sap-lens-data:/data',service['volumes'])
         self.assertTrue(service['read_only']);self.assertEqual(service['cap_drop'],['ALL'])
         self.assertNotIn('privileged',service);self.assertNotIn('/var/run/docker.sock',str(config))
