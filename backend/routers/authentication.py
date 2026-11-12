@@ -62,6 +62,11 @@ def router_for(store, secure):
     def principal(request):
         return request.state.auth_principal
 
+    def clear(response):
+        # Cleared with the attributes they were set with, so the browser replaces exactly those cookies and never stores a weaker one.
+        for name, http_only in ((COOKIE, True), (CSRF_COOKIE, False)):
+            response.delete_cookie(name, path='/', secure=secure, httponly=http_only, samesite='lax')
+
     @router.get('/state')
     def state(response: Response):
         response.headers['Cache-Control'] = 'no-store'
@@ -127,19 +132,19 @@ def router_for(store, secure):
     @router.post('/logout')
     def logout(request: Request, response: Response):
         store.logout(principal(request))
-        response.delete_cookie(COOKIE, path='/'); response.delete_cookie(CSRF_COOKIE, path='/')
+        clear(response)
         return dict(ok=True)
 
     @router.post('/logout-all')
     def logout_all(request: Request, response: Response):
         store.logout(principal(request), True)
-        response.delete_cookie(COOKIE, path='/'); response.delete_cookie(CSRF_COOKIE, path='/')
+        clear(response)
         return dict(ok=True)
 
     @router.post('/password')
     def password(body: Password, request: Request, response: Response):
         store.change_password(principal(request), body.current_password, body.new_password)
-        response.delete_cookie(COOKIE, path='/'); response.delete_cookie(CSRF_COOKIE, path='/')
+        clear(response)
         return dict(ok=True, login_required=True)
 
     @router.get('/users')

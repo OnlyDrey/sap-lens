@@ -151,7 +151,16 @@ class PortableBackupTests(unittest.TestCase):
             self.assertEqual(maintenance.cli(['verify','--data',str(self.data),'--archive',str(target),'--mode','desktop']),0)
         self.assertTrue(target.read_bytes().startswith(crypto.MAGIC))
         restored=self.data.parent/'empty-restored'
+        # A refused archive leaves the empty target exactly as it was, so the valid archive can still be restored into it.
+        modified=bytearray(target.read_bytes());modified[len(modified)//2]^=1
+        tampered=self.data.parent/'exports/tampered.slbak';tampered.write_bytes(modified)
+        prepared=self.data.parent/'prepared-empty';prepared.mkdir()
         with contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
+            for destination in (restored,prepared):
+                self.assertEqual(maintenance.cli(['restore','--archive',str(tampered),'--data',str(destination),'--mode','desktop','--confirm-restore','--confirm-accounts']),1)
+        self.assertFalse(restored.exists());self.assertEqual(list(prepared.iterdir()),[])
+        with contextlib.redirect_stdout(io.StringIO()),contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(maintenance.cli(['restore','--archive',str(target),'--data',str(prepared),'--mode','desktop','--confirm-restore','--confirm-accounts']),0)
             self.assertEqual(maintenance.cli(['restore','--archive',str(target),'--data',str(restored),'--mode','desktop','--confirm-restore','--confirm-accounts']),0)
         restored_store=AuthStore(restored/'security/accounts.sqlite3')
         self.assertEqual(restored_store.login('admin',PASSWORD,'restored')[0].id,self.admin['id'])

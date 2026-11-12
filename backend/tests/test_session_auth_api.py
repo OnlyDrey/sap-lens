@@ -102,6 +102,16 @@ class SessionApiTests(unittest.TestCase):
         self.assertIn('SameSite=lax',session)
         self.assertNotIn('Secure',session)  # Explicit loopback HTTP only.
 
+    def test_cookies_are_cleared_with_the_attributes_they_were_set_with(self):
+        from dataclasses import replace
+        with TestClient(create_app(server=replace(self.settings, origin='https://localhost:18743')), base_url='https://localhost:18743', client=('127.0.0.1',1234)) as client:
+            self.assertEqual(client.post('/api/auth/login',json=dict(username='admin',password=PASSWORD),headers={'X-SAP-Lens':'1'}).status_code,200)
+            cleared=client.post('/api/auth/logout',headers={'X-SAP-Lens':'1','X-SAP-Lens-CSRF':client.cookies['sap-lens-csrf']}).headers.get_list('set-cookie')
+            self.assertEqual(len(cleared),2)
+            for cookie in cleared:
+                self.assertIn('Max-Age=0',cookie);self.assertIn('Secure',cookie);self.assertIn('SameSite=lax',cookie);self.assertIn('Path=/',cookie)
+            self.assertIn('HttpOnly',next(c for c in cleared if c.startswith('sap-lens-session=')))
+
     def test_https_cookie_secure_and_profile_revision(self):
         from dataclasses import replace
         with TestClient(create_app(server=replace(self.settings, origin='https://localhost:18743')), base_url='https://localhost:18743', client=('127.0.0.1',1234)) as client:

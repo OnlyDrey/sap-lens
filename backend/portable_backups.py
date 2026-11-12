@@ -200,10 +200,24 @@ def restore_empty(archive,data,mode,confirm=False,confirm_accounts=False,secret=
     data=engine.directory(data)
     if data.exists() and any(data.iterdir()):raise engine.MaintenanceError('Restore only into an empty directory. Existing state is preserved.')
     crypto.host_key(data) # Fail before creating a destination or pausing anything.
+    existed=data.exists()
     data.mkdir(mode=0o700,parents=True,exist_ok=True)
-    with uploaded(data) as (identifier,incoming):
-        shutil.copyfile(archive,incoming);engine.private_file(incoming)
-        preview=register_upload(identifier,data,secret=secret,allow_legacy=allow_legacy)
+    try:
+        with uploaded(data) as (identifier,incoming):
+            shutil.copyfile(archive,incoming);engine.private_file(incoming)
+            preview=register_upload(identifier,data,secret=secret,allow_legacy=allow_legacy)
+    except BaseException:
+        # A refused archive (wrong key, modified content, unsupported version) must leave the target as empty as it was, or the
+        # next attempt is rejected as "not empty". Nothing was activated yet: only this call's own working folders exist, and
+        # they are removed only when they hold no operation and nothing else is in the directory.
+        work=data/'.application-backups'
+        if set(p.name for p in data.iterdir())<={work.name} and not engine.linked(work):
+            folders=[p for p in sorted(work.rglob('*'),reverse=True)] if work.is_dir() else []
+            if all(p.is_dir() and not engine.linked(p) for p in folders):
+                for folder in folders:folder.rmdir()
+                if work.is_dir():work.rmdir()
+                if not existed:data.rmdir()
+        raise
     confirm_restore(identifier,preview['archive_sha256'],True,data,confirm_accounts=confirm_accounts)
     lease=StorageLease(data,mode).acquire()
     try:startup(lease)
