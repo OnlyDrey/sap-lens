@@ -27,7 +27,7 @@ Unsigned EXEs can still be subject to company application-control policy.
    expire after 365 days. Trust warnings are expected for an untrusted issuer.
    Expired certificates, mismatched keys and missing SAN coverage are rejected.
 6. Enter the initial administrator username and a password of 14–256 characters.
-   Click **Register / save**, then **Start**. Registration sets automatic startup;
+   Click **Register / save configuration**, then **Start**. Registration sets automatic startup;
    no logged-in desktop or visible terminal is required for normal operation.
 7. Configure Windows Firewall separately to allow that port only from approved
    client machines/subnets or VPN. The manager does not open any firewall rules.
@@ -634,3 +634,84 @@ python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs
 
 These checks include the unchanged no-CLIXML assertion. Native helper success is
 still separate from full SCM cleanup and verified evidence publication.
+
+## Account save and browser authentication diagnosis
+
+This issue is separate from SCM cleanup: Running means the service process is up,
+not that a browser's credentials were accepted. A 401 is authentication refusal;
+403 is authorization/origin refusal and 429 is sign-in throttling. Keep browser
+errors and service logs distinct from native acceptance evidence.
+
+- **Register / save configuration** creates the first administrator only when no
+  account store exists. It does not reset existing passwords. Previously an entered
+  password was silently ignored and cleared when the store existed. This now
+  produces actionable guidance before saving; input is retained on failure.
+- **Save account** explicitly creates/updates an account, role or enabled state.
+  The form fields are pending edits, not a read-back of a stored account; a checked
+  Enabled box alone does not prove an account was saved or is active.
+  It now targets `SAP_LENS_USERS_FILE` from this installation's configuration,
+  rather than always writing the manager's default path. Other authentication
+  modes or missing configured stores are refused, never silently initialized.
+- The default account location is the separate protected ProgramData access
+  directory, not the application data directory selected for datasets. Changing
+  the data directory does not create or select a matching users.json automatically.
+- Existing configured account paths are preserved during configuration saves.
+  Local service-SID read ACLs are reapplied to a successfully replaced account
+  file. The manager's installation ownership guard remains in force.
+- Blank password on an **existing** account preserves its salt/hash. New accounts
+  require a password. Passwords are sent as UTF-8 JSON on stdin, hashed with salted
+  PBKDF2 and atomically persisted; they are not command-line arguments or logs.
+- Account-file contents are read on each authenticated request: account/password,
+  role and enabled-state updates need no service restart. Listener, authentication
+  mode and account-file **path** are startup settings; change configuration only
+  while stopped, then start the service. Manual XML edits while running are not
+  proof that the active runtime uses those new settings.
+
+Check the manager's displayed authentication mode and its installed
+`SAPLensService.xml`: mode must be `users` for these accounts to authenticate.
+`basic` is a separate shared credential mode and `local` is loopback access.
+Do not paste account files, password hashes, credentials or Authorization headers
+into tickets/logs. Usernames and passwords are matched exactly. Basic credentials
+may be cached by the browser; close its authentication session when retesting.
+
+Account-store read/validation failures now produce only a category/type warning,
+without exception text, usernames, paths or credentials. The 401 response remains
+generic to avoid account enumeration. Ordinary wrong passwords and disabled or
+unknown accounts remain indistinguishable to the browser. No automatic reset or
+account-data migration is performed.
+
+Native source verification, independent of existing service/data:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_server_setup --test test_server_connection_modes --jobs 1 --log build/service-auth-native.log --report build/service-auth-native.json
+```
+
+To compile the manager and its disposable self-test harness only, when the prepared
+build-version metadata/.NET Framework prerequisites already exist:
+
+```powershell
+$out=Join-Path (Get-Location).Path ('backend\build\auth-manager-check-'+[guid]::NewGuid().ToString('N'))
+New-Item -ItemType Directory -Path $out | Out-Null
+.\scripts\build-service-manager.ps1 -OutputDirectory $out
+if ($LASTEXITCODE -ne 0) { throw 'Manager compilation/self-test failed.' }
+```
+
+These outputs are test-only. Do not replace an EXE inside a verified installed
+bundle: its manifest will correctly reject changed bytes. A deployed fix requires
+normal verified service packaging and a controlled upgrade preserving data/accounts.
+Native GUI, active service configuration, service-SID access and browser sign-in
+must still be verified on Windows; Linux/source HTTP tests do not establish them.
+
+A local credential check can use curl's password prompt instead of placing a
+password on the command line (use only the trusted URL displayed by the manager):
+
+```powershell
+$url=Read-Host 'Configured trusted service URL, including scheme and port'
+$name=Read-Host 'Application username'
+curl.exe --silent --show-error --user $name --write-out "`nHTTP %{http_code}`n" ($url.TrimEnd('/')+'/api/runtime')
+```
+
+No restart or password change is performed by this request. Do not share its
+password prompt input or unredacted identity response. Service Running plus 401
+alone cannot identify which account store, credentials or browser cache caused it.

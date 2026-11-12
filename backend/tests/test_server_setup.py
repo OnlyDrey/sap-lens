@@ -1,6 +1,7 @@
 """Individual account boundaries, real TLS certificates, aliases and stale writes."""
 import base64
 import http.client
+import json
 import os
 from pathlib import Path
 import shutil
@@ -57,6 +58,55 @@ class AccountsTests(unittest.TestCase):
         for text in ['[]', '{}', '{"schema":1,"users":{}}', 'invalid']:
             self.path.write_text(text)
             self.assertIsNone(authenticate(self.path, self.header()))
+
+    def test_password_update_blank_preservation_and_reopened_store(self):
+        original=read_accounts(self.path)['users']['admin']
+        password='Updated-synthetic-æ-password-456!'
+        manage_user(self.path,dict(username='admin',role='administrator',password=password,enabled=True))
+        updated=read_accounts(self.path)['users']['admin']
+        self.assertNotEqual(updated['hash'],original['hash'])
+        self.assertNotEqual(updated['salt'],original['salt'])
+        self.assertIsNone(authenticate(self.path,self.header()))
+        self.assertEqual(authenticate(Path(str(self.path)),self.header(password=password)),('admin','administrator'))
+        manage_user(self.path,dict(username='admin',role='administrator',password='',enabled=True))
+        self.assertEqual(read_accounts(self.path)['users']['admin'],updated)
+        self.assertNotIn(password,self.path.read_text())
+        self.assertEqual(authenticate(self.path,self.header(password=password)),('admin','administrator'))
+        # Fresh interpreter, same store; header/password go through stdin, not argv.
+        code='import json,sys; from server_access import authenticate; p=json.load(sys.stdin); print(authenticate(p["path"],p["header"]) == ("admin","administrator"))'
+        done=subprocess.run([sys.executable,'-c',code],cwd=Path(__file__).resolve().parents[1],input=json.dumps(dict(path=str(self.path),header=self.header(password=password))),capture_output=True,text=True,timeout=15)
+        self.assertEqual(done.returncode,0,done.stderr)
+        self.assertEqual(done.stdout.strip(),'True')
+
+    def test_live_account_updates_and_new_application_authentication(self):
+        settings=ServerSettings('127.0.0.1',18743,self.root/'data',self.root/'sources','https://localhost:18743',('localhost',),'users','','',(),'info',accounts=str(self.path))
+        with patch.dict(os.environ,{'SAP_LENS_CONFIG_DIR':str(self.root/'data')}):
+            config.get_settings.cache_clear()
+            try:
+                client=TestClient(create_app(server=settings),base_url='https://localhost:18743',client=('127.0.0.1',50000))
+                self.assertEqual(client.get('/api/runtime',headers={'Authorization':self.header()}).status_code,200)
+                manage_user(self.path,dict(username='reader',role='read-only',password='Synthetic-password-123!',enabled=True))
+                self.assertEqual(client.get('/api/runtime',headers={'Authorization':self.header('reader')}).status_code,200)
+                manage_user(self.path,dict(username='reader',role='reviewer',password='Changed-synthetic-password-123!',enabled=True))
+                self.assertEqual(client.get('/api/runtime',headers={'Authorization':self.header('reader')}).status_code,401)
+                changed={'Authorization':self.header('reader','Changed-synthetic-password-123!')}
+                self.assertEqual(client.get('/api/runtime',headers=changed).json()['role'],'reviewer')
+                # New app/settings simulate restart against the same persisted file.
+                restarted=TestClient(create_app(server=settings),base_url='https://localhost:18743',client=('127.0.0.1',50000))
+                self.assertEqual(restarted.get('/api/runtime',headers=changed).status_code,200)
+                manage_user(self.path,dict(username='reader',role='reviewer',password='',enabled=False))
+                self.assertEqual(client.get('/api/runtime',headers=changed).status_code,401)
+                self.assertEqual(restarted.get('/api/runtime',headers=changed).status_code,401)
+            finally:
+                config.get_settings.cache_clear()
+
+    def test_account_store_error_is_logged_without_credentials_or_paths(self):
+        with patch('server_access.read_accounts',side_effect=PermissionError('sensitive path or credential')),self.assertLogs('sap-lens-server',level='WARNING') as captured:
+            self.assertIsNone(authenticate(self.path,self.header()))
+        text=' '.join(captured.output)
+        self.assertIn('PermissionError',text)
+        for private in ('sensitive path','Synthetic-password',str(self.path),'admin'):
+            self.assertNotIn(private,text)
 
     def test_roles_deny_unknown_writes_and_reserve_administration(self):
         for path in ['/api/refresh', '/api/configuration', '/api/sod/periods', '/api/sod/periods/demo/delete', '/api/server/uploads/roles']:

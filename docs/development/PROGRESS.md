@@ -2249,3 +2249,52 @@ contracts and whitespace passed. Native PowerShell parser/runtime is unavailable
 here. Run the existing failing process/output test first, followed by the complete
 SCM helper module using the Windows Service guide commands. The unchanged native
 assertion must pass before claiming this output regression resolved on Windows.
+
+
+## SCM native evidence received; separate service authentication investigation (2026-11-12)
+
+Provided fe03f98 Windows transcript: focused process/output test passed; complete
+SCM helper module ran 34 tests with 33 actual passes and one skipped elevated
+SYSTEM-owner fixture. PowerShell syntax had zero errors/seven existing warnings.
+This confirms helper fixes, not a successful full native SCM lifecycle/receipt.
+No cleanup helper changes or SCM rerun were made for the authentication issue.
+
+Traced Service Manager registration/account actions, stdin JSON, Python
+--manage-user, PBKDF2 hashing, atomic account-file replacement, ServerSettings and
+per-request Basic verification. Confirmed source defects: Register/save ignored
+nonempty entered passwords when a store already existed, then cleared the UI;
+Save account always targeted the global default rather than configured users file.
+Now configuration save rejects that ambiguous action with preserved input,
+account editing selects the configured users-mode store, missing stores/other
+modes fail closed, and configuration saves preserve custom users paths. Account
+success feedback explains blank-password preservation and no restart for file
+updates. Status displays configured authentication mode. No existing account was
+reset, data directory changed, password exposed or real service modified.
+
+Backend authentication reads accounts every request, including enabled/role
+changes; changes to the startup file path/mode require controlled restart. Added
+safe account-store failure warnings (type/category only; no path/credential/name).
+Added password/hash rotation, empty-password preservation, disabled accounts,
+real source HTTP 200/401, live updates, a recreated application and fresh Python
+interpreter persistence checks. Manager pure account-path/mode cases extend its
+existing native self-test; C# contract tests check the routing/guardrails.
+An initial new HTTP test used TestClient's non-IP default peer and correctly got
+401; corrected the fixture to a real loopback client before passing validation.
+
+The installed service's particular 401 root cause cannot be established without
+its active configuration/action history. The two confirmed manager defects can
+explain ignored or misdirected updates but are not claimed as a native reproduction.
+No automatic password reset, hash weakening, unauthenticated endpoint or service
+restart added. Actual browser authentication and C#/.NET native compilation remain
+unverified on this Linux host. Native helper/compile/credential-check commands
+are in Windows Service: "Account save and browser authentication diagnosis".
+
+Validation: initial corrected focused authentication modules 26 passed; final
+authentication/server/throttle/Windows-port dependent modules 92 passed, one
+PowerShell skip (93 discovered). Ruff, documentation links, workflow contracts
+and whitespace passed. No React source changed, so no frontend build/browser
+suite was repeated. C# compilation, manager GUI and native service-account ACL
+acceptance remain pending (.NET/PowerShell unavailable here). No full regression,
+packaging, SCM lifecycle or Actions was run. A git pull updates source only, not
+the installed service/manager binaries; deploy through verified packaging and
+a controlled upgrade rather than replacing individual hashed bundle files.

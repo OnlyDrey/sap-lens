@@ -127,6 +127,18 @@ class ServiceManagerContract(unittest.TestCase):
     """Static contract of deploy/windows/ServiceManager.cs (it cannot be compiled or run here; native Windows acceptance is separate)."""
     SOURCE = (Path(__file__).resolve().parents[2] / 'deploy/windows/ServiceManager.cs').read_text(encoding='utf-8')
 
+    def test_account_actions_use_configured_store_and_do_not_silently_reset(self):
+        self.assertIn('string path = AccountFile(Settings());',self.SOURCE)
+        self.assertIn('Quote(path), Json.Serialize(payload)',self.SOURCE)
+        self.assertIn('if (registered) Acl(path, false, false)',self.SOURCE)
+        self.assertIn('current["SAP_LENS_AUTH"] == "users" ? AccountFile(current) : Users',self.SOURCE)
+        self.assertIn('{"SAP_LENS_USERS_FILE",accountFile}',self.SOURCE)
+        self.assertIn('File.Exists(accountFile) && !String.IsNullOrEmpty(password)',self.SOURCE)
+        self.assertIn('Use Save account to change a password',self.SOURCE)
+        self.assertIn('A blank password preserves the existing password',self.SOURCE)
+        self.assertIn('without restarting the service',self.SOURCE)
+        self.assertNotIn('"--manage-user " + Quote(Users)',self.SOURCE)
+
     def test_three_explicit_modes_with_https_self_signed_as_the_default(self):
         for text in ('HTTPS - generate a self-signed certificate (default)', 'HTTPS - use an existing certificate', 'HTTP - no certificate (unencrypted)'):
             self.assertIn(text, self.SOURCE)

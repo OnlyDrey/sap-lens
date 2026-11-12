@@ -9,6 +9,7 @@ from contextlib import contextmanager
 import hashlib
 import hmac
 import json
+import logging
 import os
 from pathlib import Path
 import re
@@ -119,7 +120,12 @@ def authenticate(path, header):
         if scheme.lower() != 'basic' or len(encoded) > 2048:
             return None
         username, password = base64.b64decode(encoded, validate=True).decode('utf-8').split(':', 1)
-        data = read_accounts(path)
+        try:
+            data = read_accounts(path)
+        except (ValueError, KeyError, TypeError, UnicodeError, OSError) as error:
+            # No username, path, credential, hash or exception text in the log.
+            logging.getLogger('sap-lens-server').warning('Account store unavailable; authentication refused (%s).', type(error).__name__)
+            return None
         row = data['users'].get(username)
         # Unknown users take the same expensive password derivation path.
         salt = base64.b64decode(row['salt']) if row else b'\0' * 32

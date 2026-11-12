@@ -170,10 +170,24 @@ namespace SapLens {
             string temporary = Config + ".pending"; new XDocument(service).Save(temporary);
             if (File.Exists(Config)) File.Replace(temporary, Config, Config + ".previous"); else File.Move(temporary, Config);
         }
-        public static void User(string name, string password, string role, bool enabled) {
+        public static string AccountFile(Dictionary<string,string> settings) {
+            string auth, path;
+            if (!settings.TryGetValue("SAP_LENS_AUTH", out auth) || auth != "users")
+                throw new InvalidOperationException("The service is not configured for individual accounts. Saving an account would not change its active authentication mode.");
+            if (!settings.TryGetValue("SAP_LENS_USERS_FILE", out path) || !Path.IsPathRooted(path))
+                throw new InvalidOperationException("The service account-file configuration is missing or invalid.");
+            return Path.GetFullPath(path);
+        }
+        static void SaveUser(string path, string name, string password, string role, bool enabled, bool registered) {
             var payload = new Dictionary<string,object> { {"username",name}, {"password",password}, {"role",role}, {"enabled",enabled} };
-            Run(Path.Combine(Root, @"app\SAP-Lens.exe"), "--manage-user " + Quote(Users), Json.Serialize(payload));
-            if (Status() != "Not registered") Acl(Users, false, false);
+            Run(Path.Combine(Root, @"app\SAP-Lens.exe"), "--manage-user " + Quote(path), Json.Serialize(payload));
+            if (registered) Acl(path, false, false);
+        }
+        public static void User(string name, string password, string role, bool enabled) {
+            if (Status() == "Not registered") throw new InvalidOperationException("Register the service before editing accounts.");
+            string path = AccountFile(Settings());
+            if (!File.Exists(path)) throw new InvalidOperationException("The configured account file is unavailable. Check service configuration and permissions; existing accounts were not reset.");
+            SaveUser(path, name, password, role, enabled, true);
         }
         public const string ModeHttp = "http", ModeSelfSigned = "selfsigned", ModeCustom = "custom";
         public static bool IsLoopbackName(string host) { IPAddress ip; return host == "localhost" || (IPAddress.TryParse(host, out ip) && IPAddress.IsLoopback(ip)); }
@@ -181,6 +195,12 @@ namespace SapLens {
         public static bool HttpNeedsAcknowledgement(string listener, string[] hosts) { IPAddress address; return !(IPAddress.TryParse(listener, out address) && IPAddress.IsLoopback(address)) || hosts.Any(h => !IsLoopbackName(h)); }
         public static void Save(string hostsText, int port, string data, string listener, string mode, string cert, string key, string admin, string password, bool acknowledgeHttp) {
             VerifyBundle(); string state = Status(); bool installed = state != "Not registered";
+            var current = installed ? Settings() : null;
+            string accountFile = current != null && current.ContainsKey("SAP_LENS_AUTH") && current["SAP_LENS_AUTH"] == "users" ? AccountFile(current) : Users;
+            if (File.Exists(accountFile) && !String.IsNullOrEmpty(password))
+                throw new InvalidOperationException("Register / save updates service configuration, not existing passwords. Use Save account to change a password, or clear the password field to keep existing credentials.");
+            if (current != null && current.ContainsKey("SAP_LENS_AUTH") && current["SAP_LENS_AUTH"] == "users" && !File.Exists(accountFile))
+                throw new InvalidOperationException("The configured account file is unavailable; it will not be recreated or reset automatically.");
             if (port < 1 || port > 65535) throw new ArgumentException("Use a port from 1 to 65535.");
             if (installed && state != "Stopped") throw new InvalidOperationException("Stop the service before changing its configuration.");
             if (mode != ModeHttp && mode != ModeSelfSigned && mode != ModeCustom) throw new ArgumentException("Choose HTTP, HTTPS with a self-signed certificate, or HTTPS with an existing certificate.");
@@ -197,9 +217,9 @@ namespace SapLens {
             if (installed && !String.Equals(Settings()["SAP_LENS_DATA_DIR"], data, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Data relocation requires a stopped-service backup/migration. The existing data location was preserved.");
             if (!installed && File.Exists(Config)) throw new InvalidOperationException("An existing service configuration is preserved. Review it before registering again.");
             Directory.CreateDirectory(PrivateRoot); PrivateAcl(PrivateRoot);
-            if (!File.Exists(Users)) {
+            if (!File.Exists(accountFile)) {
                 if (String.IsNullOrWhiteSpace(admin) || password.Length < 14) throw new ArgumentException("Create an initial administrator with a password of at least 14 characters.");
-                User(admin, password, "administrator", true);
+                SaveUser(accountFile, admin, password, "administrator", true, installed);
             }
             bool https = mode != ModeHttp;
             if (!https) {
@@ -216,7 +236,7 @@ namespace SapLens {
             }
             var settings = new Dictionary<string,string> { {"SAP_LENS_DEPLOYMENT_MODE","server"}, {"SAP_LENS_HOST",listener}, {"SAP_LENS_PORT",port.ToString()},
                 {"SAP_LENS_DATA_DIR",data}, {"SAP_LENS_SOURCE_DIR",Path.Combine(data,"sources")}, {"SAP_LENS_PUBLIC_ORIGIN",(https ? "https://" : "http://") + hosts[0] + ":" + port},
-                {"SAP_LENS_ALLOWED_HOSTS",String.Join(",",hosts)}, {"SAP_LENS_AUTH","users"}, {"SAP_LENS_USERS_FILE",Users},
+                {"SAP_LENS_ALLOWED_HOSTS",String.Join(",",hosts)}, {"SAP_LENS_AUTH","users"}, {"SAP_LENS_USERS_FILE",accountFile},
                 {"SAP_LENS_LOG_LEVEL","info"} };
             if (https) { settings["SAP_LENS_TLS_CERT_FILE"] = cert; settings["SAP_LENS_TLS_KEY_FILE"] = key; }
             else if (HttpNeedsAcknowledgement(listener, hosts)) settings["SAP_LENS_ALLOW_HTTP"] = "1";
@@ -227,7 +247,7 @@ namespace SapLens {
             catch { if (old == null) File.Delete(Config); else File.WriteAllText(Config, old); throw; }
             if (!installed) { Run(Wrapper, "install", null); Run("sc.exe", "sidtype SAPLens unrestricted", null); }
             Directory.CreateDirectory(data); Directory.CreateDirectory(Path.Combine(data,"logs")); Directory.CreateDirectory(Path.Combine(data,"sources"));
-            Acl(data, true, true); Acl(PrivateRoot, false, true); Acl(Users, false, false); if (https) Acl(key, false, false);
+            Acl(data, true, true); Acl(PrivateRoot, false, true); Acl(accountFile, false, false); if (https) Acl(key, false, false);
             ProtectProgramDirectory();
         }
         public static void SelfTest() {
@@ -235,6 +255,12 @@ namespace SapLens {
             string path = Path.Combine(Path.GetTempPath(), "sap-lens-manager-test-" + Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(path);
             try {
+                var accountSettings = new Dictionary<string,string> {{"SAP_LENS_AUTH","users"},{"SAP_LENS_USERS_FILE",Path.Combine(path,"custom-users.json")}};
+                if (AccountFile(accountSettings) != Path.Combine(path,"custom-users.json")) throw new InvalidOperationException("Account store selection failed.");
+                accountSettings["SAP_LENS_AUTH"]="basic";
+                bool rejected=false;
+                try { AccountFile(accountSettings); } catch (InvalidOperationException) { rejected=true; }
+                if (!rejected) throw new InvalidOperationException("Shared authentication was accepted for account editing.");
                 GenerateCertificate(new string[]{"server01","server01.example.invalid","192.0.2.10"},Path.Combine(path,"cert.pem"),Path.Combine(path,"key.pem"));
                 string pem=File.ReadAllText(Path.Combine(path,"cert.pem")).Replace("-----BEGIN CERTIFICATE-----", "").Replace("-----END CERTIFICATE-----", "");
                 using(var certificate=new X509Certificate2(Convert.FromBase64String(pem))) {
@@ -276,10 +302,10 @@ namespace SapLens {
             role.DropDownStyle=ComboBoxStyle.DropDownList; role.Items.AddRange(new object[]{"administrator","reviewer","read-only"}); role.SelectedIndex=0; Add(table,"Account role",role);
             enabled.Text="Account enabled"; enabled.Checked=true; enabled.AutoSize=true; Add(table,"",enabled);
             var actions=new FlowLayoutPanel {AutoSize=true,WrapContents=true,Dock=DockStyle.Fill};
-            Button(actions,"Register / save",()=>{ ServiceSetup.Save(hosts.Text,(int)port.Value,data.Text,listener.Text,ModeKey(),cert.Text,key.Text,user.Text,password.Text,acknowledge.Checked); password.Clear(); LoadConfig(); });
+            Button(actions,"Register / save configuration",()=>{ ServiceSetup.Save(hosts.Text,(int)port.Value,data.Text,listener.Text,ModeKey(),cert.Text,key.Text,user.Text,password.Text,acknowledge.Checked); password.Clear(); LoadConfig(); });
             Button(actions,"Start",()=>ServiceSetup.Control("start")); Button(actions,"Stop",()=>ServiceSetup.Control("stop")); Button(actions,"Restart",()=>ServiceSetup.Control("restart"));
             Button(actions,"Refresh",()=>{}); Button(actions,"Unregister",()=>{ if(MessageBox.Show("Unregister this service? Application files, accounts, certificates and data will be retained.",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)ServiceSetup.Control("uninstall"); });
-            Button(actions,"Save account",()=>{ if(ServiceSetup.Status()=="Not registered")throw new InvalidOperationException("Register the service with an initial administrator first."); ServiceSetup.User(user.Text,password.Text,Convert.ToString(role.SelectedItem),enabled.Checked);password.Clear(); });
+            Button(actions,"Save account",()=>{ if(ServiceSetup.Status()=="Not registered")throw new InvalidOperationException("Register the service with an initial administrator first."); ServiceSetup.User(user.Text,password.Text,Convert.ToString(role.SelectedItem),enabled.Checked);password.Clear();MessageBox.Show("Account saved to the configured account store. A blank password preserves the existing password. Account changes apply on the next request without restarting the service. If the browser keeps old credentials, close its authentication session and sign in again.",Text); });
             Button(actions,"Open logs",()=>Process.Start("explorer.exe",ServiceSetup.Quote(Path.Combine(data.Text,"logs")))); Add(table,"Actions",actions);
             urls.Multiline=true;urls.ReadOnly=true;urls.Height=85;Add(table,"Configured URLs",urls);
             Add(table,"Deployment",new Label{AutoSize=true,MaximumSize=new Size(550,0),Text="Keep this extracted folder in its permanent location. Restrict the port in Windows Firewall to approved machines/subnets. No firewall rule is opened automatically. Self-signed certificates show a browser trust warning. Stop the service before changing configuration. Data relocation requires a separate backup/migration."});
@@ -290,7 +316,7 @@ namespace SapLens {
         void Add(TableLayoutPanel t,string label,Control control){ int row=t.RowCount++;t.RowStyles.Add(new RowStyle(SizeType.AutoSize));t.Controls.Add(new Label{Text=label,AutoSize=true,Margin=new Padding(0,8,8,6)},0,row);control.Dock=DockStyle.Fill;control.Margin=new Padding(0,4,0,6);t.Controls.Add(control,1,row); }
         void Button(FlowLayoutPanel p,string title,Action action){var b=new Button{Text=title,AutoSize=true};b.Click+=(s,e)=>{Enabled=false;UseWaitCursor=true;try{action();RefreshStatus();}catch(Exception error){MessageBox.Show(error.Message,Text,MessageBoxButtons.OK,MessageBoxIcon.Error);}finally{Enabled=true;UseWaitCursor=false;}};p.Controls.Add(b);}
         void LoadConfig(){if(!File.Exists(ServiceSetup.Config))return;try{var v=ServiceSetup.Settings();hosts.Text=v["SAP_LENS_ALLOWED_HOSTS"];listener.Text=v["SAP_LENS_HOST"];port.Value=int.Parse(v["SAP_LENS_PORT"]);data.Text=v["SAP_LENS_DATA_DIR"];cert.Text=v.ContainsKey("SAP_LENS_TLS_CERT_FILE")?v["SAP_LENS_TLS_CERT_FILE"]:"";key.Text=v.ContainsKey("SAP_LENS_TLS_KEY_FILE")?v["SAP_LENS_TLS_KEY_FILE"]:"";mode.SelectedIndex=v["SAP_LENS_PUBLIC_ORIGIN"].StartsWith("http://",StringComparison.OrdinalIgnoreCase)?2:cert.Text.Length>0?1:0;acknowledge.Checked=v.ContainsKey("SAP_LENS_ALLOW_HTTP");ApplyMode();}catch(Exception e){MessageBox.Show("Existing configuration could not be loaded: "+e.Message,Text);}}
-        void RefreshStatus(){try{status.Text=ServiceSetup.Status();if(File.Exists(ServiceSetup.Config)){var v=ServiceSetup.Settings();urls.Lines=ServiceSetup.ValidateHosts(v["SAP_LENS_ALLOWED_HOSTS"]).Select(h=>(v["SAP_LENS_PUBLIC_ORIGIN"].StartsWith("http://",StringComparison.OrdinalIgnoreCase)?"http://":"https://")+h+":"+v["SAP_LENS_PORT"]).ToArray();}else urls.Text="Register the service to configure access URLs.";}catch(Exception e){status.Text=e.Message;}}
+        void RefreshStatus(){try{status.Text=ServiceSetup.Status();if(File.Exists(ServiceSetup.Config)){var v=ServiceSetup.Settings();status.Text+=" | Authentication: "+(v.ContainsKey("SAP_LENS_AUTH")?v["SAP_LENS_AUTH"]:"unknown");urls.Lines=ServiceSetup.ValidateHosts(v["SAP_LENS_ALLOWED_HOSTS"]).Select(h=>(v["SAP_LENS_PUBLIC_ORIGIN"].StartsWith("http://",StringComparison.OrdinalIgnoreCase)?"http://":"https://")+h+":"+v["SAP_LENS_PORT"]).ToArray();}else urls.Text="Register the service to configure access URLs.";}catch(Exception e){status.Text=e.Message;}}
         [STAThread] public static int Main(string[] args){try{if(args.Length==1&&args[0]=="--self-test"){ServiceSetup.SelfTest();return 0;}Application.EnableVisualStyles();Application.SetCompatibleTextRenderingDefault(false);Application.Run(new Manager());return 0;}catch(Exception e){if(args.Length==0)MessageBox.Show(e.Message,"SAP Lens Service Manager");return 1;}}
     }
 }
