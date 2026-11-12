@@ -2335,3 +2335,25 @@ Phase 1 validation: 65 existing account/server/backup tests passed, zero skips;
 design reviewed against current source and migration scenarios. Phases 2–8 remain
 pending. This commit changes documentation only; prior native package evidence
 remains bound to source 50e55d0, not to later development commits.
+
+Phase 2 implements the durable `security/accounts.sqlite3` identity store,
+Argon2id (pinned argon2-cffi 25.1.0), unique session/CSRF verifiers, temporary
+login/reset throttles, expiration policy, password changes/reset, session
+revocation, role/status/profile revisions, last-admin protection and safe audit.
+Mutations revalidate live session authorization inside the write transaction.
+The new `sessions` boundary accepts no Basic credentials, requires secure remote
+transport (explicit loopback HTTP remains supported), and verifies both immediate
+proxy peer and shared proxy secret before trusting TLS termination. Unknown writes
+are denied. Authentication validation errors never echo submitted credentials.
+
+This is an opt-in backend foundation, not a completed server rollout. Existing
+runtime modes remain compatible until bootstrap, frontend and populated migration
+are delivered in later phases. Missing/corrupt identity storage fails closed and
+is never recreated by an HTTP request. Legacy plaintext backups exclude the new
+security directory until encrypted portable-state support is implemented.
+
+Phase 2 validation: 86 targeted account/session/server/backup tests passed, zero
+skips. Final security/profile/HTTPS changes passed 22 focused auth tests, zero
+skips. Ruff, test ownership mapping, pip check, documentation links and whitespace
+passed. No browser, native Windows, packaging or full regression was run in this
+backend-only phase. Full integration and native acceptance remain pending.

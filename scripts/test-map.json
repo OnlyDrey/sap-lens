@@ -316,7 +316,9 @@
     "test_scripts_layout",
     "test_windows_tray",
     "test_docker_management",
-    "test_server_setup"
+    "test_server_setup",
+    "test_auth_store",
+    "test_session_auth_api"
    ],
    "browser": [
     "desktop",

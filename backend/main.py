@@ -118,6 +118,21 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         return failure_response(request,error)
     app.state.deployment = server
     app.state.auth_throttle = throttle
+    identity_store = None
+    if server and server.auth == 'sessions':
+        from session_boundary import install
+        from auth_store import AuthError
+        identity_store = install(app, server)
+        from fastapi.exceptions import RequestValidationError
+        from fastapi.exception_handlers import request_validation_exception_handler
+        @app.exception_handler(RequestValidationError)
+        async def safe_authentication_validation(request, error):
+            if request.url.path.startswith('/api/auth/'):
+                return JSONResponse({'detail':'Invalid authentication request','code':'invalid_request'},status_code=422,headers={'Cache-Control':'no-store'})
+            return await request_validation_exception_handler(request,error)
+        @app.exception_handler(AuthError)
+        async def authentication_failure(request, error):
+            return JSONResponse({'detail': error.code, 'code': error.code}, status_code=error.status, headers={'Cache-Control': 'no-store'})
     app.add_middleware(RequestBodyLimit)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(server.hosts) if server else ['127.0.0.1', 'localhost'])
     app.add_middleware(
@@ -132,7 +147,18 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         if browser_access and (request.headers.get('host','').lower() not in desktop_hosts
                                or not request.client or request.client.host not in {'127.0.0.1','::1'}):
             return JSONResponse({'detail':'Desktop access requires its exact loopback listener.'},status_code=403)
-        if server and request.url.path not in {'/health/live','/health/ready'}:
+        if identity_store and request.url.path not in {'/health/live','/health/ready'}:
+            from session_boundary import authorize
+            from auth_store import AuthError
+            from starlette.concurrency import run_in_threadpool
+            try:
+                actor = await run_in_threadpool(authorize, identity_store, request, server)
+                if actor:
+                    request.state.auth_principal = actor
+                    request.state.server_principal = (actor.username, actor.role)
+            except AuthError as error:
+                return JSONResponse({'detail': error.code, 'code': error.code}, status_code=error.status, headers={'Cache-Control': 'no-store'})
+        if server and server.auth != 'sessions' and request.url.path not in {'/health/live','/health/ready'}:
             offered = bool(request.headers.get('authorization'))
             client = server.client_address(request) if throttle is not None else None
             if throttle is not None and offered and (wait := throttle.blocked_for(client)):
@@ -164,7 +190,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                     request.headers.get('x-sap-lens', '').encode(), request_header.encode()):
                 return JSONResponse({'detail': 'Application request is not authorized.', **({'code':'stale_session'} if browser_access else {})}, status_code=403)
         from application_backups import pending
-        if request.method=='POST' and not request.url.path.startswith('/api/backups') and pending():
+        if request.method=='POST' and not request.url.path.startswith(('/api/backups','/api/auth/')) and pending():
             return JSONResponse({'detail':'Backup/restore restart is pending. Restart SAP Lens or cancel it in Settings → Backup & Restore before editing.'},status_code=409)
         from server_access import ACTOR
         principal = getattr(request.state, 'server_principal', None)
@@ -177,6 +203,8 @@ def create_app(origin: str | None = None, session_token: str | None = None,
             response=failure_response(request,error)
         finally:
             ACTOR.reset(actor_token)
+        if identity_store and request.url.path.startswith('/api/'):
+            response.headers['Cache-Control']='no-store'
         response.headers['X-Request-ID']=request.state.request_id
         response.headers['X-Content-Type-Options'] = 'nosniff'
         response.headers['Referrer-Policy'] = 'no-referrer'
@@ -233,7 +261,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     @app.get('/api/runtime')
     def runtime_capabilities(request: Request):
         from application_backups import pending
-        if request.method=='POST' and not request.url.path.startswith('/api/backups') and pending():
+        if request.method=='POST' and not request.url.path.startswith(('/api/backups','/api/auth/')) and pending():
             return JSONResponse({'detail':'Backup/restore restart is pending. Restart SAP Lens or cancel it in Settings → Backup & Restore before editing.'},status_code=409)
         from server_access import ACTOR
         principal = getattr(request.state, 'server_principal', None)

@@ -15,7 +15,7 @@ def admin(request):
     server=request.app.state.deployment
     if server:
         principal=getattr(request.state,'server_principal',None)
-        if server.auth!='users' or not principal or principal[1]!='administrator':
+        if server.auth not in {'users','sessions'} or not principal or principal[1]!='administrator':
             raise HTTPException(403,'Application backups require an authenticated administrator account. Other deployments can use stopped host maintenance.')
     return server
 
