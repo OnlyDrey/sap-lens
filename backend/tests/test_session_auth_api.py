@@ -113,3 +113,22 @@ class SessionApiTests(unittest.TestCase):
             response=client.post('/api/auth/profile',json=dict(display_name='Updated name',expected_revision=0),headers=headers)
             self.assertEqual(response.status_code,200,response.text)
             self.assertEqual(client.get('/api/auth/me').json()['revision'],1)
+
+    def test_fresh_activation_requires_local_code_and_closes_atomically(self):
+        from auth_provisioning import prepare,issue
+        from dataclasses import replace
+        root=self.settings.data/'fresh'
+        root.mkdir()
+        store=prepare(root)
+        code=issue(store)['code']
+        with TestClient(create_app(server=replace(self.settings,data=root)),base_url='http://localhost:18743',client=('127.0.0.1',1234)) as client:
+            state=client.get('/api/auth/state')
+            self.assertEqual(state.json(),dict(provider='local-sessions',setup_required=True))
+            self.assertNotIn(code,state.text)
+            self.assertEqual(client.post('/api/auth/issue',json={},headers={'X-SAP-Lens':'1'}).status_code,401)
+            body=dict(username='admin',display_name='Administrator',password=PASSWORD,code=code)
+            self.assertEqual(client.post('/api/auth/activate',json=body,headers={'X-SAP-Lens':'1','Origin':'https://evil.example.invalid'}).status_code,403)
+            response=client.post('/api/auth/activate',json=body,headers={'X-SAP-Lens':'1'})
+            self.assertEqual(response.status_code,200,response.text)
+            self.assertFalse(client.get('/api/auth/state').json()['setup_required'])
+            self.assertNotEqual(client.post('/api/auth/activate',json=body,headers={'X-SAP-Lens':'1'}).status_code,200)

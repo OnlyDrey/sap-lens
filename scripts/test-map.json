@@ -318,6 +318,7 @@
     "test_docker_management",
     "test_server_setup",
     "test_auth_store",
+    "test_auth_provisioning",
     "test_session_auth_api"
    ],
    "browser": [

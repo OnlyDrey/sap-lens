@@ -35,6 +35,11 @@ class ResetPassword(StrictModel):
     password: str = Field(min_length=12, max_length=1024)
 
 
+class Activate(Login):
+    code: str = Field(min_length=20, max_length=128)
+    display_name: str = Field(min_length=1, max_length=120)
+
+
 class ConfirmReset(StrictModel):
     expected_revision: int = Field(ge=0)
     confirm: bool
@@ -60,8 +65,20 @@ def router_for(store, secure):
     @router.get('/state')
     def state(response: Response):
         response.headers['Cache-Control'] = 'no-store'
-        # Bootstrap classification is implemented by the local provisioning phase.
-        return dict(provider='local-sessions')
+        from auth_provisioning import state
+        return state(store)
+
+    @router.post('/activate')
+    def activate(body: Activate):
+        from auth_provisioning import complete
+        complete(store, body.code, body.username, body.display_name, body.password)
+        return dict(ok=True, login_required=True)
+
+    @router.post('/recover')
+    def recover(body: ResetPassword):
+        from auth_provisioning import complete
+        complete(store, body.code, '', '', body.password, recovery=True)
+        return dict(ok=True, login_required=True)
 
     @router.post('/login')
     def login(body: Login, request: Request, response: Response):

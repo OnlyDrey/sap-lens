@@ -195,13 +195,16 @@ class AuthStore:
             self._authorize(db, actor, 'accounts')
             return [public(row) for row in db.execute('SELECT * FROM users ORDER BY username')]
 
-    def create_user(self, actor, username, display_name, role, password, *, bootstrap=False):
-        if not bootstrap:
-            require(actor, 'accounts')
+    @staticmethod
+    def validate_profile(username, display_name, role):
         if not isinstance(username, str) or not re.fullmatch(r'[A-Za-z0-9_.@-]{1,100}', username):
             raise AuthError('invalid_username')
         if role not in ROLES or not isinstance(display_name, str) or not 1 <= len(display_name.strip()) <= 120:
             raise AuthError('invalid_profile')
+    def create_user(self, actor, username, display_name, role, password, *, bootstrap=False):
+        if not bootstrap:
+            require(actor, 'accounts')
+        self.validate_profile(username, display_name, role)
         verifier = password_hash(password)
         with self.connection(True) as db:
             if not bootstrap:
@@ -259,7 +262,7 @@ class AuthStore:
             if blocked and blocked['until_time'] > self.clock():
                 raise AuthError('temporarily_throttled', 429)
             current = db.execute('SELECT * FROM users WHERE id=?', (row['id'],)).fetchone() if row else None
-            pending_reset = db.execute("SELECT 1 FROM one_time WHERE purpose='reset' AND user_id=? AND consumed=0", (current['id'],)).fetchone() if current else None
+            pending_reset = db.execute("SELECT 1 FROM one_time WHERE purpose IN ('reset','recovery') AND user_id=? AND consumed=0", (current['id'],)).fetchone() if current else None
             if not valid or pending_reset or not current or not current['enabled'] or current['credential_version'] != row['credential_version']:
                 failures = (blocked['failures'] if blocked else 0) + 1
                 db.execute('INSERT INTO login_limits VALUES(?,?,?) ON CONFLICT(client) DO UPDATE SET failures=excluded.failures,until_time=excluded.until_time', (client_key, failures if failures < 5 else 0, now + 30 if failures >= 5 else 0))

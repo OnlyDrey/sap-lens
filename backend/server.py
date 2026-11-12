@@ -20,6 +20,9 @@ def run():
             step = getattr(error, 'step', 'configuration')
             print(f'Invalid server configuration at step "{step}": {getattr(error, "detail", f"{type(error).__name__}: {error}")}', file=sys.stderr)
             return 1
+    if sys.argv[1:2] == ['--identity-code']:
+        from auth_provisioning import cli
+        return cli(sys.argv[2:])
     if sys.argv[1:2] == ['--manage-user']:
         from server_access import manage_user
         import json
@@ -64,6 +67,10 @@ def run():
         from storage_lease import StorageLease
         lease=StorageLease(settings.data,'server').acquire()
         try:
+            if settings.auth == 'sessions':
+                from auth_provisioning import prepare
+                stage='identity classification'
+                prepare(settings.data)
             from application_backups import startup
             startup(lease,settings)
             from config import get_settings

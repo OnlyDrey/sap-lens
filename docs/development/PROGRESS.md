@@ -2357,3 +2357,22 @@ skips. Final security/profile/HTTPS changes passed 22 focused auth tests, zero
 skips. Ruff, test ownership mapping, pip check, documentation links and whitespace
 passed. No browser, native Windows, packaging or full regression was run in this
 backend-only phase. Full integration and native acceptance remain pending.
+
+Phase 3 adds fresh-root classification before application storage initialization,
+local-only activation/recovery code issuance, 15-minute expiry, five-attempt limit,
+single-use consumption and atomic first-administrator creation. Startup never
+classifies a populated/unknown/corrupt root as a fresh install. The local CLI
+(`server.py --identity-code --data-directory`) works for source/Linux/Docker and
+is callable by the verified, owned Windows Service Manager bundle. A manager
+button displays a first-run code locally only when sessions are explicitly active.
+The application login/activation/recovery forms are Phase 4, not delivered yet.
+Controlled recovery only targets an existing administrator, preserves its UUID
+and audit, and revokes sessions/old-password access while pending. Codes/verifiers
+are never exposed by the public state API; no recovery path deletes user data.
+
+Phase 3 validation: five direct provisioning tests passed; then 54 provisioning,
+auth-store/API and existing server/configuration tests passed, zero skips. Coverage
+includes restart, code replay/expiry/attempts, simultaneous setup, corrupt/populated
+roots, CLI isolation and cross-origin rejection. C# source integration is present
+but native compilation/manager execution is pending. No native Windows/SCM,
+packaging, browser or full suite was run in this phase. Phases 4–8 remain pending.

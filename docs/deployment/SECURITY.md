@@ -166,3 +166,42 @@ Desktop/shared modes retain self-reported names. Period approval compares review
 and approver names but does not enforce independence from every contributor in a
 multi-reviewer period. Reviewer period-transition authorization is also incomplete.
 These are known requirements gaps, not reasons to weaken approval or role checks.
+
+## Session authentication activation (opt-in development rollout)
+
+The new `SAP_LENS_AUTH=sessions` boundary uses the identity database at
+`security/accounts.sqlite3` inside the protected server data directory. Start a
+fresh session server before provisioning. Startup initializes this database only
+in an otherwise empty data root (the server lease/ownership marker are allowed).
+Populated or corrupt roots require migration/recovery; they never reopen setup.
+Existing deployments remain on their current authentication mode until migration
+and the application UI rollout have been completed and validated.
+
+The local operator can generate a first-run code with the server executable's
+`--identity-code --data-directory` command. With Python source deployments:
+
+```bash
+python backend/server.py --identity-code --data-directory "$SAP_LENS_DATA_DIR"
+```
+
+Run as the service account or an authorized local administrator with access to
+protected storage. Supply an absolute existing server data directory. The elevated
+Windows Service Manager's **First-run activation code** action invokes the same
+local command for the owned, verified session-service bundle. No public API issues
+codes. The JSON command response contains the code: display it locally, never
+redirect it into logs or store it beside a backup. It expires after 15 minutes;
+five incorrect attempts invalidate it. Reissuing locally invalidates the previous
+code. First-admin creation and code consumption are one transaction.
+
+For controlled administrator recovery, add `--recover-administrator USERNAME` to
+the local command, then use the recovery form in the session-authentication UI.
+Only an existing administrator can be recovered this way. Issuing the code revokes
+that administrator's sessions and prevents old-password login until recovery is
+completed. It never creates another account or changes a Viewer into an admin.
+A corrupt/unreadable identity database requires verified restore or the documented
+migration recovery procedure, not deletion of the security directory.
+
+Linux and Docker use the same local command in the running server environment,
+with its existing protected data-volume path and service UID. Windows Service
+Manager is not a Linux/Docker runtime dependency. Native manager compilation and
+session-service acceptance must be verified separately from Linux tests.

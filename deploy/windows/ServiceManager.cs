@@ -170,6 +170,17 @@ namespace SapLens {
             string temporary = Config + ".pending"; new XDocument(service).Save(temporary);
             if (File.Exists(Config)) File.Replace(temporary, Config, Config + ".previous"); else File.Move(temporary, Config);
         }
+        public static string ActivationCode(string recoverAdministrator) {
+            var settings = Settings();
+            if (!settings.ContainsKey("SAP_LENS_AUTH") || settings["SAP_LENS_AUTH"] != "sessions")
+                throw new InvalidOperationException("Session authentication is not active. Complete the documented account migration first.");
+            VerifyBundle(); Status(); // existing installation ownership guards
+            string arguments = "--identity-code --data-directory " + Quote(settings["SAP_LENS_DATA_DIR"]);
+            if (!String.IsNullOrWhiteSpace(recoverAdministrator)) arguments += " --recover-administrator " + Quote(recoverAdministrator);
+            string result = Run(Path.Combine(Root, @"app\SAP-Lens.exe"), arguments, null);
+            var value = Json.Deserialize<Dictionary<string,object>>(result);
+            return Convert.ToString(value["code"]);
+        }
         public static string AccountFile(Dictionary<string,string> settings) {
             string auth, path;
             if (!settings.TryGetValue("SAP_LENS_AUTH", out auth) || auth != "users")
@@ -306,6 +317,7 @@ namespace SapLens {
             Button(actions,"Start",()=>ServiceSetup.Control("start")); Button(actions,"Stop",()=>ServiceSetup.Control("stop")); Button(actions,"Restart",()=>ServiceSetup.Control("restart"));
             Button(actions,"Refresh",()=>{}); Button(actions,"Unregister",()=>{ if(MessageBox.Show("Unregister this service? Application files, accounts, certificates and data will be retained.",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)ServiceSetup.Control("uninstall"); });
             Button(actions,"Save account",()=>{ if(ServiceSetup.Status()=="Not registered")throw new InvalidOperationException("Register the service with an initial administrator first."); ServiceSetup.User(user.Text,password.Text,Convert.ToString(role.SelectedItem),enabled.Checked);password.Clear();MessageBox.Show("Account saved to the configured account store. A blank password preserves the existing password. Account changes apply on the next request without restarting the service. If the browser keeps old credentials, close its authentication session and sign in again.",Text); });
+            Button(actions,"First-run activation code",()=>{ string code=ServiceSetup.ActivationCode(null); MessageBox.Show("Use this code on the SAP Lens first-run page within 15 minutes. It is shown only here; do not put it in logs.\n\n"+code,Text); });
             Button(actions,"Open logs",()=>Process.Start("explorer.exe",ServiceSetup.Quote(Path.Combine(data.Text,"logs")))); Add(table,"Actions",actions);
             urls.Multiline=true;urls.ReadOnly=true;urls.Height=85;Add(table,"Configured URLs",urls);
             Add(table,"Deployment",new Label{AutoSize=true,MaximumSize=new Size(550,0),Text="Keep this extracted folder in its permanent location. Restrict the port in Windows Firewall to approved machines/subnets. No firewall rule is opened automatically. Self-signed certificates show a browser trust warning. Stop the service before changing configuration. Data relocation requires a separate backup/migration."});

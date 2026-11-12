@@ -4,7 +4,7 @@ import hmac
 from auth_store import AuthError, AuthStore, require
 from routers.authentication import COOKIE, router_for
 
-PUBLIC = {'/api/auth/state', '/api/auth/login', '/api/auth/reset'}
+PUBLIC = {'/api/auth/state', '/api/auth/login', '/api/auth/reset', '/api/auth/activate', '/api/auth/recover'}
 ADMIN_READ = ('/api/backups', '/api/storage', '/api/retention', '/api/diagnostics', '/api/configuration', '/api/settings')
 
 
