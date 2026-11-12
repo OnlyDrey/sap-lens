@@ -269,7 +269,10 @@ class SecretFileLifecycle(unittest.TestCase):
         hint = wi.repair_hint('C:/s')
         for grant in ('/inheritance:r', '/grant:r'):
             self.assertIn(grant, hint); self.assertIn(grant, script)
-        self.assertEqual(script.count("'*S-1-5-18:F' '*S-1-5-32-544:F' 'NT SERVICE\\SAPLens:R'"), 2)     # Install and RepairSecret grant the same set
+        grants = [line for line in script.splitlines() if '/grant:r' in line and 'icacls.exe' in line and ('$secretPath' in line or '$SecretFile' in line or '$backupKey' in line)]
+        self.assertEqual(len(grants), 3)                                      # install, RepairSecret and the external backup key
+        for line in grants:                                                   # every private file gets exactly the same set, with inheritance removed
+            self.assertIn("/inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' 'NT SERVICE\\SAPLens:R'", line)
 
     def test_repair_is_explicit_and_scoped_to_the_configured_secret(self):
         script = (BACKEND.parent / 'scripts/manage-server-service.ps1').read_text(encoding='utf-8')

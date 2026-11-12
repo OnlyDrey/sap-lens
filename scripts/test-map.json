@@ -512,7 +512,7 @@
    "test_application.ApplicationTests.test_first_run_and_persistence",
    "test_application.ApplicationTests.test_bad_file_preserves_data_and_settings",
    "test_application.ApplicationTests.test_browser_security_boundary",
-   "test_server.ServerTests.test_basic_boundary_guards_frontend_reads_writes_and_origins",
+   "test_server.ServerTests.test_legacy_basic_has_no_bypass_and_sessions_guard_reads_writes_and_origins",
    "test_csv_lifecycle.CsvLifecycleTests.test_full_replacement_removes_users_directory_records_and_indexes",
    "test_csv_lifecycle.CsvLifecycleTests.test_independent_failure_keeps_old_users_and_rebinds_new_catalogue",
    "test_user_access.MatcherTests.test_exact_then_most_specific_organizational_prefix",

@@ -30,6 +30,8 @@ class ScriptLayout(unittest.TestCase):
         allowed = {'backend/tests/test_build_diagnostics.py: scripts/tool.mjs', 'backend/tests/test_build_diagnostics.py: scripts/__pycache__/c.py'}
         # this file names the same fixture paths in the allowlist above
         allowed |= {'backend/tests/test_scripts_layout.py: scripts/tool.mjs', 'backend/tests/test_scripts_layout.py: scripts/__pycache__/c.py'}
+        # a path that must NOT be ignored by Git is named as a probe; it is never a real script
+        allowed |= {'backend/tests/test_artifact_layout.py: scripts/Trace-SAPLensPowerShell.ps1', 'backend/tests/test_scripts_layout.py: scripts/Trace-SAPLensPowerShell.ps1'}
         self.assertEqual([item for item in missing if item not in allowed], [])
 
     def test_shipped_scripts_keep_their_bundle_relative_paths(self):

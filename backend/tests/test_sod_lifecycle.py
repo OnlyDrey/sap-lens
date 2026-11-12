@@ -175,8 +175,13 @@ class SodLifecycleTests(unittest.TestCase):
         environment={'SAP_LENS_DEPLOYMENT_MODE':'server','SAP_LENS_DATA_DIR':str(data),'SAP_LENS_CONFIG_DIR':str(data),'SAP_LENS_SOURCE_DIR':str(self.root/'sources'),'SAP_LENS_HOST':'127.0.0.1','SAP_LENS_PORT':'18743','SAP_LENS_PUBLIC_ORIGIN':'http://127.0.0.1:18743','SAP_LENS_ALLOWED_HOSTS':'127.0.0.1','SAP_LENS_AUTH':'local'}
         with patch.dict(os.environ,environment):
             config.get_settings.cache_clear()
+            from auth_store import AuthStore
+            accounts=AuthStore(data/'security/accounts.sqlite3');accounts.initialize()
+            accounts.create_user(None,'admin','Admin','administrator','Synthetic lifecycle password 1!',bootstrap=True)
             client=TestClient(create_app(server=ServerSettings.from_env()),base_url='http://127.0.0.1:18743',client=('127.0.0.1',50000))
-            headers={'X-SAP-Lens':'1','X-Upload-Filename':'role-catalogue.csv'}
+            self.assertEqual(client.post('/api/server/uploads/sod',content=self.path.read_bytes(),headers={'X-SAP-Lens':'1','X-Upload-Filename':'role-catalogue.csv'}).status_code,401) # no upload without a session
+            self.assertEqual(client.post('/api/auth/login',json=dict(username='admin',password='Synthetic lifecycle password 1!'),headers={'X-SAP-Lens':'1'}).status_code,200)
+            headers={'X-SAP-Lens':'1','X-Upload-Filename':'role-catalogue.csv','X-SAP-Lens-CSRF':client.cookies['sap-lens-csrf']}
             upload=client.post('/api/server/uploads/sod',content=self.path.read_bytes(),headers=headers)
             self.assertEqual(upload.status_code,200,upload.text)
             path=upload.json()['path']

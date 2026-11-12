@@ -52,12 +52,15 @@ class SodReviewApiTests(unittest.TestCase):
         self.assertEqual(historical['lifecycle'],'Historical');self.assertTrue(historical['stale'])
 
     def test_filtered_exports_include_all_results_and_formula_safety(self):
+        # The local reviewer profile is the identity on desktop; the alias a request submits ('Synthetic Reviewer' in save) is not.
+        profile=self.client.get('/api/reviewer-profile',headers=H).json()
+        self.assertEqual(self.client.post('/api/reviewer-profile',headers=H,json=dict(display_name='Profile Reviewer',expected_revision=profile['revision'])).status_code,200)
         data=self.data()
         for row in data['items']:self.assertEqual(self.save(self.data(),row).status_code,200)
         response=self.client.get('/api/sod/reviews/export',headers=H)
         self.assertTrue(response.content.startswith(b'\xef\xbb\xbf'))
         rows=list(csv.DictReader(io.StringIO(response.content.decode('utf-8-sig')),delimiter=';'))
-        self.assertEqual(len(rows),2);self.assertTrue(all(row['REVIEWER']=='Synthetic Reviewer' for row in rows))
+        self.assertEqual(len(rows),2);self.assertEqual({row['REVIEWER'] for row in rows},{'Profile Reviewer'})
         filtered=self.client.get('/api/sod/reviews/export?search=SYN_A',headers=H)
         self.assertEqual(len(list(csv.DictReader(io.StringIO(filtered.content.decode('utf-8-sig')),delimiter=';'))),1)
         self.assertEqual(self.client.get('/api/sod/reviews/actions/export',headers=H).status_code,200)

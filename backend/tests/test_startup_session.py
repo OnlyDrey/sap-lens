@@ -93,20 +93,24 @@ class ConfigurationFailures(Base):
 
 class ServerHosting(test_server.ServerTestBase):
     def test_server_mode_has_no_desktop_bootstrap_and_no_stale_session_answer(self):
-        with patch.dict(test_server.os.environ, {'SAP_LENS_AUTH': 'basic'}):
-            client = self.client()
+        with patch.dict(test_server.os.environ, {'SAP_LENS_AUTH': 'basic'}):   # a legacy setting is migration input; the boundary is sessions
+            client = self.client(authenticated=False)
         response = client.get('/api/configuration', headers={'X-SAP-Lens': 'anything'})
         self.assertEqual(response.status_code, 401)
         self.assertNotIn('stale_session', response.text)
-        document = client.get('/', headers=NAVIGATION)
-        self.assertEqual(document.status_code, 401)
-        authorized = client.get('/', headers={**NAVIGATION, **self.basic()})
-        self.assertEqual(authorized.status_code, 200)
-        self.assertNotIn('sap-lens-session', authorized.text)                      # no capability is ever injected for server-hosted access
+        self.assertEqual(client.get('/api/configuration', headers=self.basic()).status_code, 401)   # the old shared credential opens nothing
+        document = client.get('/', headers=NAVIGATION)                              # the sign-in page itself is public; it carries no data
+        self.assertEqual(document.status_code, 200)
+        self.assertNotIn('sap-lens-session', document.text)                        # no capability is ever injected for server-hosted access
+        self.assertNotIn('set-cookie', {name.lower() for name in document.headers})
 
-    def test_a_remote_client_without_credentials_cannot_use_a_loopback_style_header_to_get_in(self):
-        response = self.client(peer='192.0.2.20').get('/api/configuration', headers={'X-SAP-Lens': '1', **NAVIGATION})
-        self.assertEqual(response.status_code, 401)
+    def test_a_remote_client_cannot_use_plain_http_or_a_loopback_style_header_to_get_in(self):
+        client = self.client(peer='192.0.2.20', authenticated=False)
+        for headers in ({}, {'X-Forwarded-For': '127.0.0.1', 'X-Forwarded-Proto': 'https'}, self.basic()):
+            response = client.get('/api/configuration', headers={'X-SAP-Lens': '1', **NAVIGATION, **headers})
+            self.assertEqual((response.status_code, response.json()['code']), (403, 'secure_transport_required'), headers)
+        refused = client.post('/api/auth/login', json=dict(username='admin', password=self.secret.read_text()), headers={'X-SAP-Lens': '1'})
+        self.assertEqual(refused.status_code, 403)                                  # a password is never accepted over remote plain HTTP
 
 
 if __name__ == '__main__':
