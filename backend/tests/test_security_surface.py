@@ -21,6 +21,7 @@ from main import create_app
 PUBLIC = {'/health/live', '/health/ready', '/health'}
 ORIGIN = 'http://127.0.0.1:41234'
 TOKEN = 'synthetic-launch-capability'
+PASSWORD = 'Synthetic boundary password 123!'
 
 
 def operations(app):
@@ -87,7 +88,7 @@ class ServerBoundaryTests(Isolated):
         self.secret = self.root / 'access.secret'; self.secret.write_text('synthetic-access-secret-' + 'a' * 40); self.secret.chmod(0o600)
         self.server_env = patch.dict(os.environ, {'SAP_LENS_DEPLOYMENT_MODE': 'server', 'SAP_LENS_DATA_DIR': str(self.data), 'SAP_LENS_CONFIG_DIR': str(self.data),
             'SAP_LENS_SOURCE_DIR': str(self.sources), 'SAP_LENS_HOST': '127.0.0.1', 'SAP_LENS_PORT': '18743', 'SAP_LENS_PUBLIC_ORIGIN': 'http://127.0.0.1:18743',
-            'SAP_LENS_ALLOWED_HOSTS': '127.0.0.1', 'SAP_LENS_AUTH': 'basic', 'SAP_LENS_AUTH_SECRET_FILE': str(self.secret), 'SAP_LENS_TRUSTED_PROXIES': ''})
+            'SAP_LENS_ALLOWED_HOSTS': '127.0.0.1', 'SAP_LENS_AUTH': 'sessions', 'SAP_LENS_AUTH_SECRET_FILE': str(self.secret), 'SAP_LENS_TRUSTED_PROXIES': ''})
         self.server_env.start(); config.get_settings.cache_clear()
         frontend = self.root / 'frontend'; frontend.mkdir(); (frontend / 'index.html').write_text('<html>unit</html>')
         self.frontend_patch = patch('main.frontend_dir', frontend); self.frontend_patch.start()
@@ -95,22 +96,45 @@ class ServerBoundaryTests(Isolated):
     def tearDown(self):
         self.frontend_patch.stop(); self.server_env.stop(); super().tearDown()
 
-    def test_basic_authentication_covers_every_operation_and_unsafe_methods_are_refused(self):
-        app = create_app(server=ServerSettings.from_env())
-        credentials = base64.b64encode(('saplens:' + self.secret.read_text()).encode()).decode()
-        wrong = base64.b64encode(b'saplens:wrong-secret-wrong-secret-wrong-secret').decode()
+    def application(self):
+        """A session server with one administrator, as startup leaves it after first-run activation."""
+        from auth_store import AuthStore
+        self.accounts = AuthStore(self.data / 'security/accounts.sqlite3'); self.accounts.initialize()
+        self.accounts.create_user(None, 'admin', 'Admin', 'administrator', PASSWORD, bootstrap=True)
+        return create_app(server=ServerSettings.from_env())
+
+    def sign_in(self, client):
+        response = client.post('/api/auth/login', json={'username': 'admin', 'password': PASSWORD}, headers={'X-SAP-Lens': '1'})
+        self.assertEqual(response.status_code, 200, response.text)
+        return {'X-SAP-Lens': '1', 'X-SAP-Lens-CSRF': client.cookies['sap-lens-csrf']}
+
+    def test_a_session_covers_every_operation_and_no_legacy_credential_or_unsafe_method_gets_in(self):
+        from session_boundary import PUBLIC as SIGN_IN
+        app = self.application()
+        found = operations(app)
+        self.assertGreater(len(found), 100)  # the probe really sees the whole API
+        self.assertEqual(SIGN_IN, {'/api/auth/state', '/api/auth/login', '/api/auth/reset', '/api/auth/activate', '/api/auth/recover'})  # nothing else is reachable signed out
+        basic = 'Basic ' + base64.b64encode(('admin:' + PASSWORD).encode()).decode()
+        shared = 'Basic ' + base64.b64encode(('saplens:' + self.secret.read_text()).encode()).decode()
         with TestClient(app, base_url='http://127.0.0.1:18743', client=('127.0.0.1', 50000)) as client:
-            for method, path in operations(app):
-                if path in PUBLIC: continue
+            for method, path in found:
+                if path in PUBLIC or path in SIGN_IN: continue
                 body = {'json': {}} if method != 'GET' else {}
-                self.assertEqual(client.request(method, path, **body).status_code, 401, f'{method} {path} answered without credentials')
-                app.state.auth_throttle.success('127.0.0.1')  # every probe is judged on its credentials, not on the lock-out of the probes before it
-                self.assertEqual(client.request(method, path, headers={'Authorization': 'Basic ' + wrong}, **body).status_code, 401, f'{method} {path} accepted wrong credentials')
-            for method in ('PUT', 'DELETE', 'PATCH'):
-                refused = client.request(method, '/api/configuration', headers={'Authorization': 'Basic ' + credentials, 'X-SAP-Lens': '1'}, json={})
-                self.assertEqual(refused.status_code, 405)  # the server API only reads and posts
+                self.assertEqual(client.request(method, path, **body).status_code, 401, f'{method} {path} answered without a session')
+                for label, headers in (('account password as Basic', {'Authorization': basic}), ('legacy shared secret', {'Authorization': shared}),
+                                       ('proxy identity headers', {'X-SAP-Lens-Identity': 'admin', 'X-SAP-Lens-Proxy-Token': self.secret.read_text(), 'X-Forwarded-Proto': 'https'}),
+                                       ('invented session cookie', {'Cookie': 'sap-lens-session=' + 'a' * 43})):
+                    self.assertEqual(client.request(method, path, headers=headers, **body).status_code, 401, f'{method} {path} accepted {label}')
+            headers = self.sign_in(client)
+            self.assertEqual(client.get('/api/auth/me').status_code, 200)
+            for method in ('PUT', 'DELETE', 'PATCH'):  # the server API only reads and posts: other methods are denied even to an administrator
+                self.assertEqual(client.request(method, '/api/configuration', headers=headers, json={}).status_code, 403, method)
+            self.assertEqual(client.post('/api/configuration', json={}).status_code, 403)  # a write without the CSRF token of this session
+            self.assertEqual(client.post('/api/branding/preview', headers=headers, json={}).status_code, 403)  # native file selection stays desktop-only
 
     def test_a_secret_file_readable_by_other_users_is_rejected(self):
+        # The file is the trusted-proxy token now: it is read, and its permissions judged, when a proxy is trusted.
+        os.environ['SAP_LENS_TRUSTED_PROXIES'] = '127.0.0.1/32'  # inside the patched server environment, which tearDown restores
         if os.name == 'nt':      # POSIX modes do not exist; the DACL is what protects the secret
             import windows_identity as win
             sid = win.current_user_sid()
@@ -124,7 +148,7 @@ class ServerBoundaryTests(Isolated):
             with self.assertRaises(ValueError):
                 ServerSettings.from_env()
             self.secret.chmod(0o600)
-        self.assertEqual(ServerSettings.from_env().auth, 'basic')
+        self.assertEqual(ServerSettings.from_env().secret, self.secret.read_text())
 
     def test_windows_acl_policy_is_enforced_with_a_simulated_dacl(self):
         # Runs on every OS: the Windows branch is driven with a fake security API, so the policy (not the OS call) is what is verified here.
@@ -157,11 +181,11 @@ class ServerBoundaryTests(Isolated):
         acl.assert_called_once()
 
     def test_server_errors_are_generic(self):
-        app = create_app(server=ServerSettings.from_env())
-        credentials = base64.b64encode(('saplens:' + self.secret.read_text()).encode()).decode()
+        app = self.application()
         with patch('routers.dashboard.cache.get_snapshot', side_effect=RuntimeError('secret path /srv/private.csv')):
             with TestClient(app, base_url='http://127.0.0.1:18743', client=('127.0.0.1', 50000), raise_server_exceptions=False) as client:
-                response = client.get('/api/dashboard', headers={'Authorization': 'Basic ' + credentials})
+                self.sign_in(client)
+                response = client.get('/api/dashboard')
         self.assertEqual(response.status_code, 500)
         self.assertNotIn('private.csv', response.text)
 

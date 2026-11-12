@@ -1,4 +1,7 @@
-"""SEC-03: the shared-access secret is owner-only by default; group read is an explicit, checked exception."""
+"""SEC-03: the secret file is owner-only by default; group read is an explicit, checked exception.
+
+Since session accounts replaced shared Basic access, the file is the trusted-proxy token: it is read (and its permissions judged) only when
+trusted proxies are configured. A legacy Basic/local configuration is migration input and loads no secret at all."""
 import os
 from pathlib import Path
 import subprocess
@@ -21,8 +24,8 @@ class SecretFilePolicyTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.root = Path(self.temp.name)
         self.secret = self.root / 'access.secret'; self.secret.write_text(SECRET)
         self.env = {'SAP_LENS_DEPLOYMENT_MODE': 'server', 'SAP_LENS_DATA_DIR': str(self.root / 'data'), 'SAP_LENS_SOURCE_DIR': str(self.root / 'sources'),
-                    'SAP_LENS_HOST': '127.0.0.1', 'SAP_LENS_PUBLIC_ORIGIN': ORIGIN, 'SAP_LENS_ALLOWED_HOSTS': '127.0.0.1', 'SAP_LENS_AUTH': 'basic',
-                    'SAP_LENS_AUTH_SECRET_FILE': str(self.secret), 'SAP_LENS_TRUSTED_PROXIES': ''}
+                    'SAP_LENS_HOST': '127.0.0.1', 'SAP_LENS_PUBLIC_ORIGIN': ORIGIN, 'SAP_LENS_ALLOWED_HOSTS': '127.0.0.1', 'SAP_LENS_AUTH': 'sessions',
+                    'SAP_LENS_AUTH_SECRET_FILE': str(self.secret), 'SAP_LENS_TRUSTED_PROXIES': '127.0.0.1/32'}
         self.patch = patch.dict(os.environ, self.env); self.patch.start(); os.environ.pop('SAP_LENS_CONFIG_DIR', None); os.environ.pop('SAP_LENS_AUTH_SECRET_GROUP_READ', None)
 
     def tearDown(self):
@@ -70,7 +73,12 @@ class SecretFilePolicyTests(unittest.TestCase):
         with patch.dict(os.environ, {'SAP_LENS_AUTH': 'proxy', 'SAP_LENS_TRUSTED_PROXIES': '127.0.0.1/32'}), self.assertRaises(ValueError): ServerSettings.from_env()
 
     def test_local_mode_needs_no_secret(self):
-        with patch.dict(os.environ, {'SAP_LENS_AUTH': 'local'}): self.assertEqual(ServerSettings.from_env().secret, '')
+        with patch.dict(os.environ, {'SAP_LENS_AUTH': 'local', 'SAP_LENS_TRUSTED_PROXIES': ''}): self.assertEqual(ServerSettings.from_env().secret, '')
+
+    def test_without_trusted_proxies_no_secret_is_loaded_and_a_legacy_shared_password_is_never_read(self):
+        self.secret.chmod(0o644)  # not even opened: an exposed legacy file cannot become a credential
+        for auth in ('sessions', 'basic'):
+            with patch.dict(os.environ, {'SAP_LENS_AUTH': auth, 'SAP_LENS_TRUSTED_PROXIES': ''}): self.assertEqual(ServerSettings.from_env().secret, '', auth)
 
     def test_a_new_secret_is_owner_only_even_under_a_permissive_umask_and_never_overwrites(self):
         target = self.root / 'created.secret'
