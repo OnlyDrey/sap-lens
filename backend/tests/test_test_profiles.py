@@ -156,6 +156,16 @@ class RiskBasedSelectionTests(unittest.TestCase):
         self.assertIn('deployment', self.plan('scripts/deployment/build-deployments.py')['features'])
         self.assertNotIn('deployment', self.plan('backend/sod_governance.py')['features'])
 
+    def test_plan_prints_the_selection_and_never_runs_anything_in_any_profile(self):
+        # `full --plan` once started the backend suite: --plan was honoured by two profiles only and ignored by the others.
+        for arguments in (['full'], ['regression'], ['smoke'], ['targeted', 'sod'], ['quick', 'sod'], ['quick'], ['targeted'],
+                          ['targeted', '--spec', 'ux'], ['targeted', '--test', 'test_sod_governance'], ['full', '--backend']):
+            done = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), *arguments, '--plan', '--base', 'HEAD'], cwd=ROOT, capture_output=True, text=True, timeout=120)
+            self.assertEqual(done.returncode, 0, (arguments, done.stdout[-2000:]))
+            for executed in ('[start]', '[done]', 'Summary:', 'Result:'):
+                self.assertNotIn(executed, done.stdout, arguments)
+            self.assertTrue(any(word in done.stdout for word in ('backend', 'modules', 'browser')), arguments)
+
     def test_renamed_profiles_still_work_and_say_so(self):
         done = subprocess.run([sys.executable, str(ROOT / 'scripts' / 'run-tests.py'), 'fast', '--list-tests', '--base', 'HEAD'], cwd=ROOT, capture_output=True, text=True, timeout=120)
         self.assertEqual(done.returncode, 0, done.stderr[-2000:]); self.assertIn('`fast` is now `quick`', done.stdout)

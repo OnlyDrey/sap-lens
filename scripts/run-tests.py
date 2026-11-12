@@ -1315,7 +1315,7 @@ def main(argv: list[str]) -> int:
     parser.add_argument('--browser-jobs', help='browser processes: a number up to 3 or `auto` (one per spare CPU, 1 to 3); default 1 or SAP_LENS_BROWSER_JOBS')
     parser.add_argument('--grep', help='additional Playwright title filter for browser tests')
     parser.add_argument('--base', help='commit to compare with: quick/targeted default HEAD (uncommitted and untracked changes); changed default BASE_SHA or HEAD~1')
-    parser.add_argument('--plan', action='store_true', help='changed profile: print the selection (and write GitHub outputs) without running tests')
+    parser.add_argument('--plan', action='store_true', help='print the selection without running anything, for every profile (changed also writes GitHub outputs)')
     parser.add_argument('--stage', choices=['backend', 'browser'], help='changed profile: run only this part of the selection')
     parser.add_argument('--no-build', action='store_true', help='skip the frontend build even if sources changed')
     parser.add_argument('--report', help='write a JSON summary to this file')
@@ -1375,6 +1375,13 @@ def main(argv: list[str]) -> int:
 
     stages: list[dict] = []
     notes: list[str] = []
+    # --plan never executes a test, a build or a check, whatever the profile: it is the listing for every profile except `changed`,
+    # which prints its own plan below. An explicit selection is echoed here because those branches run before the profiles.
+    if args.plan and args.profile != 'changed':
+        args.list_tests = True
+        if args.spec or args.test:
+            print('backend: ' + ' '.join(args.test or []) + '\nbrowser: ' + ' '.join(args.spec or []) + (f' --grep {args.grep}' if args.grep else ''))
+            return 0
 
     def smoke_stages() -> None:
         smoke = load_map()['smoke']
