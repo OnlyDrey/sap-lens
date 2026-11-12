@@ -35,6 +35,13 @@ class LayoutContractTests(unittest.TestCase):
         for source in ('frontend/src/main.tsx', 'backend/main.py', 'scripts/build.py', 'docs/BUILD.md'):
             self.assertEqual(subprocess.run(['git', 'check-ignore', '-q', source], cwd=ROOT).returncode, 1, source)  # sources stay trackable
 
+    def test_native_verification_reports_are_ignored_without_hiding_other_work(self):
+        for name in ('scm-cleanup-native','scm-delete-native','scm-output-focused','scm-output-native','scm-process-native','scm-traversal-native','scm-zip-focused','scm-zip-native','service-auth-native'):
+            path='build/'+name+'.json'
+            self.assertEqual(subprocess.run(['git','check-ignore','-q',path],cwd=ROOT).returncode,0,path)
+        for path in ('build/investigation.py','build/unrelated-source.json','scripts/Trace-SAPLensPowerShell.ps1'):
+            self.assertEqual(subprocess.run(['git','check-ignore','-q',path],cwd=ROOT).returncode,1,path)
+
     def test_docker_context_never_contains_the_artifact_root_but_keeps_the_frontend_build(self):
         lines = [line.strip() for line in read('.dockerignore').splitlines() if line.strip() and not line.startswith('#')]
         self.assertEqual(lines[0], '**')                                              # allowlist: everything else is excluded

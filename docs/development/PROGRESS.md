@@ -2298,3 +2298,19 @@ acceptance remain pending (.NET/PowerShell unavailable here). No full regression
 packaging, SCM lifecycle or Actions was run. A git pull updates source only, not
 the installed service/manager binaries; deploy through verified packaging and
 a controlled upgrade rather than replacing individual hashed bundle files.
+
+
+## Native JSON reports blocked clean-checkout packaging (2026-11-12)
+
+Native git status showed only nine untracked root-build SCM/auth verification JSON
+reports, no source diff. Existing ignore rules covered logs and build/test-artifacts
+but missed the documented --report build/scm-*.json and service-auth-*.json paths.
+Added only those two report patterns; unrelated source/JSON in build remains
+trackable. No report was deleted, committed or treated as fresh build validation.
+The clean-source packaging gate remains unchanged. Artifact-layout coverage checks
+all nine supplied report names plus negative source examples. Native repackaging
+remains pending after pull and clean-status verification.
+
+Validation: artifact-layout module 14 passed, zero skips/failures. Ruff,
+documentation links and whitespace passed. No packaging, full regression or
+Actions run was performed; no production/runtime files were modified.
