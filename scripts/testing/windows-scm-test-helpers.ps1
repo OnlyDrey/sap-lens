@@ -377,6 +377,48 @@ function Write-ScmEvidence([string]$Path,$Receipt) {
     }
 }
 
+function Convert-ScmErrorOutput([string]$Text) {
+    if ($Text -notmatch '(?m)^#< CLIXML\r?$') { return $Text }
+    if ($Text.Length -gt 4194304) { throw 'Serialized management output exceeds the safe rendering limit.' }
+    $plain=[regex]::Replace($Text,'(?m)^#< CLIXML\r?$\n?','')
+    $frames=[regex]::Matches($plain,'(?s)<Objs\b[^>]*>.*?</Objs>')
+    if (-not $frames.Count) { throw 'Malformed serialized management output; acceptance refused.' }
+    $result=[Text.StringBuilder]::new()
+    $position=0
+    foreach ($frame in $frames) {
+        $null=$result.Append($plain.Substring($position,$frame.Index-$position))
+        $settings=[Xml.XmlReaderSettings]::new()
+        $settings.DtdProcessing=[Xml.DtdProcessing]::Prohibit
+        $settings.XmlResolver=$null
+        $settings.MaxCharactersInDocument=4194304
+        $reader=[Xml.XmlReader]::Create([IO.StringReader]::new($frame.Value),$settings)
+        try {
+            $document=[Xml.XmlDocument]::new();$document.XmlResolver=$null
+            $document.Load($reader)
+        } finally { $reader.Dispose() }
+        if ($document.DocumentElement.NamespaceURI -ne 'http://schemas.microsoft.com/powershell/2004/04') { throw 'Unknown management output schema; acceptance refused.' }
+        $namespace=[Xml.XmlNamespaceManager]::new($document.NameTable)
+        $namespace.AddNamespace('c',$document.DocumentElement.NamespaceURI)
+        foreach ($record in $document.DocumentElement.ChildNodes) {
+            if ($record -isnot [Xml.XmlElement]) { continue }
+            if ($record.GetAttribute('S') -eq 'progress') { continue } # Cosmetic only.
+            if ($record.LocalName -eq 'S') { $message=$record.InnerText }
+            else {
+                $display=$record.SelectSingleNode('c:ToString',$namespace)
+                if (-not $display) { $display=$record.SelectSingleNode("c:Props/c:S[@N='MessageData']",$namespace) }
+                if (-not $display) { $display=$record.SelectSingleNode(".//c:S[@N='Message']",$namespace) }
+                if (-not $display) { throw 'Unrenderable management diagnostic; acceptance refused.' }
+                $message=$display.InnerText
+            }
+            # Decode CLIXML string escapes once; never deserialize arbitrary objects.
+            $message=[regex]::Replace($message,'_x([0-9a-fA-F]{4})_', { param($match) [string][char][Convert]::ToInt32($match.Groups[1].Value,16) })
+            $null=$result.AppendLine($message)
+        }
+        $position=$frame.Index+$frame.Length
+    }
+    $null=$result.Append($plain.Substring($position))
+    return $result.ToString()
+}
 function Get-ScmExitCode($Process) {
     if (-not $Process.HasExited) { throw 'Management process has not exited; exit code is unavailable.' }
     $code=$Process.ExitCode
@@ -385,7 +427,7 @@ function Get-ScmExitCode($Process) {
 }
 function Invoke-ScmManagementHost([string]$HostPath,[string]$EncodedCommand,[string]$Stage,[ValidateRange(1,180)][int]$TimeoutSeconds=180,[switch]$StreamProgress) {
     $child=[Diagnostics.Process]::new()
-    $stdout=$null; $stderr=$null; $started=$false
+    $stdout=$null; $stderr=$null; $started=$false; $exitCode=$null
     $watch=[Diagnostics.Stopwatch]::StartNew()
     try {
         # Own the original process handle. Start-Process -PassThru on Windows
@@ -452,14 +494,21 @@ function Invoke-ScmManagementHost([string]$HostPath,[string]$EncodedCommand,[str
             } catch { Write-Warning 'Unable to confirm owned management process termination; retain workspace.' }
         }
         # Never wait indefinitely for a descendant retaining an inherited pipe.
-        foreach ($output in @($stdout,$stderr)) {
-            if ($null -ne $output) {
-                if ($output.IsCompleted -and -not $output.IsFaulted -and -not $output.IsCanceled) {
-                    if ($output.Result) { Write-Host $output.Result }
-                } else { Write-Warning 'Management output capture incomplete; inspect retained workspace logs.' }
+        try {
+            foreach ($output in @($stdout,$stderr)) {
+                if ($null -ne $output) {
+                    if ($output.IsCompleted -and -not $output.IsFaulted -and -not $output.IsCanceled) {
+                        if ($output.Result) {
+                            if ([object]::ReferenceEquals($output,$stderr)) {
+                                try { Write-Host (Convert-ScmErrorOutput $output.Result) }
+                                catch { throw (New-Object System.Exception("Management diagnostic rendering failed (exit=$exitCode); acceptance refused.",$_.Exception)) }
+                            }
+                            else { Write-Host $output.Result }
+                        }
+                    } else { Write-Warning 'Management output capture incomplete; inspect retained workspace logs.' }
+                }
             }
-        }
-        $child.Dispose()
+        } finally { $child.Dispose() }
     }
 }
 

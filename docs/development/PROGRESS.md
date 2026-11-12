@@ -2220,3 +2220,32 @@ python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs
 Use the Windows Service guide's isolated-copy command for the actual retained
 file. Full native acceptance remains pending until cleanup and evidence read-back
 succeed against the verified package; a helper pass is not that claim.
+
+
+## PowerShell 5.1 CLIXML follow-up (2026-11-12)
+
+Read the supplied console transcript. Native ZIP tests passed at 58b15cd; at
+026292e the only reported helper failure was the unchanged no-CLIXML assertion:
+Write-Information serialized an information record on redirected stderr despite
+-OutputFormat Text. The supplied run completed 32 tests with one failure and one
+skip (30 actual passes; the runner's summary includes its skip in passed count).
+Deletion helper cases did not report failures; no full SCM success is inferred.
+
+Added bounded stderr rendering for CLIXML frames mixed with ordinary native text.
+Preserves information/warning/error messages, Unicode escapes and plain stderr;
+omits cosmetic progress and serialization identity metadata. XML has no resolver,
+prohibits DTDs, and does not deserialize objects. Unknown/malformed/unrenderable
+records fail closed. Rendering failure retains the management exit status in its
+error and cannot skip handle disposal or allow evidence publication. The existing
+no-CLIXML assertion is not weakened. New native parser cases cover mixed text,
+metadata exclusion, Unicode, malformed data and a zero-exit child whose malformed
+output must still block success. Existing cleanup/evidence/timeout checks remain.
+No retained native workspaces or application files were modified. No Actions,
+package rebuild, full regression or native SCM run was performed.
+
+Validation: focused SCM module 18 passed, 16 platform skips (34 discovered);
+deployment checks 368 passed, 22 skips (390 discovered). Ruff, links, workflow
+contracts and whitespace passed. Native PowerShell parser/runtime is unavailable
+here. Run the existing failing process/output test first, followed by the complete
+SCM helper module using the Windows Service guide commands. The unchanged native
+assertion must pass before claiming this output regression resolved on Windows.

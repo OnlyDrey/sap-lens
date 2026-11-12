@@ -213,6 +213,16 @@ class ScmCleanupContracts(unittest.TestCase):
         self.assertIn('parent is not a directory',loop)
         self.assertNotIn('CreateDirectory',loop)
 
+    def test_clixml_reader_is_bounded_and_does_not_deserialize_objects(self):
+        reader=self.helper[self.helper.index('function Convert-ScmErrorOutput'):self.helper.index('function Get-ScmExitCode')]
+        self.assertIn('4194304',reader)
+        self.assertIn('DtdProcessing]::Prohibit',reader)
+        self.assertIn('XmlResolver=$null',reader)
+        self.assertIn("GetAttribute('S') -eq 'progress'",reader)
+        self.assertIn('acceptance refused',reader)
+        self.assertNotIn('PSSerializer',reader)
+        self.assertIn('Convert-ScmErrorOutput $output.Result',self.helper)
+
     def test_file_delete_and_plain_text_child_contracts(self):
         file_helper=self.helper[self.helper.index('function Remove-ScmTestFile'):self.helper.index('function Remove-ScmTestEntry')]
         self.assertIn('[IO.File]::Delete($Path)',file_helper)
@@ -265,6 +275,45 @@ class EvidenceHostTests(unittest.TestCase):
             done=subprocess.run([SHELLS[0],'-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=30)
             self.assertEqual(done.returncode,0,done.stdout+done.stderr)
             self.assertEqual(json.loads((root/'receipt.json').read_text())['status'],'passed')
+
+    def test_clixml_rendering_preserves_diagnostics_without_identity_metadata(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as temporary:
+                script=Path(temporary)/'render.ps1'
+                helper=str(ROOT/'scripts/testing/windows-scm-test-helpers.ps1').replace("'", "''")
+                body=f". '{helper}'\n"
+                body+=r"""
+$ErrorActionPreference='Stop'
+$text=@'
+#< CLIXML
+ordinary native stderr
+<Objs Version="1.1.0.1" xmlns="http://schemas.microsoft.com/powershell/2004/04"><Obj S="progress"><ToString>cosmetic progress</ToString></Obj><Obj S="information"><ToString>useful information</ToString><Props><S N="User">synthetic-private-user</S><S N="Computer">synthetic-host.invalid</S></Props></Obj><S S="error">useful error_x000A_æ</S><S S="warning">useful warning</S></Objs>
+after XML
+'@
+$rendered=Convert-ScmErrorOutput $text
+foreach ($expected in @('ordinary native stderr','useful information','useful error','æ','useful warning','after XML')) {
+    if (-not $rendered.Contains($expected)) { throw ('Lost diagnostic: '+$expected) }
+}
+foreach ($unwanted in @('#< CLIXML','<Objs','synthetic-private-user','synthetic-host.invalid','cosmetic progress','_x000A_')) {
+    if ($rendered.Contains($unwanted)) { throw ('Metadata leak: '+$unwanted) }
+}
+if ((Convert-ScmErrorOutput 'ordinary error') -cne 'ordinary error') { throw 'Plain stderr changed' }
+foreach ($invalid in @("#< CLIXML`n<Objs>","#< CLIXML`n<Objs xmlns='invalid'></Objs>","#< CLIXML`n<Objs xmlns='http://schemas.microsoft.com/powershell/2004/04'><Obj S='error'/></Objs>")) {
+    $rejected=$false
+    try { $null=Convert-ScmErrorOutput $invalid } catch { $rejected=$true }
+    if (-not $rejected) { throw 'Malformed/unknown diagnostic silently accepted' }
+}
+$bad='[Console]::Error.WriteLine("#< CLIXML"); [Console]::Error.WriteLine("<Objs>"); exit 0'
+$encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($bad))
+$rejected=$false
+try { Invoke-ScmManagementHost (Get-Process -Id $PID).Path $encoded 'malformed capture' 10 } catch { $rejected=$_.Exception.Message -match 'rendering failed' }
+if (-not $rejected) { throw 'Malformed successful-child output did not fail acceptance' }
+'parser cases passed'
+"""
+                script.write_text(body,encoding='utf-8-sig')
+                done=subprocess.run([shell,'-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=30)
+                self.assertEqual(done.returncode,0,done.stdout+done.stderr)
+                self.assertIn('parser cases passed',done.stdout)
 
     def test_owned_process_success_failure_timeout_and_missing_exit_code(self):
         for shell in SHELLS:

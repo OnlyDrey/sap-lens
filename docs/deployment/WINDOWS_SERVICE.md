@@ -612,3 +612,25 @@ try {
 This is not native SCM acceptance. A full native run must still complete cleanup
 and publish/read back the receipt. The 120-second deadline and no-existing-service
 guard remain unchanged; application backup-retention behavior was not modified.
+
+### PowerShell 5.1 information-stream serialization
+
+Native follow-up showed that `-OutputFormat Text` still permits redirected
+Write-Information records to appear as CLIXML on stderr. The runner now renders
+recognized CLIXML frames to message text while preserving ordinary stderr before,
+between and after them. Information/warning/error text remains; cosmetic progress
+records and user/computer serialization metadata are omitted. It never deserializes
+arbitrary objects: XML parsing prohibits DTD/entity resolution, bounds input size
+and rejects unknown or unrenderable data. Malformed capture fails acceptance even
+when the child exits zero; handle disposal is unconditional. This does not change
+exit codes, deletion, ownership, timeout or evidence gates.
+
+Rerun the focused process/output test, then the module, without starting SCM:
+
+```powershell
+python scripts/run-tests.py targeted --test test_windows_acceptance_split.EvidenceHostTests.test_owned_process_success_failure_timeout_and_missing_exit_code --jobs 1 --log build/scm-output-focused.log --report build/scm-output-focused.json
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-output-native.log --report build/scm-output-native.json
+```
+
+These checks include the unchanged no-CLIXML assertion. Native helper success is
+still separate from full SCM cleanup and verified evidence publication.
