@@ -2168,3 +2168,55 @@ powershell -NoProfile -File .\scripts\check-powershell.ps1
 python scripts/run-tests.py targeted --test test_windows_acceptance_split.NativeSafeScmHelpers.test_zip_and_directory_inputs_and_traversal_rejection --jobs 1 --log build/scm-zip-focused.log --report build/scm-zip-focused.json
 python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-zip-native.log --report build/scm-zip-native.json
 ```
+
+
+## Native retention.json delete error 87, provider boundary (2026-11-12)
+
+Read the supplied native transcript without modifying retained Windows workspaces.
+It records 6,732 files, 236 directories and over 6,700 deletions, then code 87 at
+operation=delete entry, attributes=32. The exact source call is Remove-Item
+-LiteralPath $path -Force -ErrorAction Stop, following a fresh Get-Item. FileInfo
+from enumeration is not passed to that cmdlet. Thus stale enumeration is not
+established as the cause; Archive is a legitimate attribute. The transcript has
+no original provider/inner exception because the previous helper replaced it.
+No open retention handle, antivirus cause or specific provider-internal API can
+be confirmed from that evidence. Cleanup waits for owned processes after uninstall;
+application retention code was inspected but not changed. Independent deletion
+of an isolated copy of the actual retained file cannot be performed on Linux;
+read-only original/copy-only commands are in the Windows Service guide.
+
+Replaced provider file deletion with fresh-attribute-checked File.Delete and an
+absence postcondition, preserving prior ownership/reparse validation. Missing
+files fail before deletion; access errors propagate; only Read-only is cleared
+when needed (Normal used for zero remaining attribute bits). Changed entry types
+fail. Exceptions preserve the original chain and report API phase, type/HRESULT
+and error identifier. Archive-only files are not rewritten, code 87 is not ignored,
+and the external 120-second watchdog/evidence gates remain. Final metadata files
+also use the guarded direct deletion primitive.
+
+Added native Archive/ReadOnly retention cases, a replaced/modified synthetic
+restored file with stale enumeration, missing-file rejection, and explicit denied
+Delete ACLs in a private workspace. Existing lock, junction, large-tree, timeout,
+publication and boundary tests remain. This models a file replacement, not an
+executed full application backup/restore. Native acceptance remains pending.
+Child output uses plain Text plus cosmetic progress suppression, retaining useful
+information/stdout/stderr and structured checkpoints without CLIXML identity
+metadata. Regression asserts information/errors remain and CLIXML is absent.
+
+Local validation: final SCM/release modules 48 passed, 15 platform skips (63
+discovered); deployment 368 passed, 22 skips (390 discovered). Ruff, Markdown
+links, workflow contracts and whitespace passed. PowerShell compatibility/runtime
+is not executable here (no installed PowerShell); native tests are pending, not
+reported passed. No full regression, package rebuild or Actions was run. No
+retained failed Windows workspace was deleted or altered.
+
+Native verification from the repository root:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-delete-native.log --report build/scm-delete-native.json
+```
+
+Use the Windows Service guide's isolated-copy command for the actual retained
+file. Full native acceptance remains pending until cleanup and evidence read-back
+succeed against the verified package; a helper pass is not that claim.

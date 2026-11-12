@@ -136,8 +136,8 @@ function Remove-ScmWorkspace($Workspace) {
     $rootEntry=Get-Item -LiteralPath $root -Force
     if ($rootEntry.Attributes -band [IO.FileAttributes]::ReadOnly) { $rootEntry.Attributes=$rootEntry.Attributes -band (-bnot [IO.FileAttributes]::ReadOnly) }
     try {
-        Remove-Item -LiteralPath (Join-Path $root '.scm-cleanup-progress.json') -Force
-        Remove-Item -LiteralPath $marker -Force
+        Remove-ScmTestFile (Join-Path $root '.scm-cleanup-progress.json')
+        Remove-ScmTestFile $marker
         [IO.Directory]::Delete($root,$false)
     } catch {
         $primaryFailure=$_
@@ -247,6 +247,34 @@ function Copy-ScmBundle([string]$InputPath,$Workspace) {
     return $destination
 }
 
+function Remove-ScmTestFile([string]$Path) {
+    # Internal primitive: the caller first validates ownership with Assert-ScmTestPath.
+    if (-not [IO.Path]::IsPathRooted($Path)) { throw 'Use an absolute validated file path.' }
+    $api='File.GetAttributes-before-delete'
+    try {
+        # Require existence; File.Delete alone silently succeeds for an absent file.
+        $attributes=[IO.File]::GetAttributes($Path)
+        if ($attributes -band [IO.FileAttributes]::ReparsePoint -or $attributes -band [IO.FileAttributes]::Directory) { throw 'File deletion refuses directories and reparse points.' }
+        if ($attributes -band [IO.FileAttributes]::ReadOnly) {
+            $remaining=[int]$attributes -band (-bnot 1)
+            if ($remaining -eq 0) { $remaining=[int][IO.FileAttributes]::Normal }
+            $api='File.SetAttributes-clear-readonly'
+            [IO.File]::SetAttributes($Path,[IO.FileAttributes]$remaining)
+        }
+        $api='File.Delete'
+        [IO.File]::Delete($Path)
+        $api='File.GetAttributes-verify-deleted'
+        try {
+            $null=[IO.File]::GetAttributes($Path)
+            throw 'Deleted file still exists; cleanup refused.'
+        } catch [IO.FileNotFoundException] {
+        } catch [IO.DirectoryNotFoundException] {
+        }
+    } catch {
+        $_.Exception.Data['ScmApi']=$api
+        throw
+    }
+}
 function Remove-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
     $path=Assert-ScmTestPath $Workspace $Entry.FullName
     for ($attempt=0; $attempt -lt 5; $attempt++) {
@@ -256,8 +284,9 @@ function Remove-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
             Assert-NoReparse $current
             $operation='inspect attributes'
             $attributes=[int]$current.Attributes
-            # FileInfo deletion uses Remove-Item -Force; do not round-trip file
-            # attributes through FileInfo.set_Attributes (Windows ERROR_INVALID_PARAMETER).
+            if (($current -is [IO.DirectoryInfo]) -ne ($Entry -is [IO.DirectoryInfo])) { throw 'Cleanup entry type changed since enumeration.' }
+            # Directory.Delete needs explicit read-only handling; files use the
+            # guarded File.Delete helper, not the PowerShell filesystem provider.
             if ($current -is [IO.DirectoryInfo] -and ($attributes -band 1)) {
                 $operation='clear directory read-only'
                 $current.Attributes=[IO.FileAttributes]($attributes -band (-bnot 1))
@@ -265,15 +294,24 @@ function Remove-ScmTestEntry($Workspace,[IO.FileSystemInfo]$Entry) {
             $operation='delete entry'
 
             if ($Entry -is [IO.DirectoryInfo]) { [IO.Directory]::Delete($path,$false) }
-            else { Remove-Item -LiteralPath $path -Force -ErrorAction Stop }
+            else { Remove-ScmTestFile $path }
             return
         } catch {
+            $failureRecord=$_
             $failureException=$_.Exception
-            while ($failureException.InnerException) { $failureException=$failureException.InnerException }
+            $chain=New-Object 'System.Collections.Generic.List[string]'
+            $api='entry inspection/directory delete'
+            while ($failureException) {
+                if ($failureException.Data.Contains('ScmApi')) { $api=$failureException.Data['ScmApi'] }
+                $chain.Add($failureException.GetType().FullName+':'+($failureException.HResult -band 0xffff))
+                if (-not $failureException.InnerException) { break }
+                $failureException=$failureException.InnerException
+            }
             $code=$failureException.HResult -band 0xffff
             if ($code -notin @(5,32,33) -or $attempt -eq 4) {
                 $relative=$path.Substring($Workspace.Root.TrimEnd('\').Length+1)
-                throw "SCM cleanup failed: $relative ($($Entry.GetType().Name), code=$code, operation=$operation, attributes=$attributes). Workspace retained."
+                $detail="SCM cleanup failed: $relative ($($Entry.GetType().Name), code=$code, operation=$operation, attributes=$attributes, api=$api, error=$($failureRecord.FullyQualifiedErrorId), chain=$($chain -join ' -> ')). Workspace retained."
+                throw (New-Object System.Exception($detail,$failureRecord.Exception))
             }
             if ($code -eq 5) { Grant-ScmTestEntry $Workspace $Entry }
             # Only confirmed access/sharing/lock failures, bounded to 1.5s total backoff.
@@ -353,7 +391,12 @@ function Invoke-ScmManagementHost([string]$HostPath,[string]$EncodedCommand,[str
         # Own the original process handle. Start-Process -PassThru on Windows
         # PowerShell 5.1 can return a detached process with unavailable ExitCode.
         $child.StartInfo.FileName=$HostPath
-        $child.StartInfo.Arguments='-NoProfile -NonInteractive -EncodedCommand '+$EncodedCommand
+        # PowerShell 5.1 otherwise serializes information/progress metadata as
+        # CLIXML on redirected stderr, including host/user identifiers.
+        $payload=[Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($EncodedCommand))
+        $payload='$ProgressPreference=''SilentlyContinue''; '+$payload
+        $encodedText=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($payload))
+        $child.StartInfo.Arguments='-NoProfile -NonInteractive -OutputFormat Text -EncodedCommand '+$encodedText
         $child.StartInfo.UseShellExecute=$false
         $child.StartInfo.CreateNoWindow=$true
         $child.StartInfo.RedirectStandardOutput=$true

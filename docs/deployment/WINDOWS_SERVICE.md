@@ -433,8 +433,9 @@ service and a verified package. Packaging success alone is not that authorizatio
 
 ## SCM cleanup invalid-parameter diagnostics
 
-Cleanup removes files with `Remove-Item -LiteralPath -Force`; it does not first
-rewrite `FileInfo.Attributes`. Directory read-only handling is conditional.
+Cleanup removes validated files through `System.IO.File.Delete` with fresh
+attribute checks and a checked absence postcondition. Read-only clearing is
+conditional; Archive-only files are not rewritten. Directory handling is unchanged.
 Windows error 87 means invalid parameter, not evidence of a lock. It is never
 retried as a sharing violation. Failures retain the owner marker/workspace and
 report relative path, entry type, operation and captured attributes. Existing
@@ -558,3 +559,56 @@ directory records, directory bundles, existing parents/files, traversal entries
 and missing descendants beneath a junction. Run the helper command above on
 Windows PowerShell 5.1 before attempting another native SCM lifecycle. Linux
 contract tests do not establish native extraction or acceptance success.
+
+### Repeated retention.json delete failure and CLIXML
+
+The later native transcript localizes error 87 to the PowerShell provider's
+`Remove-Item -Force` deletion, after a fresh lookup reports Archive attributes
+(32). It does not retain the original provider exception, prove an open handle,
+or reproduce deletion of the same file independently. The guarded file primitive
+now uses direct .NET File.Delete, rejects missing files before deletion, rejects
+reparse/directory targets, clears only Read-only when present, and verifies absence
+without suppressing access errors. Stale enumeration objects are refreshed before
+use. Changed entry types fail. All ownership/boundary checks remain upstream.
+Error diagnostics retain the original exception and print its type/HRESULT chain,
+error identifier and precise API phase; code 87 is never ignored or retried.
+
+Child PowerShell uses `-OutputFormat Text` and disables cosmetic progress records.
+Useful information, authored structured checkpoints and stderr/errors are still
+captured. This avoids CLIXML information metadata containing user/host identifiers;
+it does not filter out errors or downgrade failed cleanup.
+
+Native helper verification (no SCM lifecycle):
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-delete-native.log --report build/scm-delete-native.json
+```
+
+Optional isolated-copy diagnosis in PowerShell, reading the retained original
+without deleting or modifying it. Do not upload original data files:
+
+```powershell
+. .\scripts\testing\windows-scm-test-helpers.ps1
+$original=Read-Host 'Absolute path to retained retention.json (read only)'
+$original=(Get-Item -LiteralPath $original -Force).FullName
+$before=(Get-FileHash -LiteralPath $original -Algorithm SHA256).Hash
+$copyWorkspace=New-ScmWorkspace ([IO.Path]::GetTempPath())
+$folder=Join-Path $copyWorkspace.Root 'data/.application-backups'
+[IO.Directory]::CreateDirectory($folder) | Out-Null
+$copy=Join-Path $folder 'retention.json'
+[IO.File]::Copy($original,$copy)
+try {
+    Remove-ScmTestEntry $copyWorkspace (Get-Item -LiteralPath $copy -Force)
+    if ((Get-FileHash -LiteralPath $original -Algorithm SHA256).Hash -ne $before) { throw 'Original file changed; preserve evidence.' }
+    Invoke-ScmCleanupWorker $copyWorkspace
+    Write-Host 'Isolated-copy deletion passed; original retained.'
+} catch {
+    Write-Warning ('Isolated-copy failure; preserve workspace: '+$copyWorkspace.Root)
+    throw
+}
+```
+
+This is not native SCM acceptance. A full native run must still complete cleanup
+and publish/read back the receipt. The 120-second deadline and no-existing-service
+guard remain unchanged; application backup-retention behavior was not modified.

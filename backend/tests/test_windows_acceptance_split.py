@@ -213,6 +213,17 @@ class ScmCleanupContracts(unittest.TestCase):
         self.assertIn('parent is not a directory',loop)
         self.assertNotIn('CreateDirectory',loop)
 
+    def test_file_delete_and_plain_text_child_contracts(self):
+        file_helper=self.helper[self.helper.index('function Remove-ScmTestFile'):self.helper.index('function Remove-ScmTestEntry')]
+        self.assertIn('[IO.File]::Delete($Path)',file_helper)
+        self.assertNotIn('Remove-Item',file_helper)
+        self.assertIn('[IO.File]::GetAttributes($Path)',file_helper)
+        self.assertIn('ReadOnly',file_helper)
+        self.assertIn('ReparsePoint',file_helper)
+        self.assertIn('System.Exception($detail,$failureRecord.Exception)',self.helper)
+        self.assertIn('-OutputFormat Text',self.helper)
+        self.assertIn("$ProgressPreference=''SilentlyContinue''",self.helper)
+
     def test_file_cleanup_avoids_attribute_roundtrip_and_reports_operation(self):
         self.assertIn('$current -is [IO.DirectoryInfo] -and ($attributes -band 1)', self.helper)
         self.assertIn('operation=$operation, attributes=$attributes',self.helper)
@@ -265,7 +276,7 @@ class EvidenceHostTests(unittest.TestCase):
 $ErrorActionPreference='Stop'
 $hostPath=(Get-Process -Id $PID).Path
 function Encode([string]$code) { return [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code)) }
-Invoke-ScmManagementHost $hostPath (Encode 'Write-Output "synthetic stdout"; [Console]::Error.WriteLine("synthetic stderr"); exit 0') 'success' 10
+Invoke-ScmManagementHost $hostPath (Encode 'Write-Output "synthetic stdout"; Write-Information "synthetic information" -InformationAction Continue; Write-Progress -Activity "cosmetic progress" -Status testing; [Console]::Error.WriteLine("synthetic stderr"); exit 0') 'success' 10
 $failed=$false
 try { Invoke-ScmManagementHost $hostPath (Encode 'exit 7') 'nonzero' 10 } catch { $failed=$_.Exception.Message -match 'exit 7' }
 if (-not $failed) { throw 'Nonzero exit was not propagated' }
@@ -284,6 +295,9 @@ if (-not $failed) { throw 'Running process was accepted' }
                 self.assertEqual(done.returncode,0,done.stdout+done.stderr)
                 self.assertIn('synthetic stdout',done.stdout)
                 self.assertIn('synthetic stderr',done.stdout)
+                self.assertIn('synthetic information',done.stdout)
+                self.assertNotIn('#< CLIXML',done.stdout+done.stderr)
+                self.assertNotIn('<Objs',done.stdout+done.stderr)
 
 
 
@@ -339,7 +353,7 @@ if (Test-Path (Join-Path $workspace.Parent 'test-receipt.json')) { throw 'False 
 $folder=Join-Path $workspace.Root 'data/.application-backups'
 New-Item -ItemType Directory -Path $folder -Force | Out-Null
 $path=Join-Path $folder 'retention.json'
-foreach ($attribute in @([IO.FileAttributes]::Normal,[IO.FileAttributes]::ReadOnly)) {
+foreach ($attribute in @([IO.FileAttributes]::Normal,[IO.FileAttributes]::Archive,[IO.FileAttributes]::ReadOnly,([IO.FileAttributes]::Archive -bor [IO.FileAttributes]::ReadOnly))) {
     [IO.File]::WriteAllText($path,'{"synthetic":true}')
     [IO.File]::SetAttributes($path,$attribute)
     Remove-ScmTestEntry $workspace (Get-Item -LiteralPath $path -Force)
@@ -361,6 +375,62 @@ if (-not $rejected) { throw 'Outside path was not rejected.' }
 Remove-ScmWorkspace $workspace
 if (Test-Path -LiteralPath $workspace.Root) { throw 'Workspace remains.' }
 """, parent, shell)
+
+    def test_archive_retention_stale_metadata_and_missing_file(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$folder=Join-Path $workspace.Root 'data/.application-backups'
+[IO.Directory]::CreateDirectory($folder) | Out-Null
+$path=Join-Path $folder 'retention.json'
+[IO.File]::WriteAllText($path,'{"revision":1}')
+[IO.File]::SetAttributes($path,[IO.FileAttributes]::Archive)
+$stale=Get-Item -LiteralPath $path -Force
+# Copy/replace and then modify as a restored file, leaving the enumeration stale.
+$backup=Join-Path $folder 'retention-copy.json'
+[IO.File]::Copy($path,$backup)
+[IO.File]::Delete($path)
+[IO.File]::Copy($backup,$path)
+[IO.File]::WriteAllText($path,'{"revision":2,"restored":true}')
+[IO.File]::SetAttributes($path,[IO.FileAttributes]::Archive)
+Remove-ScmTestEntry $workspace $stale
+if (Test-Path -LiteralPath $path) { throw 'Restored Archive file remains' }
+$failed=$false
+try { Remove-ScmTestEntry $workspace $stale } catch { $failed=$true }
+if (-not $failed) { throw 'Missing file silently skipped' }
+""",parent,shell)
+
+    def test_direct_file_delete_propagates_access_denied(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$folder=Join-Path $workspace.Root 'denied'
+[IO.Directory]::CreateDirectory($folder) | Out-Null
+$path=Join-Path $folder 'retention.json'
+[IO.File]::WriteAllText($path,'{}')
+$folderAcl=Get-Acl -LiteralPath $folder
+$fileAcl=Get-Acl -LiteralPath $path
+$sid=New-Object Security.Principal.SecurityIdentifier($workspace.Sid)
+try {
+    $draft=Get-Acl -LiteralPath $folder
+    $draft.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid,'DeleteSubdirectoriesAndFiles','Deny')))
+    Set-Acl -LiteralPath $folder -AclObject $draft
+    $draft=Get-Acl -LiteralPath $path
+    $draft.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule($sid,'Delete','Deny')))
+    Set-Acl -LiteralPath $path -AclObject $draft
+    $null=Assert-ScmTestPath $workspace $path
+    $failed=$false
+    try { Remove-ScmTestFile $path } catch {
+        $leafError=$_.Exception
+        while ($leafError.InnerException) { $leafError=$leafError.InnerException }
+        $failed=($leafError.HResult -band 0xffff) -eq 5
+    }
+    if (-not $failed -or -not (Test-Path -LiteralPath $path)) { throw 'Access denial was ignored' }
+} finally {
+    Set-Acl -LiteralPath $path -AclObject $fileAcl
+    Set-Acl -LiteralPath $folder -AclObject $folderAcl
+}
+""",parent,shell)
 
     def test_missing_parents_are_validated_without_creation(self):
         for shell in SHELLS:
