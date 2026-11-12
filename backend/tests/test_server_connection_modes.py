@@ -132,11 +132,16 @@ class ServiceManagerContract(unittest.TestCase):
         self.assertIn('Quote(path), Json.Serialize(payload)',self.SOURCE)
         self.assertIn('if (registered) Acl(path, false, false)',self.SOURCE)
         self.assertIn('current["SAP_LENS_AUTH"] == "users" ? AccountFile(current) : Users',self.SOURCE)
-        self.assertIn('{"SAP_LENS_USERS_FILE",accountFile}',self.SOURCE)
-        self.assertIn('File.Exists(accountFile) && !String.IsNullOrEmpty(password)',self.SOURCE)
-        self.assertIn('Use Save account to change a password',self.SOURCE)
-        self.assertIn('A blank password preserves the existing password',self.SOURCE)
-        self.assertIn('without restarting the service',self.SOURCE)
+        self.assertIn('if (auth == "users") settings["SAP_LENS_USERS_FILE"] = accountFile;',self.SOURCE)
+        # Normal account/password/role administration moved into the application;
+        # legacy helpers remain for controlled compatibility, not visible actions.
+        self.assertNotIn('Button(actions,"Save account"',self.SOURCE)
+        self.assertNotIn('Add(table,"Password"',self.SOURCE)
+        self.assertNotIn('Add(table,"Account role"',self.SOURCE)
+        self.assertIn('Button(actions,"First-run activation code"',self.SOURCE)
+        self.assertIn('Button(actions,"Recover administrator"',self.SOURCE)
+        self.assertIn('"--initialize-identity " + Quote(data)',self.SOURCE)
+        self.assertIn('auth == "sessions" && !https && HttpNeedsAcknowledgement',self.SOURCE)
         self.assertNotIn('"--manage-user " + Quote(Users)',self.SOURCE)
 
     def test_three_explicit_modes_with_https_self_signed_as_the_default(self):

@@ -1,4 +1,4 @@
-import { apiRequest } from './client'
+import { apiRequest, configurationPath } from './client'
 
 export interface ThemePalette { primary:string;accent:string;secondary:string;background:string;surface:string;text:string }
 export interface ThemePreset { name:string;mode:'light'|'dark';colors:ThemePalette }
@@ -16,7 +16,7 @@ export interface ConfigurationResponse { progress?:{stage:string;source:string|n
 export interface RegistryEntry { id: string; abbreviation: string; name: string; category: string; parent: string | null; aliases: string[]; icon: string; color: string; enabled: boolean; display_name: string | null; default_color?: string; default_icon?: string; default_name?: string }
 export interface RegistryResponse { modules: RegistryEntry[]; icons: string[]; reference_note: string }
 export interface ImportReport { file_name: string; detected_columns: string[]; parsed_rows: number; unique_roles: number; unique_transactions: number; transaction_assignments: number; duplicate_rows: number; warnings: string[]; errors: string[]; samples: Record<string,string>[]; analysis: Record<string,unknown> }
-export const fetchConfiguration = () => apiRequest<ConfigurationResponse>('/api/configuration')
+export const fetchConfiguration = () => apiRequest<ConfigurationResponse>(configurationPath())
 export const saveConfiguration = (settings: Configuration) => apiRequest<ConfigurationResponse>('/api/configuration','POST',settings)
 export const fetchRegistry = () => apiRequest<RegistryResponse>('/api/registry/modules')
 export const previewImport = (path: string, profile: ImportProfile) => apiRequest<ImportReport>('/api/import/preview','POST',{data_csv_path:path,profile})

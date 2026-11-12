@@ -20,6 +20,13 @@ try {
 if (fragment.has('session')) window.history.replaceState(null, '', window.location.pathname + window.location.search)
 
 export function applicationToken(): string { return desktopSession || '1' }
+let sessionRole: string | null = null
+export function setSessionRole(role: string | null) { sessionRole = role }
+export function configurationPath() { return sessionRole && sessionRole !== 'administrator' ? '/api/presentation' : '/api/configuration' }
+export function applicationHeaders(): Record<string,string> {
+  const csrf = document.cookie.split('; ').find(value=>value.startsWith('sap-lens-csrf='))?.slice('sap-lens-csrf='.length)
+  return {'X-SAP-Lens': applicationToken(), ...(csrf ? {'X-SAP-Lens-CSRF': decodeURIComponent(csrf)} : {})}
+}
 const STALE_MESSAGE = 'SAP Lens restarted and your previous local session is no longer valid. Reconnect to continue.'
 
 /** Failure classes the UI can explain: network (no response), server (5xx), client (4xx) and format (a response that is not the expected JSON). */
@@ -69,7 +76,7 @@ const apiClient = {
     const timer = method === 'GET' ? setTimeout(()=>controller.abort(),10000) : undefined
     try { response = await fetch(path, {
       method, signal: controller.signal,
-      headers: { 'Content-Type': 'application/json', 'X-SAP-Lens': applicationToken() },
+      headers: { 'Content-Type': 'application/json', ...applicationHeaders() },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
     }) } catch (error) { recordSession('network'); throw new ApiError(error instanceof DOMException&&error.name==='AbortError' ? 'The read request timed out. The backend may still be running; retry this read.' : 'SAP Lens could not connect. Retry and check the backend service if the problem persists.', 'network') }
@@ -85,6 +92,7 @@ const apiClient = {
     if (seen === 'newer') for (const listener of [...revisionListeners]) listener()
     if (!response.ok) {
       const reference=response.headers.get('X-Request-ID')||''
+      if(response.status===401 && sessionRole) window.dispatchEvent(new Event('sap-lens-sign-in-required'))
       if(response.status===403&&(data as {code?:string}|undefined)?.code==='stale_session'){recordSession('stale');throw new ApiError(STALE_MESSAGE,'session',403)}
       throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status===401?'authentication':response.status===403?'permission':response.status >= 500 ? 'server' : 'client', response.status, parsed ? (data as { detail?: unknown } | undefined)?.detail : undefined)
     }

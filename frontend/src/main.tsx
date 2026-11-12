@@ -7,6 +7,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ModuleRegistryProvider } from './components/Modules/ModuleRegistry'
 import { StartupGate, FrontendRecoveryBoundary } from './components/Layout/StartupGate'
 import { App } from './App'
+import { AuthenticationGate } from './components/Auth/Authentication'
 import './index.css'
 import './styles/components.css'
 import { ApiError } from './api/client'
@@ -34,7 +35,7 @@ installFocusReveal()
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <ModuleRegistryProvider><ViewHistory><ApplicationDataProvider><FrontendRecoveryBoundary><StartupGate><SodReviewNavigationProvider><App /></SodReviewNavigationProvider></StartupGate></FrontendRecoveryBoundary></ApplicationDataProvider></ViewHistory></ModuleRegistryProvider>
+      <AuthenticationGate><ModuleRegistryProvider><ViewHistory><ApplicationDataProvider><FrontendRecoveryBoundary><StartupGate><SodReviewNavigationProvider><App /></SodReviewNavigationProvider></StartupGate></FrontendRecoveryBoundary></ApplicationDataProvider></ViewHistory></ModuleRegistryProvider></AuthenticationGate>
     </QueryClientProvider>
   </StrictMode>
 )

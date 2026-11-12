@@ -1,3 +1,5 @@
+import {UserManagement} from './UserManagement'
+import {useAuthentication} from '@/components/Auth/Authentication'
 import type { ReactNode } from 'react'
 import {Button} from '@/components/Shared/Button'
 import {BackupRestore} from './BackupRestore'
@@ -64,7 +66,7 @@ import {
 import { ReportBranding } from './ReportBranding'
 import { DISCARD_PROMPT, setSettingsDirty } from '@/lib/settingsGuard'
 const ComponentLibrary=lazy(()=>import('./ComponentLibrary').then(module=>({default:module.ComponentLibrary})))
-const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock, Archive, UsersRound]
+const sectionIcons = [Building2, Database, Layers, Palette, Activity, BookUser, Info, Layers, ShieldCheck, Clock, Archive, UsersRound, UsersRound]
 const sections = [
   'Organization & SAP System',
   'Data Sources',
@@ -77,9 +79,10 @@ const sections = [
   'SoD Risk Configuration',
   'Runtime & Scheduling',
   'Backup & Restore',
-  'Functional Groups'
+  'Functional Groups',
+  'User Management'
 ]
-const navigationOrder=[0,3,1,2,8,11,5,9,10,4,7,6]
+const allNavigation=[0,3,1,2,8,11,5,9,10,4,7,12,6]
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -122,6 +125,8 @@ export function SettingsView({
   onDataChanged: () => void
   onSaved: () => void
 }) {
+  const auth=useAuthentication()
+  const navigationOrder=allNavigation.filter(index=>index!==12||auth.session&&auth.canAdmin)
   const applicationData=useApplicationData()
   const [section, setSection] = useState(0)
   const [importSource, setImportSource] = useState<CSVSource>('roles')
@@ -636,7 +641,7 @@ export function SettingsView({
               aria-labelledby={`settings-tab-${section}`}
               className="space-y-5 min-w-0"
             >
-              {section === 10 ? <BackupRestore/> : !draft ? (
+              {section === 12 ? <UserManagement/> : section === 10 ? <BackupRestore/> : !draft ? (
                 <p>Loading settings…</p>
               ) : (
                 <>
@@ -1104,7 +1109,7 @@ export function SettingsView({
             </div>
           </div>
         </div>
-        <div className={section===7||section===8||section===10||section===11?'hidden':'settings-actions'}>
+        <div className={section===7||section===8||section===10||section===11||section===12?'hidden':'settings-actions'}>
           <p role="status" className="text-xs text-[var(--muted)] mr-auto">
             {draft &&
             (['dark', 'light'] as const).some(

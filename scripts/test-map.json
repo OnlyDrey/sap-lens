@@ -261,6 +261,7 @@
     "backup-time-format",
     "sod-role-evidence-review",
     "session-recovery",
+    "authentication",
     "tooltip-visibility",
     "startup-recovery",
     "shared-ui-r5",

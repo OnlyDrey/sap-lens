@@ -1,4 +1,4 @@
-import {apiRequest,applicationToken} from './client'
+import {apiRequest,applicationHeaders} from './client'
 import type {Configuration,ImportProfile} from './configuration'
 import type {RefreshSummary} from '@/components/Shared/RefreshReport'
 export type CSVSource='roles'|'users'|'employees'|'sod'
@@ -29,7 +29,7 @@ export async function uploadSource(source:CSVSource,selection:SourceSelection,fi
  const body=new FormData();body.append('file',file);body.append('revision',String(selection.revision))
  if(selection.profile)body.append('profile',JSON.stringify(selection.profile))
  if(selection.confirm_anomalies)body.append('confirm_anomalies','true')
- const response=await fetch(`/api/server/uploads/${source}/activate`,{method:'POST',headers:{'X-SAP-Lens':applicationToken()},body,credentials:'same-origin'})
+ const response=await fetch(`/api/server/uploads/${source}/activate`,{method:'POST',headers:{...applicationHeaders()},body,credentials:'same-origin'})
  const data=await response.json()
  if(!response.ok){const failure=Error(typeof data.detail==='string'?data.detail:data.detail?.message??'CSV upload or validation failed. Previous data is retained.') as Error&{detail?:unknown};failure.detail=data.detail;throw failure}
  return data as SourceActivation

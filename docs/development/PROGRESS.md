@@ -2376,3 +2376,38 @@ includes restart, code replay/expiry/attempts, simultaneous setup, corrupt/popul
 roots, CLI isolation and cross-origin rejection. C# source integration is present
 but native compilation/manager execution is pending. No native Windows/SCM,
 packaging, browser or full suite was run in this phase. Phases 4–8 remain pending.
+
+Phase 4 implements the application activation/login/reset/recovery forms, User
+Management (search, role/status filters, create/edit, confirmed role/status changes,
+reset-code issuance, revocation, audit), and My Profile (display name, password,
+sessions/logout). Authentication gates mount before dataset/configuration
+providers. Expired/revoked sessions clear cached user data and return to login;
+no failed write is replayed. The shared API, CSV uploads, reference uploads and
+report downloads send the session CSRF header. Viewer/Reviewer presentation
+settings exclude private source paths. Administrative Settings/refresh controls
+are disabled for these roles; permissions are independently enforced by backend.
+
+Service Manager removes normal account/password/role controls, preserves legacy
+helpers for controlled compatibility, adds local activation/recovery actions and
+initializes a fresh session identity store before log/source folder creation.
+Saving an existing service preserves its authentication mode and account file;
+populated migration remains Phase 7. No installed service or user data was changed.
+Remote session passwords require HTTPS, including manager validation.
+
+Expanded browser validation discovered a real shared Dialog ownership defect:
+a confirmation and reset-code dialog overlapped during React state publication,
+so per-instance inert restoration could leave the root permanently inert after
+both closed. Stack-owned isolation now restores the original state only after the
+last dialog closes; only the top dialog traps keys and focus. The reset workflow
+asserts root recovery and subsequent real clicks, without force-click/timeouts.
+
+Validation: 31 targeted auth/provisioning/server-manager-contract backend tests
+passed; 30 auth/provisioning/configuration tests passed after integration changes,
+zero skips. Initial basic browser workflow passed. Expanded browser run found the
+Dialog defect (1 failed, 7 session-recovery tests passed). After correction the
+expanded auth workflow passed, then auth + shared ConfirmDialog passed 2/2, then
+auth theme/visual verification passed 1/1. Production TypeScript/build passed;
+Ruff, affected ESLint, documentation and ownership/whitespace checks passed.
+375/800/1280/1600 settings overflow checks passed; login screenshots inspected in
+light/dark at 375. No full suite, native C#/PowerShell/Windows installer/SCM, real
+systemd or Docker acceptance was run. Phases 5–8 remain pending.

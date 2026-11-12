@@ -132,3 +132,18 @@ class SessionApiTests(unittest.TestCase):
             self.assertEqual(response.status_code,200,response.text)
             self.assertFalse(client.get('/api/auth/state').json()['setup_required'])
             self.assertNotEqual(client.post('/api/auth/activate',json=body,headers={'X-SAP-Lens':'1'}).status_code,200)
+
+    def test_viewer_receives_only_presentation_settings(self):
+        from unittest.mock import patch
+        from config_models import AppConfig
+        admin=self.store.login('admin',PASSWORD,'fixture')[0]
+        self.store.create_user(admin,'viewer','Viewer','viewer',PASSWORD)
+        self.login('viewer')
+        self.assertEqual(self.client.get('/api/configuration').status_code,403)
+        config=AppConfig(data_csv_path='/private/synthetic-source.csv')
+        with patch('configuration_routes.get_settings',return_value=config):
+            response=self.client.get('/api/presentation')
+        self.assertEqual(response.status_code,200,response.text)
+        self.assertNotIn('/private/',response.text)
+        self.assertEqual(response.json()['settings']['data_csv_path'],'')
+        self.assertEqual(self.client.get('/api/branding/preview?path=/private/image.png').status_code,403)

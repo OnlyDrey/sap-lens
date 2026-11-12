@@ -133,6 +133,10 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         @app.exception_handler(AuthError)
         async def authentication_failure(request, error):
             return JSONResponse({'detail': error.code, 'code': error.code}, status_code=error.status, headers={'Cache-Control': 'no-store'})
+    else:
+        @app.get('/api/auth/state')
+        def passwordless_authentication_state():
+            return {'provider': 'desktop' if not server or server.auth == 'local' else 'legacy', 'setup_required': False}
     app.add_middleware(RequestBodyLimit)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=list(server.hosts) if server else ['127.0.0.1', 'localhost'])
     app.add_middleware(

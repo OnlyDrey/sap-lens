@@ -20,6 +20,19 @@ def run():
             step = getattr(error, 'step', 'configuration')
             print(f'Invalid server configuration at step "{step}": {getattr(error, "detail", f"{type(error).__name__}: {error}")}', file=sys.stderr)
             return 1
+    if sys.argv[1:2] == ['--initialize-identity']:
+        try:
+            if len(sys.argv) != 3 or not Path(sys.argv[2]).is_absolute():
+                raise ValueError('Specify an absolute data directory.')
+            from storage_lease import StorageLease
+            from auth_provisioning import prepare
+            lease=StorageLease(Path(sys.argv[2]),'server').acquire()
+            try: prepare(Path(sys.argv[2]))
+            finally: lease.close()
+            return 0
+        except (ValueError, OSError, RuntimeError):
+            print('Identity initialization refused. Existing data was preserved; check migration and storage permissions.',file=sys.stderr)
+            return 1
     if sys.argv[1:2] == ['--identity-code']:
         from auth_provisioning import cli
         return cli(sys.argv[2:])

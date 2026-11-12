@@ -1,5 +1,6 @@
+import {useAuthentication,MyProfile} from '@/components/Auth/Authentication'
 import { ApplicationFooter } from '@/components/Shared/ApplicationFooter'
-import { IconButton } from '@/components/Shared/Button'
+import { Button, IconButton } from '@/components/Shared/Button'
 import { ExportNotice } from '@/components/Shared/ExportNotice'
 import { RefreshBanner } from '@/components/Shared/RefreshReport'
 import { useApplicationData } from '@/state/ApplicationData'
@@ -29,6 +30,7 @@ export function AppLayout({
   isDark,
   onToggleTheme
 }: Props) {
+  const auth=useAuthentication(),[profileOpen,setProfileOpen]=useState(false)
   const dataState=useApplicationData()
   const sessionIssue = ['manual', 'failed', 'reconnecting', 'disconnected'].includes(useSession().phase) // SessionNotice owns every connection or session message
   const configurationQuery = useQuery({
@@ -129,9 +131,10 @@ export function AppLayout({
           <div className="min-w-0">{navigation}</div>
 
           <div className="app-utilities">
-            <IconButton label={isDark?'Switch to light mode':'Switch to dark mode'} variant="ghost" disabled={themeBusy||settingsOpen} loading={themeBusy} onClick={()=>{setErr(null);setThemeBusy(true);void onToggleTheme().catch(e=>setErr(e instanceof Error?e.message:'Could not save the theme.')).finally(()=>setThemeBusy(false))}}>{!themeBusy&&(isDark?<Sun size={17} aria-hidden="true"/>:<Moon size={17} aria-hidden="true"/>)}</IconButton>
-            <IconButton label="Open settings" tooltip="Settings" variant="ghost" onClick={()=>setSettingsOpen(true)}><Settings size={17} aria-hidden="true"/></IconButton>
-            <IconButton label={busy?'Refreshing data':'Refresh role data from CSV'} tooltip="Refresh data" variant="ghost" disabled={busy||settingsOpen} loading={busy} onClick={()=>void handleRefresh()}>{!busy&&<RefreshCw size={17} aria-hidden="true"/>}</IconButton>
+            <IconButton label={isDark?'Switch to light mode':'Switch to dark mode'} variant="ghost" disabled={!auth.canAdmin||themeBusy||settingsOpen} loading={themeBusy} onClick={()=>{setErr(null);setThemeBusy(true);void onToggleTheme().catch(e=>setErr(e instanceof Error?e.message:'Could not save the theme.')).finally(()=>setThemeBusy(false))}}>{!themeBusy&&(isDark?<Sun size={17} aria-hidden="true"/>:<Moon size={17} aria-hidden="true"/>)}</IconButton>
+            {auth.session&&<Button onClick={()=>setProfileOpen(true)}>My Profile</Button>}
+            <IconButton disabled={!auth.canAdmin} label="Open settings" tooltip="Settings" variant="ghost" onClick={()=>setSettingsOpen(true)}><Settings size={17} aria-hidden="true"/></IconButton>
+            <IconButton label={busy?'Refreshing data':'Refresh role data from CSV'} tooltip="Refresh data" variant="ghost" disabled={!auth.canAdmin||busy||settingsOpen} loading={busy} onClick={()=>void handleRefresh()}>{!busy&&<RefreshCw size={17} aria-hidden="true"/>}</IconButton>
           </div>
         </div>
 
@@ -139,7 +142,8 @@ export function AppLayout({
         {err && <Notification variant="error" onDismiss={()=>setErr(null)}>{err}</Notification>}
       </header>
 
-      {(settingsOpen || settingsMounted) && <Suspense fallback={null}>
+      {profileOpen&&<MyProfile onClose={()=>setProfileOpen(false)}/>}
+      {auth.canAdmin&&(settingsOpen || settingsMounted) && <Suspense fallback={null}>
       <SettingsView
         applicationFooter={<ApplicationFooter version={application?.version} mode={application?.mode} note={organization?.footer}/>}
         open={settingsOpen}

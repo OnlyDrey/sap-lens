@@ -715,3 +715,27 @@ curl.exe --silent --show-error --user $name --write-out "`nHTTP %{http_code}`n" 
 No restart or password change is performed by this request. Do not share its
 password prompt input or unredacted identity response. Service Running plus 401
 alone cannot identify which account store, credentials or browser cache caused it.
+
+## Session-account Service Manager rollout
+
+The session-enabled manager creates a fresh identity store through the packaged
+runtime before generating logs/source subdirectories, then starts the same
+headless server. It has **First-run activation code** and controlled
+**Recover administrator** actions; normal account/password/role editing belongs
+in **SAP Lens → Settings → User Management**. **My Profile** manages the signed-in
+user's password and sessions. See [application accounts](../getting-started/CONFIGURATION.md#application-accounts-session-authenticated-servers).
+
+Existing service configurations retain their selected authentication mode and
+account-file location when technical settings are saved. The application account
+migration remains a required separate rollout gate; saving configuration does
+not reset or silently replace legacy credentials. The old account instructions
+above describe legacy packages and remain historical compatibility guidance.
+A fresh session installation requires HTTPS for remote passwords; unencrypted
+HTTP is restricted to a loopback listener and loopback browser name.
+
+The manager still owns service lifecycle, binding/port, data directory, TLS and
+technical diagnostics. Recovery only issues a code for an existing administrator;
+it does not create another account or read an old password. The verified bundle
+and installation-ownership checks run before activation commands. Native C#
+compilation, fresh service registration and browser activation have not yet been
+accepted on Windows for this development version.

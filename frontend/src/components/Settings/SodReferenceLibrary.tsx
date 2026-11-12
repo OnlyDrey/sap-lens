@@ -2,7 +2,7 @@ import { RotateCcw, FileUp, FileDown } from 'lucide-react'
 import { downloadFile } from '@/api/sod'
 import { useRef, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiRequest, applicationToken } from '@/api/client'
+import { apiRequest, applicationHeaders } from '@/api/client'
 import { Dialog } from '@/components/Shared/Dialog'
 import { Button } from '@/components/Shared/Button'
 import { formatTimestamp } from '@/lib/dateFormat'
@@ -23,7 +23,7 @@ export function SodReferenceLibrary() {
     setBusy(true)
     try {
       const body = new FormData(); body.append('file', file); body.append('revision', String(query.data.revision))
-      const response = await fetch('/api/sod/reference/upload', { method: 'POST', headers: { 'X-SAP-Lens': applicationToken() }, body, credentials: 'same-origin' })
+      const response = await fetch('/api/sod/reference/upload', { method: 'POST', headers: { ...applicationHeaders() }, body, credentials: 'same-origin' })
       const value = await response.json() as Library & { detail?: string }
       if (!response.ok) throw new Error(typeof value.detail==='string'?value.detail:'Reference import failed; previous definitions are retained.')
       qc.setQueryData(['sod-reference'], value)

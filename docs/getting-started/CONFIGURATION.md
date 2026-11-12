@@ -147,3 +147,34 @@ Settings → Backup & Restore is separate from portable configuration export. It
 imported snapshots and review history and uses a coordinated restart rather than live
 replacement. See [Backup & Restore](../deployment/BACKUP_RESTORE.md) for administrator
 access, protected destination credentials, Static source recovery and unencrypted-archive handling.
+
+## Application accounts (session-authenticated servers)
+
+New session-enabled servers show an SAP Lens activation/sign-in page. Obtain the
+first-run code locally as described in [deployment security](../deployment/SECURITY.md#session-authentication-activation-opt-in-development-rollout).
+There are no default credentials. Remote sign-in requires HTTPS; explicit
+loopback-only HTTP remains supported. Legacy populated installations require the
+account migration phase before selecting the new boundary.
+
+An Administrator uses **Settings → User Management** to create accounts, change
+roles/status, revoke sessions and issue single-use password-reset codes. Role or
+status changes require confirmation and invalidate existing sessions. The last
+enabled Administrator cannot be disabled or demoted. Accounts are retained for
+historical attribution. Reset codes are shown once and must be shared privately.
+An administrator changes their own password through My Profile rather than
+issuing a reset code for themselves. Security audit entries contain public actor
+metadata and operation identifiers, never passwords or session tokens.
+
+**My Profile** shows the authenticated username/role, editable display name,
+password-change controls and active sessions. Signing out other sessions keeps
+the current one. Changing a password signs out every session. Expired or revoked
+sessions return to the application sign-in page; failed writes are never replayed.
+Cookies are HttpOnly for authentication and bound to a server-side CSRF verifier
+for writes. Authentication tokens are not stored in browser localStorage.
+
+Reviewers may perform review/approval operations and authorized exports. Viewers
+can read/search/compare and export permitted reports. Both receive presentation
+settings without private server source paths; administrative Settings and refresh
+controls are unavailable. Backend permissions enforce these restrictions even
+when requests are sent directly. Passwordless Desktop keeps its existing startup
+flow and does not show server User Management.

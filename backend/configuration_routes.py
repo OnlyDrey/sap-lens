@@ -125,6 +125,22 @@ def configuration_router(loader, desktop_preferences=None):
                 'loading':loader.loading, 'progress':loader.progress, 'error':loader.error, 'analysis':state.analysis,
                 'data_revision':state.last_loaded.isoformat() if state.last_loaded else 'empty', 'data_generation':cache.revision_token(), 'instance_id':INSTANCE_ID}
 
+    @router.get('/presentation')
+    def presentation():
+        # Read-only UI configuration excludes paths, source profiles, diagnostics
+        # and host/security settings. Never serialize private settings then redact.
+        current = get_settings()
+        safe = AppConfig().model_dump()
+        for key in ('organization','theme','theme_colors','logo_id','module_overrides','features','employee_snapshot_id'):
+            safe[key] = getattr(current,key)
+            if hasattr(safe[key], 'model_dump'):
+                safe[key] = safe[key].model_dump()
+        state = cache.get_snapshot()
+        return {'settings':safe, 'notice':None, 'loading':loader.loading,
+                'progress':None, 'error':None, 'analysis':{},
+                'data_revision':state.last_loaded.isoformat() if state.last_loaded else 'empty',
+                'instance_id':INSTANCE_ID}
+
     @router.post('/configuration')
     async def write_config(config: AppConfig):
         return await apply(config,config.revision)

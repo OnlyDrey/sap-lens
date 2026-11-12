@@ -204,12 +204,10 @@ namespace SapLens {
         public static bool IsLoopbackName(string host) { IPAddress ip; return host == "localhost" || (IPAddress.TryParse(host, out ip) && IPAddress.IsLoopback(ip)); }
         // HTTP carries passwords and data unencrypted: binding it beyond this computer needs an explicit acknowledgement. It is never chosen for an existing HTTPS installation automatically.
         public static bool HttpNeedsAcknowledgement(string listener, string[] hosts) { IPAddress address; return !(IPAddress.TryParse(listener, out address) && IPAddress.IsLoopback(address)) || hosts.Any(h => !IsLoopbackName(h)); }
-        public static void Save(string hostsText, int port, string data, string listener, string mode, string cert, string key, string admin, string password, bool acknowledgeHttp) {
+        public static void Save(string hostsText, int port, string data, string listener, string mode, string cert, string key, bool acknowledgeHttp) {
             VerifyBundle(); string state = Status(); bool installed = state != "Not registered";
             var current = installed ? Settings() : null;
             string accountFile = current != null && current.ContainsKey("SAP_LENS_AUTH") && current["SAP_LENS_AUTH"] == "users" ? AccountFile(current) : Users;
-            if (File.Exists(accountFile) && !String.IsNullOrEmpty(password))
-                throw new InvalidOperationException("Register / save updates service configuration, not existing passwords. Use Save account to change a password, or clear the password field to keep existing credentials.");
             if (current != null && current.ContainsKey("SAP_LENS_AUTH") && current["SAP_LENS_AUTH"] == "users" && !File.Exists(accountFile))
                 throw new InvalidOperationException("The configured account file is unavailable; it will not be recreated or reset automatically.");
             if (port < 1 || port > 65535) throw new ArgumentException("Use a port from 1 to 65535.");
@@ -228,11 +226,10 @@ namespace SapLens {
             if (installed && !String.Equals(Settings()["SAP_LENS_DATA_DIR"], data, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Data relocation requires a stopped-service backup/migration. The existing data location was preserved.");
             if (!installed && File.Exists(Config)) throw new InvalidOperationException("An existing service configuration is preserved. Review it before registering again.");
             Directory.CreateDirectory(PrivateRoot); PrivateAcl(PrivateRoot);
-            if (!File.Exists(accountFile)) {
-                if (String.IsNullOrWhiteSpace(admin) || password.Length < 14) throw new ArgumentException("Create an initial administrator with a password of at least 14 characters.");
-                SaveUser(accountFile, admin, password, "administrator", true, installed);
-            }
+            string auth = current != null && current.ContainsKey("SAP_LENS_AUTH") ? current["SAP_LENS_AUTH"] : "sessions";
             bool https = mode != ModeHttp;
+            if (auth == "sessions" && !https && HttpNeedsAcknowledgement(listener, hosts))
+                throw new ArgumentException("Session passwords require HTTPS for remote access. Choose HTTPS or use a loopback-only listener and hostname.");
             if (!https) {
                 if (HttpNeedsAcknowledgement(listener, hosts) && !acknowledgeHttp) throw new ArgumentException("HTTP is not encrypted: passwords and data cross the network in clear text. Confirm the acknowledgement to bind HTTP beyond this computer.");
                 cert = ""; key = "";  // HTTP mode never carries or generates a certificate
@@ -247,8 +244,9 @@ namespace SapLens {
             }
             var settings = new Dictionary<string,string> { {"SAP_LENS_DEPLOYMENT_MODE","server"}, {"SAP_LENS_HOST",listener}, {"SAP_LENS_PORT",port.ToString()},
                 {"SAP_LENS_DATA_DIR",data}, {"SAP_LENS_SOURCE_DIR",Path.Combine(data,"sources")}, {"SAP_LENS_PUBLIC_ORIGIN",(https ? "https://" : "http://") + hosts[0] + ":" + port},
-                {"SAP_LENS_ALLOWED_HOSTS",String.Join(",",hosts)}, {"SAP_LENS_AUTH","users"}, {"SAP_LENS_USERS_FILE",accountFile},
+                {"SAP_LENS_ALLOWED_HOSTS",String.Join(",",hosts)}, {"SAP_LENS_AUTH",auth},
                 {"SAP_LENS_LOG_LEVEL","info"} };
+            if (auth == "users") settings["SAP_LENS_USERS_FILE"] = accountFile;
             if (https) { settings["SAP_LENS_TLS_CERT_FILE"] = cert; settings["SAP_LENS_TLS_KEY_FILE"] = key; }
             else if (HttpNeedsAcknowledgement(listener, hosts)) settings["SAP_LENS_ALLOW_HTTP"] = "1";
             // Validate TLS key/certificate matching and all SANs with the actual packaged runtime before activation.
@@ -257,8 +255,10 @@ namespace SapLens {
             try { ValidateRuntime(settings); }
             catch { if (old == null) File.Delete(Config); else File.WriteAllText(Config, old); throw; }
             if (!installed) { Run(Wrapper, "install", null); Run("sc.exe", "sidtype SAPLens unrestricted", null); }
-            Directory.CreateDirectory(data); Directory.CreateDirectory(Path.Combine(data,"logs")); Directory.CreateDirectory(Path.Combine(data,"sources"));
-            Acl(data, true, true); Acl(PrivateRoot, false, true); Acl(accountFile, false, false); if (https) Acl(key, false, false);
+            Directory.CreateDirectory(data); Acl(data, true, true);
+            if (!installed && auth == "sessions") Run(Path.Combine(Root, @"app\SAP-Lens.exe"), "--initialize-identity " + Quote(data), null);
+            Directory.CreateDirectory(Path.Combine(data,"logs")); Directory.CreateDirectory(Path.Combine(data,"sources"));
+            Acl(PrivateRoot, false, true); if (auth == "users") Acl(accountFile, false, false); if (https) Acl(key, false, false);
             ProtectProgramDirectory();
         }
         public static void SelfTest() {
@@ -290,8 +290,8 @@ namespace SapLens {
     }
 
     public class Manager : Form {
-        TextBox hosts = new TextBox(), data = new TextBox(), listener = new TextBox(), cert = new TextBox(), key = new TextBox(), user = new TextBox(), password = new TextBox();
-        NumericUpDown port = new NumericUpDown(); CheckBox acknowledge = new CheckBox(), enabled = new CheckBox(); ComboBox role = new ComboBox(), mode = new ComboBox(); Label httpWarning = new Label();
+        TextBox hosts = new TextBox(), data = new TextBox(), listener = new TextBox(), cert = new TextBox(), key = new TextBox(), recoveryUser = new TextBox();
+        NumericUpDown port = new NumericUpDown(); CheckBox acknowledge = new CheckBox(); ComboBox mode = new ComboBox(); Label httpWarning = new Label();
         Label status = new Label(); TextBox urls = new TextBox();
         public Manager() {
             Text = "SAP Lens Service Manager"; ClientSize = new Size(780, 670); MinimumSize = new Size(780, 700); StartPosition = FormStartPosition.CenterScreen;
@@ -309,14 +309,12 @@ namespace SapLens {
             httpWarning.Text="Warning: HTTP is not encrypted. Passwords and SAP role data cross the network in clear text. Use it only on loopback or a trusted, isolated network; account authentication and the firewall restriction still apply."; httpWarning.AutoSize=true; httpWarning.MaximumSize=new Size(550,0); httpWarning.ForeColor=Color.DarkRed; Add(table,"",httpWarning);
             acknowledge.Text="I understand that HTTP traffic is unencrypted"; acknowledge.AutoSize=true; Add(table,"",acknowledge);
             mode.SelectedIndexChanged += (s,e) => ApplyMode(); ApplyMode();
-            Add(table,"Account username",user); password.UseSystemPasswordChar=true; Add(table,"Password",password);
-            role.DropDownStyle=ComboBoxStyle.DropDownList; role.Items.AddRange(new object[]{"administrator","reviewer","read-only"}); role.SelectedIndex=0; Add(table,"Account role",role);
-            enabled.Text="Account enabled"; enabled.Checked=true; enabled.AutoSize=true; Add(table,"",enabled);
+            Add(table,"Recovery administrator",recoveryUser);
             var actions=new FlowLayoutPanel {AutoSize=true,WrapContents=true,Dock=DockStyle.Fill};
-            Button(actions,"Register / save configuration",()=>{ ServiceSetup.Save(hosts.Text,(int)port.Value,data.Text,listener.Text,ModeKey(),cert.Text,key.Text,user.Text,password.Text,acknowledge.Checked); password.Clear(); LoadConfig(); });
+            Button(actions,"Register / save configuration",()=>{ ServiceSetup.Save(hosts.Text,(int)port.Value,data.Text,listener.Text,ModeKey(),cert.Text,key.Text,acknowledge.Checked); LoadConfig(); });
             Button(actions,"Start",()=>ServiceSetup.Control("start")); Button(actions,"Stop",()=>ServiceSetup.Control("stop")); Button(actions,"Restart",()=>ServiceSetup.Control("restart"));
             Button(actions,"Refresh",()=>{}); Button(actions,"Unregister",()=>{ if(MessageBox.Show("Unregister this service? Application files, accounts, certificates and data will be retained.",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)ServiceSetup.Control("uninstall"); });
-            Button(actions,"Save account",()=>{ if(ServiceSetup.Status()=="Not registered")throw new InvalidOperationException("Register the service with an initial administrator first."); ServiceSetup.User(user.Text,password.Text,Convert.ToString(role.SelectedItem),enabled.Checked);password.Clear();MessageBox.Show("Account saved to the configured account store. A blank password preserves the existing password. Account changes apply on the next request without restarting the service. If the browser keeps old credentials, close its authentication session and sign in again.",Text); });
+            Button(actions,"Recover administrator",()=>{ if(MessageBox.Show("Revoke this administrator's sessions and issue a one-time recovery code?",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)MessageBox.Show(ServiceSetup.ActivationCode(recoveryUser.Text),"Administrator recovery code — valid for 15 minutes"); });
             Button(actions,"First-run activation code",()=>{ string code=ServiceSetup.ActivationCode(null); MessageBox.Show("Use this code on the SAP Lens first-run page within 15 minutes. It is shown only here; do not put it in logs.\n\n"+code,Text); });
             Button(actions,"Open logs",()=>Process.Start("explorer.exe",ServiceSetup.Quote(Path.Combine(data.Text,"logs")))); Add(table,"Actions",actions);
             urls.Multiline=true;urls.ReadOnly=true;urls.Height=85;Add(table,"Configured URLs",urls);

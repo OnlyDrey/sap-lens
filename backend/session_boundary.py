@@ -9,16 +9,18 @@ ADMIN_READ = ('/api/backups', '/api/storage', '/api/retention', '/api/diagnostic
 
 
 def permission(method, path):
+    if path == '/api/branding/preview': return 'unknown'
     if path.startswith('/api/auth/users') or path in {'/api/auth/audit','/api/auth/policy'}: return 'accounts'
     if path.startswith('/api/auth/'): return 'profile'
     if method in {'GET', 'HEAD'}:
         return 'admin' if path.startswith(ADMIN_READ) else 'read'
     if method != 'POST': return 'unknown'
+    if path == '/api/compare': return 'read'
     from server_access import may_access
     if may_access('read-only', 'POST', path): return 'export'
     if re.fullmatch(r'/api/sod/periods/[^/]+/transition', path): return 'approve'
     if may_access('reviewer', 'POST', path): return 'review'
-    if path.startswith(('/api/settings','/api/configuration','/api/refresh','/api/server/','/api/data-sources','/api/sources','/api/branding','/api/storage','/api/retention','/api/backups','/api/import','/api/sod/configuration','/api/sod/reference','/api/sod/periods','/api/saved-filters','/api/functional-groups')): return 'admin'
+    if path.startswith(('/api/settings','/api/configuration','/api/refresh','/api/server/','/api/data-sources','/api/sources','/api/branding','/api/storage','/api/retention','/api/backups','/api/import','/api/sod/configuration','/api/sod/reference','/api/sod/periods','/api/saved-filters','/api/functional-groups','/api/user-import','/api/employees','/api/data/cancel','/api/refresh-schedule','/api/sod/catalogue')): return 'admin'
     return 'unknown'
 
 

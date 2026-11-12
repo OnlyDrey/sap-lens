@@ -1,4 +1,4 @@
-import { apiRequest, applicationToken } from './client'
+import { apiRequest, applicationHeaders, applicationToken } from './client'
 
 export type Filters = Record<string, string | boolean | number | string[]>
 export type Lifecycle = 'Pending' | 'Approved' | 'Keep' | 'Accepted' | 'Conditional' | 'Removal required' | 'Investigate' | 'Rejected' | 'Outdated' | 'Historical' | 'Resolved'
@@ -188,7 +188,7 @@ async function readLimited(response: Response, limit: number): Promise<Uint8Arra
 export async function downloadFile(path: string, options: { method?: 'GET' | 'POST'; body?: unknown; params?: URLSearchParams; namePattern: RegExp; kind: 'csv' | 'document'; nativeCsv?: 'save_sod_csv' | 'save_role_package_csv' }): Promise<string> {
   const response = await fetch(options.params ? `${path}?${options.params}` : path, {
     method: options.method || 'GET',
-    headers: { 'Content-Type': 'application/json', 'X-SAP-Lens': applicationToken() },
+    headers: { 'Content-Type': 'application/json', ...applicationHeaders() },
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
     cache: 'no-store',
   })
