@@ -184,3 +184,20 @@ class SessionApiTests(unittest.TestCase):
         headers=self.login('reader')
         for path in ('/api/backups/create','/api/backups/key/verify','/api/backups/restore'):
             self.assertEqual(self.client.post(path,headers=headers,json={}).status_code,403)
+
+    def test_legacy_factory_modes_cannot_bypass_application_authentication(self):
+        from dataclasses import replace
+        for mode in ('local','basic','users','proxy'):
+            with self.subTest(mode=mode),TestClient(create_app(server=replace(self.settings,auth=mode,secret='synthetic-shared-secret')),base_url='http://localhost:18743',client=('127.0.0.1',50000)) as client:
+                basic='Basic '+base64.b64encode(('saplens:synthetic-shared-secret').encode()).decode()
+                response=client.get('/api/roles',headers={'Authorization':basic,'X-SAP-Lens-Identity':'administrator'})
+                self.assertEqual(response.status_code,401)
+                self.assertNotIn('www-authenticate',response.headers)
+                self.assertEqual(client.get('/api/auth/state').json()['provider'],'local-sessions')
+
+    def test_migration_audit_and_confirmation_are_admin_only(self):
+        admin=self.store.login('admin',PASSWORD,'fixture')[0]
+        self.store.create_user(admin,'reader','Reader','viewer',PASSWORD)
+        headers=self.login('reader')
+        self.assertEqual(self.client.get('/api/auth/migration').status_code,403)
+        self.assertEqual(self.client.post('/api/auth/migration/'+('a'*32)+'/confirm',headers=headers,json={'confirm':True}).status_code,403)

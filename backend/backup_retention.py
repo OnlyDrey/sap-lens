@@ -178,7 +178,7 @@ def plan(days=None, now=None, data=None):
             if record.get('status') == 'migrated':
                 keep(record['id'], 'migration', 'Migration backup waiting for administrator confirmation', _moment(record.get('created')))
                 counts['migration'] += 1
-            elif record.get('status') == 'confirmed' and (root / 'migration' / record['id'] / storage_migration.ARCHIVE).is_file():
+            elif record.get('status') == 'confirmed' and storage_migration.archive_path(root.parent,record).is_file():
                 keep(record['id'], 'migration', 'Migration backup confirmed: delete it explicitly when no longer needed', _moment(record.get('created')))
                 counts['migration'] += 1
     except Exception:  # noqa: BLE001 - migration records are informational here; they are never candidates

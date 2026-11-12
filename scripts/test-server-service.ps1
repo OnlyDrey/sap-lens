@@ -95,6 +95,10 @@ try {
     $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
     try { $listener.Start();$port=$listener.LocalEndpoint.Port } finally { $listener.Stop() }
     Invoke-ScmManage -Action Install -InstallDirectory $bundlePath -DataDirectory $data -SourceDirectory (Join-Path $data 'sources') -LogDirectory (Join-Path $data 'logs') -Port $port
+    $activationRaw=& (Join-Path $bundlePath 'app\SAP-Lens.exe') --identity-code --data-directory $data
+    if ($LASTEXITCODE -ne 0) { throw 'Synthetic identity activation code could not be issued.' }
+    $activation=($activationRaw | Out-String | ConvertFrom-Json).code
+    $syntheticPassword='SCM acceptance '+[guid]::NewGuid().ToString('N')+'!'; $syntheticUser='scm-acceptance-admin'
     Invoke-ScmManage -Action Start -InstallDirectory $bundlePath
     $deadline=(Get-Date).AddSeconds(40)
     $ready=$false
@@ -102,7 +106,11 @@ try {
         try { $health=Invoke-RestMethod "http://127.0.0.1:$port/health/ready" -TimeoutSec 3; if ($health.status -eq 'ready') { $ready=$true;break } } catch { Start-Sleep -Milliseconds 250 }
     }
     if (-not $ready -or (Get-ScmStatus) -ne 'Running') { throw 'Service did not become ready in SCM.' }
-    $version=Invoke-RestMethod "http://127.0.0.1:$port/api/version" -TimeoutSec 3
+    Invoke-RestMethod "http://127.0.0.1:$port/api/auth/activate" -Method Post -ContentType 'application/json' -Headers @{'X-SAP-Lens'='1'} -Body (@{code=$activation;username=$syntheticUser;display_name='Synthetic SCM administrator';password=$syntheticPassword} | ConvertTo-Json -Compress) -TimeoutSec 10 | Out-Null
+    $activation=$null; $activationRaw=$null
+    Invoke-RestMethod "http://127.0.0.1:$port/api/auth/login" -Method Post -ContentType 'application/json' -Headers @{'X-SAP-Lens'='1'} -Body (@{username=$syntheticUser;password=$syntheticPassword} | ConvertTo-Json -Compress) -SessionVariable scmSession -TimeoutSec 10 | Out-Null
+    $syntheticPassword=$null
+    $version=Invoke-RestMethod "http://127.0.0.1:$port/api/version" -WebSession $scmSession -TimeoutSec 3
     if ($version.version -ne $expected.version) { throw 'Service version differs from the package identity.' }
     Invoke-ScmManage -Action Stop -InstallDirectory $bundlePath
     if ((Get-ScmStatus) -ne 'Stopped') { throw 'SCM did not stop the service.' }
@@ -115,7 +123,7 @@ try {
     # without fabricating a versioned executable or compiling a second package.
     Invoke-ScmManage -Action Upgrade -InstallDirectory $bundlePath -NewBundleDirectory $replacement -BackupDirectory $backups
     if ((Get-ScmStatus) -ne 'Running') { throw 'Staged upgrade did not restart the service.' }
-    if ((Invoke-RestMethod "http://127.0.0.1:$port/api/version" -TimeoutSec 3).version -ne $expected.version) { throw 'Upgrade changed embedded version identity unexpectedly.' }
+    if ((Invoke-RestMethod "http://127.0.0.1:$port/api/version" -WebSession $scmSession -TimeoutSec 3).version -ne $expected.version) { throw 'Upgrade changed embedded version identity unexpectedly.' }
     Invoke-ScmManage -Action Uninstall -InstallDirectory $bundlePath
     $deadline=(Get-Date).AddSeconds(10)
     while ((Test-ScmRegistered) -and (Get-Date) -lt $deadline) { Start-Sleep -Milliseconds 250 }

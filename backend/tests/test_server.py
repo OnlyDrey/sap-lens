@@ -32,15 +32,25 @@ class ServerTestBase(unittest.TestCase):
         self.env=patch.dict(os.environ,{'SAP_LENS_DEPLOYMENT_MODE':'server','SAP_LENS_DATA_DIR':str(self.data),
             'SAP_LENS_CONFIG_DIR':str(self.data),'SAP_LENS_SOURCE_DIR':str(self.sources),'SAP_LENS_HOST':'127.0.0.1',
             'SAP_LENS_PORT':'18743','SAP_LENS_PUBLIC_ORIGIN':'http://127.0.0.1:18743','SAP_LENS_ALLOWED_HOSTS':'127.0.0.1',
-            'SAP_LENS_AUTH':'local','SAP_LENS_AUTH_SECRET_FILE':str(self.secret),'SAP_LENS_TRUSTED_PROXIES':'','DATA_CSV_PATH':''})
+            'SAP_LENS_BACKUP_KEY_FILE':str(self.root/'backup.key'),'SAP_LENS_AUTH':'local','SAP_LENS_AUTH_SECRET_FILE':str(self.secret),'SAP_LENS_TRUSTED_PROXIES':'','DATA_CSV_PATH':''})
         self.env.start();config.get_settings.cache_clear();cache.clear_cache();store.clear()
+        from auth_store import AuthStore
+        self.identities=AuthStore(self.data/'security/accounts.sqlite3');self.identities.initialize()
+        self.identities.create_user(None,'admin','Synthetic administrator','administrator',self.secret.read_text(),bootstrap=True)
+        import backup_crypto as crypto
+        crypto.create_key(self.root/'backup.key',self.data)
         # Unit boundaries must not depend on an ignored production build being present.
         frontend=self.root/'unit-frontend';frontend.mkdir();(frontend/'index.html').write_text('<html>synthetic unit frontend</html>')
         self.frontend_patch=patch('main.frontend_dir',frontend);self.frontend_patch.start()
     def tearDown(self):
         self.frontend_patch.stop();config.get_settings.cache_clear();cache.clear_cache();store.clear();self.env.stop();self.temp.cleanup()
-    def client(self,peer='127.0.0.1',origin='http://127.0.0.1:18743'):
-        return TestClient(create_app(server=ServerSettings.from_env()),base_url=origin,client=(peer,50000))
+    def client(self,peer='127.0.0.1',origin='http://127.0.0.1:18743',*,authenticated=True):
+        client=TestClient(create_app(server=ServerSettings.from_env()),base_url=origin,client=(peer,50000))
+        if authenticated:
+            response=client.post('/api/auth/login',json=dict(username='admin',password=self.secret.read_text()),headers={'X-SAP-Lens':'1'})
+            self.assertEqual(response.status_code,200,response.text)
+            client.headers['X-SAP-Lens-CSRF']=client.cookies['sap-lens-csrf']
+        return client
     def basic(self): return {'Authorization':'Basic '+base64.b64encode(('saplens:'+self.secret.read_text()).encode()).decode(),'X-SAP-Lens':'1'}
 
 
@@ -51,29 +61,31 @@ class ServerTests(ServerTestBase):
                        {'SAP_LENS_PUBLIC_ORIGIN':'http://lens.example.test','SAP_LENS_ALLOWED_HOSTS':'lens.example.test'},
                        {'SAP_LENS_AUTH':'proxy','SAP_LENS_TRUSTED_PROXIES':'0.0.0.0/0'}]:
             with patch.dict(os.environ,values),self.assertRaises(ValueError):ServerSettings.from_env()
-        self.assertEqual(self.client(peer='192.0.2.20').get('/api/configuration').status_code,401)
-    def test_basic_boundary_guards_frontend_reads_writes_and_origins(self):
-        with patch.dict(os.environ,{'SAP_LENS_AUTH':'basic'}):client=self.client()
-        for path in ['/','/api/configuration','/api/roles','/api/server/uploads/users']:
-            self.assertEqual(client.get(path).status_code,401)
-        headers=self.basic()
-        self.assertEqual(client.get('/',headers=headers).status_code,200)
+        self.assertEqual(self.client(peer='192.0.2.20',authenticated=False).get('/api/configuration').status_code,403)
+    def test_legacy_basic_has_no_bypass_and_sessions_guard_reads_writes_and_origins(self):
+        with patch.dict(os.environ,{'SAP_LENS_AUTH':'basic'}):client=self.client(authenticated=False)
+        for path in ['/api/configuration','/api/roles','/api/server/uploads/users']:
+            self.assertEqual(client.get(path,headers=self.basic()).status_code,401)
+        self.assertEqual(client.get('/').status_code,200) # Login shell, no protected data.
+        response=client.post('/api/auth/login',json=dict(username='admin',password=self.secret.read_text()),headers={'X-SAP-Lens':'1'})
+        self.assertEqual(response.status_code,200)
+        headers={'X-SAP-Lens':'1','X-SAP-Lens-CSRF':client.cookies['sap-lens-csrf']}
         result=client.get('/api/configuration',headers=headers)
         self.assertEqual(result.status_code,200);self.assertNotIn(self.secret.read_text(),result.text)
         self.assertEqual(client.post('/api/refresh',headers={**headers,'Origin':'https://evil.example.test'}).status_code,403)
         self.assertEqual(client.get('/api/roles',headers={**headers,'Host':'evil.example.test'}).status_code,400)
         self.assertEqual(client.get('/health/live').json(),{'status':'alive'})
         self.assertEqual(client.get('/health/ready').json(),{'status':'ready'})
-        self.assertEqual(client.get('/health').status_code,401)
-    def test_proxy_requires_real_peer_secret_identity_and_https_attestation(self):
-        with patch.dict(os.environ,{'SAP_LENS_AUTH':'proxy','SAP_LENS_TRUSTED_PROXIES':'127.0.0.1/32',
-            'SAP_LENS_PUBLIC_ORIGIN':'https://lens.example.test','SAP_LENS_ALLOWED_HOSTS':'lens.example.test'}):
-            client=self.client(origin='https://lens.example.test');external=self.client(peer='192.0.2.10',origin='https://lens.example.test')
+
+    def test_proxy_transport_headers_never_supply_an_authenticated_application_actor(self):
+        with patch.dict(os.environ,{'SAP_LENS_AUTH':'proxy','SAP_LENS_TRUSTED_PROXIES':'127.0.0.1/32','SAP_LENS_PUBLIC_ORIGIN':'https://lens.example.test','SAP_LENS_ALLOWED_HOSTS':'lens.example.test'}):
+            client=self.client(origin='https://lens.example.test',authenticated=False)
         headers={'X-SAP-Lens-Proxy-Token':self.secret.read_text(),'X-SAP-Lens-Identity':'synthetic-analyst','X-Forwarded-Proto':'https'}
-        self.assertEqual(client.get('/api/roles',headers=headers).status_code,200)
-        self.assertEqual(external.get('/api/roles',headers={**headers,'X-Forwarded-For':'127.0.0.1'}).status_code,401)
-        for key in headers:
-            self.assertEqual(client.get('/api/roles',headers={k:v for k,v in headers.items() if k!=key}).status_code,401)
+        self.assertEqual(client.get('/api/roles',headers=headers).status_code,401)
+        response=client.post('/api/auth/login',json=dict(username='admin',password=self.secret.read_text()),headers={**headers,'X-SAP-Lens':'1'})
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(client.get('/api/roles').status_code,200)
+
     def test_csv_upload_preview_confirmation_path_confinement_and_redaction(self):
         client=self.client();headers={'X-SAP-Lens':'1','X-Upload-Filename':'role-catalogue.csv','Content-Type':'text/csv'}
         content=b'AGR_NAME,TEXT,TCODE\nZC:DEMO,Synthetic,MIGO\n'
@@ -106,7 +118,7 @@ class ServerTests(ServerTestBase):
         self.assertNotIn(str(self.root),exported);self.assertNotIn('ZC:DEMO',exported)
     def test_server_mode_factory_cannot_omit_authentication(self):
         with patch.dict(os.environ,{'SAP_LENS_AUTH':'basic'}):
-            client=TestClient(create_app(),base_url='http://127.0.0.1:18743')
+            client=TestClient(create_app(),base_url='http://127.0.0.1:18743',client=('127.0.0.1',50000))
         self.assertEqual(client.get('/api/configuration').status_code,401)
 
     def test_uploads_keep_sources_independent_and_reject_oversized_stream(self):
@@ -238,13 +250,19 @@ class ServerProcessTests(ServerTestBase):
                 if process.poll() is not None:break
                 time.sleep(.05)
             process.terminate();process.wait(5);self.fail('Headless server did not start')
+        cookies={}
         def request(method,path,body=None):
             connection=http.client.HTTPConnection('127.0.0.1',port,timeout=3)
             try:
-                connection.request(method,path,json.dumps(body) if body else None,headers={'X-SAP-Lens':'1','Content-Type':'application/json'})
-                response=connection.getresponse();return response.status,response.read()
+                connection.request(method,path,json.dumps(body) if body else None,headers={'X-SAP-Lens':'1','Content-Type':'application/json','Cookie':'; '.join(k+'='+v for k,v in cookies.items()),'X-SAP-Lens-CSRF':cookies.get('sap-lens-csrf','')})
+                response=connection.getresponse()
+                for key,value in response.getheaders():
+                    if key.lower()=='set-cookie':
+                        name,token=value.split(';',1)[0].split('=',1);cookies[name]=token
+                return response.status,response.read()
             finally:connection.close()
         process=start()
+        self.assertEqual(request('POST','/api/auth/login',dict(username='admin',password=self.secret.read_text()))[0],200)
         try:
             self.assertIn(b'<html',request('GET','/')[1])
             duplicate=subprocess.run(command,env=env,capture_output=True,timeout=5)
@@ -313,7 +331,7 @@ class BrowserMultipartTests(ServerTestBase):
             self.assertEqual(client.get('/api/roles').json(),[])
 
     def test_unauthorized_upload_and_oversized_multipart_are_rejected(self):
-        with patch.dict(os.environ,{'SAP_LENS_AUTH':'basic'}),self.client() as client:
+        with patch.dict(os.environ,{'SAP_LENS_AUTH':'basic'}),self.client(authenticated=False) as client:
             self.assertEqual(client.post('/api/server/uploads/users/activate',files={'file':('a.csv',b'x','text/csv')},data={'revision':'0'}).status_code,401)
         with self.client() as client:
             header={'X-SAP-Lens':'1','Content-Type':'multipart/form-data; boundary=synthetic'}

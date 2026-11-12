@@ -54,7 +54,7 @@ Portable configuration and diagnostics exports exclude all of them. Desktop/shar
 uses the authenticated actor for supported decision writes and period approval;
 these records are not digital signatures. Explicit self-approval is permitted;
 confirmation and evidence/revision gates remain mandatory. See the
-[security limitations](../deployment/SECURITY.md#individual-accounts-and-remaining-multi-user-limits).
+[security limitations](../deployment/SECURITY.md#application-accounts-and-sessions).
 
 ## Workflow
 

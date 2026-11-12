@@ -315,16 +315,18 @@ class BackupTests(unittest.TestCase):
         from fastapi.testclient import TestClient
         from main import create_app
         from deployment import ServerSettings
-        from server_access import manage_user
-        import base64
-        account=self.root/'auth'/'accounts.json';account.parent.mkdir()
-        for name,role in [('admin','administrator'),('reader','read-only')]:
-            manage_user(account,dict(username=name,role=role,password='Synthetic-backup-password-123!',enabled=True))
-        server=ServerSettings('127.0.0.1',18743,self.data,self.root/'sources','http://127.0.0.1:18743',('127.0.0.1',),'users','','',(),'info',accounts=str(account))
+        from auth_store import AuthStore
+        accounts=AuthStore(self.data/'security/accounts.sqlite3');accounts.initialize()
+        accounts.create_user(None,'admin','Administrator','administrator','Synthetic-backup-password-123!',bootstrap=True)
+        administrator=accounts.login('admin','Synthetic-backup-password-123!','fixture')[0]
+        accounts.create_user(administrator,'reader','Reader','viewer','Synthetic-backup-password-123!')
+        server=ServerSettings('127.0.0.1',18743,self.data,self.root/'sources','http://127.0.0.1:18743',('127.0.0.1',),'users','','',(),'info',accounts='')
         client=TestClient(create_app(server=server),base_url='http://127.0.0.1:18743',client=('127.0.0.1',50000))
         backup=backups.request_backup(self.data);self.activate()
         for name,expected in [('reader',403),('admin',200)]:
-            headers={'Authorization':'Basic '+base64.b64encode((name+':Synthetic-backup-password-123!').encode()).decode(),'X-SAP-Lens':'1'}
+            login=client.post('/api/auth/login',headers={'X-SAP-Lens':'1'},json=dict(username=name,password='Synthetic-backup-password-123!'))
+            self.assertEqual(login.status_code,200,login.text)
+            headers={'X-SAP-Lens':'1','X-SAP-Lens-CSRF':client.cookies['sap-lens-csrf']}
             self.assertEqual(client.get('/api/backups',headers=headers).status_code,expected)
             if name=='reader': self.assertEqual(client.get('/api/backups/'+backup['id']+'/download',headers=headers).status_code,403)
             else:

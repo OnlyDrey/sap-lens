@@ -10,7 +10,7 @@ ADMIN_READ = ('/api/backups', '/api/storage', '/api/retention', '/api/diagnostic
 
 def permission(method, path):
     if path == '/api/branding/preview': return 'unknown'
-    if path.startswith('/api/auth/users') or path in {'/api/auth/audit','/api/auth/policy'}: return 'accounts'
+    if path.startswith(('/api/auth/users','/api/auth/migration')) or path in {'/api/auth/audit','/api/auth/policy'}: return 'accounts'
     if path.startswith('/api/auth/'): return 'profile'
     if method in {'GET', 'HEAD'}:
         return 'admin' if path.startswith(ADMIN_READ) else 'read'

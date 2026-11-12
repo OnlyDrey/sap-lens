@@ -36,9 +36,12 @@ class DataSettings(BaseModel):
 
 def create_app(origin: str | None = None, session_token: str | None = None,
                instance_id: str | None = None, server=None, browser_access: bool = False, desktop_preferences=None, startup_observer=None) -> FastAPI:
-    from deployment import server_mode, ServerSettings, AuthThrottle
+    from deployment import server_mode, ServerSettings
     if server is None and server_mode():
         server = ServerSettings.from_env()
+    if server:
+        from identity_migration import effective
+        server=effective(server) # Shared/Basic configuration never provides an HTTP bypass.
     def notify(stage, result, error=None):
         if startup_observer: startup_observer(stage, result, error)
     notify('data_loader', 'starting')
@@ -58,7 +61,6 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         allowed_origins = [f'http://127.0.0.1:{port}', f'http://localhost:{port}']
     desktop_hosts = {urlsplit(value).netloc for value in allowed_origins} if browser_access else set()
     request_header = session_token or '1'
-    throttle = AuthThrottle(server.max_failures, server.lockout_seconds) if server and server.auth in {'basic','users'} else None
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -117,7 +119,6 @@ def create_app(origin: str | None = None, session_token: str | None = None,
     async def unexpected_failure(request: Request, error: Exception):
         return failure_response(request,error)
     app.state.deployment = server
-    app.state.auth_throttle = throttle
     identity_store = None
     if server and server.auth == 'sessions':
         from session_boundary import install
@@ -162,29 +163,6 @@ def create_app(origin: str | None = None, session_token: str | None = None,
                     request.state.server_principal = (actor.username, actor.role)
             except AuthError as error:
                 return JSONResponse({'detail': error.code, 'code': error.code}, status_code=error.status, headers={'Cache-Control': 'no-store'})
-        if server and server.auth != 'sessions' and request.url.path not in {'/health/live','/health/ready'}:
-            offered = bool(request.headers.get('authorization'))
-            client = server.client_address(request) if throttle is not None else None
-            if throttle is not None and offered and (wait := throttle.blocked_for(client)):
-                # Credentials from a locked-out client are not evaluated at all; a request without credentials is just challenged.
-                return JSONResponse({'detail':'Too many failed sign-in attempts. Try again later.'},status_code=429,headers={'Retry-After':str(wait)})
-            from starlette.concurrency import run_in_threadpool
-            if not await run_in_threadpool(server.authorized, request):
-                if throttle is not None and offered and (cooldown := throttle.failure(client)):
-                    import logging
-                    logging.getLogger('sap-lens-server').warning('Sign-in throttled for client %s for %s seconds after repeated failures',client,cooldown)
-                return JSONResponse({'detail':'Server access is not authorized.'},status_code=401,
-                                    headers={'WWW-Authenticate':'Basic realm="SAP Lens", charset="UTF-8"'} if server.auth in {'basic','users'} else {})
-            if throttle is not None and offered: throttle.success(client)
-            if server.auth == 'users':
-                from server_access import may_access
-                username, role = request.state.server_principal
-                if not may_access(role, request.method, request.url.path):
-                    return JSONResponse({'detail':'Your account does not have permission for this operation.'},status_code=403)
-            if request.method not in {'GET','HEAD','POST','OPTIONS'}:
-                return JSONResponse({'detail':'Method not allowed.'},status_code=405)
-            if request.url.path == '/api/branding/preview':
-                return JSONResponse({'detail':'Native filesystem image selection is unavailable in server mode. Import a validated branding configuration package.'},status_code=403)
         if request.url.path.startswith('/api/'):
             if request_origin and request_origin not in allowed_origins:
                 return JSONResponse({'detail': 'Origin is not allowed.'}, status_code=403)

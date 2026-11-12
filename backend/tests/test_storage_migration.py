@@ -43,7 +43,9 @@ class Installation(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
         self.data = self.root / 'private'
-        patcher = patch.dict(os.environ, {'SAP_LENS_CONFIG_DIR': str(self.data), 'DATA_CSV_PATH': ''}); patcher.start(); self.addCleanup(patcher.stop)
+        import backup_crypto as crypto
+        key=self.root/'host.key';crypto.create_key(key,self.data)
+        patcher = patch.dict(os.environ, {'SAP_LENS_BACKUP_KEY_FILE':str(key),'SAP_LENS_CONFIG_DIR': str(self.data), 'DATA_CSV_PATH': ''}); patcher.start(); self.addCleanup(patcher.stop)
         config.get_settings.cache_clear(); cache.clear_cache(); self.addCleanup(cache.clear_cache); self.addCleanup(config.get_settings.cache_clear)
         (self.root / 'roles.csv').write_text(ROLES)
         with (self.root / 'users.csv').open('w', newline='') as stream:
@@ -82,7 +84,9 @@ class Migrate(Installation):
         self.assertTrue(status['requires_confirmation'])
         archive = self.data / migration.FOLDER / status['backup']['id'] / migration.ARCHIVE
         self.assertEqual(engine.digest(archive), status['backup']['sha256'])
-        manifest = engine.verify(archive, 'desktop', VERSION)
+        from portable_backups import readable
+        with readable(archive,self.data) as (canonical,encrypted):manifest=engine.verify(canonical,'desktop',VERSION)
+        self.assertTrue(encrypted)
         self.assertIn('data/settings.json', manifest['files'])
         self.assertFalse(any(name.startswith('data/store/') or name.startswith('data/cache/') for name in manifest['files']))
         settings = config.get_settings()
@@ -203,8 +207,12 @@ class Recovery(Installation):
         status = migration.status()
         archive = self.data / migration.FOLDER / status['backup']['id'] / migration.ARCHIVE
         target = self.root / 'restored'
-        engine.restore(archive, target, 'desktop', VERSION, confirm=True)
-        self.assertEqual(digests(target), original)
+        from portable_backups import readable
+        with readable(archive,self.data) as (canonical,encrypted):engine.restore(canonical,target,'desktop',VERSION,confirm=True)
+        self.assertTrue(encrypted)
+        restored=digests(target)
+        self.assertEqual(restored.pop('backup-schedule.json'),hashlib.sha256((target/'backup-schedule.json').read_bytes()).hexdigest())
+        self.assertEqual(restored,original)
         with patch.dict(os.environ, {'SAP_LENS_CONFIG_DIR': str(target)}):
             config.get_settings.cache_clear()
             lease = StorageLease(target, 'desktop').acquire()

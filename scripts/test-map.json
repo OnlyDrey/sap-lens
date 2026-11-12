@@ -290,8 +290,8 @@
     "ui-polish-actions",
     "settings-r2",
     "application-backups",
-   "storage-upgrade",
-   "data-retention",
+    "storage-upgrade",
+    "data-retention",
     "application-footer"
    ]
   },
@@ -324,7 +324,8 @@
     "test_auth_store",
     "test_auth_provisioning",
     "test_review_identity",
-    "test_session_auth_api"
+    "test_session_auth_api",
+    "test_identity_migration"
    ],
    "browser": [
     "desktop",
@@ -466,7 +467,13 @@
     "sod-overview-heatmap"
    ]
   },
-  "page_core_specs": {"frontend/src/components/Sod/": ["sod-feature", "sod-governance", "sod-stability"]},
+  "page_core_specs": {
+   "frontend/src/components/Sod/": [
+    "sod-feature",
+    "sod-governance",
+    "sod-stability"
+   ]
+  },
   "security_sensitive": [
    "backend/main.py",
    "backend/deployment.py",

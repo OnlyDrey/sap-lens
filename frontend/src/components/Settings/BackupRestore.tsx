@@ -13,6 +13,7 @@ import {Card,ErrorState,LoadingState,StatusBadge,Toolbar} from '@/components/Sha
 
 type Operation={id?:string;kind?:string;status:string;key_provider?:KeyProvider;recovery_required?:boolean;completed_at?:string;message?:string;archive_sha256?:string;preview?:{source_mode:string;source_version:string;created_at:string;files:number;snapshots:number;categories:string[];warning:string;encrypted?:boolean;accounts?:{accounts:number;administrators:number}|null}}
 const encodedSecret=(value:string)=>btoa([...new TextEncoder().encode(value)].map(byte=>String.fromCharCode(byte)).join(''))
+const cancelledUpload=(cause:unknown)=>Object.assign(new Error('Archive validation was cancelled or timed out. No restore was confirmed.'),{cause})
 export function BackupRestore(){
  const client=useQueryClient(),status=useQuery({queryKey:['application-backups'],queryFn:()=>apiRequest<Operation>('/api/backups'),refetchOnMount:'always',refetchOnWindowFocus:'always'})
  const [preview,setPreview]=useState<Operation|null>(null),[confirmed,setConfirmed]=useState(false),[accountsConfirmed,setAccountsConfirmed]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState(''),[filename,setFilename]=useState(''),[restoreFeedback,setRestoreFeedback]=useState('')
@@ -38,7 +39,7 @@ export function BackupRestore(){
    const response=await fetch('/api/backups/upload',{method:'POST',signal:controller.signal,headers:{...applicationHeaders(),'Content-Type':'application/octet-stream','X-SAP-Lens-Backup-Secret':encodedSecret(secret),'X-SAP-Lens-Allow-Legacy':legacy?'1':'0'},body:file})
    const result=await response.json();if(!response.ok)throw Error(result.detail||'Archive validation failed. No data was replaced.')
    setPreview(result);setFilename(file.name);setSecret('')
-  }catch(reason){if(controller.signal.aborted)throw Error('Archive validation was cancelled or timed out. No restore was confirmed.',{cause:reason});throw reason}finally{clearTimeout(timer);uploadController.current=null}
+  }catch(reason){if(controller.signal.aborted)throw cancelledUpload(reason);throw reason}finally{clearTimeout(timer);uploadController.current=null}
  }
  return <section aria-label="Application backup and restore" className="grid min-w-0 gap-4">
   <StorageUpgrade/><DataRetention/>

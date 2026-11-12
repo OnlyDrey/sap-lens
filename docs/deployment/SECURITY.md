@@ -1,207 +1,173 @@
 # Server security boundary
 
-SAP Lens contains sensitive employee and access information. CORS, a private LAN,
-firewall rules and an `X-SAP-Lens` marker are **not authentication**. Do not expose
-an unauthenticated backend. No internet publishing is performed by these tools.
+Every server deployment uses local SAP Lens accounts and server-side sessions.
+Desktop stays passwordless and requires its exact loopback listener and ephemeral
+launch capability. An `X-SAP-Lens` request marker, network address, firewall or
+proxy identity header is **not** an application account or permission grant.
+Microsoft Entra ID/AD authentication is outside this implementation.
 
-## Local testing
+## Application accounts and sessions
 
-Native server defaults to loopback and `SAP_LENS_AUTH=local`. It rejects non-loopback
-binds in this mode and validates real TCP peers. Local mode trusts other local users;
-use Basic/proxy protection even locally when the machine is shared. Unauthenticated
-liveness/readiness endpoints contain only a status word.
+The authoritative store is `security/accounts.sqlite3`, separate from the
+rebuildable source cache. It contains stable account IDs, Argon2id verifiers,
+roles/status, session policy and safe security audit. Migrated legacy PBKDF2
+verifiers work unchanged and upgrade after successful sign-in. Passwords require
+12–1024 characters with a bounded UTF-8 size; salts are unique. Passwords, reset
+codes, cookies and hashes are never audit payloads.
 
-Compose binds inside its container on `0.0.0.0`, but publishes **only 127.0.0.1** on
-the host by default and requires Basic authentication. Do not change that publication
-without configuring the intended HTTPS origin and access boundary.
+The application uses random HttpOnly, SameSite=Lax session cookies (Secure on
+HTTPS), idle/absolute expiry, explicit logout and session-specific CSRF protection
+for mutations. Session IDs/CSRF verifiers are hashed in storage. Cookies are never
+put in browser localStorage. Failed sign-ins are temporarily throttled per client
+(5 failures, 30 seconds); there is no permanent account lockout. Spoofed forwarding
+headers do not change the client identity. Session policy defaults to 30-minute
+idle and 12-hour absolute expiry and is configurable by administrators.
 
-## Controlled internal deployment: shared Basic access
+Settings → **User Management** owns normal create/edit/role/status/reset/revocation
+and security audit. Users manage their own profile, password and sessions through
+**My Profile**. Disabling/changing an account or resetting/changing its password
+invalidates sessions. Last enabled administrator protection is transactional.
+Accounts are deactivated rather than deleted; historic identity snapshots remain.
 
-Generate an unpredictable access secret, without printing it:
+| Role | Permissions |
+| --- | --- |
+| Administrator | Application administration, imports, settings/branding, accounts, backup/restore, reviews and approvals. |
+| Reviewer | Authorized data/reports, reviews/remediation and explicit approvals, including their own. |
+| Viewer | Authorized reads/search/comparison/reports; no account, configuration or review mutations. |
 
-```sh
-python backend/server.py --init-secret /absolute/private/access.secret
+Permissions are enforced centrally by the backend. Unknown writes fail closed.
+Review and approval remain separate explicit events with justification, evidence,
+revision and frozen-period gates. Old reviewer strings and frozen evidence are
+not relabelled. Desktop has a stable editable **self-reported local profile**;
+it is not equivalent to a server-authenticated account.
+
+## First administrator and local recovery
+
+A genuinely fresh server initializes an empty identity store before other state.
+There is no default account/password. Start the server, then locally issue a code:
+
+```text
+python backend/server.py --identity-code --data-directory /var/lib/sap-lens
 ```
 
-Configure `SAP_LENS_AUTH=basic`, `SAP_LENS_AUTH_SECRET_FILE`, and optionally
-`SAP_LENS_AUTH_USER` (default `saplens`). Read the secret locally in a trusted editor
-when entering the browser's HTTP authentication prompt; never commit or log it.
-On POSIX the secret must be owner-only (0600 or 0400); `--init-secret` creates it that way. Group read (0640 or 0440) is refused unless you set
-`SAP_LENS_AUTH_SECRET_GROUP_READ=1` because another account has to read the file (a container user reading a host file, a dedicated service
-group) **and** the file's group is one the service account belongs to. Any access for other users, and group write or execute, is always refused,
-and the file is never changed by SAP Lens. A refusal names the file, its mode and the fix (`chmod 600`). Existing installations with a 0640 secret
-must either run `chmod 600` (when the service user owns the file) or add the variable; the Docker installer and `compose.yml` already do.
-Windows has no POSIX modes: provisioning (`manage-server-service.ps1`) replaces the ACL with SYSTEM, Administrators and read for the service SID; the
-runtime then reads the DACL at start and refuses the secret when Everyone, Users, Authenticated Users, Interactive, Network, Anonymous or Guests can read or change it
-(deny entries never count; an unreadable ACL also refuses, fail closed). Fix with `icacls <file> /inheritance:r /grant:r "%USERNAME%:F" "SYSTEM:F"`. The parser is unit-tested
-with simulated DACLs on every OS; the native API call is not yet verified on Windows. Install, upgrade and `-Action RepairSecret` are described in
-[Windows service](WINDOWS_SERVICE.md#access-secret-permissions-fresh-install-upgrade-and-repair).
+Use the installed Python/interpreter and actual protected data directory. Windows
+Service Manager has **First-run activation code**. The code is displayed only to
+the local operator, expires after 15 minutes, allows five attempts and is consumed
+atomically with administrator creation. The web setup page can consume but cannot
+issue it. Do not put the code in logs, command arguments or issue attachments.
 
-For network browser access set `SAP_LENS_PUBLIC_ORIGIN=https://lens.example.test`,
-`SAP_LENS_ALLOWED_HOSTS=lens.example.test` and terminate TLS at a reverse proxy.
-The proxy forwards Authorization; direct backend requests still require credentials.
-Keep backend binding loopback or isolate it on a private container network. Never
-send Basic credentials over an unencrypted LAN. HTTP loopback origins are supported
-for local testing only; the backend rejects nonlocal HTTP public origins.
+For an existing administrator, Service Manager **Recover administrator**, or:
 
-Basic access is intentionally minimal: one shared administrator credential, no
-logout/session management or per-user permissions. All people with access can import,
-export and change settings. Prefer an enterprise gateway for real organizational
-deployments, with throttling and access auditing.
-
-### Failed sign-in throttling
-
-A client that sends wrong Basic credentials `SAP_LENS_AUTH_MAX_FAILURES` times (default 5, range 3 to 50) within 15 minutes is locked out for
-`SAP_LENS_AUTH_LOCKOUT_SECONDS` (default 60, range 10 to 3600); every further lock-out doubles the cooldown up to 15 minutes. While locked out
-the client receives `429 Too Many Requests` with `Retry-After`, even for correct credentials, which are not evaluated. A correct sign-in clears the
-client's record; requests without an Authorization header are only challenged and never counted; health probes are exempt. The wrong username and
-the wrong password are indistinguishable, nothing secret is logged (the log line names only the client address and the cooldown).
-
-The client is the TCP peer, or, when the peer is in `SAP_LENS_TRUSTED_PROXIES`, the first address from the right in `X-Forwarded-For` that is not
-itself a trusted proxy; a header from any other peer is ignored, so it cannot be spoofed. IPv6 clients count per /64. Limits to know:
-
-- State is per process and bounded (1024 clients, idle records dropped after 30 minutes); a restart or a second worker starts with empty counters, and the headless runtime uses one worker.
-- Behind a reverse proxy that is **not** listed in `SAP_LENS_TRUSTED_PROXIES`, every user shares the proxy's address, so one attacker can lock everyone out. List the proxy and make it set `X-Forwarded-For`, or throttle at the gateway.
-- People behind one NAT address share a lock-out. An attacker with many addresses is slowed, not stopped; the 32 character minimum for the secret is the real defence.
-
-## Authenticated identity gateway
-
-Use `SAP_LENS_AUTH=proxy`, a private shared secret file, and explicit
-`SAP_LENS_TRUSTED_PROXIES` (real immediate peer IP/CIDR, not client addresses).
-The authenticated gateway **must strip client-supplied values** and set:
-
-- `X-SAP-Lens-Proxy-Token`: private gateway/backend secret.
-- `X-SAP-Lens-Identity`: nonempty authenticated identity.
-- `X-Forwarded-Proto: https` for an HTTPS public origin.
-
-The backend validates all three plus the actual TCP peer before serving frontend
-or API. Forged `X-Forwarded-For` cannot change that peer: Uvicorn proxy-header trust
-is disabled. Configure an exact proxy CIDR, never `/0`. Do not put the secret in
-client JavaScript, URLs or portable application configuration. Restrict gateway
-configuration and file permissions. Proxy authorization proves gateway admission;
-SAP Lens does not yet implement identity-based permissions or an audit ledger.
-
-Nginx, Traefik and Caddy can either forward Basic authentication unchanged or sit
-behind an authenticated gateway and overwrite the headers above. The following
-examples use **backend Basic protection**, not a fictitious built-in SSO provider.
-Use administrator-managed certificates and an explicitly configured internal host.
-
-### Nginx (inside an administrator-managed HTTPS server block)
-
-```nginx
-server_name lens.example.test;
-# listen 443 ssl; ssl_certificate /...; ssl_certificate_key /...;
-location / {
-    proxy_pass http://127.0.0.1:18743;
-    proxy_set_header Host $host;
-    proxy_set_header Authorization $http_authorization;
-    proxy_set_header X-Forwarded-Proto https;
-    proxy_request_buffering off;
-    client_max_body_size 128m;
-    proxy_read_timeout 180s;
-}
+```text
+python backend/server.py --identity-code --data-directory /var/lib/sap-lens --recover-administrator admin
 ```
 
-### Caddy (explicit certificate, no automatic public registration)
+This revokes sessions, blocks the old password and issues one short-lived recovery
+code for that existing identity. It never reopens first-run setup. Missing,
+unreadable, corrupted or unsupported identity storage is a recoverable startup
+failure, not permission to create new empty accounts. Preserve it and use the
+verified recovery archive and local operator guidance.
 
-```caddyfile
-https://lens.example.test {
-    tls /etc/caddy/lens.crt /etc/caddy/lens.key
-    reverse_proxy 127.0.0.1:18743
-}
+## Transport and proxy configuration
+
+Remote password authentication requires HTTPS. HTTP is permitted only for a real
+loopback peer, a loopback listener and a loopback public origin. An old
+`SAP_LENS_ALLOW_HTTP=1` acknowledgement does not override this. Docker bridge
+traffic is not a loopback peer: configure direct TLS or a trusted TLS-terminating
+proxy before enabling sign-in. Never publish plaintext password authentication.
+
+Direct TLS uses `SAP_LENS_TLS_CERT_FILE` and `SAP_LENS_TLS_KEY_FILE`, with an HTTPS
+public origin. Files must match, be in date, and cover every allowed alias in typed
+SANs. Private keys remain host-local. Windows Service Manager can provision a
+self-signed certificate (trust must be established separately) or use existing TLS
+files. It cannot silently downgrade HTTPS.
+
+For TLS termination set `SAP_LENS_AUTH=sessions`, an HTTPS public origin, exact
+`SAP_LENS_TRUSTED_PROXIES` CIDRs (never `/0`) and a protected
+`SAP_LENS_AUTH_SECRET_FILE`. The proxy strips client-supplied forwarding and token
+headers, then sets `X-Forwarded-Proto: https` and
+`X-SAP-Lens-Proxy-Token` from its private configuration. The backend validates the
+real peer plus secret. An identity header does not sign in a user. Restrict backend
+network access to the proxy. Do not put the secret in URLs or browser JavaScript.
+Trusted X-Forwarded-For is walked from the right for throttling; untrusted peers'
+headers are ignored. This is transport validation, not SSO.
+
+POSIX secrets default to owner-only 0600/0400. Dedicated service-group read
+0640/0440 requires the corresponding explicit group-read setting and membership;
+other access/group write is rejected. Windows reads DACLs and refuses broad groups;
+service setup grants only administrators, SYSTEM and the dedicated service SID.
+Never fix access by granting Everyone/Users or weakening a private directory.
+
+## Upgrading existing authentication
+
+Stop the owned runtime, preserve original files and configure an external protected
+backup key first; see [Backup encryption](BACKUP_RESTORE.md#configure-and-escrow-a-key).
+Never point maintenance at a real installation merely to run a test.
+
+Individual-account JSON (`SAP_LENS_AUTH=users`) migrates on stopped startup when a
+valid protected key is available. Equivalent explicit local command:
+
+```text
+python backend/server.py --migrate-identity --data-directory /var/lib/sap-lens --legacy-auth users --legacy-accounts /etc/sap-lens/users.json
 ```
 
-### Traefik dynamic configuration (existing secured HTTPS entrypoint)
+The validated old file remains byte-for-byte. Username, enabled state and PBKDF2
+verifier are preserved; `read-only` becomes `viewer`. UUIDs are assigned in a staged
+version-1 database. A verified encrypted complete application snapshot includes
+that exact mapping before atomic activation. Interrupted verified staging resumes
+with the same IDs and source digest; corruption/changed source blocks activation.
+A crash after activation is reconciled by its migration ID and backup digest.
+Legacy account writers now use a recognizable persistent kernel-lock stub: process
+exit releases ownership, so a crash does not strand migration. Old unrecognized
+presence locks are never deleted or bypassed automatically; inspect the stopped
+legacy manager before local recovery. Do not run an old writer against migrated
+SQLite or assume editing the preserved JSON changes active accounts.
+Failed activation rolls back without modifying old business data or credentials.
 
-```yaml
-http:
-  routers:
-    sap-lens:
-      rule: Host(`lens.example.test`)
-      entryPoints: [websecure]
-      tls: {}
-      service: sap-lens
-  services:
-    sap-lens:
-      loadBalancer:
-        passHostHeader: true
-        servers:
-          - url: http://127.0.0.1:18743
+Shared Basic/proxy/local access has no verifiable personal account to migrate.
+It requires an explicit local administrator identity, never a shared/default
+password or unauthenticated setup over populated data:
+
+```text
+python backend/server.py --migrate-identity --data-directory /var/lib/sap-lens --legacy-auth basic --new-administrator admin
 ```
 
-Do not use localhost to address a backend from a different container: select a
-private service network, explicit proxy peer boundary and service DNS upstream.
-No WebSocket application channel is currently required. API URLs are same-origin;
-subpath mounting is not supported. Same-origin checks use the configured public
-origin, not untrusted forwarded host headers. No application authentication cookies
-are introduced; TLS termination and any gateway cookies remain gateway-owned.
+The local command returns a one-time recovery code. Use **Recover administrator**
+on the application sign-in page and set a personal password. If interrupted after
+activation or the code is lost, issue another local recovery code for that chosen
+administrator. Other platforms use the same stopped CLI with their own volume and
+key mounts. Service Manager offers **Migrate legacy accounts** for an owned stopped
+service; enter the recovery identity for installations without individual accounts.
+An unregistered populated directory uses the local CLI before registration.
 
-## Files and privacy
+After migration, account SQLite is authoritative even if the old JSON disappears
+or is edited. `users`, `basic`, `proxy` and `local` environment values are legacy
+migration inputs, not alternative HTTP authentication paths. Set current
+configuration to `sessions`. The retired JSON account command cannot administer
+an initialized session store; use User Management.
 
-Use separate immutable application, mutable data and read-only CSV source roots.
-Uploaded file names are validated and destinations generated server-side. CSV reads
-are confined to source/upload roots, including resolved symlink checks. Uploads
-stream with enforced bounds and activate only after the existing complete validation and atomic source-selection service succeeds. Multipart activation rejects stale settings revisions and concurrent loads.
-Never mount the Docker socket or run privileged. Restrict access to backups and
-volumes: they contain personal/access data. Server diagnostics are redacted; logs
-do not dump unexpected exception text, CSV rows or HTTP request details.
+Migration records and encrypted `pre-identity.slbak` archives are retained under
+`.application-backups/identity-migration`. User Management shows them. Confirmation
+checks account integrity and **keeps** the archive; deletion requires another explicit
+administrator confirmation. Automatic retention never removes them. Preserve the
+separate original key for older archives. No old review string is guessed to belong
+to a newly assigned account ID.
 
-## Individual accounts and remaining multi-user limits
+## Operational boundaries and verification
 
-`SAP_LENS_AUTH=users` is implemented in `backend/server_access.py` and
-`backend/deployment.py`: local administrator-managed accounts, PBKDF2 password
-hashes, enabled/disabled accounts and Administrator/Reviewer/Read-only API roles.
-Administration uses the server's `--manage-user` command with JSON on stdin.
-Shared Basic and trusted-proxy modes do not acquire these individual-role semantics.
-The Windows management script's authentication parameter currently exposes only
-local/basic/proxy; do not assume every service installer UI supports users mode.
+Use one backend process/storage lease. No automatic schema downgrade, live restore,
+remote host restart, OS service change or archive credential rollback is allowed.
+Backups contain sensitive SAP/employee/account state; encrypted archives and key
+escrow need independent access controls. [Backup/restore](BACKUP_RESTORE.md) defines
+contents, exclusions, account acknowledgement and recovery. Do not commit private
+settings, datasets, credentials, databases, keys or logs.
 
-Individual accounts still use HTTP Basic, not revocable application sessions.
-Configurable session expiry, optional TOTP, enrollment/recovery and full web account
-administration are not implemented. Do not represent these as production-ready
-multi-user identity capabilities. Require HTTPS and protect the account file/ACLs.
+Sessions are not SSO or multi-tenant isolation. Concurrent reviewers still obey the
+existing revision/evidence gates. Local administrator recovery assumes an operator
+already controls protected host storage. Keep OS accounts, key escrow, TLS trust,
+network restrictions and retention approvals under organizational control.
 
-Authenticated users mode attributes supported review writes to the request actor;
-Desktop/shared modes retain self-reported names. Period approval compares reviewer
-and approver names but does not enforce independence from every contributor in a
-multi-reviewer period. Reviewer period-transition authorization is also incomplete.
-These are known requirements gaps, not reasons to weaken approval or role checks.
-
-## Session authentication activation (opt-in development rollout)
-
-The new `SAP_LENS_AUTH=sessions` boundary uses the identity database at
-`security/accounts.sqlite3` inside the protected server data directory. Start a
-fresh session server before provisioning. Startup initializes this database only
-in an otherwise empty data root (the server lease/ownership marker are allowed).
-Populated or corrupt roots require migration/recovery; they never reopen setup.
-Existing deployments remain on their current authentication mode until migration
-and the application UI rollout have been completed and validated.
-
-The local operator can generate a first-run code with the server executable's
-`--identity-code --data-directory` command. With Python source deployments:
-
-```bash
-python backend/server.py --identity-code --data-directory "$SAP_LENS_DATA_DIR"
-```
-
-Run as the service account or an authorized local administrator with access to
-protected storage. Supply an absolute existing server data directory. The elevated
-Windows Service Manager's **First-run activation code** action invokes the same
-local command for the owned, verified session-service bundle. No public API issues
-codes. The JSON command response contains the code: display it locally, never
-redirect it into logs or store it beside a backup. It expires after 15 minutes;
-five incorrect attempts invalidate it. Reissuing locally invalidates the previous
-code. First-admin creation and code consumption are one transaction.
-
-For controlled administrator recovery, add `--recover-administrator USERNAME` to
-the local command, then use the recovery form in the session-authentication UI.
-Only an existing administrator can be recovered this way. Issuing the code revokes
-that administrator's sessions and prevents old-password login until recovery is
-completed. It never creates another account or changes a Viewer into an admin.
-A corrupt/unreadable identity database requires verified restore or the documented
-migration recovery procedure, not deletion of the security directory.
-
-Linux and Docker use the same local command in the running server environment,
-with its existing protected data-volume path and service UID. Windows Service
-Manager is not a Linux/Docker runtime dependency. Native manager compilation and
-session-service acceptance must be verified separately from Linux tests.
+Linux synthetic/unit/browser evidence does not certify Windows ACLs, C#/WebView2,
+new SCM packages, real systemd or Docker lifecycle. Historical package acceptance
+is bound to that exact package. New native migration/restore acceptance remains
+mandatory before declaring this architecture production-ready.

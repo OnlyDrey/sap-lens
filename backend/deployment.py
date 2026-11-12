@@ -115,16 +115,15 @@ class ServerSettings:
         if not hosts or len(hosts)>32 or url.hostname.lower() not in hosts or any(not valid_host(h) for h in hosts):
             raise ValueError('Allowed hosts must explicitly include the public hostname; wildcards are forbidden.')
         mark('authentication boundary')
-        auth = os.environ.get('SAP_LENS_AUTH', 'local')
+        auth = os.environ.get('SAP_LENS_AUTH', 'sessions')
         if auth not in {'local','basic','proxy','users','sessions'}: raise ValueError('Choose local, basic, users, sessions or proxy authentication boundary.')
         if auth == 'local' and (not address.is_loopback or url.hostname not in {'localhost','127.0.0.1','::1'}):
             raise ValueError('Local access requires both a loopback binding and a loopback public origin.')
-        # Plain HTTP on a network name is a deliberate, acknowledged choice (Service Manager "HTTP" mode), never a silent default or downgrade.
-        allow_http = os.environ.get('SAP_LENS_ALLOW_HTTP', '').strip().lower() in {'1', 'true', 'yes'}
-        if url.scheme != 'https' and url.hostname not in {'localhost','127.0.0.1','::1'} and not (allow_http and auth == 'users'):
-            raise ValueError('Network browser origins require HTTPS termination, or HTTP mode with the explicit unencrypted-traffic acknowledgement and account authentication.')
+        # Password transport is loopback-only HTTP or HTTPS. Legacy acknowledgements cannot downgrade it.
+        if url.scheme != 'https' and (not address.is_loopback or url.hostname not in {'localhost','127.0.0.1','::1'}):
+            raise ValueError('Remote password authentication requires HTTPS; an old HTTP acknowledgement cannot override session security.')
         secret = ''
-        if auth in {'basic', 'proxy'} or (auth == 'sessions' and os.environ.get('SAP_LENS_TRUSTED_PROXIES','').strip()):
+        if auth == 'proxy' or (auth == 'sessions' and os.environ.get('SAP_LENS_TRUSTED_PROXIES','').strip()):
             path = Path(os.environ.get('SAP_LENS_AUTH_SECRET_FILE',''))
             if not path.is_absolute(): raise ValueError('Configure an absolute authentication secret-file path.')
             with path.open('rb') as stream:
@@ -171,13 +170,9 @@ class ServerSettings:
                 raise ValueError('The TLS certificate SANs do not cover: ' + ', '.join(uncovered) + '. Present: ' + (', '.join(f'{kind}={value}' for kind, value in certificate.get('subjectAltName', ())) or 'no SAN entries') + '.')
         mark('account file')
         accounts = os.environ.get('SAP_LENS_USERS_FILE', '')
-        if auth == 'users':
-            from server_access import read_accounts
-            if not Path(accounts).is_absolute(): raise ValueError('Configure an absolute account file.')
-            read_accounts(accounts)
-            if not address.is_loopback and not cert and not (allow_http and url.scheme == 'http'):
-                raise ValueError('Direct network account access requires TLS, or HTTP mode with the explicit unencrypted-traffic acknowledgement.')
-        if auth == 'sessions' and url.scheme == 'https' and not cert and not proxies:
+        if auth=='users' and not (data/'security/accounts.sqlite3').exists() and not Path(accounts).is_absolute():
+            raise ValueError('Configure the existing absolute legacy account file for migration.')
+        if url.scheme == 'https' and not cert and not proxies:
             raise ValueError('Session HTTPS requires a TLS certificate or an explicitly trusted TLS-terminating proxy.')
         return cls(host,port,data.resolve(),sources.resolve(),origin,hosts,auth,secret,username,proxies,level,max_failures,lockout,cert,key,accounts)
 

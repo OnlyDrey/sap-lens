@@ -26,12 +26,19 @@ from version import VERSION
 
 logger = logging.getLogger('sap-lens')
 FOLDER = Path('.application-backups') / 'migration'
-ARCHIVE = 'pre-migration.tar.gz'
+ARCHIVE = 'pre-migration.slbak'
+LEGACY_ARCHIVE = 'pre-migration.tar.gz'
 RECORD = 'record.json'
 
 
 def _root(data):
     return Path(data) / FOLDER
+
+
+def archive_path(data,record):
+    name=record.get('backup',{}).get('file',LEGACY_ARCHIVE)
+    if name not in {ARCHIVE,LEGACY_ARCHIVE}:raise ValueError('Unsupported migration archive.')
+    return _root(data)/record['id']/name
 
 
 def _records(data):
@@ -135,7 +142,11 @@ def _migrate(lease, server, data, record):
             check_space(data, exclusions)
             archive = _root(data) / record['id'] / ARCHIVE
             archive.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-            result = engine.backup(data, archive, lease.mode, VERSION, _lease=lease, _exclude=exclusions)
+            import backup_crypto as crypto
+            from portable_backups import archive as portable_archive
+            host=crypto.host_key(data)
+            result=portable_archive(data,archive.parent,lease,crypto.plan(record['id'],host),host,archive,server)
+            result['files']=len(result['manifest']['files'])
         except Exception as error:  # noqa: BLE001
             # Application-authored messages (MaintenanceError/ValueError) are static and safe; anything else is reported by type and OS error code only.
             reason = str(error) if isinstance(error, ValueError) else f'{type(error).__name__} errno={getattr(error, "errno", None)} winerror={getattr(error, "winerror", None)}'
@@ -166,9 +177,9 @@ def status(data=None):
     """Public status for the administrator: store health and the pre-migration backup that still waits for confirmation."""
     data = Path(data or config_dir())
     records = _records(data)
-    held = [item for item in records if item.get('status') == 'migrated' and (data / FOLDER / item['id'] / ARCHIVE).is_file()]
+    held = [item for item in records if item.get('status') == 'migrated' and archive_path(data,item).is_file()]
     current = held[-1] if held else None
-    kept = [item for item in records if item.get('status') == 'confirmed' and (data / FOLDER / item['id'] / ARCHIVE).is_file()]
+    kept = [item for item in records if item.get('status') == 'confirmed' and archive_path(data,item).is_file()]
     try:
         size = sum(path.stat().st_size for path in store_db.directory().glob('sap-lens.sqlite3*') if path.is_file())
     except OSError:
@@ -215,7 +226,7 @@ def delete_backup(identity, actor='', data=None):
     record = next((item for item in _records(data) if item['id'] == identity), None)
     if not record or record.get('status') != 'confirmed':
         raise NotReady('Only the backup of a confirmed migration can be deleted.')
-    archive = _root(data) / identity / ARCHIVE
+    archive = archive_path(data,record)
     if archive.is_symlink() or not archive.is_file():
         raise NotReady('The migration backup is not present.')
     archive.unlink()

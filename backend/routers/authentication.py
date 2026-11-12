@@ -80,9 +80,36 @@ def router_for(store, secure):
         complete(store, body.code, '', '', body.password, recovery=True)
         return dict(ok=True, login_required=True)
 
+    @router.get('/migration')
+    def migration_status(request: Request):
+        require(principal(request),'accounts')
+        from identity_migration import status
+        return status(store.path.parent.parent)
+
+    class MigrationConfirmation(StrictModel):
+        confirm: bool
+
+    @router.post('/migration/{identifier}/confirm')
+    def migration_confirm(identifier: str, body: MigrationConfirmation, request: Request):
+        require(principal(request),'accounts')
+        from identity_migration import confirm
+        if not body.confirm:
+            from auth_store import AuthError
+            raise AuthError('migration_confirmation_required')
+        return confirm(store.path.parent.parent,identifier,principal(request))
+
+    @router.post('/migration/{identifier}/delete')
+    def migration_delete(identifier: str, body: MigrationConfirmation, request: Request):
+        require(principal(request),'accounts')
+        from identity_migration import confirm
+        if not body.confirm:
+            from auth_store import AuthError
+            raise AuthError('migration_confirmation_required')
+        return confirm(store.path.parent.parent,identifier,principal(request),delete=True)
+
     @router.post('/login')
     def login(body: Login, request: Request, response: Response):
-        actor, token, csrf = store.login(body.username, body.password, request.client.host if request.client else 'unknown')
+        actor, token, csrf = store.login(body.username, body.password, request.app.state.deployment.client_address(request))
         for name, value, http_only in ((COOKIE, token, True), (CSRF_COOKIE, csrf, False)):
             response.set_cookie(name, value, httponly=http_only, secure=secure, samesite='lax', path='/')
         response.headers['Cache-Control'] = 'no-store'
@@ -167,7 +194,7 @@ def router_for(store, secure):
 
     @router.post('/reset')
     def reset(body: ResetPassword, request: Request):
-        store.complete_reset(body.code, body.password, request.client.host if request.client else 'unknown')
+        store.complete_reset(body.code, body.password, request.app.state.deployment.client_address(request))
         return dict(ok=True, login_required=True)
 
     return router

@@ -55,22 +55,55 @@ def read_accounts(path):
 
 @contextmanager
 def account_write_lock(path):
-    """Exclude simultaneous elevated manager processes; never remove another lock."""
-    lock_path = path.with_suffix('.lock')
-    deadline = time.monotonic() + 5
-    while True:
-        try:
-            descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-            break
-        except FileExistsError:
-            if time.monotonic() >= deadline:
-                raise ValueError('Account administration is busy; inspect the local manager lock.') from None
-            time.sleep(0.05)
+    """Kernel-owned, recoverable lock; unknown legacy presence locks stay blocked.
+
+    Keep the recognized stub: unlinking after unlock can split waiting writers
+    across different file identities. Old binaries fail closed on the stub.
+    """
+    lock_path=path.with_suffix('.lock');marker=b'SAP Lens account lock v2\n'
+    if any(p.is_symlink() or p.is_junction() for p in (lock_path,*lock_path.parents)):raise ValueError('Linked account lock is unsafe.')
+    deadline=time.monotonic()+5;stream=None;locked=False
     try:
-        os.close(descriptor)
+        while True:
+            try:
+                descriptor=os.open(lock_path,os.O_CREAT|os.O_EXCL|os.O_RDWR,0o600)
+                stream=os.fdopen(descriptor,'r+b')
+                if os.name=='nt':
+                    from windows_identity import make_private
+                    make_private(lock_path)
+                stream.write(marker+b'0');stream.flush();os.fsync(stream.fileno())
+            except FileExistsError:
+                if not lock_path.is_file() or lock_path.is_symlink() or lock_path.is_junction() or lock_path.stat().st_size>64:raise ValueError('Unrecognized account lock; inspect the stopped local manager.') from None
+                stream=lock_path.open('r+b')
+                if stream.read(len(marker))!=marker or os.fstat(stream.fileno()).st_size!=len(marker)+1:
+                    stream.close();stream=None
+                    if time.monotonic()>=deadline:raise ValueError('Account administration is busy; preserve and inspect its legacy lock.') from None
+                    time.sleep(0.05);continue
+            try:
+                stream.seek(len(marker))
+                if os.name=='nt':
+                    import msvcrt
+                    msvcrt.locking(stream.fileno(),msvcrt.LK_NBLCK,1)
+                else:
+                    import fcntl
+                    fcntl.flock(stream.fileno(),fcntl.LOCK_EX|fcntl.LOCK_NB)
+                locked=True;break
+            except OSError:
+                stream.close();stream=None
+                if time.monotonic()>=deadline:raise ValueError('Account administration is busy; inspect the local manager lock.') from None
+                time.sleep(0.05)
         yield
     finally:
-        lock_path.unlink()
+        if stream:
+            if locked:
+                stream.seek(len(marker))
+                if os.name=='nt':
+                    import msvcrt
+                    msvcrt.locking(stream.fileno(),msvcrt.LK_UNLCK,1)
+                else:
+                    import fcntl
+                    fcntl.flock(stream.fileno(),fcntl.LOCK_UN)
+            stream.close()
 
 
 def manage_user(path, payload):

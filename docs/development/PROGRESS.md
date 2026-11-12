@@ -2500,3 +2500,69 @@ not apply to this code. Broader final integration remains Phase 8, not claimed h
 
 Remaining: Phase 7 controlled legacy account migration; Phase 8 integrated/full
 local validation and final documentation. No main/product-version/CI-policy change.
+
+Phase 7 — controlled identity migration (2026-11-12)
+
+Existing individual-account JSON migrates through a staged schema-1 SQLite store,
+preserving exact usernames, enabled state and PBKDF2 verifiers (`read-only` becomes
+`viewer`). Successful login upgrades the verifier to Argon2id. UUIDs are stable
+across completed startup and interrupted verified-staging recovery. A complete
+encrypted migration snapshot precedes atomic activation; legacy files and frozen
+business evidence remain unchanged. Digest/schema/mapping checks protect resume;
+failed activation rolls back. Missing/corrupt existing identity storage never
+becomes public fresh setup. Shared/local/proxy installations need an explicit
+local recovery identity and one-time code, not a converted shared password.
+
+All server app factories now use the session boundary. Legacy environment values
+are migration inputs; Basic/identity headers cannot bypass sessions. Remote HTTP
+password authentication is rejected, including a non-loopback listener advertising
+a loopback name and old ALLOW_HTTP acknowledgements. Real HTTPS integration tests
+use cookies and CSRF. Trusted-proxy throttling uses the validated peer chain.
+
+A subprocess interruption test found a genuine pre-existing recovery defect:
+legacy account writes used an O_EXCL presence lock that survived termination.
+Current writers use a recognizable permanent stub plus a kernel-owned lock;
+process exit releases ownership. Marker validation does not overlap Windows'
+locked byte. Unknown old lock files are preserved/fail closed. Concurrent writers
+serialize; no lock is deleted to manufacture success. Verified staging resumes
+with the same account IDs after a hard child-process exit.
+
+User Management now exposes retained identity migration backups. Confirmation
+checks current account integrity and keeps the encrypted archive; a separate
+explicit administrator action deletes it. Both actions are audited. Source-store
+migration backups are also encrypted, with legacy archive-path compatibility.
+Service Manager has stopped migration/recovery/key controls; new identity setup
+precedes wrapper-created logs. SCM acceptance now activates a synthetic account
+and uses application sessions, without changing its ownership/cleanup/evidence
+requirements. Linux fresh configuration provisions a separate key and identity
+before runtime logs, preserving service ACL/ownership requirements. Stopped
+maintenance excludes host configuration and uses encrypted logical restore.
+
+The next build found the Phase 6 final lint correction used ErrorOptions outside
+this project's ES2020 library. Corrected with an ES2020-compatible Error carrying
+its cause. The production build/typecheck and ESLint then passed, followed by the
+newly built browser workflow. This is a correction to the preceding phase, not a
+claim that its last edit had passed the earlier build.
+
+Validation: migration's original five direct tests passed. Final crash-resume and
+writer-isolation selection passed 7; account/migration affected selection passed
+16. Session/throttle selection initially passed 28 with four new client-fixture
+peer mismatches; corrected security fixtures passed the affected rechecks.
+Server/setup/TLS/connection/Linux selection ran 68: 67 passed, one formatting-bound
+C# source expectation failed; corrected full connection-mode contract selection
+passed 17, including the stricter transport requirement. Core migration/storage/
+session/deployment selection discovered 72: 56 passed, 16 native PowerShell tests
+skipped (runner overcounts skips as passes). Dependent backup/provisioning/portable
+selection passed 53. Linux/Docker admission contracts passed 9 (no daemon/systemd
+lifecycle). Two complete browser specs on the successful production build passed
+7/7, including migrated sign-in and confirm-then-delete; final migration/cancel
+rechecks passed 2/2. An earlier 6/6 browser run followed the failed build and is
+not used as evidence for the new frontend. Ruff, scoped ESLint, docs, workflow,
+ownership and whitespace checks passed. No skips in these browser selections.
+
+Native Windows C#/PowerShell/SCM, newly built installers, real systemd and Docker
+lifecycle remain unverified. Existing Docker Basic/HTTP configuration requires
+controlled identity migration plus TLS or a trusted TLS terminator; final Phase 8
+updates the shipped Docker tooling/acceptance and documentation accordingly.
+Final integrated/full local validation remains pending. No main, product version
+or CI policy change; no workflow was dispatched.

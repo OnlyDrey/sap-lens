@@ -10,9 +10,11 @@ param(
     [ValidateRange(1,65535)][int]$Port = 18743,
     [string]$PublicOrigin = '',
     [string]$AllowedHosts = '127.0.0.1',
-    [ValidateSet('local','basic','proxy')][string]$Authentication = 'local',
+    [ValidateSet('sessions','local','basic','proxy')][string]$Authentication = 'sessions',
     [string]$SecretFile = '',
     [string]$TrustedProxies = '',
+    [string]$TlsCertificate = '',
+    [string]$TlsKey = '',
     [string]$NewBundleDirectory = '',
     [string]$BackupDirectory = "$env:ProgramData\SAP Lens Server Backups",
     [string]$Archive = '',
@@ -175,7 +177,7 @@ if ($Action -eq 'RepairSecret') {
     # Explicit, elevated, one purpose: restore the private ACL of the access secret THIS service is configured with. The path comes from the installed
     # service configuration, never from a parameter; the file content is never read or printed; other files and the service stay untouched.
     $values = Read-ServiceConfiguration
-    if ($values.SAP_LENS_AUTH -eq 'local') { throw 'This service uses local authentication and has no access-secret file.' }
+    if ($values.SAP_LENS_AUTH -notin @('basic','proxy')) { throw 'This service does not use a shared access-secret file. Session accounts are managed inside SAP Lens.' }
     $secretPath = $values.SAP_LENS_AUTH_SECRET_FILE
     Assert-RepairableSecretFile $secretPath
     $check = Test-InstalledConfiguration (Join-Path $InstallDirectory 'app\SAP-Lens.exe') $values
@@ -191,7 +193,7 @@ if ($Action -eq 'RepairSecret') {
 }
 if ($Action -in @('Upgrade','Backup','Restore')) {
     $values = Read-ServiceConfiguration
-    if ($Action -eq 'Upgrade' -and $values.SAP_LENS_AUTH -ne 'local') {
+    if ($Action -eq 'Upgrade' -and $values.SAP_LENS_AUTH -in @('basic','proxy')) {
         # An installation whose secret kept a permissive inherited ACL would fail to start after the swap; say so before anything is changed.
         Assert-RepairableSecretFile $values.SAP_LENS_AUTH_SECRET_FILE
         $preflight = Test-InstalledConfiguration (Join-Path $InstallDirectory 'app\SAP-Lens.exe') $values
@@ -252,10 +254,19 @@ if ($Action -eq 'Install') {
         if ((Get-FileHash -LiteralPath (Join-Path $InstallDirectory $file.Name) -Algorithm SHA256).Hash.ToLowerInvariant() -ne $file.Value) { throw 'Bundle integrity mismatch. Do not install.' }
     }
     if (-not (Test-Path (Join-Path $InstallDirectory 'app\SAP-Lens.exe'))) { throw 'Use the headless server bundle; the desktop EXE is not a service host.' }
-    if ($Authentication -eq 'local' -and $ListenHost -notin @('127.0.0.1','::1')) { throw 'Network binding requires basic or proxy authentication.' }
-    if ($Authentication -ne 'local' -and -not (Test-Path $SecretFile -PathType Leaf)) { throw 'Create an access secret file first; never supply domain credentials here.' }
-    if ($Authentication -ne 'local') { Assert-RepairableSecretFile $SecretFile }
+    if ($Authentication -notin @('sessions','local')) { throw 'New installations use sessions. Migrate existing legacy accounts locally; shared Basic/proxy identities are not application accounts.' }
+    $Authentication='sessions'
+    if ($TrustedProxies) { Assert-RepairableSecretFile $SecretFile }
     if (-not $PublicOrigin) { $PublicOrigin = "http://127.0.0.1:$Port" }
+    if (-not [IO.Path]::IsPathRooted($DataDirectory)) { throw 'Use an absolute private data directory.' }
+    if (-not (Test-Path (Join-Path $DataDirectory 'security\accounts.sqlite3'))) {
+        if ((Test-Path $DataDirectory) -and @(Get-ChildItem -LiteralPath $DataDirectory -Force).Count) { throw 'Existing data without session accounts requires stopped local identity migration; it will not be treated as a fresh installation.' }
+        New-Item -ItemType Directory -Force $DataDirectory | Out-Null
+        & icacls.exe $DataDirectory /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw 'Cannot protect new identity storage before initialization.' }
+        & (Join-Path $InstallDirectory 'app\SAP-Lens.exe') --initialize-identity $DataDirectory
+        if ($LASTEXITCODE -ne 0) { throw 'First-run identity initialization refused; preserve the diagnostics and data directory.' }
+    }
     foreach ($directory in @($DataDirectory,$SourceDirectory,$LogDirectory)) {
         if (-not [IO.Path]::IsPathRooted($directory)) { throw 'Use absolute directories; UNC source directories are supported.' }
         if (-not (Test-Path $directory -PathType Container)) { New-Item -ItemType Directory -Force $directory | Out-Null }
@@ -272,10 +283,10 @@ if ($Action -eq 'Install') {
     $origin=[Uri]$PublicOrigin
     if ($origin.Scheme -notin @('http','https') -or $origin.AbsolutePath -ne '/' -or $origin.Query -or $origin.Fragment -or $origin.UserInfo) { throw 'Use an HTTP(S) origin without a path, credentials, query or fragment.' }
     if ($AllowedHosts.Split(',').Trim() -notcontains $origin.Host -or $AllowedHosts.Contains('*')) { throw 'AllowedHosts must explicitly include the public hostname, without wildcards.' }
-    if ($Authentication -eq 'local' -and $origin.Host -notin @('127.0.0.1','localhost','::1')) { throw 'Local access requires a loopback public origin.' }
+    if ($origin.Scheme -eq 'http' -and ($ListenHost -notin @('127.0.0.1','::1') -or $origin.Host -notin @('127.0.0.1','localhost','::1'))) { throw 'HTTP password sign-in requires a loopback listener and hostname. Use HTTPS for remote access.' }
     if ($origin.Host -notin @('127.0.0.1','localhost','::1') -and $origin.Scheme -ne 'https') { throw 'Network public origins require HTTPS.' }
     if ($Authentication -eq 'proxy' -and -not $TrustedProxies) { throw 'Proxy authentication requires explicit trusted peer CIDRs.' }
-    if ($Authentication -ne 'local') {
+    if ($TrustedProxies) {
         $secret=([IO.File]::ReadAllText($SecretFile)).Trim()
         if ($secret.Length -lt 32 -or $secret.Length -gt 256 -or $secret -match '[^!-~]') { throw 'Access secret must contain 32-256 non-whitespace ASCII characters.' }
     }
@@ -283,6 +294,7 @@ if ($Action -eq 'Install') {
     & (Join-Path $InstallDirectory 'app\SAP-Lens.exe') --maintenance init-backup-key --data $DataDirectory --output $backupKey
     if ($LASTEXITCODE -ne 0) { throw 'Could not provision the protected external backup key. No service was installed.' }
     $settings.SAP_LENS_BACKUP_KEY_FILE=$backupKey
+    if ($TlsCertificate -or $TlsKey) { $settings.SAP_LENS_TLS_CERT_FILE=$TlsCertificate; $settings.SAP_LENS_TLS_KEY_FILE=$TlsKey }
     $escape = { param([string]$Text) [Security.SecurityElement]::Escape($Text) }
     $environment = ($settings.GetEnumerator() | Sort-Object Name | ForEach-Object {
         '<env name="' + (& $escape $_.Name) + '" value="' + (& $escape $_.Value) + '"/>'
@@ -305,6 +317,8 @@ if ($Action -eq 'Install') {
     $configuration = Join-Path $InstallDirectory 'SAPLensService.xml'
     if (Test-Path $configuration) { throw 'Existing administrator service configuration is preserved. Review it explicitly before reinstalling.' }
     [IO.File]::WriteAllText($configuration,$xml,[Text.UTF8Encoding]::new($false))
+    $configurationCheck=Test-InstalledConfiguration (Join-Path $InstallDirectory 'app\SAP-Lens.exe') $settings
+    if (-not $configurationCheck.Ok) { throw ('Configuration rejected before SCM registration: '+$configurationCheck.Message) }
     # Restrict private state to SYSTEM, Administrators and the dedicated service SID.
     Invoke-ServiceCommand 'install'
     & sc.exe sidtype SAPLens unrestricted | Out-Null

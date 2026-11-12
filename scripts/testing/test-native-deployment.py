@@ -34,12 +34,18 @@ def smoke(artifacts):
         with socket.socket() as reserve:reserve.bind(('127.0.0.1',0));port=reserve.getsockname()[1]
         config.write_text(config.read_text().replace('"18743"',json.dumps(str(port))).replace('127.0.0.1:18743',f'127.0.0.1:{port}'))
         expected=config.read_bytes()
+        cookies={}
+        password='Synthetic native lifecycle passphrase 123!'
         def request(method,path,body=None,headers=None):
             connection=http.client.HTTPConnection('127.0.0.1',port,timeout=2)
             try:
                 connection.request(method,path,json.dumps(body) if isinstance(body,dict) else body,
-                                   headers={'X-SAP-Lens':'1','Content-Type':'application/json',**(headers or {})})
-                response=connection.getresponse();return response.status,response.read()
+                                   headers={'X-SAP-Lens':'1','Content-Type':'application/json','Cookie':'; '.join(k+'='+v for k,v in cookies.items()),'X-SAP-Lens-CSRF':cookies.get('sap-lens-csrf',''),**(headers or {})})
+                response=connection.getresponse()
+                for key,value in response.getheaders():
+                    if key.lower()=='set-cookie':
+                        name,token=value.split(';',1)[0].split('=',1);cookies[name]=token
+                return response.status,response.read()
             finally:connection.close()
         def start(version):
             env=os.environ.copy()
@@ -48,9 +54,14 @@ def smoke(artifacts):
             process=subprocess.Popen(command,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
             for _ in range(150):
                 try:
-                    status,raw=request('GET','/api/version')
+                    status,raw=request('GET','/health/ready')
                     if status==200:
-                        if json.loads(raw)['version']!=version:raise ValueError('Installed version mismatch.')
+                        setup=json.loads(request('GET','/api/auth/state')[1])
+                        if setup['setup_required']:
+                            code=json.loads(subprocess.check_output([str(prefix/'current/.venv/bin/python'),str(prefix/'current/backend/server.py'),'--identity-code','--data-directory',str(data)]))['code']
+                            if request('POST','/api/auth/activate',dict(code=code,username='native-admin',display_name='Synthetic native administrator',password=password))[0]!=200:raise ValueError('Local activation failed.')
+                        if request('POST','/api/auth/login',dict(username='native-admin',password=password))[0]!=200:raise ValueError('Session login failed.')
+                        if json.loads(request('GET','/api/version')[1])['version']!=version:raise ValueError('Installed version mismatch.')
                         return process
                 except OSError:pass
                 if process.poll() is not None:break
@@ -72,14 +83,14 @@ def smoke(artifacts):
             if request('GET','/api/version')[0]!=200:raise ValueError('Managed restart did not recover readiness.')
         finally:install(bundle,'stop')
         install(bundle,'backup')
-        backups=list((root/'data-backups').glob('*.tar.gz'))
+        backups=list((root/'data-backups').glob('*.slbak'))
         if len(backups)!=1:raise ValueError('Expected one explicit private backup.')
         restored=root/'recovered-data';restored_config=root/'recovered-config'
         subprocess.run([str(prefix/'current/.venv/bin/python'),str(bundle/'backend/maintenance.py'),'restore',
-                        '--archive',str(backups[0]),'--data',str(restored),'--config-destination',str(restored_config),
-                        '--mode','server','--target-version',manifest['identity']['version'],'--confirm-restore'],check=True)
+                        '--archive',str(backups[0]),'--data',str(restored),
+                        '--mode','server','--target-version',manifest['identity']['version'],'--confirm-restore','--confirm-accounts'],check=True,env={**os.environ,'SAP_LENS_BACKUP_KEY_FILE':str(config.parent/'backup.key')})
         if (restored/'settings.json').read_bytes()!=(data/'settings.json').read_bytes():raise ValueError('Backup recovery did not preserve settings.')
-        if (restored_config/'server.env').read_bytes()!=expected:raise ValueError('Backup recovery did not preserve administrator configuration.')
+        if config.read_bytes()!=expected or restored_config.exists():raise ValueError('Portable restore changed or transferred administrator host configuration.')
         # Exercise upgrade semantics with a synthetic next-version bundle; never publish it.
         upgraded=root/'upgrade';shutil.copytree(bundle,upgraded)
         next_version=manifest['identity']['version'].split('-',1)[0].split('+',1)[0].split('.')

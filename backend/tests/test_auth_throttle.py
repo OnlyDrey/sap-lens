@@ -1,4 +1,4 @@
-"""SEC-02: failed Basic sign-ins are throttled per client, with bounded state, without trusting forwarded headers."""
+"""SEC-02: legacy limiter compatibility and current durable session sign-in protection."""
 import base64
 from concurrent.futures import ThreadPoolExecutor
 import os
@@ -123,55 +123,63 @@ class ThrottledServerTests(unittest.TestCase):
             'SAP_LENS_AUTH_SECRET_FILE': str(secret), 'SAP_LENS_TRUSTED_PROXIES': '', 'DATA_CSV_PATH': ''})
         self.env.start(); config.get_settings.cache_clear(); cache.clear_cache(); store.clear()
         self.frontend = patch('main.frontend_dir', frontend); self.frontend.start()
-        self.app = create_app(server=ServerSettings.from_env()); self.clock = Clock(); self.app.state.auth_throttle.clock = self.clock
+        from auth_store import AuthStore
+        identity=AuthStore(data/'security/accounts.sqlite3');identity.initialize()
+        identity.create_user(None,'saplens','Synthetic administrator','administrator',SECRET,bootstrap=True)
+        self.app=create_app(server=ServerSettings.from_env());self.clock=Clock();self.app.state.identity_store.clock=self.clock
 
     def tearDown(self):
         self.frontend.stop(); cache.clear_cache(); store.clear(); config.get_settings.cache_clear(); self.env.stop(); self.temp.cleanup()
 
     def client(self, peer='203.0.113.9'):
-        return TestClient(self.app, base_url=ORIGIN, client=(peer, 50000))
+        return TestClient(self.app,base_url='https://127.0.0.1:18743',client=(peer,50000))
 
-    def test_success_is_unaffected_and_repeated_failures_lock_out_with_standard_headers(self):
+    def login(self,client,user='saplens',password=SECRET,headers=None):
+        return client.post('/api/auth/login',json=dict(username=user,password=password),headers={'X-SAP-Lens':'1',**(headers or {})})
+
+    def test_success_is_unaffected_and_repeated_failures_lock_out(self):
         with self.client() as client:
-            self.assertEqual(client.get('/api/dashboard', headers=basic()).status_code, 200)
+            self.assertEqual(self.login(client).status_code,200)
             for attempt in range(5):
-                refused = client.get('/api/dashboard', headers=basic(password='wrong-secret-' + 'b' * 40))
-                self.assertEqual(refused.status_code, 401, attempt)
-                self.assertIn('Basic', refused.headers['WWW-Authenticate'])
-            locked = client.get('/api/dashboard', headers=basic(password='wrong-secret-' + 'c' * 40))
-            self.assertEqual((locked.status_code, locked.headers['Retry-After']), (429, '60'))
-            self.assertNotIn('secret', locked.text.lower()); self.assertNotIn('WWW-Authenticate', locked.headers)
-            self.assertEqual(client.get('/api/dashboard', headers=basic()).status_code, 429, 'correct credentials are not evaluated during a lock-out')
-            self.assertEqual(client.get('/api/dashboard').status_code, 401, 'a request without credentials is simply challenged')
-            self.assertEqual(client.get('/health/live').status_code, 200, 'health probes are never throttled')
+                refused=self.login(client,password='Wrong synthetic password 123!')
+                self.assertEqual(refused.status_code,401,attempt)
+                self.assertNotIn('WWW-Authenticate',refused.headers)
+            locked=self.login(client)
+            self.assertEqual(locked.status_code,429)
+            self.assertEqual(locked.json()['code'],'temporarily_throttled')
+            self.assertNotIn(SECRET,locked.text)
+            self.assertEqual(client.get('/health/live').status_code,200)
 
     def test_the_lockout_ends_and_other_clients_are_never_affected(self):
-        with self.client() as attacker, self.client('198.51.100.20') as other:
-            for _ in range(6): attacker.get('/api/dashboard', headers=basic(password='wrong-secret-' + 'b' * 40))
-            self.assertEqual(attacker.get('/api/dashboard', headers=basic()).status_code, 429)
-            self.assertEqual(other.get('/api/dashboard', headers=basic()).status_code, 200)
-            self.clock.now += 61
-            self.assertEqual(attacker.get('/api/dashboard', headers=basic()).status_code, 200, 'recovery after the cooldown')
+        with self.client() as attacker,self.client('198.51.100.20') as other:
+            for _ in range(5):self.login(attacker,password='Wrong synthetic password 123!')
+            self.assertEqual(self.login(attacker).status_code,429)
+            self.assertEqual(self.login(other).status_code,200)
+            self.clock.now+=31
+            self.assertEqual(self.login(attacker).status_code,200)
 
-    def test_the_username_does_not_change_the_outcome_and_failures_are_not_logged_with_credentials(self):
-        with self.client() as client, self.assertLogs('sap-lens-server', 'WARNING') as logs:
-            for user in ('saplens', 'unknown-user', 'saplens', 'other', 'x'):
-                self.assertEqual(client.get('/api/dashboard', headers=basic(user, 'wrong-secret-' + 'b' * 40)).status_code, 401)
-            self.assertEqual(client.get('/api/dashboard', headers=basic()).status_code, 429)
-        text = '\n'.join(logs.output)
-        self.assertIn('throttled', text); self.assertNotIn('wrong-secret', text); self.assertNotIn(SECRET, text); self.assertNotIn('Basic', text)
+    def test_username_variants_do_not_evade_client_limits_and_audit_excludes_passwords(self):
+        with self.client() as client:
+            for user in ('saplens','unknown-user','saplens','other','x'):
+                self.assertEqual(self.login(client,user,password='Wrong synthetic password 123!').status_code,401)
+            self.assertEqual(self.login(client).status_code,429)
+        with self.app.state.identity_store.connection() as db:
+            rows=[dict(row) for row in db.execute('SELECT * FROM audit')]
+        self.assertEqual(sum(row['operation']=='session.login_denied' for row in rows),5)
+        text=str(rows)
+        self.assertNotIn('Wrong synthetic password',text);self.assertNotIn(SECRET,text)
 
     def test_spoofed_forwarding_headers_do_not_reset_or_dodge_the_throttle(self):
         with self.client() as client:
-            for index in range(5): client.get('/api/dashboard', headers={**basic(password='wrong-secret-' + 'b' * 40), 'X-Forwarded-For': f'192.0.2.{index}'})
-            self.assertEqual(client.get('/api/dashboard', headers={**basic(), 'X-Forwarded-For': '192.0.2.250'}).status_code, 429)
-        self.assertEqual(len(self.app.state.auth_throttle), 1, 'one identity, however many forwarded addresses were claimed')
+            for index in range(5):self.login(client,password='Wrong synthetic password 123!',headers={'X-Forwarded-For':f'192.0.2.{index}'})
+            self.assertEqual(self.login(client,headers={'X-Forwarded-For':'192.0.2.250'}).status_code,429)
+        with self.app.state.identity_store.connection() as db:self.assertEqual(db.execute('SELECT COUNT(*) FROM login_limits').fetchone()[0],1)
 
-    def test_a_malformed_authorization_header_counts_as_a_failure(self):
+    def test_malformed_legacy_authorization_cannot_authenticate_or_poison_login_limits(self):
         with self.client() as client:
-            for header in ('Bearer abc', 'Basic !!!', 'Basic ' + base64.b64encode(b'nocolon').decode(), 'garbage', 'Basic ' + base64.b64encode(b'a:b').decode()):
-                self.assertEqual(client.get('/api/dashboard', headers={'Authorization': header}).status_code, 401)
-            self.assertEqual(client.get('/api/dashboard', headers=basic()).status_code, 429)
+            for header in ('Bearer abc','Basic !!!','Basic '+base64.b64encode(b'nocolon').decode(),'garbage','Basic '+base64.b64encode(b'a:b').decode()):
+                self.assertEqual(client.get('/api/dashboard',headers={'Authorization':header}).status_code,401)
+            self.assertEqual(self.login(client).status_code,200)
 
     def test_limits_are_configurable_within_documented_bounds(self):
         with patch.dict(os.environ, {'SAP_LENS_AUTH_MAX_FAILURES': '3', 'SAP_LENS_AUTH_LOCKOUT_SECONDS': '10'}):
@@ -186,9 +194,9 @@ class OtherModesTests(unittest.TestCase):
     def test_local_and_desktop_modes_have_no_throttle(self):
         with tempfile.TemporaryDirectory() as root, patch.dict(os.environ, {'SAP_LENS_CONFIG_DIR': root, 'DATA_CSV_PATH': ''}):
             config.get_settings.cache_clear()
-            self.assertIsNone(create_app(origin='http://127.0.0.1:41234', session_token='t').state.auth_throttle)
+            self.assertFalse(hasattr(create_app(origin='http://127.0.0.1:41234',session_token='t').state,'identity_store'))
             local = ServerSettings('127.0.0.1', 18743, Path('/x'), Path('/x'), ORIGIN, ('127.0.0.1',), 'local', '', 'saplens', (), 'info')
-            self.assertIsNone(create_app(server=local).state.auth_throttle)
+            self.assertTrue(hasattr(create_app(server=local).state,'identity_store'))
             config.get_settings.cache_clear()
 
 

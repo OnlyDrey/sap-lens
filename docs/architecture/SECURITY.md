@@ -186,8 +186,8 @@ bypass the new session model. Legacy `read-only` migrates to `viewer`.
 
 State machine: uninitialized -> activation-issued -> administrator-created ->
 initialized. The local manager/CLI creates a cryptographically random code and
-shows it once to the local operator; only a verifier persists. Suggested initial
-expiry is ten minutes, with five failed attempts invalidating that code. Rotation
+shows it once to the local operator; only a verifier persists. Implemented
+expiry is fifteen minutes, with five failed attempts invalidating that code. Rotation
 invalidates its predecessor. Atomic consume plus first-admin creation rejects
 replay/concurrent setup. Restart preserves issued/consumed state.
 

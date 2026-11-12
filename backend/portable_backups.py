@@ -95,7 +95,7 @@ def clear_transferred_capabilities(path):
 
 
 @contextmanager
-def stage(data,operation,lease,server=None):
+def stage(data,operation,lease,server=None,*,identity_source=None):
     from application_backups import protected, validate_store
     from storage_lease import StorageLease
     data=engine.directory(data)
@@ -115,8 +115,9 @@ def stage(data,operation,lease,server=None):
         schedule=schedule_settings(data)
         write(root/'backup-schedule.json',dict(revision=schedule['revision'],schedule=schedule['schedule']))
         identity=None
-        if (data/'security/accounts.sqlite3').exists():
-            identity=snapshot_identity(data/'security/accounts.sqlite3',root/'security/accounts.sqlite3')
+        source_identity=identity_source or data/'security/accounts.sqlite3'
+        if Path(source_identity).exists():
+            identity=snapshot_identity(source_identity,root/'security/accounts.sqlite3')
         validate_store(root,exclude={'security'})
         components=sorted({p.relative_to(root).parts[0] for p in engine.walk_files(root)})
         manifest=dict(format=2,application_version=VERSION,identity=identity,components=components,
@@ -131,7 +132,7 @@ def stage(data,operation,lease,server=None):
         shutil.rmtree(root)
 
 
-def archive(data,operation,lease,plan,host,output,server=None):
+def archive(data,operation,lease,plan,host,output,server=None,*,identity_source=None):
     import backup_crypto as crypto
     from application_backups import manifest as read_manifest
     key,header=crypto.unwrap(Path(operation).name,plan,host)
@@ -139,7 +140,7 @@ def archive(data,operation,lease,plan,host,output,server=None):
     verified=Path(operation)/'portable-verification.tar.gz'
     if raw.exists() or verified.exists():raise engine.MaintenanceError('An interrupted archive needs recovery before retry.')
     try:
-        with stage(data,operation,lease,server) as (root,staged_lease,components):
+        with stage(data,operation,lease,server,identity_source=identity_source) as (root,staged_lease,components):
             engine.backup(root,raw,lease.mode,VERSION,_lease=staged_lease,_exclude={'.sap-lens-instance.lock'},_manifest_extra={'portable':components})
             read_manifest(raw)
         crypto.seal(raw,output,key,header)

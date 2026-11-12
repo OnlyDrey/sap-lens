@@ -33,6 +33,9 @@ def run():
         except (ValueError, OSError, RuntimeError):
             print('Identity initialization refused. Existing data was preserved; check migration and storage permissions.',file=sys.stderr)
             return 1
+    if sys.argv[1:2] == ['--migrate-identity']:
+        from identity_migration import cli
+        return cli(sys.argv[2:])
     if sys.argv[1:2] == ['--identity-code']:
         from auth_provisioning import cli
         return cli(sys.argv[2:])
@@ -41,6 +44,9 @@ def run():
         import json
         try:
             if len(sys.argv) != 3: raise ValueError('Specify an account file.')
+            from deployment import default_server_data
+            data=Path(os.environ.get('SAP_LENS_DATA_DIR',str(default_server_data())))
+            if (data/'security/accounts.sqlite3').exists():raise ValueError('Session accounts are managed inside SAP Lens; legacy JSON is not active.')
             raw = sys.stdin.buffer.read(4097)
             if len(raw) > 4096: raise ValueError('Account input too large.')
             manage_user(Path(sys.argv[2]), json.loads(raw))
@@ -78,12 +84,14 @@ def run():
         logging.basicConfig(level=settings.log_level.upper(),format='%(asctime)s %(levelname)s %(message)s')
         stage='storage ownership and permissions'
         from storage_lease import StorageLease
+        from maintenance import directory
+        directory(settings.data) # Refuse OS/home roots before creating a lock or ownership marker.
         lease=StorageLease(settings.data,'server').acquire()
         try:
-            if settings.auth == 'sessions':
-                from auth_provisioning import prepare
-                stage='identity classification'
-                prepare(settings.data)
+            from identity_migration import migrate,effective
+            stage='identity migration or fresh classification'
+            migrate(lease,settings.auth,settings.accounts)
+            settings=effective(settings)
             from application_backups import startup
             startup(lease,settings)
             from config import get_settings

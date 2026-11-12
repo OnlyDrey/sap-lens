@@ -29,11 +29,12 @@ namespace SapLens {
         public static string PrivateRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "SAP Lens Server Access");
         public static string Users { get { return Path.Combine(PrivateRoot, "users.json"); } }
 
-        public static string Run(string file, string args, string input) {
+        public static string Run(string file, string args, string input, Dictionary<string,string> environment = null) {
             var p = new Process();
             p.StartInfo = new ProcessStartInfo(file, args) { UseShellExecute = false, CreateNoWindow = true,
                 RedirectStandardOutput = true, RedirectStandardError = true, RedirectStandardInput = input != null,
                 WorkingDirectory = Root, StandardOutputEncoding = Encoding.UTF8, StandardErrorEncoding = Encoding.UTF8 };
+            if (environment != null) foreach (var pair in environment) p.StartInfo.EnvironmentVariables[pair.Key] = pair.Value;
             var output = new StringBuilder(); var errors = new StringBuilder();
             p.OutputDataReceived += (s,e) => { if (e.Data != null) output.AppendLine(e.Data); };
             p.ErrorDataReceived += (s,e) => { if (e.Data != null) errors.AppendLine(e.Data); };
@@ -172,7 +173,7 @@ namespace SapLens {
         }
         public static string ActivationCode(string recoverAdministrator) {
             var settings = Settings();
-            if (!settings.ContainsKey("SAP_LENS_AUTH") || settings["SAP_LENS_AUTH"] != "sessions")
+            if ((!settings.ContainsKey("SAP_LENS_AUTH") || settings["SAP_LENS_AUTH"] != "sessions") && !File.Exists(Path.Combine(settings["SAP_LENS_DATA_DIR"],@"securityccounts.sqlite3")))
                 throw new InvalidOperationException("Session authentication is not active. Complete the documented account migration first.");
             VerifyBundle(); Status(); // existing installation ownership guards
             string arguments = "--identity-code --data-directory " + Quote(settings["SAP_LENS_DATA_DIR"]);
@@ -180,6 +181,23 @@ namespace SapLens {
             string result = Run(Path.Combine(Root, @"app\SAP-Lens.exe"), arguments, null);
             var value = Json.Deserialize<Dictionary<string,object>>(result);
             return Convert.ToString(value["code"]);
+        }
+        public static string MigrateIdentity(string newAdministrator) {
+            VerifyBundle(); if (Status() != "Stopped") throw new InvalidOperationException("Stop this owned service before account migration.");
+            var settings=Settings();
+            if (!settings.ContainsKey("SAP_LENS_BACKUP_KEY_FILE")) throw new InvalidOperationException("Save stopped configuration to provision a private external backup key first.");
+            string auth=settings["SAP_LENS_AUTH"];
+            string arguments="--migrate-identity --data-directory "+Quote(settings["SAP_LENS_DATA_DIR"])+" --legacy-auth "+(auth=="users"?"users":"local");
+            if (auth=="users") arguments+=" --legacy-accounts "+Quote(AccountFile(settings));
+            else {
+                if (String.IsNullOrWhiteSpace(newAdministrator)) throw new InvalidOperationException("Enter a new recovery administrator name for this shared-access installation. No shared password is migrated.");
+                arguments+=" --new-administrator "+Quote(newAdministrator);
+            }
+            var result=Json.Deserialize<Dictionary<string,object>>(Run(Path.Combine(Root,@"app\SAP-Lens.exe"),arguments,null,settings));
+            object recovery;
+            if (result.TryGetValue("recovery",out recovery) && recovery != null)
+                return "Migration complete. Use Recover administrator in the application with this one-time code (15 minutes); set a new personal password.\n\n"+Convert.ToString(((Dictionary<string,object>)recovery)["code"]);
+            return "Migration complete. Existing personal credentials and disabled accounts were preserved. Manage accounts inside SAP Lens; the encrypted recovery snapshot is retained.";
         }
         public static void ExportBackupKey(string destination) {
             VerifyBundle(); Status();
@@ -237,7 +255,7 @@ namespace SapLens {
             if (!File.Exists(backupKey)) Run(Path.Combine(Root,@"app\SAP-Lens.exe"),"--maintenance init-backup-key --data "+Quote(data)+" --output "+Quote(backupKey),null);
             Run(Path.Combine(Root,@"app\SAP-Lens.exe"),"--maintenance check-backup-key --data "+Quote(data)+" --key-file "+Quote(backupKey),null);
             bool https = mode != ModeHttp;
-            if (auth == "sessions" && !https && HttpNeedsAcknowledgement(listener, hosts))
+            if (!https && HttpNeedsAcknowledgement(listener, hosts))
                 throw new ArgumentException("Session passwords require HTTPS for remote access. Choose HTTPS or use a loopback-only listener and hostname.");
             if (!https) {
                 if (HttpNeedsAcknowledgement(listener, hosts) && !acknowledgeHttp) throw new ArgumentException("HTTP is not encrypted: passwords and data cross the network in clear text. Confirm the acknowledgement to bind HTTP beyond this computer.");
@@ -258,6 +276,11 @@ namespace SapLens {
             if (auth == "users") settings["SAP_LENS_USERS_FILE"] = accountFile;
             if (https) { settings["SAP_LENS_TLS_CERT_FILE"] = cert; settings["SAP_LENS_TLS_KEY_FILE"] = key; }
             else if (HttpNeedsAcknowledgement(listener, hosts)) settings["SAP_LENS_ALLOW_HTTP"] = "1";
+            if (!installed && !File.Exists(Path.Combine(data,@"security\accounts.sqlite3"))) {
+                if (Directory.Exists(data) && Directory.EnumerateFileSystemEntries(data).Any()) throw new InvalidOperationException("Existing data requires stopped local identity migration before new service registration. It will not be treated as first-run data.");
+                Directory.CreateDirectory(data); PrivateAcl(data);
+                Run(Path.Combine(Root,@"app\SAP-Lens.exe"),"--initialize-identity "+Quote(data),null);
+            }
             // Validate TLS key/certificate matching and all SANs with the actual packaged runtime before activation.
             var old = File.Exists(Config) ? File.ReadAllText(Config) : null;
             WriteConfig(settings);
@@ -265,7 +288,6 @@ namespace SapLens {
             catch { if (old == null) File.Delete(Config); else File.WriteAllText(Config, old); throw; }
             if (!installed) { Run(Wrapper, "install", null); Run("sc.exe", "sidtype SAPLens unrestricted", null); }
             Directory.CreateDirectory(data); Acl(data, true, true);
-            if (!installed && auth == "sessions") Run(Path.Combine(Root, @"app\SAP-Lens.exe"), "--initialize-identity " + Quote(data), null);
             Directory.CreateDirectory(Path.Combine(data,"logs")); Directory.CreateDirectory(Path.Combine(data,"sources"));
             Acl(PrivateRoot, false, true); Acl(backupKey, false, false); if (auth == "users") Acl(accountFile, false, false); if (https) Acl(key, false, false);
             ProtectProgramDirectory();
@@ -315,7 +337,7 @@ namespace SapLens {
             data.Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"SAP Lens Server"); Add(table,"Data directory",data);
             mode.DropDownStyle=ComboBoxStyle.DropDownList; mode.Items.AddRange(new object[]{"HTTPS - generate a self-signed certificate (default)","HTTPS - use an existing certificate","HTTP - no certificate (unencrypted)"}); mode.SelectedIndex=0; Add(table,"Connection mode",mode);
             Add(table,"Existing PEM certificate",cert); Add(table,"Existing PEM private key",key);
-            httpWarning.Text="Warning: HTTP is not encrypted. Passwords and SAP role data cross the network in clear text. Use it only on loopback or a trusted, isolated network; account authentication and the firewall restriction still apply."; httpWarning.AutoSize=true; httpWarning.MaximumSize=new Size(550,0); httpWarning.ForeColor=Color.DarkRed; Add(table,"",httpWarning);
+            httpWarning.Text="Warning: HTTP is not encrypted. Passwords and SAP role data cross the network in clear text. Use HTTP only on a loopback listener and hostname; remote password sign-in requires HTTPS."; httpWarning.AutoSize=true; httpWarning.MaximumSize=new Size(550,0); httpWarning.ForeColor=Color.DarkRed; Add(table,"",httpWarning);
             acknowledge.Text="I understand that HTTP traffic is unencrypted"; acknowledge.AutoSize=true; Add(table,"",acknowledge);
             mode.SelectedIndexChanged += (s,e) => ApplyMode(); ApplyMode();
             Add(table,"Recovery administrator",recoveryUser);
@@ -323,6 +345,7 @@ namespace SapLens {
             Button(actions,"Register / save configuration",()=>{ ServiceSetup.Save(hosts.Text,(int)port.Value,data.Text,listener.Text,ModeKey(),cert.Text,key.Text,acknowledge.Checked); LoadConfig(); });
             Button(actions,"Start",()=>ServiceSetup.Control("start")); Button(actions,"Stop",()=>ServiceSetup.Control("stop")); Button(actions,"Restart",()=>ServiceSetup.Control("restart"));
             Button(actions,"Refresh",()=>{}); Button(actions,"Unregister",()=>{ if(MessageBox.Show("Unregister this service? Application files, accounts, certificates and data will be retained.",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)ServiceSetup.Control("uninstall"); });
+            Button(actions,"Migrate legacy accounts",()=>{if(MessageBox.Show("Stop the service and verify your separate recovery key first. Preserve old account files and an encrypted application snapshot?",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)MessageBox.Show(ServiceSetup.MigrateIdentity(recoveryUser.Text),"Account migration");});
             Button(actions,"Recover administrator",()=>{ if(MessageBox.Show("Revoke this administrator's sessions and issue a one-time recovery code?",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)MessageBox.Show(ServiceSetup.ActivationCode(recoveryUser.Text),"Administrator recovery code — valid for 15 minutes"); });
             Button(actions,"First-run activation code",()=>{ string code=ServiceSetup.ActivationCode(null); MessageBox.Show("Use this code on the SAP Lens first-run page within 15 minutes. It is shown only here; do not put it in logs.\n\n"+code,Text); });
             Button(actions,"Export backup recovery key",()=>{using(var dialog=new SaveFileDialog{Title="Store a private recovery key separately from backup archives",Filter="SAP Lens recovery key (*.key)|*.key",FileName="SAP-Lens-recovery.key"}){if(dialog.ShowDialog()==DialogResult.OK){ServiceSetup.ExportBackupKey(dialog.FileName);MessageBox.Show("Recovery copy created. Keep it private and separate from archives. In SAP Lens Backup & Restore, verify this copy before enabling automatic backups.",Text);}}});

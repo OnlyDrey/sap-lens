@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
-import { spawn } from 'node:child_process'
+import { spawn,execFileSync } from 'node:child_process'
 import { observeTestServer, stopTestServer, removeTestServerDirectory, type OwnedTestServer } from './server-process'
 import { PYTHON } from './python'
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync,existsSync,readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer, type AddressInfo } from 'node:net'
@@ -12,6 +12,15 @@ import { layoutMatrix } from './matrix'
 let server:OwnedTestServer, root:string
 let origin:string
 const password='synthetic-browser-server-'+ 'a'.repeat(40)
+let legacyAccounts:Buffer
+async function contextFor(browser:import('@playwright/test').Browser,width:number,height:number){
+ const context=await browser.newContext({viewport:{width,height}})
+ const response=await context.request.post(origin+'/api/auth/login',{headers:{'X-SAP-Lens':'1'},data:{username:'admin',password}})
+ expect(response.ok()).toBeTruthy()
+ const csrf=(await context.cookies(origin)).find(cookie=>cookie.name==='sap-lens-csrf')?.value
+ expect(csrf).toBeTruthy();await context.setExtraHTTPHeaders({'X-SAP-Lens-CSRF':csrf!})
+ return context
+}
 test.beforeAll(async()=>{
   const reservation=createServer()
   await new Promise<void>(resolve=>reservation.listen(0,'127.0.0.1',resolve))
@@ -21,10 +30,12 @@ test.beforeAll(async()=>{
   root=mkdtempSync(path.join(tmpdir(),'sap-lens-server-'))
   mkdirSync(path.join(root,'sources'))
   writeFileSync(path.join(root,'access.secret'),password,{mode:0o600})
+  execFileSync(PYTHON,['-c',`import json,sys,os;from pathlib import Path;sys.path.insert(0,str(Path('../backend').resolve()));from server_access import manage_user;from config_models import AppConfig;import backup_crypto;import windows_identity;p=json.load(sys.stdin);root=Path(p['root']);windows_identity.make_private(root,True) if os.name=='nt' else None;data=root/'data';data.mkdir();(data/'settings.json').write_text(AppConfig().model_dump_json(),encoding='utf8');manage_user(root/'legacy-users.json',dict(username='admin',password=p['password'],role='administrator',enabled=True));backup_crypto.create_key(root/'backup.key',data)`],{input:JSON.stringify({root,password}),timeout:20000})
+  legacyAccounts=readFileSync(path.join(root,'legacy-users.json'))
   server=observeTestServer(spawn(PYTHON,['../backend/server.py'],{env:{...globalThis.process.env,
     SAP_LENS_DEPLOYMENT_MODE:'server',SAP_LENS_DATA_DIR:path.join(root,'data'),SAP_LENS_CONFIG_DIR:path.join(root,'data'),
     SAP_LENS_SOURCE_DIR:path.join(root,'sources'),SAP_LENS_PORT:String(port),SAP_LENS_HOST:'127.0.0.1',
-    SAP_LENS_PUBLIC_ORIGIN:origin,SAP_LENS_ALLOWED_HOSTS:'127.0.0.1',SAP_LENS_AUTH:'basic',
+    SAP_LENS_PUBLIC_ORIGIN:origin,SAP_LENS_ALLOWED_HOSTS:'127.0.0.1',SAP_LENS_AUTH:'users',SAP_LENS_USERS_FILE:path.join(root,'legacy-users.json'),SAP_LENS_BACKUP_KEY_FILE:path.join(root,'backup.key'),
     SAP_LENS_AUTH_SECRET_FILE:path.join(root,'access.secret'),SAP_LENS_TRUSTED_PROXIES:''},stdio:'ignore',detached:globalThis.process.platform!=='win32',windowsHide:true}))
   await expect.poll(async()=>{if(server.startupError())throw server.startupError();try{return (await fetch(origin+'/health/ready')).status}catch{return 0}},{timeout:10000}).toBe(200)
 })
@@ -38,7 +49,7 @@ test.afterAll(async()=>{
 })
 for (const { theme, width } of layoutMatrix([375,800,1280])){
   test(`headless browser automatic upload and download ${theme} ${width}`,{ tag: '@visual' }, async({browser},testInfo)=>{
-    const context=await browser.newContext({httpCredentials:{username:'saplens',password},viewport:{width,height:900}})
+    const context=await contextFor(browser,width,900)
     const page=await context.newPage()
     try{
       const config=(await(await context.request.get(origin+'/api/configuration')).json()).settings
@@ -81,7 +92,7 @@ for (const { theme, width } of layoutMatrix([375,800,1280])){
 
 
 test('browser uploads activate all source types and reject an invalid replacement without losing metadata', async({browser})=>{
-  const context=await browser.newContext({httpCredentials:{username:'saplens',password},viewport:{width:800,height:900}})
+  const context=await contextFor(browser,800,900)
   const page=await context.newPage()
   try{
     await page.goto(origin)
@@ -113,4 +124,26 @@ test('browser uploads activate all source types and reject an invalid replacemen
       expect(after.revision).toBe(before.revision);expect(after.data_lifecycle).toEqual(before.data_lifecycle);expect(after.employee_snapshot_id).toBe(before.employee_snapshot_id)
     }
   }finally{await context.close()}
+})
+
+
+test('migrated credentials sign in and recovery backup requires confirmation before deletion',async({browser})=>{
+ const context=await contextFor(browser,1280,900),page=await context.newPage()
+ try{
+  await page.goto(origin);await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'User Management',exact:true}).click()
+  const region=page.getByRole('region',{name:'Account migration backups'})
+  await expect(region.getByRole('button',{name:'Confirm account migration',exact:true})).toBeVisible()
+  const folder=path.join(root,'data','.application-backups','identity-migration')
+  const archived=readdirSync(folder).map(id=>path.join(folder,id,'pre-identity.slbak')).filter(file=>existsSync(file))
+  expect(archived).toHaveLength(1)
+  await region.getByRole('button',{name:'Confirm account migration',exact:true}).click()
+  await page.getByRole('dialog',{name:'Confirm account migration?',exact:true}).getByRole('button',{name:'Confirm',exact:true}).click()
+  await expect(region.getByRole('button',{name:'Delete account migration backup',exact:true})).toBeVisible()
+  expect(existsSync(archived[0])).toBe(true)
+  await region.getByRole('button',{name:'Delete account migration backup',exact:true}).click()
+  await page.getByRole('dialog',{name:'Delete account migration backup?',exact:true}).getByRole('button',{name:'Confirm',exact:true}).click()
+  await expect(region).toContainText('deleted')
+  expect(existsSync(archived[0])).toBe(false)
+  expect(readFileSync(path.join(root,'legacy-users.json')).equals(legacyAccounts)).toBe(true)
+ }finally{await context.close()}
 })

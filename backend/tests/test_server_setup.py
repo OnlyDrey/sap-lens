@@ -34,6 +34,23 @@ class AccountsTests(unittest.TestCase):
     def header(self, username='admin', password='Synthetic-password-123!'):
         return 'Basic ' + base64.b64encode(f'{username}:{password}'.encode()).decode()
 
+    def migrate_accounts(self):
+        from storage_lease import StorageLease
+        from identity_migration import migrate
+        from auth_store import AuthStore
+        import backup_crypto as crypto
+        data=self.root/'data';key=self.root/'backup.key';crypto.create_key(key,data)
+        lease=StorageLease(data,'server').acquire()
+        try:
+            with patch.dict(os.environ,{'SAP_LENS_BACKUP_KEY_FILE':str(key)}):migrate(lease,'users',str(self.path))
+        finally:lease.close()
+        return AuthStore(data/'security/accounts.sqlite3')
+
+    def login(self,client,username='admin',password='Synthetic-password-123!'):
+        response=client.post('/api/auth/login',headers={'X-SAP-Lens':'1'},json=dict(username=username,password=password))
+        self.assertEqual(response.status_code,200,response.text)
+        return {'X-SAP-Lens':'1','X-SAP-Lens-CSRF':client.cookies['sap-lens-csrf']}
+
     def test_hashed_accounts_wrong_password_revocation_and_last_admin(self):
         self.assertNotIn('Synthetic-password', self.path.read_text())
         self.assertEqual(authenticate(self.path, self.header()), ('admin', 'administrator'))
@@ -78,27 +95,47 @@ class AccountsTests(unittest.TestCase):
         self.assertEqual(done.returncode,0,done.stderr)
         self.assertEqual(done.stdout.strip(),'True')
 
-    def test_live_account_updates_and_new_application_authentication(self):
+    def test_migrated_account_updates_use_application_sessions_and_persist_across_restart(self):
+        identities=self.migrate_accounts()
         settings=ServerSettings('127.0.0.1',18743,self.root/'data',self.root/'sources','https://localhost:18743',('localhost',),'users','','',(),'info',accounts=str(self.path))
         with patch.dict(os.environ,{'SAP_LENS_CONFIG_DIR':str(self.root/'data')}):
-            config.get_settings.cache_clear()
-            try:
-                client=TestClient(create_app(server=settings),base_url='https://localhost:18743',client=('127.0.0.1',50000))
-                self.assertEqual(client.get('/api/runtime',headers={'Authorization':self.header()}).status_code,200)
-                manage_user(self.path,dict(username='reader',role='read-only',password='Synthetic-password-123!',enabled=True))
-                self.assertEqual(client.get('/api/runtime',headers={'Authorization':self.header('reader')}).status_code,200)
-                manage_user(self.path,dict(username='reader',role='reviewer',password='Changed-synthetic-password-123!',enabled=True))
-                self.assertEqual(client.get('/api/runtime',headers={'Authorization':self.header('reader')}).status_code,401)
-                changed={'Authorization':self.header('reader','Changed-synthetic-password-123!')}
-                self.assertEqual(client.get('/api/runtime',headers=changed).json()['role'],'reviewer')
-                # New app/settings simulate restart against the same persisted file.
-                restarted=TestClient(create_app(server=settings),base_url='https://localhost:18743',client=('127.0.0.1',50000))
-                self.assertEqual(restarted.get('/api/runtime',headers=changed).status_code,200)
-                manage_user(self.path,dict(username='reader',role='reviewer',password='',enabled=False))
-                self.assertEqual(client.get('/api/runtime',headers=changed).status_code,401)
-                self.assertEqual(restarted.get('/api/runtime',headers=changed).status_code,401)
-            finally:
-                config.get_settings.cache_clear()
+            config.get_settings.cache_clear();self.addCleanup(config.get_settings.cache_clear)
+            client=TestClient(create_app(server=settings),base_url='https://localhost:18743',client=('127.0.0.1',50000))
+            self.assertEqual(client.get('/api/runtime',headers={'Authorization':self.header()}).status_code,401)
+            self.login(client)
+            self.assertEqual(client.get('/api/runtime').status_code,200)
+            administrator=identities.login('admin','Synthetic-password-123!','fixture')[0]
+            row=identities.create_user(administrator,'reader','Reader','viewer','Synthetic-password-123!')
+            self.login(client,'reader')
+            self.assertEqual(client.get('/api/runtime').json()['role'],'viewer')
+            changed=identities.update_user(administrator,row['id'],row['revision'],display_name='Reader',role='reviewer',enabled=True)
+            self.assertEqual(client.get('/api/runtime').status_code,401)
+            reset=identities.issue_reset(administrator,row['id'],changed['revision'])
+            identities.complete_reset(reset['code'],'Changed-synthetic-password-123!','reset')
+            self.login(client,'reader','Changed-synthetic-password-123!')
+            self.assertEqual(client.get('/api/runtime').json()['role'],'reviewer')
+            restarted=TestClient(create_app(server=settings),base_url='https://localhost:18743',client=('127.0.0.1',50000))
+            self.login(restarted,'reader','Changed-synthetic-password-123!')
+            self.assertEqual(restarted.get('/api/runtime').status_code,200)
+            latest=next(user for user in identities.users(administrator) if user['id']==row['id'])
+            identities.update_user(administrator,row['id'],latest['revision'],display_name='Reader',role='reviewer',enabled=False)
+            self.assertEqual(client.get('/api/runtime').status_code,401)
+            self.assertEqual(restarted.get('/api/runtime').status_code,401)
+
+    def test_current_legacy_writers_serialize_and_unknown_lock_is_never_removed(self):
+        from concurrent.futures import ThreadPoolExecutor
+        from server_access import account_write_lock
+        def save(number):
+            manage_user(self.path,dict(username='synthetic-'+str(number),role='read-only',password='Synthetic parallel password 123!',enabled=True))
+        with ThreadPoolExecutor(max_workers=2) as pool:list(pool.map(save,range(4)))
+        self.assertEqual(len(read_accounts(self.path)['users']),5)
+        lock=self.path.with_suffix('.lock')
+        self.assertTrue(lock.read_bytes().startswith(b'SAP Lens account lock v2'))
+        lock.write_bytes(b'legacy-unknown-owner')
+        with patch('server_access.time.monotonic',side_effect=[0,6]):
+            with self.assertRaises(ValueError):
+                with account_write_lock(self.path):self.fail('Unknown lock was bypassed.')
+        self.assertEqual(lock.read_bytes(),b'legacy-unknown-owner')
 
     def test_account_store_error_is_logged_without_credentials_or_paths(self):
         with patch('server_access.read_accounts',side_effect=PermissionError('sensitive path or credential')),self.assertLogs('sap-lens-server',level='WARNING') as captured:
@@ -119,6 +156,7 @@ class AccountsTests(unittest.TestCase):
 
     def test_real_requests_authenticate_enforce_roles_and_accept_alias_origins(self):
         manage_user(self.path, dict(username='reader', role='read-only', password='Synthetic-password-123!', enabled=True))
+        self.migrate_accounts()
         settings = ServerSettings('127.0.0.1',18743,self.root/'data',self.root/'sources',
             'https://server01:18743',('server01','server01.example.invalid','192.0.2.10'),
             'users','','',(),'info',accounts=str(self.path))
@@ -128,12 +166,12 @@ class AccountsTests(unittest.TestCase):
                 app = create_app(server=settings)
                 for host in settings.hosts:
                     client = TestClient(app, base_url=f'https://{host}:18743', client=('192.0.2.20',50000))
-                    headers = {'Authorization': self.header('reader'), 'X-SAP-Lens':'1', 'Origin':f'https://{host}:18743'}
+                    self.assertEqual(client.get('/api/runtime').status_code,401)
+                    headers={**self.login(client,'reader'),'Origin':f'https://{host}:18743'}
                     response = client.get('/api/runtime', headers=headers)
                     self.assertEqual(response.status_code, 200)
                     self.assertEqual(response.json()['username'], 'reader')
                     self.assertEqual(client.post('/api/refresh', headers=headers).status_code, 403)
-                    self.assertEqual(client.get('/api/runtime').status_code, 401)
                     self.assertEqual(client.get('/api/runtime', headers={**headers,'Origin':'https://evil.example.invalid'}).status_code, 403)
                     self.assertEqual(client.get('/api/runtime', headers={**headers,'Host':'evil.example.invalid'}).status_code, 400)
                 self.assertEqual(ACTOR.get(), '')
@@ -177,9 +215,12 @@ class TlsTests(unittest.TestCase):
             env={**os.environ,'SAP_LENS_HOST':'127.0.0.1','SAP_LENS_PORT':str(port),
                  'SAP_LENS_DATA_DIR':str(root/'data'),'SAP_LENS_CONFIG_DIR':str(root/'data'),
                  'SAP_LENS_SOURCE_DIR':str(root/'sources'),'SAP_LENS_PUBLIC_ORIGIN':f'https://localhost:{port}',
-                 'SAP_LENS_ALLOWED_HOSTS':'localhost,127.0.0.1','SAP_LENS_AUTH':'basic',
+                 'SAP_LENS_ALLOWED_HOSTS':'localhost,127.0.0.1','SAP_LENS_AUTH':'sessions',
                  'SAP_LENS_AUTH_SECRET_FILE':str(secret),'SAP_LENS_TLS_CERT_FILE':str(cert),'SAP_LENS_TLS_KEY_FILE':str(key),
                  'SAP_LENS_DEPLOYMENT_MODE':'server'}
+            from auth_store import AuthStore
+            identities=AuthStore(root/'data/security/accounts.sqlite3');identities.initialize()
+            identities.create_user(None,'admin','Synthetic TLS administrator','administrator',secret.read_text(),bootstrap=True)
             source=Path(__file__).resolve().parents[1]
             command=[sys.executable,'-c',f'import sys;sys.path.insert(0,{str(source)!r});import main;from pathlib import Path;main.frontend_dir=Path({str(frontend)!r});import server;sys.exit(server.run())']
             process=subprocess.Popen(command,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -200,7 +241,14 @@ class TlsTests(unittest.TestCase):
                     time.sleep(0.1)
                 self.assertEqual(get('/api/runtime'),401)
                 header='Basic '+base64.b64encode(('saplens:'+secret.read_text()).encode()).decode()
-                self.assertEqual(get('/api/runtime',{'Authorization':header}),200)
+                self.assertEqual(get('/api/runtime',{'Authorization':header}),401)
+                connection=http.client.HTTPSConnection('127.0.0.1',port,context=context,timeout=3)
+                try:
+                    connection.request('POST','/api/auth/login',json.dumps(dict(username='admin',password=secret.read_text())),headers={'X-SAP-Lens':'1','Content-Type':'application/json'})
+                    response=connection.getresponse();self.assertEqual(response.status,200,response.read())
+                    cookie='; '.join(value.split(';',1)[0] for key,value in response.getheaders() if key.lower()=='set-cookie')
+                finally:connection.close()
+                self.assertEqual(get('/api/runtime',{'Cookie':cookie}),200)
             finally:
                 process.terminate()
                 try:process.wait(timeout=10)

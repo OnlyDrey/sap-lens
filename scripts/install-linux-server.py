@@ -149,9 +149,9 @@ def start(args, settings):
 
 def backup_state(args, python, application_version):
     if not args.data.exists() or not any(args.data.iterdir()): return None
-    output = args.backup_dir / ('SAP-Lens-' + application_version.replace('+', '_') + '-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + '.sap-lens-backup.tar.gz')
-    command(python, BUNDLE / 'backend/maintenance.py', 'backup', '--data', args.data, '--config-dir', args.config.parent,
-            '--output', output, '--mode', 'server', '--application-version', application_version)
+    output = args.backup_dir / ('SAP-Lens-' + application_version.replace('+', '_') + '-' + datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%S%fZ') + '.slbak')
+    configuration(args.config,args.data) # Preserve the installed host key environment.
+    command(python,BUNDLE/'backend/maintenance.py','backup','--data',args.data,'--output',output,'--mode','server')
     return output
 
 
@@ -210,7 +210,7 @@ def install(args, unit, marker):
         defaults = dict(SAP_LENS_DEPLOYMENT_MODE='server', SAP_LENS_HOST='127.0.0.1', SAP_LENS_PORT='18743',
                         SAP_LENS_DATA_DIR=str(args.data), SAP_LENS_SOURCE_DIR=str(args.data / 'sources'),
                         SAP_LENS_PUBLIC_ORIGIN='http://127.0.0.1:18743', SAP_LENS_ALLOWED_HOSTS='127.0.0.1',
-                        SAP_LENS_AUTH='local', SAP_LENS_LOG_LEVEL='info')
+                        SAP_LENS_AUTH='sessions', SAP_LENS_LOG_LEVEL='info',SAP_LENS_BACKUP_KEY_FILE=str(args.config.parent/'backup.key'),SAP_LENS_BACKUP_KEY_GROUP_READ='1')
         with args.config.open('x') as output:
             os.chmod(args.config, 0o640); output.write('\n'.join(key + '=' + json.dumps(value, ensure_ascii=False) for key, value in defaults.items()) + '\n')
     settings = configuration(args.config, args.data)
@@ -232,9 +232,17 @@ def install(args, unit, marker):
             if release.is_dir() and not release.is_symlink(): shutil.rmtree(release, ignore_errors=True)
             print('Installation of the new release failed and its partly staged files were removed. The previous installation (if any), data and configuration are unchanged. Review the message above, fix the cause and rerun.', file=sys.stderr)
             raise
+    if new_config:
+        command(release/'.venv/bin/python',release/'backend/maintenance.py','init-backup-key','--data',args.data,'--output',args.config.parent/'backup.key')
+        command(release/'.venv/bin/python',release/'backend/server.py','--initialize-identity',args.data)
     if not args.user:
         import grp
-        command('chown', 'saplens:saplens', args.data)
+        if new_config:
+            os.chown(args.config.parent/'backup.key',-1,grp.getgrnam('saplens').gr_gid)
+            (args.config.parent/'backup.key').chmod(0o640)
+        command('chown','saplens:saplens',args.data)
+        if new_config:
+            for path in [args.data/'deployment.json',args.data/'.sap-lens-instance.lock',args.data/'security',*(args.data/'security').iterdir()]:command('chown','saplens:saplens',path)
         if new_config: os.chown(args.config, -1, grp.getgrnam('saplens').gr_gid)
         if new_parent: os.chown(args.config.parent, -1, grp.getgrnam('saplens').gr_gid)
         def quote(path): return str(path).replace('\\', '\\\\').replace('"', '\\"')
@@ -277,6 +285,7 @@ def main():
     parser.add_argument('--config', type=Path, default=Path('/etc/sap-lens/server.env'))
     parser.add_argument('--backup-dir', type=Path); parser.add_argument('--archive', type=Path)
     parser.add_argument('--restore-data', type=Path); parser.add_argument('--restore-config', type=Path)
+    parser.add_argument('--confirm-accounts',action='store_true');parser.add_argument('--allow-legacy',action='store_true')
     parser.add_argument('--confirm-restore', action='store_true'); parser.add_argument('--purge-data', action='store_true')
     parser.add_argument('--confirm-purge', action='store_true'); parser.add_argument('--no-start', action='store_true')
     args = parser.parse_args()
@@ -321,7 +330,9 @@ def main():
         if not args.archive or not args.restore_data or not args.confirm_restore: raise maintenance.MaintenanceError('Restore requires --archive --restore-data --confirm-restore, and empty target directories.')
         values = [args.prefix / 'current/.venv/bin/python', BUNDLE / 'backend/maintenance.py', 'restore', '--archive', args.archive,
                   '--data', args.restore_data, '--mode', 'server', '--target-version', current['version'], '--confirm-restore']
-        if args.restore_config: values += ['--config-destination', args.restore_config]
+        if args.restore_config:raise maintenance.MaintenanceError('Host configuration is preserved separately; omit --restore-config for a portable archive.')
+        if args.confirm_accounts:values+=['--confirm-accounts']
+        if args.allow_legacy:values+=['--allow-legacy']
         command(*values)
         print('Files restored to empty destinations; existing stores/configuration preserved. Review paths/permissions and start/status before declaring recovery complete.')
     elif args.action == 'uninstall':

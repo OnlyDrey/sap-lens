@@ -151,7 +151,7 @@ access, protected destination credentials, Static source recovery and unencrypte
 ## Application accounts (session-authenticated servers)
 
 New session-enabled servers show an SAP Lens activation/sign-in page. Obtain the
-first-run code locally as described in [deployment security](../deployment/SECURITY.md#session-authentication-activation-opt-in-development-rollout).
+first-run code locally as described in [deployment security](../deployment/SECURITY.md#first-administrator-and-local-recovery).
 There are no default credentials. Remote sign-in requires HTTPS; explicit
 loopback-only HTTP remains supported. Legacy populated installations require the
 account migration phase before selecting the new boundary.

@@ -94,20 +94,21 @@ class ConnectionModes(unittest.TestCase):
     def test_http_on_a_network_name_is_refused_without_the_explicit_acknowledgement(self):
         error = self.fails(SAP_LENS_PUBLIC_ORIGIN='http://server01:18743', SAP_LENS_ALLOWED_HOSTS='server01')
         self.assertEqual(error.step, 'authentication boundary')
-        self.assertIn('acknowledgement', error.detail)
+        self.assertIn('HTTPS',error.detail)
 
-    def test_http_on_the_network_with_the_acknowledgement_keeps_account_authentication(self):
-        value = self.settings(SAP_LENS_PUBLIC_ORIGIN='http://server01:18743', SAP_LENS_ALLOWED_HOSTS='server01,10.0.0.5', SAP_LENS_ALLOW_HTTP='1')
-        self.assertEqual((value.origin, value.auth, value.tls_cert), ('http://server01:18743', 'users', ''))
-        self.assertEqual(value.origins, ('http://server01:18743', 'http://10.0.0.5:18743'))
-        # The acknowledgement never weakens authentication: other boundaries still refuse unencrypted network access.
-        for auth in ('local', 'basic'):
-            with self.assertRaises(ConfigError):
-                self.settings(SAP_LENS_PUBLIC_ORIGIN='http://server01:18743', SAP_LENS_ALLOWED_HOSTS='server01', SAP_LENS_ALLOW_HTTP='1', SAP_LENS_AUTH=auth)
+    def test_old_http_acknowledgement_cannot_downgrade_session_password_authentication(self):
+        for auth in ('sessions','users','local','basic'):
+            with self.subTest(auth=auth),self.assertRaises(ConfigError):
+                self.settings(SAP_LENS_PUBLIC_ORIGIN='http://server01:18743',SAP_LENS_ALLOWED_HOSTS='server01',SAP_LENS_ALLOW_HTTP='1',SAP_LENS_AUTH=auth)
+
+    def test_loopback_hostname_does_not_authorize_a_non_loopback_http_listener(self):
+        error=self.fails(SAP_LENS_HOST='0.0.0.0',SAP_LENS_PUBLIC_ORIGIN='http://localhost:18743',SAP_LENS_ALLOW_HTTP='1')
+        self.assertEqual(error.step,'authentication boundary')
+        self.assertIn('HTTPS',error.detail)
 
     def test_a_certificate_is_never_combined_with_an_http_origin_and_https_is_never_downgraded_silently(self):
         cert, key = self.certificate('c', 'DNS:localhost,IP:127.0.0.1')
-        error = self.fails(SAP_LENS_PUBLIC_ORIGIN='http://localhost:18743', SAP_LENS_TLS_CERT_FILE=cert, SAP_LENS_TLS_KEY_FILE=key, SAP_LENS_ALLOW_HTTP='1')
+        error = self.fails(SAP_LENS_HOST='127.0.0.1',SAP_LENS_PUBLIC_ORIGIN='http://localhost:18743', SAP_LENS_TLS_CERT_FILE=cert, SAP_LENS_TLS_KEY_FILE=key, SAP_LENS_ALLOW_HTTP='1')
         self.assertEqual(error.step, 'TLS certificate and key files')
         self.assertIn('not https://', error.detail)
 
@@ -140,8 +141,8 @@ class ServiceManagerContract(unittest.TestCase):
         self.assertNotIn('Add(table,"Account role"',self.SOURCE)
         self.assertIn('Button(actions,"First-run activation code"',self.SOURCE)
         self.assertIn('Button(actions,"Recover administrator"',self.SOURCE)
-        self.assertIn('"--initialize-identity " + Quote(data)',self.SOURCE)
-        self.assertIn('auth == "sessions" && !https && HttpNeedsAcknowledgement',self.SOURCE)
+        self.assertRegex(self.SOURCE,r'"--initialize-identity\s*"\s*\+\s*Quote\(data\)')
+        self.assertIn('if (!https && HttpNeedsAcknowledgement(listener, hosts))',self.SOURCE)
         self.assertNotIn('"--manage-user " + Quote(Users)',self.SOURCE)
 
     def test_three_explicit_modes_with_https_self_signed_as_the_default(self):

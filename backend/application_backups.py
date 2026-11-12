@@ -107,7 +107,7 @@ def protected(data, server=None):
             candidate=Path(value).expanduser().resolve()
             if candidate.is_relative_to(data): roots.add(candidate.relative_to(data).parts[0])
     for item in engine.walk_files(data,{'.application-backups'}):
-        if item.suffix.lower() in SECRET_SUFFIXES or item.name in {'.env','server.env','users.json','accounts.json'}:
+        if item.suffix.lower() in SECRET_SUFFIXES|{'.lock'} or item.name in {'.env','server.env','users.json','accounts.json'}:
             roots.add(item.relative_to(data).parts[0])
     return roots
 
