@@ -541,3 +541,20 @@ An existing SAPLens service remains a hard stop. An existing successful sidecar 
 preserved; do not overwrite it or fabricate evidence. Retain native console output
 and the latest progress checkpoint if cleanup fails. Helper/contract passes alone
 never establish native SCM acceptance.
+
+### ZIP members without explicit parent directories
+
+SCM extraction validates each destination before creating its parent. ZIP files can
+contain `app/SAP-Lens.exe` without an `app/` directory entry. Parent validation
+therefore tolerates only .NET FileNotFoundException/DirectoryNotFoundException
+and continues up to the owned root. It creates nothing. Every existing ancestor
+must be a directory without reparse attributes; permission errors and other I/O
+failures remain fatal. A missing descendant beneath a junction is still rejected
+when the walk reaches that existing junction. The root and owner marker must
+always exist and validate. Absolute/traversing ZIP names remain forbidden.
+
+The native helper suite covers this with nested Unicode/spaced ZIP paths without
+directory records, directory bundles, existing parents/files, traversal entries
+and missing descendants beneath a junction. Run the helper command above on
+Windows PowerShell 5.1 before attempting another native SCM lifecycle. Linux
+contract tests do not establish native extraction or acceptance success.

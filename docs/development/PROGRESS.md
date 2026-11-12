@@ -2133,3 +2133,38 @@ host; no native SCM acceptance, package rebuild, FULL or GitHub Actions run was
 performed. Exact helper and checksum-verified native commands are in the Windows
 Service guide, section "Cleanup traversal and external watchdog". A successful
 native cleanup and read-back-verified evidence receipt remain acceptance gates.
+
+
+## SCM ZIP parent validation regression (2026-11-12)
+
+Confirmed root cause: the direct .NET parent walk introduced during cleanup
+optimization called GetAttributes on absent intermediate ZIP destination
+parents. Extraction deliberately validates before creating directories, and ZIP
+members can omit directory records. The optimized walk lost the old guard for
+not-yet-created parents. This is a validation regression, not a lock or SCM
+service failure and not an indication that the ZIP needs rewriting.
+
+The parent loop catches only FileNotFoundException and DirectoryNotFoundException,
+continues upward, and checks existing ancestors for both Directory and ReparsePoint
+attributes. All other exceptions propagate. Canonical boundary, caller/owner,
+root/marker validation, cleanup optimization, external 120-second watchdog and
+evidence gates remain. Validation does not create missing directories.
+
+Added direct native missing-parent/no-creation and file-as-parent rejection;
+expanded the existing ZIP/directory fixtures with omitted directory entries,
+nested Unicode/spaced paths, absolute/drive/traversing malicious members. Junction
+coverage now checks a missing descendant cannot hide an existing junction. Native
+cases are defined but cannot execute on this Linux host. No native SCM success,
+package rebuild, full regression or Actions execution is claimed.
+
+Validation: focused SCM checks 16 passed, 13 platform skips (29 discovered);
+deployment checks 368 passed, 22 skips (390 discovered). Ruff, documentation
+links, workflow contracts and whitespace passed. PowerShell syntax/runtime cannot
+execute here (no installed shell); the native tests must verify the typed missing-
+parent catches on Windows PowerShell 5.1. Next commands from the Windows root:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split.NativeSafeScmHelpers.test_zip_and_directory_inputs_and_traversal_rejection --jobs 1 --log build/scm-zip-focused.log --report build/scm-zip-focused.json
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-zip-native.log --report build/scm-zip-native.json
+```

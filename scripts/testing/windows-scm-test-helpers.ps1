@@ -53,7 +53,17 @@ function Assert-ScmTestPath($Workspace,[string]$Path) {
     if ($text -cne $proof.Text -or $proof.Token -ne $Workspace.Token -or $proof.Root -ne $root -or $proof.Sid -ne $Workspace.Sid) { throw 'SCM workspace ownership marker differs.' }
     $parent=[IO.Path]::GetDirectoryName($full)
     while ($parent -and ($parent -eq $root -or $parent.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase))) {
-        if ([IO.File]::GetAttributes($parent) -band [IO.FileAttributes]::ReparsePoint) { throw 'SCM acceptance refuses reparse points.' }
+        try {
+            $attributes=[IO.File]::GetAttributes($parent)
+            if ($attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'SCM acceptance refuses reparse points.' }
+            if (-not ($attributes -band [IO.FileAttributes]::Directory)) { throw 'SCM path parent is not a directory.' }
+        } catch [IO.FileNotFoundException] {
+            # ZIP members may omit explicit directory entries. Validate existing
+            # ancestors without creating anything or skipping higher ancestors.
+        } catch [IO.DirectoryNotFoundException] {
+            # Missing intermediate parents are legitimate before extraction.
+        }
+        # Access denied, invalid paths and every other I/O error propagate.
         $parent=[IO.Path]::GetDirectoryName($parent)
     }
     return $full

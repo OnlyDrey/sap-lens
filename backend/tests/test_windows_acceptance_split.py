@@ -201,6 +201,18 @@ class ScmCleanupContracts(unittest.TestCase):
         self.assertIn("$State.Clock.Elapsed.TotalSeconds-$State.Last -lt 5",self.helper)
         self.assertNotIn("[SCM cleanup] '+$path",self.helper)
 
+    def test_future_parents_only_ignore_not_found_and_continue_validation(self):
+        start=self.helper.index('$parent=[IO.Path]::GetDirectoryName($full)')
+        loop=self.helper[start:self.helper.index('return $full',start)]
+        self.assertIn('catch [IO.FileNotFoundException]',loop)
+        self.assertIn('catch [IO.DirectoryNotFoundException]',loop)
+        self.assertNotIn('catch [IO.IOException]',loop)
+        self.assertNotIn('catch [System.UnauthorizedAccessException]',loop)
+        self.assertIn('$parent=[IO.Path]::GetDirectoryName($parent)',loop)
+        self.assertIn('ReparsePoint',loop)
+        self.assertIn('parent is not a directory',loop)
+        self.assertNotIn('CreateDirectory',loop)
+
     def test_file_cleanup_avoids_attribute_roundtrip_and_reports_operation(self):
         self.assertIn('$current -is [IO.DirectoryInfo] -and ($attributes -band 1)', self.helper)
         self.assertIn('operation=$operation, attributes=$attributes',self.helper)
@@ -350,12 +362,30 @@ Remove-ScmWorkspace $workspace
 if (Test-Path -LiteralPath $workspace.Root) { throw 'Workspace remains.' }
 """, parent, shell)
 
+    def test_missing_parents_are_validated_without_creation(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory() as parent:
+                self.invoke(r"""
+$future=Join-Path $workspace.Root 'bundle/app/nested Ø/file.txt'
+$null=Assert-ScmTestPath $workspace $future
+if (Test-Path (Join-Path $workspace.Root 'bundle')) { throw 'Validation created a directory' }
+$folder=Join-Path $workspace.Root 'existing'
+[IO.Directory]::CreateDirectory($folder) | Out-Null
+$file=Join-Path $folder 'file.txt'
+[IO.File]::WriteAllText($file,'synthetic')
+$null=Assert-ScmTestPath $workspace $file
+$failed=$false
+try { $null=Assert-ScmTestPath $workspace (Join-Path $file 'child') } catch { $failed=$true }
+if (-not $failed) { throw 'File accepted as directory parent' }
+""",parent,shell)
+
     def test_zip_and_directory_inputs_and_traversal_rejection(self):
         for shell in SHELLS:
-            for zipped, unsafe in ((False,False),(True,False),(True,True)):
+            for zipped, unsafe in ((False,False),(True,False),(True,True),(True,'/outside.txt'),(True,'C:/outside.txt'),(True,'app/../../outside.txt')):
                 with self.subTest(shell=shell,zipped=zipped,unsafe=unsafe), tempfile.TemporaryDirectory() as parent:
-                    source=Path(parent)/'input'; (source/'app').mkdir(parents=True)
-                    for name in ('manage-server-service.ps1','SAPLensService.exe','app/SAP-Lens.exe','verification-report.json'):
+                    source=Path(parent)/'input spaces Æ'; (source/'app').mkdir(parents=True)
+                    for name in ('manage-server-service.ps1','SAPLensService.exe','app/SAP-Lens.exe','verification-report.json','app/nested Ø 日本語/payload.txt'):
+                        (source/name).parent.mkdir(parents=True,exist_ok=True)
                         (source/name).write_text('synthetic')
                     bundle=source
                     if zipped:
@@ -363,12 +393,12 @@ if (Test-Path -LiteralPath $workspace.Root) { throw 'Workspace remains.' }
                         with zipfile.ZipFile(bundle,'w') as archive:
                             for file in source.rglob('*'):
                                 if file.is_file(): archive.write(file,file.relative_to(source).as_posix())
-                            if unsafe: archive.writestr('../outside.txt','must never escape')
+                            if unsafe: archive.writestr('../outside.txt' if unsafe is True else unsafe,'must never escape')
                     escaped=str(bundle).replace("'", "''")
                     if unsafe:
                         body=f"$rejected=$false; try {{ Copy-ScmBundle '{escaped}' $workspace }} catch {{ $rejected=$true }}; if (-not $rejected) {{ throw 'Unsafe ZIP accepted.' }}"
                     else:
-                        body=f"$copy=Copy-ScmBundle '{escaped}' $workspace; if (-not (Test-Path -LiteralPath (Join-Path $copy 'manage-server-service.ps1'))) {{ throw 'Bundle missing.' }}"
+                        body=f"$copy=Copy-ScmBundle '{escaped}' $workspace; if (-not (Test-Path -LiteralPath (Join-Path $copy 'manage-server-service.ps1')) -or -not (Test-Path -LiteralPath (Join-Path $copy 'app/nested Ø 日本語/payload.txt'))) {{ throw 'Bundle missing.' }}"
                     self.invoke(body,parent,shell)
                     self.assertFalse((Path(parent)/'outside.txt').exists())
 
@@ -431,6 +461,9 @@ New-Item -ItemType Directory -Path $outside | Out-Null
 $link=Join-Path $workspace.Root 'link'
 New-Item -ItemType Junction -Path $link -Value $outside | Out-Null
 try {
+    $rejected=$false
+    try { $null=Assert-ScmTestPath $workspace (Join-Path $link 'missing/deeper/file.txt') } catch { $rejected=$true }
+    if (-not $rejected) { throw 'Missing descendant concealed a junction' }
     $rejected=$false
     try { Remove-ScmWorkspace $workspace } catch { $rejected=$true }
     if (-not $rejected -or -not (Test-Path -LiteralPath (Join-Path $outside 'sentinel.txt'))) { throw 'Junction boundary failed.' }
