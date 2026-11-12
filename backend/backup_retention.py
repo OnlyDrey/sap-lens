@@ -163,7 +163,7 @@ def plan(days=None, now=None, data=None):
         elif not value.get('verified') or not re.fullmatch(r'[a-f0-9]{64}', str(value.get('sha256', ''))):
             keep(folder.name, kind, 'Not verified', created)
         else:
-            archive = folder / ARCHIVE
+            archive = backups.archive_path(folder,'backup',value)
             if archive.is_symlink() or archive.exists() and not archive.is_file():
                 keep(folder.name, kind, 'Archive is not a regular file', created)
             elif not archive.exists():
@@ -199,11 +199,9 @@ def plan(days=None, now=None, data=None):
 
 
 def count_limit(data=None):
-    """The scheduled-backup count limit (`keep`) and the ids it would remove: automatic, completed and verified backups beyond the newest `keep`.
-    Same selection as `backup_schedule.retention`, which applies it after each scheduled backup without any approval."""
+    """Retain the stored legacy preference; time/approval is the only deletion rule."""
     keep = backup_schedule.Schedule.model_validate(backup_schedule.settings(data)['schedule']).keep
-    ready = [row for row in backup_schedule.rows(data) if row['origin'] == 'scheduled' and row['status'] == 'ready' and row['verified']]
-    return keep, [row['id'] for row in ready[keep:]]
+    return keep, []
 
 
 def public(found):

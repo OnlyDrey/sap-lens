@@ -74,10 +74,10 @@ test('backup retention shows its 90-day coverage, protects manual and migration 
   let approved = false
   const posted: unknown[] = []
   const preview = {
-    days: 90, keep: 7, count_limit: [{ id: 'c'.repeat(32), rule: 'Beyond the newest 7 automatic backups: removed by the count limit at the next scheduled backup, without approval' }],
+    days: 90, keep: 7, count_limit: [],
     count: 1, bytes: 2_097_152, digest: 'e'.repeat(64), counts: { automatic: 4, manual: 2, unclassified: 1, migration: 1 },
     reasons: { 'Manual backup: removed only by an administrator': 2, 'Migration backup waiting for administrator confirmation': 1, 'No reliable classification (protected)': 1 },
-    sample: [{ id: 'f'.repeat(32), created: '2025-06-01T00:00:00+00:00', bytes: 2_097_152, age_days: 200, note: '', rule: 'Older than 90 days and beyond the newest 7 automatic backups', rules: ['age', 'count'] }], protected_sample: [], truncated: false,
+    sample: [{ id: 'f'.repeat(32), created: '2025-06-01T00:00:00+00:00', bytes: 2_097_152, age_days: 200, note: '', rule: 'Older than 90 days', rules: ['age'] }], protected_sample: [], truncated: false,
   }
   await page.route('**/api/retention', route => route.fulfill({ json: status('approved', 'approved', [], approved ? 'approved' : 'awaiting_approval') }))
   await page.route('**/api/retention/preview?category=backup', route => route.fulfill({ json: preview }))
@@ -87,16 +87,14 @@ test('backup retention shows its 90-day coverage, protects manual and migration 
   const backup = panel.getByRole('region', { name: 'Backup retention' })
   await expect(backup.getByRole('spinbutton', { name: 'Backup retention period (days)' })).toHaveValue('90')
   await expect(backup).toContainText('Automatic backups: 4 · manual (kept): 2 · migration (kept): 1')
-  await expect(backup.getByLabel('Backup retention rules')).toContainText('Rule 1, count limit')
-  await expect(backup.getByLabel('Backup retention rules')).toContainText('Rule 2, age limit: automatic backups older than 90 days')
-  await expect(backup.getByLabel('Backup retention rules')).toContainText('a maximum, not a guarantee')
+  await expect(backup.getByLabel('Backup retention rules')).toContainText('Automatic backups older than 90 days are removed only after approval')
+  await expect(backup.getByLabel('Backup retention rules')).toContainText('Recent backups are protected')
   await expect(backup).toContainText('Last successful cleanup:')
   await expect(backup).toContainText('Next scheduled check:')
   await backup.getByRole('button', { name: 'Preview backup cleanup' }).click()
   await expect(backup).toContainText('1 automatic backup(s)')
-  await expect(backup).toContainText('rule: Older than 90 days and beyond the newest 7 automatic backups')
-  await expect(backup).toContainText('1 more automatic backup(s) are younger than 90 days but beyond the newest 7')
-  await expect(backup).toContainText('Count limit: Beyond the newest 7 automatic backups')
+  await expect(backup).toContainText('rule: Older than 90 days')
+  await expect(backup.getByText(/Count limit:/)).toHaveCount(0)
   await expect(backup).toContainText('Protected: 2 · Manual backup')
   await expect(backup).toContainText('Protected: 1 · Migration backup waiting for administrator confirmation')
   await expect(backup).toContainText('historical records')

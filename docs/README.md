@@ -22,5 +22,5 @@ screenshots never belong in Git or build artifacts.
 
 Current limitations are recorded with their owning guides: [server identity and
 approval boundaries](deployment/SECURITY.md#individual-accounts-and-remaining-multi-user-limits),
-[restart-dependent backups](deployment/BACKUP_RESTORE.md#central-host-availability-limitation),
+[restart-dependent backups](deployment/BACKUP_RESTORE.md#create-and-download),
 and [separate native service evidence](deployment/WINDOWS_SERVICE.md#separate-windows-scm-acceptance-evidence).

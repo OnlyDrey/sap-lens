@@ -19,6 +19,8 @@ param(
     [string]$RestoreDataDirectory = '',
     [string]$RestoreConfigurationDirectory = '',
     [switch]$ConfirmRestore,
+    [switch]$ConfirmAccountRollback,
+    [switch]$AllowLegacyArchive,
     [switch]$ConfirmSecretRepair,
     [switch]$PurgeData,
     [switch]$ConfirmPurge
@@ -128,23 +130,25 @@ function Assert-NewBundle([string]$Directory) {
     if ((Get-FileHash -LiteralPath (Join-Path $Directory 'SAPLensService.exe') -Algorithm SHA256).Hash.ToLowerInvariant() -ne '05b82d46ad331cc16bdc00de5c6332c1ef818df8ceefcd49c726553209b3a0da') { throw 'Replacement WinSW is not the pinned wrapper.' }
     return $report
 }
-function Invoke-PrivateBackup([string]$Executable,[string]$Version,[string]$Data) {
-    if (-not [IO.Path]::IsPathRooted($BackupDirectory)) { throw 'Use an absolute dedicated backup directory.' }
-    $BackupDirectory = [IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
-    $Data = [IO.Path]::GetFullPath($Data).TrimEnd('\')
-    if (-not [IO.Path]::IsPathRooted($BackupDirectory) -or $BackupDirectory.StartsWith($Data.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or $BackupDirectory.TrimEnd('\') -eq $Data.TrimEnd('\') -or $BackupDirectory.StartsWith($InstallDirectory.TrimEnd('\')+'\',[StringComparison]::OrdinalIgnoreCase) -or $BackupDirectory.TrimEnd('\') -eq $InstallDirectory.TrimEnd('\')) { throw 'Choose a dedicated absolute backup directory outside application data and binaries.' }
-    New-Item -ItemType Directory -Force $BackupDirectory | Out-Null
-    $staging = Join-Path $BackupDirectory ('configuration-'+[guid]::NewGuid().ToString('N'))
-    New-Item -ItemType Directory $staging | Out-Null
+function Invoke-InstalledMaintenance([string]$Executable, [string[]]$Arguments, $Values) {
+    $saved=@{}
+    foreach ($name in $Values.Keys) { $saved[$name]=[Environment]::GetEnvironmentVariable($name,'Process'); [Environment]::SetEnvironmentVariable($name,[string]$Values[$name],'Process') }
     try {
-        & icacls.exe $staging /inheritance:r /grant:r '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F' | Out-Null
-        if ($LASTEXITCODE -ne 0) { throw 'Cannot restrict private configuration backup permissions.' }
-        Copy-Item (Join-Path $InstallDirectory 'SAPLensService.xml') $staging
-        $destination = Join-Path $BackupDirectory ('SAP-Lens-Service-'+[guid]::NewGuid().ToString('N')+'.tar.gz')
-        & $Executable --maintenance backup --data $Data --config-dir $staging --output $destination --mode server --application-version $Version
-        if ($LASTEXITCODE -ne 0) { throw 'Private backup failed; service remains stopped. No application replacement was attempted.' }
-        Write-Host 'Private backup created. External source/secret files are not followed; preserve them separately.'
-    } finally { Remove-Item $staging -Recurse -Force }
+        & $Executable --maintenance @Arguments
+        if ($LASTEXITCODE -ne 0) { throw 'Stopped maintenance failed. Existing state and host configuration were preserved; inspect the diagnostic message.' }
+    } finally { foreach ($name in $saved.Keys) { [Environment]::SetEnvironmentVariable($name,$saved[$name],'Process') } }
+}
+function Invoke-PrivateBackup([string]$Executable,[string]$Data,$Values) {
+    if (-not [IO.Path]::IsPathRooted($BackupDirectory)) { throw 'Use an absolute dedicated backup directory.' }
+    $BackupDirectory=[IO.Path]::GetFullPath($BackupDirectory).TrimEnd('\')
+    $Data=[IO.Path]::GetFullPath($Data).TrimEnd('\')
+    foreach ($root in @($Data,$InstallDirectory.TrimEnd('\'))) {
+        if ($BackupDirectory -eq $root -or $BackupDirectory.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)) { throw 'Choose a backup directory outside application data and binaries.' }
+    }
+    New-Item -ItemType Directory -Force $BackupDirectory | Out-Null
+    $destination=Join-Path $BackupDirectory ('SAP-Lens-Service-'+[guid]::NewGuid().ToString('N')+'.slbak')
+    Invoke-InstalledMaintenance $Executable @('backup','--data',$Data,'--output',$destination,'--mode','server') $Values
+    Write-Host 'Encrypted logical backup verified. Preserve the host recovery key, service XML and TLS configuration separately.'
 }
 function Assert-ServiceReady($Values) {
     $deadline = (Get-Date).AddSeconds(45)
@@ -205,15 +209,18 @@ if ($Action -in @('Upgrade','Backup','Restore')) {
         if ($LASTEXITCODE -ne 0) { throw 'Version compatibility check failed. No installed files were changed.' }
     }
     if ((Get-Service SAPLens).Status -ne 'Stopped') { Invoke-ServiceCommand 'stop' }
-    if ($Action -eq 'Backup') { Invoke-PrivateBackup $executable $current.identity.version $values.SAP_LENS_DATA_DIR; return }
+    if ($Action -eq 'Backup') { Invoke-PrivateBackup $executable $values.SAP_LENS_DATA_DIR $values; return }
     if ($Action -eq 'Restore') {
-        if (-not $Archive -or -not $RestoreDataDirectory -or -not $RestoreConfigurationDirectory -or -not $ConfirmRestore) { throw 'Restore needs -Archive, empty -RestoreDataDirectory and -RestoreConfigurationDirectory, and -ConfirmRestore.' }
-        & $executable --maintenance restore --archive $Archive --data $RestoreDataDirectory --config-destination $RestoreConfigurationDirectory --mode server --target-version $current.identity.version --confirm-restore
-        if ($LASTEXITCODE -ne 0) { throw 'Restore failed safely. Existing installed data/configuration were not overwritten.' }
-        Write-Host 'Restored to empty destinations. Review paths and service ACLs before explicitly activating restored configuration. Service remains stopped.'
+        if (-not $Archive -or -not $RestoreDataDirectory -or -not $ConfirmRestore) { throw 'Restore needs -Archive, an empty -RestoreDataDirectory and -ConfirmRestore. Account rollback needs -ConfirmAccountRollback.' }
+        if ($RestoreConfigurationDirectory) { throw 'Host/service configuration is not transferred by a portable archive. Preserve the installed XML separately; omit -RestoreConfigurationDirectory.' }
+        $restoreArguments=@('restore','--archive',$Archive,'--data',$RestoreDataDirectory,'--mode','server','--confirm-restore')
+        if ($ConfirmAccountRollback) { $restoreArguments+='--confirm-accounts' }
+        if ($AllowLegacyArchive) { $restoreArguments+='--allow-legacy' }
+        Invoke-InstalledMaintenance $executable $restoreArguments $values
+        Write-Host 'Restored to the empty data destination. Host configuration was not changed. Review data, recovery key and service ACLs before explicitly switching directories. Service remains stopped.'
         return
     }
-    Invoke-PrivateBackup $newExecutable $current.identity.version $values.SAP_LENS_DATA_DIR
+    Invoke-PrivateBackup $executable $values.SAP_LENS_DATA_DIR $values
     $suffix = [guid]::NewGuid().ToString('N')
     $staged = Join-Path $InstallDirectory ('app.pending.'+$suffix)
     Copy-Item (Join-Path $newRoot 'app') $staged -Recurse
@@ -272,6 +279,10 @@ if ($Action -eq 'Install') {
         $secret=([IO.File]::ReadAllText($SecretFile)).Trim()
         if ($secret.Length -lt 32 -or $secret.Length -gt 256 -or $secret -match '[^!-~]') { throw 'Access secret must contain 32-256 non-whitespace ASCII characters.' }
     }
+    $backupKey=Join-Path (Split-Path $DataDirectory -Parent) ('SAP-Lens-service-backup-'+[guid]::NewGuid().ToString('N')+'.key')
+    & (Join-Path $InstallDirectory 'app\SAP-Lens.exe') --maintenance init-backup-key --data $DataDirectory --output $backupKey
+    if ($LASTEXITCODE -ne 0) { throw 'Could not provision the protected external backup key. No service was installed.' }
+    $settings.SAP_LENS_BACKUP_KEY_FILE=$backupKey
     $escape = { param([string]$Text) [Security.SecurityElement]::Escape($Text) }
     $environment = ($settings.GetEnumerator() | Sort-Object Name | ForEach-Object {
         '<env name="' + (& $escape $_.Name) + '" value="' + (& $escape $_.Value) + '"/>'
@@ -309,6 +320,8 @@ if ($Action -eq 'Install') {
         & icacls.exe $SourceDirectory /grant 'NT SERVICE\SAPLens:(OI)(CI)RX' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Grant the service identity read access to the configured source directory.' }
     }
+    & icacls.exe $backupKey /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' 'NT SERVICE\SAPLens:R' | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Cannot restrict backup-key permissions; service remains stopped.' }
     if ($SecretFile) {
         & icacls.exe $SecretFile /inheritance:r /grant:r '*S-1-5-18:F' '*S-1-5-32-544:F' 'NT SERVICE\SAPLens:R' | Out-Null
         if ($LASTEXITCODE -ne 0) { throw 'Cannot restrict access-secret permissions.' }

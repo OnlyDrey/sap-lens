@@ -71,6 +71,24 @@ class ActivationTests(unittest.TestCase):
             self.assertGreaterEqual(db.execute('SELECT COUNT(*) FROM audit').fetchone()[0],4)
         self.assertEqual(self.store.login('admin',PASSWORD+'new','new')[0].id,actor.id)
 
+    def test_recovery_and_admin_reset_invalidate_previous_codes_for_the_same_identity(self):
+        self.activate(issue(self.store)['code'])
+        actor,_,_=self.store.login('admin',PASSWORD,'fixture')
+        self.store.create_user(actor,'other','Other administrator','administrator',PASSWORD)
+        other=self.store.login('other',PASSWORD,'other')[0]
+        reset=self.store.issue_reset(other,actor.id,next(row for row in self.store.users(other) if row['id']==actor.id)['revision'])['code']
+        recovery=issue(self.store,'admin')['code']
+        with self.assertRaises(AuthError):self.store.complete_reset(reset,PASSWORD+'reset','reset')
+        complete(self.store,recovery,'','',PASSWORD+'recovered',recovery=True)
+        actor=self.store.login('admin',PASSWORD+'recovered','recovered')[0]
+        self.assertEqual(actor.username,'admin')
+        recovery=issue(self.store,'admin')['code']
+        row=next(row for row in self.store.users(other) if row['id']==actor.id)
+        reset=self.store.issue_reset(other,actor.id,row['revision'])['code']
+        with self.assertRaises(AuthError):complete(self.store,recovery,'','',PASSWORD+'bad',recovery=True)
+        self.store.complete_reset(reset,PASSWORD+'new','new')
+        self.assertEqual(self.store.login('admin',PASSWORD+'new','new')[0].id,actor.id)
+
     def test_existing_populated_corrupt_and_missing_stores_do_not_become_fresh(self):
         for name in ('settings.json','sources','unrecognized-file'):
             with tempfile.TemporaryDirectory() as root:

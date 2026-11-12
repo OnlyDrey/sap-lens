@@ -90,7 +90,6 @@ try {
     $data=Join-Path $workspace.Root 'data'
     $backups=Join-Path $workspace.Root 'backups'
     $recovered=Join-Path $workspace.Root 'restored'
-    $recoveredConfiguration=Join-Path $workspace.Root 'restored-config'
     # Capture a pristine, manifest-defined replacement before WinSW can write runtime files.
     $replacement=Copy-ScmReplacementBundle $bundlePath $workspace $report
     $listener=[Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
@@ -108,10 +107,10 @@ try {
     Invoke-ScmManage -Action Stop -InstallDirectory $bundlePath
     if ((Get-ScmStatus) -ne 'Stopped') { throw 'SCM did not stop the service.' }
     Invoke-ScmManage -Action Backup -InstallDirectory $bundlePath -BackupDirectory $backups
-    $archive=@(Get-ChildItem $backups -Filter '*.tar.gz')
+    $archive=@(Get-ChildItem $backups -Filter '*.slbak')
     if ($archive.Count -ne 1) { throw 'Expected one stopped-state private backup.' }
-    Invoke-ScmManage -Action Restore -InstallDirectory $bundlePath -Archive $archive[0].FullName -RestoreDataDirectory $recovered -RestoreConfigurationDirectory $recoveredConfiguration -ConfirmRestore
-    if (-not (Test-Path (Join-Path $recovered 'deployment.json')) -or -not (Test-Path (Join-Path $recoveredConfiguration 'SAPLensService.xml'))) { throw 'Empty-target restore lost deployment ownership or configuration.' }
+    Invoke-ScmManage -Action Restore -InstallDirectory $bundlePath -Archive $archive[0].FullName -RestoreDataDirectory $recovered -ConfirmRestore -ConfirmAccountRollback
+    if (-not (Test-Path (Join-Path $recovered 'deployment.json')) -or (Test-Path (Join-Path $recovered 'SAPLensService.xml'))) { throw 'Empty-target restore lost ownership or transferred host configuration.' }
     # Reinstall the same verified version to exercise staging/activation/restart
     # without fabricating a versioned executable or compiling a second package.
     Invoke-ScmManage -Action Upgrade -InstallDirectory $bundlePath -NewBundleDirectory $replacement -BackupDirectory $backups

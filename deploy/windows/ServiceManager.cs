@@ -181,6 +181,12 @@ namespace SapLens {
             var value = Json.Deserialize<Dictionary<string,object>>(result);
             return Convert.ToString(value["code"]);
         }
+        public static void ExportBackupKey(string destination) {
+            VerifyBundle(); Status();
+            var settings=Settings();
+            if(!settings.ContainsKey("SAP_LENS_BACKUP_KEY_FILE"))throw new InvalidOperationException("Save the stopped service configuration to provision its private backup key first.");
+            Run(Path.Combine(Root,@"app\SAP-Lens.exe"),"--maintenance export-backup-key --data "+Quote(settings["SAP_LENS_DATA_DIR"])+" --key-file "+Quote(settings["SAP_LENS_BACKUP_KEY_FILE"])+" --output "+Quote(destination),null);
+        }
         public static string AccountFile(Dictionary<string,string> settings) {
             string auth, path;
             if (!settings.TryGetValue("SAP_LENS_AUTH", out auth) || auth != "users")
@@ -227,6 +233,9 @@ namespace SapLens {
             if (!installed && File.Exists(Config)) throw new InvalidOperationException("An existing service configuration is preserved. Review it before registering again.");
             Directory.CreateDirectory(PrivateRoot); PrivateAcl(PrivateRoot);
             string auth = current != null && current.ContainsKey("SAP_LENS_AUTH") ? current["SAP_LENS_AUTH"] : "sessions";
+            string backupKey = current != null && current.ContainsKey("SAP_LENS_BACKUP_KEY_FILE") ? current["SAP_LENS_BACKUP_KEY_FILE"] : Path.Combine(PrivateRoot,"backup-"+Guid.NewGuid().ToString("N")+".key");
+            if (!File.Exists(backupKey)) Run(Path.Combine(Root,@"app\SAP-Lens.exe"),"--maintenance init-backup-key --data "+Quote(data)+" --output "+Quote(backupKey),null);
+            Run(Path.Combine(Root,@"app\SAP-Lens.exe"),"--maintenance check-backup-key --data "+Quote(data)+" --key-file "+Quote(backupKey),null);
             bool https = mode != ModeHttp;
             if (auth == "sessions" && !https && HttpNeedsAcknowledgement(listener, hosts))
                 throw new ArgumentException("Session passwords require HTTPS for remote access. Choose HTTPS or use a loopback-only listener and hostname.");
@@ -245,7 +254,7 @@ namespace SapLens {
             var settings = new Dictionary<string,string> { {"SAP_LENS_DEPLOYMENT_MODE","server"}, {"SAP_LENS_HOST",listener}, {"SAP_LENS_PORT",port.ToString()},
                 {"SAP_LENS_DATA_DIR",data}, {"SAP_LENS_SOURCE_DIR",Path.Combine(data,"sources")}, {"SAP_LENS_PUBLIC_ORIGIN",(https ? "https://" : "http://") + hosts[0] + ":" + port},
                 {"SAP_LENS_ALLOWED_HOSTS",String.Join(",",hosts)}, {"SAP_LENS_AUTH",auth},
-                {"SAP_LENS_LOG_LEVEL","info"} };
+                {"SAP_LENS_LOG_LEVEL","info"}, {"SAP_LENS_BACKUP_KEY_FILE",backupKey} };
             if (auth == "users") settings["SAP_LENS_USERS_FILE"] = accountFile;
             if (https) { settings["SAP_LENS_TLS_CERT_FILE"] = cert; settings["SAP_LENS_TLS_KEY_FILE"] = key; }
             else if (HttpNeedsAcknowledgement(listener, hosts)) settings["SAP_LENS_ALLOW_HTTP"] = "1";
@@ -258,7 +267,7 @@ namespace SapLens {
             Directory.CreateDirectory(data); Acl(data, true, true);
             if (!installed && auth == "sessions") Run(Path.Combine(Root, @"app\SAP-Lens.exe"), "--initialize-identity " + Quote(data), null);
             Directory.CreateDirectory(Path.Combine(data,"logs")); Directory.CreateDirectory(Path.Combine(data,"sources"));
-            Acl(PrivateRoot, false, true); if (auth == "users") Acl(accountFile, false, false); if (https) Acl(key, false, false);
+            Acl(PrivateRoot, false, true); Acl(backupKey, false, false); if (auth == "users") Acl(accountFile, false, false); if (https) Acl(key, false, false);
             ProtectProgramDirectory();
         }
         public static void SelfTest() {
@@ -316,6 +325,7 @@ namespace SapLens {
             Button(actions,"Refresh",()=>{}); Button(actions,"Unregister",()=>{ if(MessageBox.Show("Unregister this service? Application files, accounts, certificates and data will be retained.",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)ServiceSetup.Control("uninstall"); });
             Button(actions,"Recover administrator",()=>{ if(MessageBox.Show("Revoke this administrator's sessions and issue a one-time recovery code?",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)MessageBox.Show(ServiceSetup.ActivationCode(recoveryUser.Text),"Administrator recovery code — valid for 15 minutes"); });
             Button(actions,"First-run activation code",()=>{ string code=ServiceSetup.ActivationCode(null); MessageBox.Show("Use this code on the SAP Lens first-run page within 15 minutes. It is shown only here; do not put it in logs.\n\n"+code,Text); });
+            Button(actions,"Export backup recovery key",()=>{using(var dialog=new SaveFileDialog{Title="Store a private recovery key separately from backup archives",Filter="SAP Lens recovery key (*.key)|*.key",FileName="SAP-Lens-recovery.key"}){if(dialog.ShowDialog()==DialogResult.OK){ServiceSetup.ExportBackupKey(dialog.FileName);MessageBox.Show("Recovery copy created. Keep it private and separate from archives. In SAP Lens Backup & Restore, verify this copy before enabling automatic backups.",Text);}}});
             Button(actions,"Open logs",()=>Process.Start("explorer.exe",ServiceSetup.Quote(Path.Combine(data.Text,"logs")))); Add(table,"Actions",actions);
             urls.Multiline=true;urls.ReadOnly=true;urls.Height=85;Add(table,"Configured URLs",urls);
             Add(table,"Deployment",new Label{AutoSize=true,MaximumSize=new Size(550,0),Text="Keep this extracted folder in its permanent location. Restrict the port in Windows Firewall to approved machines/subnets. No firewall rule is opened automatically. Self-signed certificates show a browser trust warning. Stop the service before changing configuration. Data relocation requires a separate backup/migration."});

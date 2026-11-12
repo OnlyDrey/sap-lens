@@ -56,6 +56,7 @@ def issue(store, username=None):
             if not row:
                 raise AuthError('administrator_recovery_unavailable', 409)
             purpose, identity = 'recovery', row['id']
+            db.execute("UPDATE one_time SET consumed=1 WHERE purpose IN ('reset','recovery') AND user_id=?", (identity,))
             db.execute('DELETE FROM sessions WHERE user_id=?', (identity,))
             db.execute('UPDATE users SET credential_version=credential_version+1,revision=revision+1 WHERE id=?', (identity,))
         db.execute('UPDATE one_time SET consumed=1 WHERE purpose=?', (purpose,))

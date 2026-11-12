@@ -1,189 +1,164 @@
 # Application Backup & Restore
 
-Settings → **Backup & Restore** transfers full application data between Desktop
-and server installations. It complements [stopped host maintenance](README.md#operations-health-and-diagnostics);
-it does not merge independent histories. Server HTTP access requires individual
-account authentication and an **administrator** account. Basic/shared-proxy/local
-server deployments use host maintenance instead. Desktop uses its launch capability.
+Settings → **Backup & Restore** transfers complete logical application data between
+Desktop and server installations. It replaces a dataset rather than merging
+independent histories. Server access requires an administrator session. Desktop
+uses its launch capability. Never commit private archives or keys to Git.
 
-Application data also includes `functional-groups.json` (Functional Group catalogue, classifications and history; see [Functional Groups](../features/FUNCTIONAL_GROUPS.md#persistence-backup-and-migration)).
+## Contents and protection
 
-## Create a backup
+New portable archives use the versioned `.slbak` envelope: AES-256-GCM with a new
+nonce and authenticated metadata for every archive. A separate passphrase uses
+scrypt; unattended archives derive a unique archive key from the protected host
+recovery key. Pending restart keys are wrapped, never stored as plaintext.
 
-1. Select **Create backup (restart required)**. Editing and scheduled refresh pause.
+The encrypted canonical manifest records application/settings/account schema,
+creation time, component inventory and SHA-256 checksums. It includes imported
+snapshots, settings, saved filters, Functional Groups, Account Review, SoD periods,
+decisions, approvals, audit history, immutable evidence, branding/logos, report
+branding, the Desktop reviewer profile and provisioned account/password verifiers.
+Account SQLite uses the database backup API, not a live database/WAL file copy.
+Source settings and snapshots remain authoritative; the derived cache is rebuilt.
+
+Excluded: active sessions, usable activation/reset/recovery codes, login throttles,
+TLS private keys/certificates, shared host secrets, host bindings, OS registration,
+service XML, logs, locks, caches, operation history and recovery keys. A pending
+password reset stays required after restore, but its original code cannot work;
+an administrator or local recovery must issue another code. Legacy reviewer
+strings and frozen evidence retain their bytes; identities are not guessed.
+
+## Configure and escrow a key
+
+Configure a private key **outside** application data and archive directories.
+Desktop offers **Create recovery key**, **Use existing key**, and **Export recovery
+copy** through its guarded native picker. Service Manager provisions an external,
+ACL-protected key when saving configuration; **Export backup recovery key** makes
+a create-only private copy. Browser users never select server filesystem paths.
+
+Equivalent local commands (run from the repository; choose private absolute paths):
+
+```text
+python backend/server.py --maintenance init-backup-key --data /srv/sap-lens/data --output /srv/sap-lens-private/backup.key
+python backend/server.py --maintenance check-backup-key --data /srv/sap-lens/data --key-file /srv/sap-lens-private/backup.key
+python backend/server.py --maintenance export-backup-key --data /srv/sap-lens/data --key-file /srv/sap-lens-private/backup.key --output /mnt/private-escrow/SAP-Lens-recovery.key
+```
+
+Directories must already be private and exist. Use the packaged `SAP-Lens.exe
+--maintenance` equivalent on Windows. Configure `SAP_LENS_BACKUP_KEY_FILE` in the
+service environment; Docker mounts this **separately** from the data/backup volume.
+Keys are random, create-only and owner-private (or an explicitly configured
+service-group read permission). Never print them or place them beside archives.
+No browser API changes a host key path. For unattended scheduling, verify the
+separately stored copy in Settings before enabling the schedule. Rotating a key
+requires a new copy verification. Keep old keys needed by older archives.
+
+An optional confirmed archive passphrase can be used for manual backups. Keep it
+separately. There is no forgotten-passphrase recovery. The host key is still
+required to protect the pending operation across restart. Recovery keys are not
+part of any application archive; restore cannot overwrite the destination key.
+
+## Create and download
+
+1. Select **Create backup (restart required)**. New editing and refresh pause.
 2. Desktop: explicitly **Exit SAP Lens**, then reopen. Closing to the tray is not
-   an exit. Server: an administrator restarts the service/container/process.
-3. Return to this Settings section and wait for **Ready**, then select **Download backup** to save the `.tar.gz` archive.
-   Desktop uses a native Save dialog; browser clients download normally.
+   exit. Server: an operator restarts the Windows service/systemd unit/container.
+3. Return to this section. **Ready** means encrypted round-trip/archive verification
+   succeeded. **Download backup** uses a native Save dialog or browser download.
 
-The archive contains application-owned imported snapshots, configuration, saved
-filters, Account Review decisions, SoD decisions/history/evidence, review periods,
-branding and retained application artifacts. Inventory is recursive, rather than a
-short list of JSON files. Runtime tokens, logs, deployment credentials, certificates
-and the backup operation store itself are excluded. Archives contain sensitive
-personal and access data and **are not encrypted**. Restrict access and transfer
-securely; do not commit them to Git or attach them to public issues/releases.
+Individual application files are atomic, but there is no global transaction over
+JSON histories, snapshots and SQLite. SQLite's online backup alone cannot provide
+this consistent multi-store snapshot. Creation runs under the stopped runtime
+lease before the listener and scheduler start. There is no remote restart API.
 
 ## Restore
 
-1. Upload an application backup (`.tar.gz`, maximum **256 MiB compressed** through
-   Settings). Larger archives require host maintenance. The engine's decompressed
-   limit is **4 GiB / 100000 files**.
-2. Read the source mode/version, creation time, data categories, files and snapshot
-   counts. Validation checks version/schema compatibility, checksums, portable
-   paths, duplicate/case collisions, member types, typed stores and active snapshot
-   references. This preview does not replace active data.
-3. Confirm **full replacement**, then select **Confirm restore on restart**.
-4. Restart as above. Before replacement, SAP Lens creates a destination recovery
-   backup. Replacement runs before configuration/cache initialization or HTTP
-   startup, while holding the actual single-process storage lease.
-5. Review the result and download the destination recovery backup when needed.
+1. Upload `.slbak` (Settings limit **256 MiB**). Supply its passphrase or exported
+   recovery key; leave blank only when this host has the matching key. Secrets are
+   transient, not retained in browser storage or operation metadata.
+2. Authentication precedes parsing/extraction. Preview validates versions,
+   checksums, typed stores, database integrity, exact component inventory, source
+   references and branding assets. Unsafe paths, links, member types, duplicates
+   and case collisions are rejected. Canonical limit: 4 GiB / 100000 files;
+   encrypted archive limit: 2 GiB. Preview does not replace active data.
+3. Confirm full replacement. An account-bearing archive requires a **separate
+   acknowledgement of account/password rollback and session invalidation**.
+4. Restart. An encrypted destination recovery backup is verified first. Journalled
+   activation and post-restore checks run before application initialization.
+5. Review the result and download the recovery backup when needed.
 
-Destination binding, aliases, port, authentication accounts/credentials, TLS keys,
-service registration, deployment marker and storage ownership stay on the destination.
-The restored source's Desktop/server marker is not activated. IDs, event timestamps,
-append-only history and frozen snapshots retain their original bytes.
+Destination service registration, TLS, key provider, bindings, deployment ownership
+and Desktop host preferences are preserved. Account state changes only with the
+explicit account acknowledgement. Sessions are invalidated. Sources become
+Static, data refresh and the restored backup schedule are disabled. Review original
+source paths before enabling Dynamic mode. Backup scheduling configuration is
+portable; its operation history, retention approval and key escrow verification
+remain installation-local. Source/review retention approvals are void and cleanup
+pauses for seven days. Histories and immutable snapshots are not merged/relabelled.
 
-Imported datasets remain in **Static** mode. Original source paths remain visible
-for reference; they are not reread by Global Refresh. Reconfigure each path before
-switching it to Dynamic. Scheduled refresh is disabled, and destination Desktop
-preferences remain intact. Replacing sources later uses the usual complete-replacement
-validation; restore never turns separate histories into one merged history.
+Legacy unencrypted `.tar.gz` import requires explicit acknowledgement. Destination
+accounts are preserved; legacy hosting credentials are never activated. New
+backups are always encrypted.
 
-## Recovery and storage
+## Stopped-host maintenance
 
-Private operation files live under `.application-backups` inside the configured
-persistent data directory, so Docker volume persistence and existing service data
-permissions apply. Operations use owner-only files/directories (Windows ACLs in
-Desktop/service; Unix owner permissions). Unconfirmed upload previews are bounded
-to three; completed/recovery backups remain private until the operator removes them
-with the application stopped. Keep a separate protected copy of important backups.
+`--maintenance backup --data ABS --output ABS.slbak --mode server` uses the same
+complete encryption/snapshot pipeline. The runtime must be stopped; output is
+create-only and separate from data and keys. `--maintenance verify --archive ABS
+--data ABS --mode server` authenticates and verifies it. Add `--secret-stdin` to
+read an original passphrase/exported key without placing secrets in arguments.
 
-Use **Cancel restore preview** to discard a validated inactive upload and its retention protection. Once confirmed or owned by recovery, only the protected pending-operation/restart workflow applies. Cancellation before restart preserves active data. Failed validation leaves it
-untouched. Activation uses a journal and rollback; an interrupted activation is
-rolled back on the next start. If rollback cannot complete, startup stops rather
-than serving partially replaced data. Correct permissions/free space and restart,
-or use stopped host maintenance with a retained recovery backup. A pending operation
-also survives service/container restart in the persistent data volume.
+`--maintenance restore --archive ABS --data EMPTY_ABS --mode server
+--confirm-restore` only accepts an empty destination. Add `--confirm-accounts` for
+account-bearing archives; `--allow-legacy` explicitly permits legacy input. The
+destination host key must already be configured. Host configuration directories
+are intentionally excluded; preserve service XML/TLS configuration separately.
+No existing installation is switched automatically. Service script actions reuse
+the installed key environment. Native SCM acceptance remains a separate gate.
 
-The application never restarts the host or service automatically. In-flight edits
-may finish before shutdown and are included in the automatic destination backup;
-no requests or scheduled imports run during replacement because the listener has
-not started. The first release requires a coordinated restart, not a live restore.
+## Status and recovery
 
-## Validation boundary
+- **Idle:** prepare a backup or upload an archive.
+- **Waiting for restart:** cancel safely or restart the host. Closing a browser
+  does not restart a server; closing a Desktop window may leave its backend alive.
+- **Preparing / Creating:** host-owned work cannot be cancelled by clearing a lock.
+- **Ready:** download; failed downloads leave the archive available to retry.
+- **Failed / Cancelled:** correct storage/key/compatibility issues, then retry.
+  Interrupted creation becomes Failed at startup without changing active data.
 
-Synthetic Linux tests cover Desktop-to-server transfer, exact history/snapshot
-preservation, durable CSV loading with former Windows paths, administrator and
-capability checks, upload limits, checksum/preview integrity, cancellation,
-automatic recovery backup, activation failure and interrupted rollback. Browser
-checks cover Settings and light/dark layouts at 375, 800, 1280 and 1600 px.
-Native Windows Save-dialog/ACL/WebView2 and real SCM/systemd restart acceptance
-remain required; Linux unit/browser tests do not certify them.
-
-## Why restart is still required
-
-SAP Lens stores settings, immutable imported snapshots, review events, period indexes and
-other application files using separate atomic replacements. There is no shared database
-transaction or global writer barrier covering every file and scheduled refresh. The
-canonical archive engine therefore uses the stopped-store/runtime lease before the listener
-and scheduler start. Individual files being atomic does not make a live multi-file copy
-transactionally consistent. This workflow deliberately retains restart rather than taking
-an unsafe online copy. In-flight work may finish before shutdown; the archive captures the
-final stopped state. No browser-accessible restart API is provided.
-
-## Status, retry and recovery
-
-- **Idle:** choose Create backup or select a restore archive.
-- **Waiting for restart:** the request is persisted; new editing and scheduled runs pause.
-  Cancel pending operation releases this restriction without replacing data. An already
-  running refresh may finish; creation occurs only after restart, never alongside it.
-- **Preparing / Creating:** host-owned work; cancellation cannot release an active operation.
-  Archive creation/verification runs before the server becomes available. Reconnect and
-  check this section after startup, rather than expecting a browser progress percentage.
-- **Ready:** Download backup uses the Desktop Save dialog or a normal browser download.
-  A download failure leaves the archive available; retry downloading.
-- **Failed / Cancelled:** read the status, correct storage/permissions if necessary, then
-  retry Create backup. Interrupted creation becomes Failed at next startup without changing
-  application data. Legacy `pending` records display as Waiting for restart.
-
-Malformed operation metadata without a restore journal is reported as Failed and does not
-permanently freeze editing. If a restore journal remains, cancellation/new operations are
-blocked; startup must finish rollback or stop for administrator recovery. Never delete that
-journal to unlock the interface. Missing/corrupt metadata with a journal blocks startup.
-
-Configuration is an independent GET: a waiting operation does not intentionally block it.
-If configuration loading fails, use **Retry configuration**; Backup & Restore remains
-accessible independently. This symptom alone does not establish corrupt settings or require
-a restart. Archive upload is disabled only while another operation or local request owns
-the workflow, not merely because configuration loading failed. **Check status** retries the
-backup request; returning to the section or window refreshes retained operation status.
+Operations are private under `.application-backups`. Upload previews are bounded;
+**Cancel restore preview** removes an inactive preview and its retention protection.
+Corrupt operation metadata without a journal does not permanently freeze editing.
+An interrupted activation rolls back on the next start. If rollback cannot finish,
+startup stops and preserves the journal/evidence; never delete it to unlock editing.
+Old pending unencrypted creations must be cancelled/reprepared rather than silently
+creating another plaintext archive. Configuration loading and backup status are
+independent requests with Retry actions.
 
 ## Scheduling and retention
 
-**Automatic backup scheduling** reuses Runtime & Scheduling's five-field cron,
-minimum five-minute interval and Local/UTC/IANA timezone rules. Choose daily time or
-advanced cron, retention (default **7**, range 1–100), then **Save backup schedule**.
-It is disabled by default. Next requests, last success/failure and the last 50 request
-outcomes are shown. Only the running, single leased backend evaluates schedules;
-Desktop must stay running. Additional workers sharing storage are unsupported and
-must not bypass the process lease. Missed downtime slots are not replayed.
+Scheduling reuses validated five-field cron, minimum five-minute intervals and
+Local/UTC/IANA zones. It schedules **restart-dependent requests**, not online
+archives or automatic host restarts. Keep the runtime running; missed slots are
+not replayed. Busy imports/other operations record a skipped occurrence. A verified
+escrow copy is required to enable and execute a request.
 
-**Important:** this release schedules **backup requests**, not unattended online
-archives. A due request queues **Waiting for restart** and pauses new edits and
-scheduled refresh until the administrator restarts the host or cancels the request.
-Do not enable it unless this operational consequence is acceptable. Use deployment
-maintenance scripts with an administrator-controlled service stop/start when fully
-automated stopped-host backups are required. No browser can restart the host.
+| Class | Policy |
+| --- | --- |
+| Automatic | Default 90 days from recorded completion, with existing installation-bound administrator approval. The legacy count preference never deletes recent archives early. |
+| Manual | Retained until explicitly deleted. |
+| Migration | Retained until upgrade confirmation; confirmation retains it, deletion is a separate explicit action. |
 
-Concurrent duplicate occurrences are claimed once under the existing operation lock.
-If import/refresh or another backup/restore is busy, the occurrence is recorded as
-skipped, not retried invisibly. Archive creation still takes place only before the
-listener/scheduler starts, so no import/refresh writes run during capture. Success
-means archive verification completed; the filesystem/manifest engine is unchanged.
-A conservative free-space check runs before archive and restore-recovery creation.
+Unreadable metadata, unknown origins, links, failed verification, pending operations,
+recovery archives and archives used by restore previews stay protected. Deletion
+retains the audit record. Data retention remains default 24 months and protects
+active periods/evidence; see [Data retention](../operations/DATA_RETENTION.md).
 
-The **Backup history** table shows the latest 200 operations, source, timestamp,
-archive size and verification result, with authenticated downloads and confirmed
-deletion. Storage usage covers retained backup archives in the private application
-backup area. Manual archives are never automatically removed. After successful
-scheduled creation, only older verified scheduled archives beyond retention are
-removed; active operations, restore recovery archives and originals matching a
-staged restore are protected. Cleanup failure leaves the verified archive intact.
-Schedules/history are destination-local operational metadata, excluded from exported
-archives along with the operation store; restores do not activate another host's
-backup schedule. Failed and deleted records remain traceable in history.
+## Validation boundary
 
-## Backup retention (three classes)
-
-Backups are classified by explicit metadata written when they are created, never by file name or file time.
-
-| Class | Metadata | Retention |
-| --- | --- | --- |
-| Automatic (scheduled) | `origin: scheduled` in the backup's `result.json` | Removed after **90 days** (configurable, 7 to 3650) counted from the **recorded** completion time, after a one-time administrator approval of the previewed set. The older count limit (`keep`, default 7) of the backup schedule still applies independently and needs no approval. |
-| Manual | `origin: manual` | Kept until an administrator deletes it (the existing delete action requires confirmation and refuses while an operation is pending or a staged restore uses it). Never reclassified, never removed automatically. |
-| Migration | `.application-backups/migration/<id>` | Kept until an administrator confirms the upgrade works; **confirming keeps it**, and it is deleted only by an explicit second step (*Delete pre-migration backup*). The automatic rule never applies to it. |
-
-A backup without reliable metadata (no or unknown origin, unreadable or inconsistent `result.json`, no recorded time, not verified, archive missing or a link, digest mismatch, status other than ready) is protected. Cleanup refuses to run while a backup or restore is pending,
-protects an archive that a staged restore uses, never follows links, and only acts on `backup.tar.gz` inside a numbered backup folder; a deleted backup keeps its small audit record (`status: deleted`). An interrupted cleanup (archive removed, record not yet updated) is completed by the next run.
-
-#### Count limit and age limit together
-
-The scheduled-backup count limit (*keep*, default 7, no approval) and the age limit (default 90 days, one-time approval) both remove automatic backups. The period is a maximum,
-not a guaranteed minimum: the count limit can remove a backup long before it is 90 days old. Settings shows both rules and the preview names the rule behind each candidate. The full
-explanation is in [Data retention](../operations/DATA_RETENTION.md#count-limit-and-age-limit).
-
-The policy and approval live in `.application-backups/retention.json`, next to the backups and outside the data a restore replaces, so a restore neither voids the backup approval nor brings an older copy back. Source and review retention work differently after a restore (their approvals are voided and cleanup pauses for 7 days; see
-[Data retention](../operations/DATA_RETENTION.md)). **Archives can contain historical records that source or review retention has already removed from the live installation**; restoring such an archive brings those records back.
-
-## Central-host availability limitation
-
-Scheduled backup currently requests a restart-dependent snapshot; it does not
-create an online archive. While pending, edits and refresh are paused until a
-controlled host restart or safe cancellation. Closing a browser is not a server
-restart; closing a Desktop window may leave its tray/backend alive. Plan a
-maintenance window and verify the completed archive before external copying.
-SQLite is derived/rebuildable and excluded from application archives; authoritative
-JSON decisions and evidence are included. SQLite's online backup API alone would
-not make this multi-store application backup consistent. Online snapshotting and
-verified external-copy automation remain operational improvement requirements.
+Synthetic Linux tests cover encryption/tampering, wrong secrets, complete branding,
+account UUID/verifier recovery, pending resets, session exclusion, rollback, exact
+review history and snapshot transfer, source loading, scheduling and retention.
+Browser tests cover encrypted/legacy upload, confirmations, cancellation and
+responsive layouts. Native Windows Save dialogs/ACLs/WebView2, newly built SCM
+packages, real systemd and Docker recovery require their own acceptance. Prior
+package acceptance does not certify this implementation.

@@ -27,7 +27,9 @@ class Case(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
         self.data = Path(self.temp.name) / 'private'
         self.data.mkdir()
-        patcher = patch.dict(os.environ, {'SAP_LENS_CONFIG_DIR': str(self.data), 'DATA_CSV_PATH': ''}); patcher.start(); self.addCleanup(patcher.stop)
+        import backup_crypto as crypto
+        key=Path(self.temp.name)/'host.key';crypto.create_key(key,self.data)
+        patcher = patch.dict(os.environ, {'SAP_LENS_BACKUP_KEY_FILE':str(key),'SAP_LENS_CONFIG_DIR': str(self.data), 'DATA_CSV_PATH': ''}); patcher.start(); self.addCleanup(patcher.stop)
         config.get_settings.cache_clear(); cache.clear_cache(); self.addCleanup(config.get_settings.cache_clear)
         self.area = backups.area(self.data)
 
@@ -232,29 +234,24 @@ class Safety(Case):
         retention.execute(now=NOW, data=self.data)
         self.assertFalse(self.exists(victim))
 
-    def test_the_existing_count_limit_still_works_independently(self):
-        for number in range(9):
-            self.backup(age=number)
+    def test_legacy_count_preference_cannot_remove_recent_archives(self):
+        for number in range(9):self.backup(age=number)
         backup_schedule.retention(self.data)
-        remaining = [identity for identity in os.listdir(self.area) if backups.ID.fullmatch(identity) and (self.area / identity / 'backup.tar.gz').exists()]
-        self.assertEqual(len(remaining), 7)                                                   # keep=7 as before, without approval
+        remaining=[identity for identity in os.listdir(self.area) if backups.ID.fullmatch(identity) and self.exists(identity)]
+        self.assertEqual(len(remaining),9)
 
-    def test_the_preview_names_the_rule_of_every_candidate_and_the_period_is_a_maximum_not_a_minimum(self):
-        old = [self.backup(age=200 + number) for number in range(3)]                           # older than 90 days, beyond the newest 7
-        recent = [self.backup(age=number) for number in range(9)]                              # younger than 90 days; the 8th and 9th are beyond the newest 7
-        found = retention.plan(now=NOW, data=self.data)
-        self.assertEqual(found['keep'], 7)
-        self.assertEqual({item['id'] for item in found['items']}, set(old))
-        for item in found['items']:
-            self.assertEqual(item['rules'], ['age', 'count'])                                 # both rules apply: older than 90 days and beyond the newest 7
-            self.assertIn('Older than 90 days and beyond the newest 7', item['rule'])
-        early = {item['id'] for item in found['count_limit']}
-        self.assertEqual(early, set(recent[7:]))                                              # removed long before 90 days by the count limit, no approval
-        self.assertTrue(all('count limit' in item['rule'] for item in found['count_limit']))
-        self.assertTrue(early.isdisjoint(self.eligible()))
-        backup_schedule.retention(self.data)                                                  # the count rule really removes exactly what the preview said
-        gone = {identity for identity in old + recent if not self.exists(identity)}
-        self.assertEqual(gone, set(old) | early)
+    def test_only_approved_age_policy_removes_automatic_archives(self):
+        old=[self.backup(age=200+number) for number in range(3)]
+        recent=[self.backup(age=number) for number in range(9)]
+        found=retention.plan(now=NOW,data=self.data)
+        self.assertEqual({item['id'] for item in found['items']},set(old))
+        self.assertTrue(all(item['rules']==['age'] for item in found['items']))
+        self.assertEqual(found['count_limit'],[])
+        # An installation-bound approval remains mandatory, including old archives.
+        self.assertEqual(retention.check(now=NOW,data=self.data),'awaiting_approval')
+        self.approve();retention.check(now=NOW,data=self.data)
+        self.assertTrue(all(not self.exists(identity) for identity in old))
+        self.assertTrue(all(self.exists(identity) for identity in recent))
 
     def test_an_age_only_candidate_is_labelled_with_the_age_rule_alone(self):
         for number in range(3):

@@ -112,9 +112,14 @@ def main() -> None:
     if sys.platform != 'win32':
         signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
     exit_with_parent()
-    with tempfile.TemporaryDirectory(prefix=PREFIX) as directory:
+    with tempfile.TemporaryDirectory(prefix=PREFIX) as directory, tempfile.TemporaryDirectory(prefix='sap-lens-test-keys-') as key_directory:
         (Path(directory) / OWNER_FILE).write_text(str(os.getpid()), encoding='ascii')
         os.environ['SAP_LENS_CONFIG_DIR'] = directory
+        # Synthetic key outside disposable data; never inherit an operator's key.
+        import backup_crypto
+        key_path=Path(key_directory)/'fixture.key'
+        backup_crypto.create_key(key_path,Path(directory))
+        os.environ['SAP_LENS_BACKUP_KEY_FILE']=str(key_path)
         os.environ['DATA_CSV_PATH'] = ''
         from main import create_app
         # browser_access: the same guarded loopback document and stale-session answers as the desktop application, so the start-up recovery is tested end to end.

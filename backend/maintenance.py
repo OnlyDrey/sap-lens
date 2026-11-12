@@ -145,7 +145,7 @@ def safe_member(name):
     return path
 
 
-def backup(data, output, mode, application_version, config=None, allow_legacy=False, *, _lease=None, _exclude=()):
+def backup(data, output, mode, application_version, config=None, allow_legacy=False, *, _lease=None, _exclude=(), _manifest_extra=None):
     data, output = directory(data), Path(output).absolute()
     output = directory(output.parent) / output.name
     if not output.name.endswith('.tar.gz'): raise MaintenanceError('Choose a private .tar.gz backup file.')
@@ -173,6 +173,10 @@ def backup(data, output, mode, application_version, config=None, allow_legacy=Fa
         schema = json.loads(settings.read_text(encoding='utf-8')).get('schema_version', 1) if settings.exists() else 1
         manifest = dict(schema=1, mode=mode, application_version=application_version, settings_schema=schema,
                         created_at=datetime.now(timezone.utc).isoformat(), files={name: row[4] for name, row in members.items()})
+        if _manifest_extra is not None:
+            if set(_manifest_extra)!={'portable'} or len(json.dumps(_manifest_extra))>32768:
+                raise MaintenanceError('Invalid portable component manifest.')
+            manifest.update(_manifest_extra)
         descriptor, temporary = tempfile.mkstemp(prefix='.sap-lens-backup-', dir=output.parent)
         os.close(descriptor); temporary = Path(temporary)
         try:
@@ -308,8 +312,9 @@ def purge(data, mode, confirm=False):
 
 def cli(arguments=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('action', choices=['backup', 'verify', 'restore', 'version-check', 'purge'])
+    parser.add_argument('action', choices=['backup', 'verify', 'restore', 'version-check', 'purge', 'init-backup-key', 'configure-backup-key', 'export-backup-key', 'check-backup-key'])
     parser.add_argument('--data', type=Path); parser.add_argument('--config-dir', type=Path)
+    parser.add_argument('--key-file',type=Path)
     parser.add_argument('--output', type=Path); parser.add_argument('--archive', type=Path)
     parser.add_argument('--mode', choices=['desktop', 'server'], default='server')
     parser.add_argument('--application-version'); parser.add_argument('--target-version')
@@ -317,24 +322,57 @@ def cli(arguments=None):
     parser.add_argument('--allow-legacy', action='store_true'); parser.add_argument('--confirm-restore', action='store_true')
     parser.add_argument('--confirm-purge', action='store_true')
     parser.add_argument('--report', type=Path)
+    parser.add_argument('--confirm-accounts',action='store_true')
+    parser.add_argument('--secret-stdin',action='store_true',help='Read an archive passphrase or exported recovery key from stdin, never process arguments.')
     args = parser.parse_args(arguments)
     from version import VERSION
     try:
-        if args.action == 'backup':
+        secret=sys.stdin.readline(4098).rstrip('\r\n') if args.secret_stdin else ''
+        if len(secret.encode('utf-8'))>4096:raise MaintenanceError('Archive secret exceeds the supported limit.')
+        if args.action in {'init-backup-key','configure-backup-key','export-backup-key','check-backup-key'}:
+            import backup_crypto as crypto
+            if args.data is None:raise MaintenanceError('Specify the protected application --data directory.')
+            if args.action=='init-backup-key':
+                if args.output is None:raise MaintenanceError('Specify a new external --output key file.')
+                result=crypto.create_key(args.output,args.data)
+            elif args.action=='check-backup-key':
+                result=dict(configured=True,fingerprint=crypto.fingerprint(crypto.read_key(args.key_file or crypto.key_path(args.data),args.data)))
+            elif args.action=='export-backup-key':
+                if args.output is None:raise MaintenanceError('Specify a new external --output recovery copy.')
+                result=crypto.export_key(args.key_file or crypto.key_path(args.data),args.output,args.data)
+            else:
+                if args.key_file is None:raise MaintenanceError('Specify an existing private --key-file.')
+                from storage_lease import StorageLease
+                lease=StorageLease(args.data,args.mode).acquire()
+                try:result=crypto.desktop_key(args.key_file,args.data)
+                finally:lease.close()
+        elif args.action == 'backup':
             if args.data is None or args.output is None: raise MaintenanceError('Backup needs --data and --output.')
-            result = backup(args.data, args.output, args.mode, args.application_version or VERSION, args.config_dir, args.allow_legacy)
+            if args.application_version and args.application_version!=VERSION:raise MaintenanceError('Use the matching application version; portable backups record the running version.')
+            if args.config_dir:raise MaintenanceError('Host/service configuration is excluded from portable backups; preserve it separately on the host.')
+            from portable_backups import backup_stopped
+            result=backup_stopped(args.data,args.output,args.mode,args.allow_legacy)
         elif args.action == 'purge':
             if args.data is None: raise MaintenanceError('Data removal needs --data.')
             result = purge(args.data, args.mode, args.confirm_purge)
         elif args.action == 'version-check':
             ensure_upgrade(args.application_version, args.target_version); result = dict(compatible=True)
-        elif args.action == 'verify': result = verify(args.archive, args.mode, args.target_version or VERSION); result = dict(verified=True, files=len(result['files']))
-        else: result = restore(args.archive, args.data, args.mode, args.target_version or VERSION, args.config_destination, args.confirm_restore)
+        elif args.action == 'verify':
+            from portable_backups import readable
+            with readable(args.archive,args.data,secret,args.allow_legacy) as (canonical,encrypted):
+                checked=verify(canonical,args.mode,args.target_version or VERSION)
+            result=dict(verified=True,encrypted=encrypted,files=len(checked['files']))
+        else:
+            if args.data is None or args.archive is None:raise MaintenanceError('Restore needs --data and --archive.')
+            if args.config_destination:raise MaintenanceError('Portable restore preserves host/service configuration; no configuration destination is required.')
+            if args.target_version and args.target_version!=VERSION:raise MaintenanceError('Use the matching application to restore this version.')
+            from portable_backups import restore_empty
+            result=restore_empty(args.archive,args.data,args.mode,args.confirm_restore,args.confirm_accounts,secret,args.allow_legacy)
         if args.report: args.report.write_text(json.dumps(dict(status='passed', **result)) + '\n', encoding='utf-8')
         if sys.stdout: print(json.dumps(result))
         return 0
     except Exception as error:
-        result = dict(status='failed', action=args.action, category=type(error).__name__, message=str(error) if isinstance(error,MaintenanceError) else 'Operation failed safely; inspect permissions, application state and backup compatibility.',
+        result = dict(status='failed', action=args.action, category=type(error).__name__, message=str(error) if isinstance(error,(MaintenanceError,__import__('backup_crypto').BackupCryptoError)) else 'Operation failed safely; inspect permissions, application state and backup compatibility.',
                       recovery='Stop the application, verify directory ownership/version/permissions and the backup. Existing stores are never overwritten by restore.')
         if args.report: args.report.write_text(json.dumps(result) + '\n', encoding='utf-8')
         if sys.stderr: print(json.dumps(result), file=sys.stderr)

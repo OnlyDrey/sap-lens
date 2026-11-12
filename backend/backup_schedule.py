@@ -18,8 +18,14 @@ class Schedule(RefreshSchedule):
         return self
 
 
+def schedule_path(data=None):
+    from config import config_dir
+    return (data or config_dir())/'backup-schedule.json'
+
+
 def settings(data=None):
-    path=backups.area(data,create=False)/'schedule.json'
+    path=schedule_path(data)
+    if not path.exists():path=backups.area(data,create=False)/'schedule.json'
     if not path.exists(): return dict(revision=0,schedule=Schedule().model_dump())
     if backups.engine.linked(path) or path.stat().st_size>32000: raise ValueError('Backup schedule metadata exceeds its limit.')
     value=json.loads(path.read_bytes())
@@ -30,11 +36,15 @@ def settings(data=None):
 def save(draft,revision,data=None):
     parsed=Schedule.model_validate(draft)
     cron.check(parsed.expression,parsed.timezone,datetime.now(timezone.utc))
+    if parsed.enabled:
+        from backup_crypto import key_status,BackupCryptoError
+        from config import config_dir
+        if not key_status(data or config_dir())['escrow_verified']:raise BackupCryptoError('Verify a separately stored recovery key before enabling automatic backups.')
     with backups.lock:
         current=settings(data)
         if current['revision']!=revision: raise ValueError('Backup schedule changed; reload before saving.')
         value=dict(current,revision=revision+1,schedule=parsed.model_dump())
-        backups.write(backups.area(data)/'schedule.json',value)
+        backups.write(schedule_path(data),value)
         return status(data)
 
 
@@ -54,7 +64,7 @@ def rows(data=None):
             if not path.is_file() or backups.engine.linked(path) or path.stat().st_size>32000: continue
             value=json.loads(path.read_bytes())
             if value.get('id')!=folder.name or value.get('kind')!='backup': continue
-            archive=folder/'backup.tar.gz'
+            archive=backups.archive_path(folder,'backup',value)
             size=archive.stat().st_size if archive.is_file() and not backups.engine.linked(archive) else 0
             result.append(dict(id=folder.name,created_at=value.get('completed_at') or value.get('requested_at'),origin=value.get('origin','manual'),
                                status=value['status'],size=size,verified=bool(value.get('verified') and size),sha256=value.get('sha256','')))
@@ -81,7 +91,7 @@ def remove(identity,confirm,data=None):
             if not backups.ID.fullmatch(folder.name) or backups.engine.linked(folder) or not preview.is_file(): continue
             if preview.stat().st_size>32000 or json.loads(preview.read_bytes()).get('archive_sha256')==row['sha256']: raise ValueError('A staged restore protects this archive.')
         operation=backups.path_for(identity,data)
-        (operation/'backup.tar.gz').unlink(missing_ok=True)
+        backups.archive_path(operation,'backup',json.loads((operation/'result.json').read_bytes())).unlink(missing_ok=True)
         record=json.loads((operation/'result.json').read_bytes());record.update(status='deleted',verified=False)
         remember(record,data)
         if current.get('id')==identity:
@@ -91,13 +101,10 @@ def remove(identity,confirm,data=None):
 
 
 def retention(data=None):
-    with backups.lock:
-        if backups.pending(data): return
-        keep=Schedule.model_validate(settings(data)['schedule']).keep
-        candidates=[row for row in rows(data) if row['origin']=='scheduled' and row['status']=='ready' and row['verified']]
-        for row in candidates[keep:]:
-            try: remove(row['id'],True,data)
-            except ValueError: continue # Recovery/staged archives always win over retention.
+    # One canonical, installation-bound approved policy. The legacy count limit
+    # cannot remove recent backups ahead of the 90-day retention window.
+    import backup_retention
+    return backup_retention.check(data=data)
 
 
 def check_space(data,exclusions):
@@ -112,6 +119,9 @@ def status(data=None):
                  description=cron.describe(parsed.expression,parsed.timezone),requires_restart=True,
                  last_success=next((row['created_at'] for row in items if row['origin']=='scheduled' and row['status']=='ready'),None),
                  last_failure=next((row['created_at'] for row in items if row['origin']=='scheduled' and row['status']=='failed'),None))
+    from backup_crypto import key_status
+    from config import config_dir
+    value['encryption_ready']=key_status(data or config_dir())['escrow_verified']
     return value
 
 
@@ -125,11 +135,15 @@ def tick(now,cursor,loader,data=None):
         occurrence=runs[0].isoformat()
         if value.get('last_occurrence')==occurrence: return 'skipped'
         value['last_occurrence']=occurrence
-        if backups.pending(data) or loader.loading:
+        from backup_crypto import key_status
+        from config import config_dir
+        if not key_status(data or config_dir())['escrow_verified']:
+            value.update(last_attempt=now.isoformat(),last_outcome='skipped: recovery key copy not verified')
+        elif backups.pending(data) or loader.loading:
             value.update(last_attempt=now.isoformat(),last_outcome='skipped: another operation is running')
         else:
             backups.request_backup(data,origin='scheduled')
             value.update(last_attempt=now.isoformat(),last_outcome='waiting_for_restart')
         value['attempts']=[*value.get('attempts',[]),dict(at=now.isoformat(),occurrence=occurrence,status=value['last_outcome'])][-50:]
-        backups.write(backups.area(data)/'schedule.json',value)
+        backups.write(schedule_path(data),value)
         return value['last_outcome']

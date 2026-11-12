@@ -395,7 +395,7 @@ class AuthStore:
                 raise AuthError('user_not_found', 404)
             if row['revision'] != revision:
                 raise AuthError('stale_user', 409)
-            db.execute("UPDATE one_time SET consumed=1 WHERE purpose='reset' AND user_id=?", (identity,))
+            db.execute("UPDATE one_time SET consumed=1 WHERE purpose IN ('reset','recovery') AND user_id=?", (identity,))
             db.execute("INSERT INTO one_time(id,purpose,user_id,verifier,created,expires) VALUES(?,'reset',?,?,?,?)", (uuid4().hex, identity, digest(code), now, now + 900))
             db.execute('DELETE FROM sessions WHERE user_id=?', (identity,))
             db.execute('UPDATE users SET credential_version=credential_version+1,revision=revision+1 WHERE id=?', (identity,))
@@ -423,7 +423,7 @@ class AuthStore:
                 db.execute('INSERT INTO login_limits VALUES(?,?,?) ON CONFLICT(client) DO UPDATE SET failures=excluded.failures,until_time=excluded.until_time', (client_key, failures if failures < 5 else 0, now + 30 if failures >= 5 else 0))
                 error = AuthError('invalid_reset', 401)
             else:
-                db.execute('UPDATE one_time SET consumed=1 WHERE id=?', (row['id'],))
+                db.execute("UPDATE one_time SET consumed=1 WHERE purpose IN ('reset','recovery') AND user_id=?", (row['user_id'],))
                 db.execute('UPDATE users SET verifier=?,credential_version=credential_version+1,revision=revision+1 WHERE id=?', (verifier, row['user_id']))
                 db.execute('DELETE FROM sessions WHERE user_id=?', (row['user_id'],))
                 db.execute('DELETE FROM login_limits WHERE client=?', (client_key,))

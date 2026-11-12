@@ -171,3 +171,16 @@ class SessionApiTests(unittest.TestCase):
         self.assertEqual(event['approver'],'reviewer')
         self.assertEqual(event['actor_identity'],dict(id=user['id'],username='reviewer',display_name='Verified reviewer',provenance='server-session'))
         self.assertEqual(self.client.post('/api/sod/decisions/acceptance',json=body,headers=headers).status_code,409)
+
+    def test_backup_secret_validation_is_private_and_mutations_require_admin_csrf(self):
+        headers=self.login()
+        secret='Synthetic backup secret '*80
+        response=self.client.post('/api/backups/create',headers=headers,json={'passphrase':secret})
+        self.assertEqual(response.status_code,422)
+        self.assertNotIn(secret,response.text)
+        self.assertEqual(self.client.post('/api/backups/key/verify',headers={'X-SAP-Lens':'1'},json={'recovery_key':'x'*44}).status_code,403)
+        admin=self.store.login('admin',PASSWORD,'fixture')[0]
+        self.store.create_user(admin,'reader','Reader','viewer',PASSWORD)
+        headers=self.login('reader')
+        for path in ('/api/backups/create','/api/backups/key/verify','/api/backups/restore'):
+            self.assertEqual(self.client.post(path,headers=headers,json={}).status_code,403)

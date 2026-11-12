@@ -26,6 +26,14 @@ def main():
         target = root / 'exports' / 'synthetic.tar.gz'
         with desktop_mutex_patch(WindowsInstance):
             backup(data, target, 'desktop', VERSION)
+        if '--encrypted' in sys.argv:
+            from backup_crypto import create_key,plan,unwrap,seal,host_key
+            key=root/'synthetic.key';create_key(key,data)
+            os.environ['SAP_LENS_BACKUP_KEY_FILE']=str(key)
+            secret=sys.stdin.readline(4098).rstrip('\r\n')
+            planned=plan('synthetic-browser',host_key(data),secret)
+            derived,header=unwrap('synthetic-browser',planned,host_key(data))
+            encrypted=root/'synthetic.slbak';seal(target,encrypted,derived,header);target=encrypted
         sys.stdout.buffer.write(target.read_bytes())
 
 

@@ -306,6 +306,28 @@ class NativeDialogs:
     def save_user_access_csv(self, token: str, filename: str, content: str):
         return _save_csv_dialog(self, token, filename, content, 'access')
 
+    def configure_backup_key(self, token, action='create'):
+        if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()):raise ValueError('Application request is not authorized.')
+        if action not in {'create','select','export'}:raise ValueError('Unknown recovery-key action.')
+        if not self._window or not self._picker_lock.acquire(blocking=False):return False
+        try:
+            import webview
+            import backup_crypto as crypto
+            import application_backups as backups
+            from config import config_dir
+            if action!='export' and os.environ.get('SAP_LENS_BACKUP_KEY_FILE'):raise ValueError('This recovery key is managed by the host environment. Change it locally there; existing archives still need their original key.')
+            files=self._window.create_file_dialog(webview.FileDialog.OPEN if action=='select' else webview.FileDialog.SAVE,save_filename='SAP-Lens-recovery.key',file_types=('Recovery keys (*.key)',))
+            if not files:return False
+            target=Path(files[0]);data=config_dir()
+            with backups.lock:
+                if action=='export':crypto.export_key(crypto.key_path(data),target,data)
+                else:
+                    backups.idle_required(data)
+                    if action=='create':crypto.create_key(target,data)
+                    crypto.desktop_key(target,data)
+            return True
+        finally:self._picker_lock.release()
+
     def save_application_backup(self, token, identity, kind='backup'):
         if not isinstance(token,str) or not hmac.compare_digest(token.encode(),self._token.encode()): raise ValueError('Application request is not authorized.')
         from application_backups import download
@@ -316,10 +338,15 @@ class NativeDialogs:
             import shutil
             import tempfile
             from maintenance import private_file
-            files=self._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=f'SAP-Lens-{kind}-{identity}.tar.gz',file_types=('Gzip archives (*.tar.gz)',))
+            suffix='.slbak' if source.name.endswith('.slbak') else '.tar.gz'
+            files=self._window.create_file_dialog(webview.FileDialog.SAVE,save_filename=f'SAP-Lens-{kind}-{identity}{suffix}',file_types=('SAP Lens backups (*.slbak;*.tar.gz)',))
             if not files: return False
             target=Path(files[0])
-            if not target.is_absolute() or not target.name.endswith('.tar.gz') or target.is_symlink(): raise ValueError('Choose an absolute .tar.gz destination without links.')
+            from maintenance import directory
+            import backup_crypto as crypto
+            directory(target.parent)
+            if target.parent.resolve()==crypto.key_path(__import__('config').config_dir()).parent.resolve():raise ValueError('Save the archive separately from its host recovery key.')
+            if not target.is_absolute() or not target.name.endswith(suffix) or target.is_symlink(): raise ValueError('Choose an absolute matching backup destination without links.')
             fd,temporary=tempfile.mkstemp(dir=target.parent,suffix='.tmp')
             try:
                 private_file(Path(temporary))

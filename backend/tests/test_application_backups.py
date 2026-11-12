@@ -24,8 +24,11 @@ class BackupTests(unittest.TestCase):
         for root,mode in ((self.source,'desktop'),(self.data,'server')):
             root.mkdir();(root/'deployment.json').write_text(json.dumps(dict(version=1,mode=mode)))
             (root/'settings.json').write_text(AppConfig().model_dump_json())
-        self.env=patch.dict(os.environ,{'SAP_LENS_DEPLOYMENT_MODE':'desktop','SAP_LENS_CONFIG_DIR':str(self.data),'SAP_LENS_DATA_DIR':str(self.data)})
+        import backup_crypto as crypto
+        self.key=self.root/'host.key';crypto.create_key(self.key,self.data)
+        self.env=patch.dict(os.environ,{'SAP_LENS_BACKUP_KEY_FILE':str(self.key),'SAP_LENS_DEPLOYMENT_MODE':'desktop','SAP_LENS_CONFIG_DIR':str(self.data),'SAP_LENS_DATA_DIR':str(self.data)})
         self.env.start();self.addCleanup(self.env.stop);config.get_settings.cache_clear();self.addCleanup(config.get_settings.cache_clear)
+        crypto.verify_escrow(self.key.read_text().strip(),self.data)
         (self.source/'saved-filters.json').write_text(json.dumps(dict(schema_version=1,items=[])))
         (self.data/'destination-only.json').write_text('{"synthetic":true}')
         (self.data/'users.json').write_text('{"protected":"synthetic-credential-store"}')
@@ -85,7 +88,12 @@ class BackupTests(unittest.TestCase):
         result=backups.request_backup(self.data)
         with self.assertRaises(ValueError): backups.download(result['id'],data=self.data)
         self.activate()
-        header=maintenance.verify(backups.download(result['id'],data=self.data),'server',VERSION)
+        import backup_crypto as crypto
+        encrypted=backups.download(result['id'],data=self.data)
+        self.assertEqual(encrypted.suffix,'.slbak')
+        decoded=self.root/'decoded.tar.gz'
+        crypto.unseal(encrypted,decoded,host=crypto.host_key(self.data))
+        header=maintenance.verify(decoded,'server',VERSION)
         self.assertNotIn('data/users.json',header['files']);self.assertNotIn('data/tls.key',header['files'])
         self.assertIn('data/deployment.json',header['files'])
 
@@ -206,10 +214,10 @@ class BackupTests(unittest.TestCase):
         manual=backups.request_backup(self.data);self.activate()
         for _ in range(3):backups.request_backup(self.data,origin='scheduled');self.activate()
         history=schedule.history(self.data)
-        self.assertEqual(sum(row['verified'] for row in history['items']),3)
+        self.assertEqual(sum(row['verified'] for row in history['items']),4)
         self.assertTrue(backups.download(manual['id'],data=self.data).exists())
         self.assertGreater(history['storage_bytes'],0)
-        self.assertEqual(sum(row['status']=='deleted' for row in history['items']),1)
+        self.assertEqual(sum(row['status']=='deleted' for row in history['items']),0)
         with self.assertRaises(ValueError):schedule.remove(manual['id'],False,self.data)
         schedule.remove(manual['id'],True,self.data)
         with self.assertRaises(ValueError):backups.download(manual['id'],data=self.data)
@@ -296,12 +304,12 @@ class BackupTests(unittest.TestCase):
         self.assertEqual(client.post('/api/backups/create',headers=headers).status_code,200)
         self.assertEqual(client.post('/api/refresh',headers=headers).status_code,409)
         self.assertEqual(client.post('/api/backups/cancel',headers=headers).status_code,200)
-        preview=client.post('/api/backups/upload',headers={**headers,'Content-Type':'application/gzip'},content=self.archive.read_bytes())
+        preview=client.post('/api/backups/upload',headers={**headers,'Content-Type':'application/gzip','X-SAP-Lens-Allow-Legacy':'1'},content=self.archive.read_bytes())
         self.assertEqual(preview.status_code,200,preview.text)
         self.assertEqual(preview.json()['preview']['source_mode'],'desktop')
         self.assertEqual(client.get('/api/backups/'+preview.json()['id']+'/download',headers=headers).status_code,409)
         with patch.object(backups,'MAX_UPLOAD',2):
-            self.assertEqual(client.post('/api/backups/upload',headers={**headers,'Content-Type':'application/gzip'},content=b'xxx').status_code,413)
+            self.assertEqual(client.post('/api/backups/upload',headers={**headers,'Content-Type':'application/gzip','X-SAP-Lens-Allow-Legacy':'1'},content=b'xxx').status_code,413)
 
     def test_server_backup_reads_and_downloads_require_actual_administrator(self):
         from fastapi.testclient import TestClient
@@ -474,9 +482,11 @@ class ReviewHistoryTransferTests(PeriodV2Case):
         with tempfile.TemporaryDirectory() as folder:
             destination=Path(folder)/'data';destination.mkdir()
             (destination/'deployment.json').write_text(json.dumps(dict(version=1,mode='server')))
+            import backup_crypto as crypto
+            key=Path(folder)/'host.key';crypto.create_key(key,destination)
             archive=Path(folder)/'exports'/'source.tar.gz'
             maintenance.backup(self.root,archive,'desktop',VERSION)
-            with patch.dict(os.environ,{'SAP_LENS_CONFIG_DIR':str(destination)}):
+            with patch.dict(os.environ,{'SAP_LENS_CONFIG_DIR':str(destination),'SAP_LENS_BACKUP_KEY_FILE':str(key)}):
                 with backups.uploaded(destination) as (identity,path):
                     path.write_bytes(archive.read_bytes());preview=backups.register_upload(identity,destination)
                 self.assertEqual(preview['preview']['review_periods'],1)
@@ -496,12 +506,39 @@ class NativeBackupDownloadTests(unittest.TestCase):
         from types import SimpleNamespace
         result=backups.request_backup(self.data);self.activate()
         owner=NativeDialogs('synthetic-native-backup-token')
-        destination=self.root/'download.tar.gz'
+        destination=self.root/'downloads/download.slbak';destination.parent.mkdir()
         owner._window=SimpleNamespace(create_file_dialog=lambda *args,**kwargs:[str(destination)])
         with self.assertRaises(ValueError):owner.save_application_backup('wrong',result['id'])
         with patch.dict(sys.modules,{'webview':SimpleNamespace(FileDialog=SimpleNamespace(SAVE=1))}):
             self.assertTrue(owner.save_application_backup('synthetic-native-backup-token',result['id']))
         self.assertEqual(destination.read_bytes(),backups.download(result['id'],data=self.data).read_bytes())
+
+class NativeBackupKeyTests(unittest.TestCase):
+    setUp=BackupTests.setUp
+
+    def test_guarded_native_provider_creation_export_and_safe_pending_rejection(self):
+        import backup_crypto as crypto
+        from desktop import NativeDialogs
+        from types import SimpleNamespace
+        owner=NativeDialogs('synthetic-key-token')
+        with self.assertRaises(ValueError):owner.configure_backup_key('wrong','create')
+        with patch.dict(os.environ,{'SAP_LENS_BACKUP_KEY_FILE':''}),patch.dict(sys.modules,{'webview':SimpleNamespace(FileDialog=SimpleNamespace(OPEN=2,SAVE=1))}):
+            key=self.root/'native.key'
+            owner._window=SimpleNamespace(create_file_dialog=lambda *args,**kwargs:[str(key)])
+            self.assertTrue(owner.configure_backup_key('synthetic-key-token','create'))
+            self.assertEqual(crypto.key_path(self.data),key)
+            copy=self.root/'escrow.key'
+            owner._window.create_file_dialog=lambda *args,**kwargs:[str(copy)]
+            self.assertTrue(owner.configure_backup_key('synthetic-key-token','export'))
+            self.assertEqual(key.read_bytes(),copy.read_bytes())
+            self.assertFalse(crypto.key_status(self.data)['escrow_verified'])
+            crypto.verify_escrow(copy.read_text().strip(),self.data)
+            self.assertTrue(crypto.key_status(self.data)['escrow_verified'])
+            backups.request_backup(self.data)
+            rejected=self.root/'must-not-create.key'
+            owner._window.create_file_dialog=lambda *args,**kwargs:[str(rejected)]
+            with self.assertRaises(ValueError):owner.configure_backup_key('synthetic-key-token','create')
+            self.assertFalse(rejected.exists())
 
 class PendingStateReadTests(unittest.TestCase):
     def test_status_check_does_not_create_first_run_configuration(self):
@@ -515,7 +552,9 @@ class PendingStateReadTests(unittest.TestCase):
             data=Path(folder)/'data';data.mkdir();alias=Path(folder)/'alias'
             try:alias.symlink_to(data,target_is_directory=True)
             except OSError:self.skipTest('Creating directory aliases is unavailable.')
-            result=backups.request_backup(data)
+            import backup_crypto as crypto
+            key=Path(folder)/'host.key';crypto.create_key(key,data)
+            with patch.dict(os.environ,{'SAP_LENS_BACKUP_KEY_FILE':str(key)}):result=backups.request_backup(data)
             self.assertEqual(backups.read(alias)['id'],result['id'])
             self.assertTrue(backups.pending(alias))
             from types import SimpleNamespace

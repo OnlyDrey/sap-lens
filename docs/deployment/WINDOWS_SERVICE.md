@@ -236,8 +236,10 @@ an archive over it.
 Backup stops the service and leaves it stopped. The default private backup
 directory is `C:\ProgramData\SAP Lens Server Backups`; `-BackupDirectory` selects
 another dedicated location outside data and binaries. The archive includes
-persistent records and the administrator service XML. External source files and
-external access-secret files are not followed; preserve them separately.
+portable records, branding and account verifiers in an encrypted `.slbak` archive.
+The installed recovery-key environment is used. Preserve the key, service XML, TLS
+configuration and external source files separately; they are never transferred.
+See [encryption and recovery](BACKUP_RESTORE.md#configure-and-escrow-a-key).
 
 Upgrade verifies exact replacement contents, pinned WinSW and hashes, rejects a
 downgrade, stops the installed service and creates a private backup before
@@ -253,10 +255,9 @@ the live configuration or data:
 
 ```powershell
 .\manage-server-service.ps1 -Action Restore `
-  -Archive 'D:\PrivateBackups\SAP-Lens-Service-example.tar.gz' `
+  -Archive 'D:\PrivateBackups\SAP-Lens-Service-example.slbak' `
   -RestoreDataDirectory 'D:\Recovery\SAP-Lens-Data' `
-  -RestoreConfigurationDirectory 'D:\Recovery\SAP-Lens-Configuration' `
-  -ConfirmRestore
+  -ConfirmRestore -ConfirmAccountRollback
 ```
 
 Keep the original stores and archive until recovery is accepted. Review restored

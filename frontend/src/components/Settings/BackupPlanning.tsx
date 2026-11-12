@@ -10,7 +10,7 @@ import {formatTimestamp} from '@/lib/dateFormat'
 import {TimeInput24} from '@/components/Shared/TimeInput24'
 
 type Schedule={enabled:boolean;mode:'daily'|'cron';time:string;cron:string;timezone:string;keep:number}
-type Status={revision:number;schedule:Schedule;next_runs:string[];description:string;last_success:string|null;last_failure:string|null;last_outcome?:string;attempts?:{at:string;status:string}[]}
+type Status={encryption_ready?:boolean;revision:number;schedule:Schedule;next_runs:string[];description:string;last_success:string|null;last_failure:string|null;last_outcome?:string;attempts?:{at:string;status:string}[]}
 type History={items:{id:string;created_at:string;origin:string;status:string;size:number;verified:boolean}[];total:number;storage_bytes:number;destination:string}
 
 export function BackupScheduling(){
@@ -21,13 +21,15 @@ export function BackupScheduling(){
  return <Card aria-label="Automatic backup scheduling"><h3 className="ui-section-title flex items-center gap-2"><Clock size={18} aria-hidden="true"/>Automatic backup scheduling</h3>
   <p className="ui-description">Queues a consistent backup for the next host restart. Editing and scheduled refresh pause until restart or cancellation. This does not restart the host or create an unattended online archive. Manual backups are preserved; retention applies only to successful scheduled archives.</p>
   {query.isLoading?<LoadingState/>:query.error?<ErrorState error={query.error} onRetry={()=>void query.refetch()}/>:draft&&<>
-   <Checkbox checked={draft.enabled} onChange={event=>patch({enabled:event.target.checked})}>Enable scheduled backup requests (restart required)</Checkbox>
+   <Checkbox disabled={!draft.enabled&&!query.data?.encryption_ready} checked={draft.enabled} onChange={event=>patch({enabled:event.target.checked})}>Enable scheduled backup requests (restart required)</Checkbox>
    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
     <FormField label="Backup schedule type"><SettingsSelect value={draft.mode} onChange={event=>patch({mode:event.target.value as Schedule['mode']})}><option value="daily">Daily</option><option value="cron">Advanced cron</option></SettingsSelect></FormField>
     {draft.mode==='daily'?<FormField label="Backup daily time" description="24-hour time, HH:mm."><TimeInput24 label="Backup daily time" value={draft.time} onChange={time=>patch({time})}/></FormField>:<FormField label="Backup cron expression"><Input value={draft.cron} onChange={event=>patch({cron:event.target.value})}/></FormField>}
     <FormField label="Backup time zone" description="Local time, UTC or an installed IANA zone, for example Europe/Oslo."><Input value={draft.timezone} onChange={event=>patch({timezone:event.target.value})}/></FormField>
-    <FormField label="Successful automatic backups to keep"><Input type="number" min={1} max={100} value={draft.keep} onChange={event=>patch({keep:Number(event.target.value)})}/></FormField>
+
    </div>
+   {!query.data?.encryption_ready&&<p className="ui-description">Verify a separately stored recovery copy above before enabling automatic backups.</p>}
+   <p className="ui-description">Automatic backup retention defaults to 90 days and requires the existing retention approval. Manual and migration backups stay protected.</p>
    <Button disabled={busy} onClick={()=>{setBusy(true);setError('');void apiRequest('/api/backups/schedule','POST',{revision:query.data?.revision,schedule:draft}).then(()=>client.invalidateQueries({queryKey:['backup-schedule']})).catch(reason=>setError(reason instanceof Error?reason.message:'Schedule could not be saved.')).finally(()=>setBusy(false))}}><Save size={16} aria-hidden="true"/>{busy?'Saving…':'Save backup schedule'}</Button>
    <p className="ui-description">{query.data?.description}. Next requests: {query.data?.next_runs.length?query.data.next_runs.slice(0,3).map(value=>formatTimestamp(value)).join(' · '):'Disabled'}</p>
    <p className="ui-description">Last successful archive: {formatTimestamp(query.data?.last_success,'Never')} · Last failed archive: {formatTimestamp(query.data?.last_failure,'None')}{query.data?.last_outcome&&` · ${query.data.last_outcome}`}</p>

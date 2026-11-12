@@ -163,7 +163,9 @@
     "test_refresh_schedule",
     "test_theme_and_diagnostics",
     "test_maintenance",
-    "test_application_backups"
+    "test_application_backups",
+    "test_backup_crypto",
+    "test_portable_backups"
    ],
    "browser": [
     "enterprise",

@@ -127,7 +127,7 @@ def create_app(origin: str | None = None, session_token: str | None = None,
         from fastapi.exception_handlers import request_validation_exception_handler
         @app.exception_handler(RequestValidationError)
         async def safe_authentication_validation(request, error):
-            if request.url.path.startswith('/api/auth/'):
+            if request.url.path.startswith(('/api/auth/','/api/backups/')):
                 return JSONResponse({'detail':'Invalid authentication request','code':'invalid_request'},status_code=422,headers={'Cache-Control':'no-store'})
             return await request_validation_exception_handler(request,error)
         @app.exception_handler(AuthError)

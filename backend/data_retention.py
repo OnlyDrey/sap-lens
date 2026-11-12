@@ -490,18 +490,21 @@ def set_policy(actor, enabled, months, now=None, review_months=None, backup_days
         return status()
 
 
-def after_restore(now=None):
+def after_restore(now=None, *, directory=None):
     """A restore replaces the review records; nothing is removed automatically for a week and both approvals are void, so a recovered period cannot be purged
     again before an administrator has looked. Any journal carried in the archive is discarded."""
     now = now or datetime.now(timezone.utc)
+    root=Path(directory) if directory is not None else config_dir()
     with lock:
-        data = read()
+        path=root/FILE
+        data=Storage.model_validate_json(path.read_bytes()) if path.exists() else Storage()
         data.approval = data.review_approval = None
         data.quiet_until = (now + timedelta(days=7)).isoformat()
         _append(data, Entry(at=now.isoformat(), trigger='restore', status='changed', months=data.policy.months,
                             message='Application data was restored: approvals are void and no cleanup runs for 7 days.'))
-        _write(data)
-    (config_dir() / 'data-retention' / 'journal.json').unlink(missing_ok=True)
+        data.revision+=1
+        atomic_write(root/FILE,data.model_dump_json().encode('utf-8'))
+    (root / 'data-retention' / 'journal.json').unlink(missing_ok=True)
 
 
 def status():

@@ -3,7 +3,7 @@
 Retention keeps the data directory from growing without bound and never touches current data. This is the administrator guide; the storage design is in
 [Storage, source revisions and data consistency](../architecture/STORAGE_AND_REVISIONS.md).
 
-Retention keeps the data directory from growing without bound and never touches current data. It has **three separate categories** (source, review and [backup retention](../deployment/BACKUP_RESTORE.md#backup-retention-three-classes): automatic backups 90 days), each with its own period (default **24 months**, 6 to 120), its own preview and its own one-time
+Retention keeps the data directory from growing without bound and never touches current data. It has **three separate categories** (source, review and [backup retention](../deployment/BACKUP_RESTORE.md#scheduling-and-retention): automatic backups 90 days), each with its own period (default **24 months**, 6 to 120), its own preview and its own one-time
 administrator approval, configured in *Settings > Backup & Restore > Data retention*. Source rules are never applied to review records, and review rules never remove source data. The check runs **daily**, does not run while a
 load, refresh, backup or restore is in progress, and removes nothing until the category has been approved.
 
@@ -62,14 +62,9 @@ removed from the live installation; restoring one brings them back, which is why
 
 ### Count limit and age limit
 
-Two independent rules can remove an automatic backup:
-
-| Rule | Setting | Removes | Approval |
-| --- | --- | --- | --- |
-| Count limit | Backup schedule, *keep* (default 7) | Completed, verified automatic backups beyond the newest *keep*, as soon as a scheduled backup completes | None |
-| Age limit | Data retention, backup period (default 90 days) | Automatic backups older than the period | One-time administrator approval bound to the previewed set |
-
-The period is a **maximum**, not a guaranteed minimum. With the defaults and one backup per day only the newest 7 exist, so a backup is normally gone after a week.
-The age limit matters when backups are less frequent than the count limit allows or when *keep* is large. Settings shows both rules above the cleanup preview; the preview names
-the rule behind every candidate and lists separately the younger backups the count limit will remove. The approval binds only the age-limit set, so that informational list does not
-change an existing approval. See also [Backup and restore](../deployment/BACKUP_RESTORE.md#backup-retention-three-classes).
+Automatic backups follow the approved age policy (default 90 days). The legacy
+schedule count preference is retained for configuration compatibility but does
+not delete recent archives. Only eligible automatic backups older than the
+configured period may be removed, after the installation-bound administrator
+approval. Manual, migration, unclassified and restore-protected archives remain
+protected. See [Backup and restore](../deployment/BACKUP_RESTORE.md#scheduling-and-retention).

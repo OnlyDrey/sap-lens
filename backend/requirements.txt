@@ -15,3 +15,5 @@ python-multipart==0.0.32
 
 # Local server accounts (Argon2id password hashing).
 argon2-cffi==25.1.0
+# Authenticated portable application backups (streaming AES-256-GCM).
+cryptography==50.0.2

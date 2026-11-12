@@ -2450,3 +2450,53 @@ after the final permission/loading changes. Production TypeScript/build, scoped
 ESLint/Ruff, ownership, docs and whitespace passed; no skips in these selections.
 Complete final integration remains Phase 8; do not interpret targeted results as
 FULL or native Windows/SCM acceptance. Phases 6–8 are pending.
+
+Phase 6 — encrypted complete application backups (2026-11-12)
+
+New `.slbak` archives wrap the canonical validated archive in streaming
+AES-256-GCM. Passphrases use bounded scrypt; host-key archives use per-archive
+HKDF. Pending restart keys are wrapped and bound to their operation, not persisted
+in plaintext. New explicit local/native key provisioning/export keeps private keys
+outside application data; scheduling requires a verified separate recovery copy.
+No key, passphrase, active session or usable activation/reset code is transferred.
+
+Portable staging now snapshots account SQLite through its backup API, validates
+its schema/verifiers/integrity, and includes account UUIDs, policy/audit, complete
+branding/report assets, source snapshots, settings, local reviewer identity and
+review evidence. Pending-reset restrictions survive with unusable source codes.
+Restore authenticates before parsing, requires separate account/password rollback
+acknowledgement, verifies encrypted destination recovery, and uses the existing
+activation journal/rollback before the listener starts. Source/review retention
+recovery is explicitly scoped to the restored directory, including offline CLI.
+Legacy imports require acknowledgement and preserve destination credentials.
+Scheduling configuration is portable but restores disabled; operation history,
+retention approval, host key/TLS/network/service configuration remain host-local.
+
+Manual/scheduled backup, download, native key picker, Service Manager key export
+and stopped maintenance CLI share this contract. Service maintenance uses installed
+key environment and encrypted logical archives; XML/host secrets are separately
+preserved, not portable payload. No browser restart/key-path setter was added.
+A restart remains necessary because independent file stores have no global writer
+transaction. The superseded count-only deletion rule no longer removes recent
+backups before the approved 90-day policy. Manual/migration retention stays intact.
+
+Validation: initial crypto 7 passed; complete restore 5 passed, subsequently
+expanded for scheduling and offline CLI. An affected six-module run discovered
+105 tests: 104 passed, one new secret-validation fixture reached the stricter
+request-size guard first; the corrected bounded fixture passed its focused
+recheck (no security guard changed). Related identity/portable/data-retention
+selection passed 31. Existing maintenance/retention selection passed 33 with one
+new assertion error; both corrected retention and identity-code tests subsequently
+passed in their affected selections. Deployment/SCM/setup contracts: 32 passed,
+16 native-PowerShell checks skipped (the runner incorrectly labels all 48 discovered
+as passed; these counts exclude skips). Backend code static checks passed.
+Two complete backup/retention browser specs passed 13/13, including encrypted
+wrong-secret rejection, legacy acknowledgement, cancellation, scheduling and
+responsive overflow checks; an earlier focused selection passed 3/3. Production
+build/TypeScript passed. Scoped ESLint, Ruff, docs, workflow/ownership, pip dependency
+consistency and whitespace passed. Windows PowerShell/C#/ACL/Save-dialog/SCM and
+actual Docker/systemd acceptance were not executed. Prior Windows acceptance does
+not apply to this code. Broader final integration remains Phase 8, not claimed here.
+
+Remaining: Phase 7 controlled legacy account migration; Phase 8 integrated/full
+local validation and final documentation. No main/product-version/CI-policy change.
