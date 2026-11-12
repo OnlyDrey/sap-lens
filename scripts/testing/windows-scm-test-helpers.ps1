@@ -272,3 +272,60 @@ function Write-ScmEvidence([string]$Path,$Receipt) {
         throw 'SCM evidence read-back validation failed.'
     }
 }
+
+function Get-ScmExitCode($Process) {
+    if (-not $Process.HasExited) { throw 'Management process has not exited; exit code is unavailable.' }
+    $code=$Process.ExitCode
+    if ($null -eq $code -or $code -isnot [int]) { throw 'Management process exited without an available integer exit code; acceptance refused.' }
+    return $code
+}
+function Invoke-ScmManagementHost([string]$HostPath,[string]$EncodedCommand,[string]$Stage,[ValidateRange(1,180)][int]$TimeoutSeconds=180) {
+    $child=[Diagnostics.Process]::new()
+    $stdout=$null; $stderr=$null; $started=$false
+    $watch=[Diagnostics.Stopwatch]::StartNew()
+    try {
+        # Own the original process handle. Start-Process -PassThru on Windows
+        # PowerShell 5.1 can return a detached process with unavailable ExitCode.
+        $child.StartInfo.FileName=$HostPath
+        $child.StartInfo.Arguments='-NoProfile -NonInteractive -EncodedCommand '+$EncodedCommand
+        $child.StartInfo.UseShellExecute=$false
+        $child.StartInfo.CreateNoWindow=$true
+        $child.StartInfo.RedirectStandardOutput=$true
+        $child.StartInfo.RedirectStandardError=$true
+        if (-not $child.Start()) { throw 'Management host could not be started.' }
+        $started=$true
+        $null=$child.Handle
+        # Drain both pipes concurrently without PowerShell event callbacks.
+        $stdout=$child.StandardOutput.ReadToEndAsync()
+        $stderr=$child.StandardError.ReadToEndAsync()
+        while (-not $child.WaitForExit(1000) -and $watch.Elapsed.TotalSeconds -lt $TimeoutSeconds) {
+            Write-Host ('[SCM] RUNNING | '+$Stage+' | elapsed '+[int]$watch.Elapsed.TotalSeconds+'s')
+        }
+        if (-not $child.HasExited) {
+            $child.Kill()
+            if (-not $child.WaitForExit(10000)) { throw 'Owned management host did not exit after termination; workspace retained.' }
+            throw "Owned management host exceeded $TimeoutSeconds seconds; inspect service state and retained workspace."
+        }
+        if (-not $stdout.Wait(5000) -or -not $stderr.Wait(5000)) { throw 'Management output capture did not complete; acceptance refused.' }
+        $exitCode=Get-ScmExitCode $child
+        if ($exitCode -ne 0) { throw "Service management failed (exit $exitCode)." }
+    } finally {
+        if ($started) {
+            try {
+                if (-not $child.HasExited) {
+                    $child.Kill()
+                    if (-not $child.WaitForExit(10000)) { Write-Warning 'Owned management process remains after termination; retain workspace.' }
+                }
+            } catch { Write-Warning 'Unable to confirm owned management process termination; retain workspace.' }
+        }
+        # Never wait indefinitely for a descendant retaining an inherited pipe.
+        foreach ($output in @($stdout,$stderr)) {
+            if ($null -ne $output) {
+                if ($output.IsCompleted -and -not $output.IsFaulted -and -not $output.IsCanceled) {
+                    if ($output.Result) { Write-Host $output.Result }
+                } else { Write-Warning 'Management output capture incomplete; inspect retained workspace logs.' }
+            }
+        }
+        $child.Dispose()
+    }
+}

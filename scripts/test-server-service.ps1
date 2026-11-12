@@ -44,7 +44,7 @@ function Invoke-ScmManage {
     $timer=[Diagnostics.Stopwatch]::StartNew()
     $stage='Service management '+($args -join ' ')
     Write-Host "[SCM] START | $stage"
-    $child=$null; $passed=$false
+    $passed=$false
     try {
         # Encode quoted tokens; neither spaces/Unicode nor PowerShell metacharacters
         # can turn an argument into executable code. This child alone is owned.
@@ -64,19 +64,9 @@ function Invoke-ScmManage {
         $quotedManage="'"+$manage.Replace("'","''")+"'"
         $code='$ErrorActionPreference=''Stop''; $global:LASTEXITCODE=0; $parameters=@{'+($bindings -join ';')+'}; & '+$quotedManage+' @parameters; if (-not $?) { exit 1 }; exit $global:LASTEXITCODE'
         $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))
-        $child=Start-Process -FilePath $managementHost -ArgumentList @('-NoProfile','-EncodedCommand',$encoded) -NoNewWindow -PassThru
-        while (-not $child.WaitForExit(3000) -and $timer.Elapsed.TotalSeconds -lt 180) {
-            Write-Host ('[SCM] RUNNING | '+$stage+' | elapsed '+[int]$timer.Elapsed.TotalSeconds+'s')
-        }
-        if (-not $child.HasExited) {
-            $child.Kill()
-            $null=$child.WaitForExit(10000)
-            throw 'Owned management host exceeded 180 seconds; inspect service state and retained workspace.'
-        }
-        if ($child.ExitCode -ne 0) { throw "Service management failed (exit $($child.ExitCode))." }
+        Invoke-ScmManagementHost $managementHost $encoded $stage
         $passed=$true
     } finally {
-        if ($child) { $child.Dispose() }
         $timer.Stop()
         $status=if ($passed) { 'PASS' } else { 'FAIL' }
         Write-Host ("[SCM] $status | $stage | elapsed {0:N1}s" -f $timer.Elapsed.TotalSeconds)

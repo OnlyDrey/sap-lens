@@ -2057,3 +2057,41 @@ ConfirmRestore), rather than treating quoted parameter names as positional strin
 Its native helper regression verifies named binding, child exit continuation and
 create-only evidence, but remains skipped here. No full regression or SCM lifecycle
 was run. Native successful cleanup/report publication remains pending.
+
+
+## PowerShell 5.1 management-process ExitCode (2026-11-12)
+
+Native helper failure confirmed an exited Start-Process -PassThru child exposed
+an empty ExitCode; the runner correctly failed closed, but described it as
+"exit ". Disposal occurred in finally after the check, ruling out premature
+Dispose in this path. Start-Process's returned process/handle lifecycle is
+replaced with a directly started System.Diagnostics.Process and explicit handle
+retention. The exact internal Windows handle transition cannot be traced on
+this Linux host; the native regression remains the acceptance check.
+
+ProcessStartInfo uses FileName separately from fixed switches/Base64 payload,
+UseShellExecute=false and asynchronous stdout/stderr drains. Missing/non-integer
+exit codes explicitly fail. Nonzero results, startup errors, output drain failures
+and timeouts cannot publish successful evidence. Timeout termination targets only
+the owned child, uses bounded waits and disposes its handle after output handling.
+No sleeps, execution-policy bypass or nullable-exit-code success fallback added.
+The original named-parameter encoding, retention.json cleanup and ownership gates
+remain. Start-Process argument joining is no longer used in this orchestration.
+
+Coverage: evidence-host continuation with a space/apostrophe/Unicode script path;
+normal stdout/stderr, exit 7, bounded timeout, missing exit code and running-child
+rejection. Native/PowerShell cases are defined but skipped here. Local focused
+SCM checks: 14 passed, 10 platform skips (24 discovered). Deployment checks:
+368 passed, 22 platform skips (390 discovered). Ruff, docs, workflow contracts and
+whitespace passed. PowerShell parsing/runtime is unavailable (no pwsh/Windows
+PowerShell); no native SCM acceptance, packaging, FULL or Actions was run.
+
+Native follow-up from repository root:
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-process-native.log --report build/scm-process-native.json
+```
+
+Run with PowerShell 5.1 and 7 available; helper tests do not install a service.
+A verified native SCM lifecycle/report remains separate and is not claimed passed.

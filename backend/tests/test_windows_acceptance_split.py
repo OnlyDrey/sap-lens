@@ -121,9 +121,12 @@ class EntrypointContracts(unittest.TestCase):
     def test_native_evidence_is_separate_and_management_uses_child_host(self):
         text=self.read('scripts/test-server-service.ps1')
         helper=self.read('scripts/testing/windows-scm-test-helpers.ps1')
-        self.assertIn('Start-Process -FilePath $managementHost',text)
-        self.assertIn('WaitForExit(3000)',text)
-        self.assertIn('-EncodedCommand',text)
+        self.assertIn('Invoke-ScmManagementHost $managementHost $encoded $stage',text)
+        self.assertIn('$child=[Diagnostics.Process]::new()',helper)
+        self.assertIn('$null=$child.Handle',helper)
+        self.assertIn('UseShellExecute=$false',helper)
+        self.assertIn('Get-ScmExitCode $child',helper)
+        self.assertIn('-EncodedCommand',helper)
         self.assertNotIn('& $manage @args',text)
         self.assertIn("$reportPath=$inputBundle+'.scm-verification.json'",text)
         self.assertNotIn("$report.native_service_smoke=",text)
@@ -193,7 +196,7 @@ class ScmCleanupContracts(unittest.TestCase):
         self.assertIn('operation=$operation, attributes=$attributes',self.helper)
         self.assertIn("$operation='delete entry'",self.helper)
         self.assertIn('-TimeoutSec 3',self.main)
-        self.assertIn('$timer.Elapsed.TotalSeconds -lt 180',self.main)
+        self.assertIn('[ValidateRange(1,180)][int]$TimeoutSeconds=180',self.helper)
 
     def test_bundle_input_is_validated_and_copied_before_install(self):
         self.assertLess(self.main.index('Copy-ScmBundle'),self.main.index('-Action Install'))
@@ -214,7 +217,7 @@ SHELLS = [path for path in (shutil.which('powershell'), shutil.which('pwsh')) if
 @unittest.skipUnless(SHELLS, 'PowerShell required; no SCM lifecycle is exercised')
 class EvidenceHostTests(unittest.TestCase):
     def test_child_exit_continues_and_receipt_is_readable_and_create_only(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with tempfile.TemporaryDirectory(prefix="scm host's Æ ") as temporary:
             root=Path(temporary);child=root/'child.ps1';child.write_text("param([string]$Action)\nif ($Action -ne 'Status') { throw 'Named argument binding failed' }; exit 0")
             helper=str(ROOT/'scripts/testing/windows-scm-test-helpers.ps1').replace("'", "''")
             main=(ROOT/'scripts/test-server-service.ps1').read_text()
@@ -229,6 +232,37 @@ class EvidenceHostTests(unittest.TestCase):
             done=subprocess.run([SHELLS[0],'-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=30)
             self.assertEqual(done.returncode,0,done.stdout+done.stderr)
             self.assertEqual(json.loads((root/'receipt.json').read_text())['status'],'passed')
+
+    def test_owned_process_success_failure_timeout_and_missing_exit_code(self):
+        for shell in SHELLS:
+            with self.subTest(shell=shell), tempfile.TemporaryDirectory(prefix='scm process spaces ') as temporary:
+                root=Path(temporary);script=root/'driver with spaces.ps1'
+                helper=str(ROOT/'scripts/testing/windows-scm-test-helpers.ps1').replace("'", "''")
+                body=f". '{helper}'\n"
+                body+=r"""
+$ErrorActionPreference='Stop'
+$hostPath=(Get-Process -Id $PID).Path
+function Encode([string]$code) { return [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code)) }
+Invoke-ScmManagementHost $hostPath (Encode 'Write-Output "synthetic stdout"; [Console]::Error.WriteLine("synthetic stderr"); exit 0') 'success' 10
+$failed=$false
+try { Invoke-ScmManagementHost $hostPath (Encode 'exit 7') 'nonzero' 10 } catch { $failed=$_.Exception.Message -match 'exit 7' }
+if (-not $failed) { throw 'Nonzero exit was not propagated' }
+$failed=$false
+try { Invoke-ScmManagementHost $hostPath (Encode 'Start-Sleep -Seconds 30') 'timeout' 1 } catch { $failed=$_.Exception.Message -match 'exceeded 1 seconds' }
+if (-not $failed) { throw 'Timeout was not propagated' }
+$failed=$false
+try { Get-ScmExitCode ([pscustomobject]@{HasExited=$true;ExitCode=$null}) } catch { $failed=$_.Exception.Message -match 'without an available integer exit code' }
+if (-not $failed) { throw 'Missing exit code was accepted' }
+$failed=$false
+try { Get-ScmExitCode ([pscustomobject]@{HasExited=$false;ExitCode=0}) } catch { $failed=$true }
+if (-not $failed) { throw 'Running process was accepted' }
+"""
+                script.write_text(body,encoding='utf-8-sig')
+                done=subprocess.run([shell,'-NoProfile','-File',str(script)],capture_output=True,text=True,timeout=45)
+                self.assertEqual(done.returncode,0,done.stdout+done.stderr)
+                self.assertIn('synthetic stdout',done.stdout)
+                self.assertIn('synthetic stderr',done.stdout)
+
 
 
 @unittest.skipUnless(os.name == 'nt' and SHELLS, 'Native Windows PowerShell 5.1/7 is required')

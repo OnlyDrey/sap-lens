@@ -460,3 +460,33 @@ The helper regression exercises Normal/Read-only
 `data\.application-backups\retention.json` in a private synthetic workspace.
 Run on both Windows PowerShell 5.1 and PowerShell 7 when installed. A full native
 SCM acceptance run is a separate check; Linux/static tests do not establish it.
+
+## PowerShell 5.1 SCM management host
+
+SCM acceptance starts its management host with `System.Diagnostics.Process`,
+`UseShellExecute=false` and a retained process handle. The former
+`Start-Process -PassThru` path could report HasExited but expose an empty ExitCode
+on Windows PowerShell 5.1. Missing/non-integer exit status now has its own explicit
+failure; it is never treated as zero. Disposal happens after exit/output handling.
+The executable is passed via ProcessStartInfo.FileName, and Arguments contains
+only fixed switches and a UTF-16 Base64 encoded command. Script paths and named
+argument values remain quoted in that payload; shell joining of space-containing
+paths is avoided. No execution-policy bypass is used.
+
+Both output streams drain asynchronously to avoid pipe deadlocks and are relayed
+before the outer PASS/FAIL message. Management has a 180-second limit; only the
+owned child is terminated on timeout. Post-exit pipe draining is bounded, since a
+descendant could retain an inherited pipe. Capture failures block acceptance.
+The retention.json cleanup correction and evidence-after-cleanup gate are unchanged.
+
+From the Windows repository root (no SCM lifecycle is executed by these tests):
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-process-native.log --report build/scm-process-native.json
+```
+
+Run with Windows PowerShell 5.1 and PowerShell 7 installed when possible: the helper
+cases cover both detected shells, success, explicit nonzero exit, timeout,
+unavailable exit status, output capture and paths containing spaces/apostrophes.
+A helper pass does not establish native SCM installation/upgrade/cleanup acceptance.

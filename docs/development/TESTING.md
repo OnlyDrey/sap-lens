@@ -429,3 +429,33 @@ Findings
 * Every job has its own port (`18745 + index`), its own server and its own temporary configuration directory, which holds that job's SQLite store, snapshots and settings. Nothing is shared between jobs.
 * Regression tests: `backend/tests/test_test_profiles.py` (SIGTERM of the runner, SIGKILL of the parent, SIGTERM of the server, busy ports, distinct ports and storage).
 * A stray server on a test port is identified before it is stopped: `ps -o pid,ppid,etimes,user,args -p PID`, its working directory (`readlink /proc/PID/cwd`) and its parent. Only a `testing/serve-browser-tests.py` process with a dead parent (PPID 1) that you started is an orphan.
+
+## PowerShell 5.1 SCM management host
+
+SCM acceptance starts its management host with `System.Diagnostics.Process`,
+`UseShellExecute=false` and a retained process handle. The former
+`Start-Process -PassThru` path could report HasExited but expose an empty ExitCode
+on Windows PowerShell 5.1. Missing/non-integer exit status now has its own explicit
+failure; it is never treated as zero. Disposal happens after exit/output handling.
+The executable is passed via ProcessStartInfo.FileName, and Arguments contains
+only fixed switches and a UTF-16 Base64 encoded command. Script paths and named
+argument values remain quoted in that payload; shell joining of space-containing
+paths is avoided. No execution-policy bypass is used.
+
+Both output streams drain asynchronously to avoid pipe deadlocks and are relayed
+before the outer PASS/FAIL message. Management has a 180-second limit; only the
+owned child is terminated on timeout. Post-exit pipe draining is bounded, since a
+descendant could retain an inherited pipe. Capture failures block acceptance.
+The retention.json cleanup correction and evidence-after-cleanup gate are unchanged.
+
+From the Windows repository root (no SCM lifecycle is executed by these tests):
+
+```powershell
+powershell -NoProfile -File .\scripts\check-powershell.ps1
+python scripts/run-tests.py targeted --test test_windows_acceptance_split --jobs 1 --log build/scm-process-native.log --report build/scm-process-native.json
+```
+
+Run with Windows PowerShell 5.1 and PowerShell 7 installed when possible: the helper
+cases cover both detected shells, success, explicit nonzero exit, timeout,
+unavailable exit status, output capture and paths containing spaces/apostrophes.
+A helper pass does not establish native SCM installation/upgrade/cleanup acceptance.
