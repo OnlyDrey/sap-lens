@@ -2314,3 +2314,24 @@ remains pending after pull and clean-status verification.
 Validation: artifact-layout module 14 passed, zero skips/failures. Ruff,
 documentation links and whitespace passed. No packaging, full regression or
 Actions run was performed; no production/runtime files were modified.
+
+## Authentication, identity and encrypted portable-state program (2026-11-12)
+
+Eight approved phases: (1) design/contracts; (2) backend authentication/sessions;
+(3) bootstrap; (4) login/admin/profile/manager UI; (5) reviewer identity and explicit
+self-approval; (6) encrypted complete backups; (7) populated migration/recovery;
+(8) integrated full validation/documentation. Confirmed user decisions supersede
+the previous planned separation requirement: reviewers may approve their own work,
+but completion and approval remain separate events. Desktop remains login-free.
+
+Phase 1 inventory confirms Basic/JSON accounts, rebuildable SQLite versus durable
+review JSON, external account-file exclusions from backup, private branding PNGs
+and separate report logo settings. Complete approved contracts and rollback risks
+are documented in architecture/SECURITY.md before implementation. No live data or
+existing packages were changed. Phases 2–8 are pending; this design is not a claim
+that sessions, bootstrap, encrypted backups or migration are implemented.
+
+Phase 1 validation: 65 existing account/server/backup tests passed, zero skips;
+design reviewed against current source and migration scenarios. Phases 2–8 remain
+pending. This commit changes documentation only; prior native package evidence
+remains bound to source 50e55d0, not to later development commits.
