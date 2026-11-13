@@ -18,8 +18,16 @@ codes, cookies and hashes are never audit payloads.
 The application uses random HttpOnly, SameSite=Lax session cookies (Secure on
 HTTPS), idle/absolute expiry, explicit logout and session-specific CSRF protection
 for mutations. Session IDs/CSRF verifiers are hashed in storage. Cookies are never
-put in browser localStorage. Failed sign-ins are temporarily throttled per client
-(5 failures, 30 seconds); there is no permanent account lockout. Spoofed forwarding
+put in browser localStorage. Failed sign-ins and reset-code attempts are throttled per client:
+the fifth failure locks that client for 30 seconds and every further failure doubles
+the lock up to 15 minutes; a correct sign-in clears it and 30 quiet minutes start the
+count over. There is no permanent account lockout and no per-account lock, so many
+source addresses still multiply the possible attempts; password length (12 or more)
+and Argon2id are the defence against distributed guessing. Limit records are pruned
+above 4,096 clients without evicting an active lock. Denied sign-ins and rejected
+activation codes are audited, but only the newest 10,000 of these unauthenticated
+denial events are kept; account, role, password, session, policy and migration
+events are never removed. Spoofed forwarding
 headers do not change the client identity. Session policy defaults to 30-minute
 idle and 12-hour absolute expiry and is configurable by administrators.
 
@@ -73,8 +81,10 @@ verified recovery archive and local operator guidance.
 Remote password authentication requires HTTPS. HTTP is permitted only for a real
 loopback peer, a loopback listener and a loopback public origin. An old
 `SAP_LENS_ALLOW_HTTP=1` acknowledgement does not override this. Docker bridge
-traffic is not a loopback peer: configure direct TLS or a trusted TLS-terminating
-proxy before enabling sign-in. Never publish plaintext password authentication.
+traffic is not a loopback peer: the shipped Compose file therefore always serves
+direct TLS (a supplied certificate, or a self-signed one generated at installation and
+never overwritten) or runs behind a trusted TLS-terminating proxy; see the
+[Docker guide](LINUX_DOCKER.md). Never publish plaintext password authentication.
 
 Direct TLS uses `SAP_LENS_TLS_CERT_FILE` and `SAP_LENS_TLS_KEY_FILE`, with an HTTPS
 public origin. Files must match, be in date, and cover every allowed alias in typed
@@ -168,6 +178,9 @@ already controls protected host storage. Keep OS accounts, key escrow, TLS trust
 network restrictions and retention approvals under organizational control.
 
 Linux synthetic/unit/browser evidence does not certify Windows ACLs, C#/WebView2,
-new SCM packages, real systemd or Docker lifecycle. Historical package acceptance
+new SCM packages or real systemd. The Docker image and `manage.sh` lifecycle were run
+against a real Linux Docker engine (TLS-only sessions, activation, recovery, roles,
+revocation, encrypted backup, upgrade, legacy migration, keyed restore, trusted-proxy
+admission); that is container integration evidence, not production host acceptance. Historical package acceptance
 is bound to that exact package. New native migration/restore acceptance remains
 mandatory before declaring this architecture production-ready.

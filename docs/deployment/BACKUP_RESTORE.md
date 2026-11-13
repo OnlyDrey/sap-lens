@@ -159,6 +159,9 @@ Synthetic Linux tests cover encryption/tampering, wrong secrets, complete brandi
 account UUID/verifier recovery, pending resets, session exclusion, rollback, exact
 review history and snapshot transfer, source loading, scheduling and retention.
 Browser tests cover encrypted/legacy upload, confirmations, cancellation and
-responsive layouts. Native Windows Save dialogs/ACLs/WebView2, newly built SCM
-packages, real systemd and Docker recovery require their own acceptance. Prior
+responsive layouts. A restore into an empty target that is refused (wrong key, modified
+archive) leaves the target empty, so it can be repeated. Docker backup, upgrade and
+keyed recovery into a second installation were run against a real Linux Docker engine.
+Native Windows Save dialogs/ACLs/WebView2, newly built SCM packages and real systemd
+require their own acceptance. Prior
 package acceptance does not certify this implementation.

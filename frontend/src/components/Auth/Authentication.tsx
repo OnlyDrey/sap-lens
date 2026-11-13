@@ -1,4 +1,4 @@
-import {createContext,useContext,useEffect,useState,type ReactNode,type FormEvent} from 'react'
+import {createContext,useCallback,useContext,useEffect,useState,type ReactNode,type FormEvent} from 'react'
 import {useQueryClient} from '@tanstack/react-query'
 import {ApiError,apiRequest,setSessionRole} from '@/api/client'
 import {Button} from '@/components/Shared/Button'
@@ -31,7 +31,7 @@ export function AuthenticationGate({children}:{children:ReactNode}) {
   const expired=()=>{void qc.cancelQueries();qc.clear();setUser(null);setSessionRole(null)}
   window.addEventListener('sap-lens-sign-in-required',expired)
   return()=>{mounted=false;window.removeEventListener('sap-lens-sign-in-required',expired)}
- },[qc]) // eslint-disable-line react-hooks/exhaustive-deps
+ },[qc])
  const logout=async()=>{try{await apiRequest('/api/auth/logout','POST')}catch(error){if(!(error instanceof ApiError&&error.status===401))throw error}void qc.cancelQueries();qc.clear();setUser(null);setSessionRole(null)}
  if(!ready)return <div className="startup-screen"><div className="startup-card">{error?<><p role="alert">{error}</p><Button onClick={()=>location.reload()}>Retry connection</Button></>:<LoadingState/>}</div></div>
  if(session&&!user)return <Login setup={setup} onActivated={()=>setSetup(false)} onReady={async()=>{setSetup(false);await reload()}}/>
@@ -61,8 +61,8 @@ function Login({setup,onActivated,onReady}:{setup:boolean;onActivated:()=>void;o
 export function MyProfile({onClose}:{onClose:()=>void}){
  const auth=useAuthentication(),user=auth.user
  const [name,setName]=useState(user?.display_name||''),[current,setCurrent]=useState(''),[password,setPassword]=useState(''),[sessions,setSessions]=useState<{id:string;created:number;seen:number;current:boolean}[]>([]),[busy,setBusy]=useState(false),[message,setMessage]=useState(''),[error,setError]=useState('')
- const load=async()=>{const data=await apiRequest<{items:typeof sessions}>('/api/auth/sessions');setSessions(data.items)}
- useEffect(()=>{void load().catch(e=>setError(authMessage(e)))},[])
+ const load=useCallback(async()=>{const data=await apiRequest<{items:{id:string;created:number;seen:number;current:boolean}[]}>('/api/auth/sessions');setSessions(data.items)},[])
+ useEffect(()=>{void load().catch(e=>setError(authMessage(e)))},[load])
  const run=async(action:()=>Promise<void>)=>{if(busy)return;setBusy(true);setError('');setMessage('');try{await action()}catch(error){setError(authMessage(error))}finally{setBusy(false)}}
  return <Dialog title="My Profile" onClose={()=>{if(!busy)onClose()}} footer={null}><div className="grid gap-4">
  <p>{user?.username} · {user?.role}</p>
