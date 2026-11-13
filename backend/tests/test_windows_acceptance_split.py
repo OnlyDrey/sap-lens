@@ -8,6 +8,7 @@ import subprocess
 import zipfile
 import importlib.util
 import json
+import re
 from pathlib import Path
 import sys
 import tempfile
@@ -608,3 +609,89 @@ if ($LASTEXITCODE -ne 0) { throw 'SYSTEM-owner fixture setup failed.' }
 Remove-ScmWorkspace $workspace
 if (Test-Path -LiteralPath $workspace.Root) { throw 'Protected workspace remains.' }
 """,parent,shell)
+
+
+@unittest.skipUnless(SHELLS, 'PowerShell required; no SCM lifecycle is exercised')
+class ManagementArgumentTranslationTests(unittest.TestCase):
+    """SCM acceptance passes management arguments to an isolated child. The contract is the management script's own param() block."""
+    HELPER = str(ROOT / 'scripts/testing/windows-scm-test-helpers.ps1').replace("'", "''")
+    MANAGE = str(ROOT / 'scripts/manage-server-service.ps1').replace("'", "''")
+
+    def run_cases(self, body, shell=None):
+        with tempfile.TemporaryDirectory() as temporary:
+            script = Path(temporary) / 'cases.ps1'
+            script.write_text(f"$ErrorActionPreference='Stop'\n. '{self.HELPER}'\n$contract=Get-ScmManagementContract '{self.MANAGE}'\n" + body, encoding='utf-8-sig')
+            done = subprocess.run([shell or SHELLS[0], '-NoProfile', '-File', str(script)], capture_output=True, text=True, timeout=60)
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            return json.loads(done.stdout)
+
+    def test_every_switch_of_the_management_script_is_a_switch_in_the_contract(self):
+        source = (ROOT / 'scripts/manage-server-service.ps1').read_text(encoding='utf-8')
+        declared = set(re.findall(r'\[switch\]\$([A-Za-z]+)', source[:source.index(')\n', source.index('param('))]))
+        self.assertGreaterEqual(declared, {'ConfirmRestore', 'ConfirmAccountRollback', 'AllowLegacyArchive', 'ConfirmSecretRepair', 'PurgeData', 'ConfirmPurge'})
+        for shell in SHELLS:
+            result = self.run_cases("@{switches=@($contract.GetEnumerator() | Where-Object Value | ForEach-Object Key | Sort-Object);values=@($contract.GetEnumerator() | Where-Object {-not $_.Value} | ForEach-Object Key)} | ConvertTo-Json", shell)
+            self.assertEqual(set(result['switches']), declared, shell)
+            self.assertLessEqual({'Action', 'InstallDirectory', 'Archive', 'RestoreDataDirectory', 'Port'}, set(result['values']))
+        main = (ROOT / 'scripts/test-server-service.ps1').read_text(encoding='utf-8')
+        self.assertNotIn("$key -eq 'ConfirmRestore'", main)                       # no per-name exception list in the acceptance script
+        self.assertIn('ConvertTo-ScmManagementBindings $script:manageContract $args', main)
+        self.assertIn('-ConfirmRestore -ConfirmAccountRollback', main)
+
+    def test_restore_receives_both_confirmations_and_values_survive_exactly(self):
+        for shell in SHELLS:
+            result = self.run_cases(r'''
+$path=@'
+C:\Bundle Æø\O'Brien ‘quoted’\архив $(Remove-Item x) ; "q" & | > %TEMP% `n.slbak
+'@
+$text=ConvertTo-ScmManagementBindings $contract @('-Action','Restore','-InstallDirectory','C:\Program Files\SAP Lens Server','-Archive',$path,'-RestoreDataDirectory','D:\recovered data','-ConfirmRestore','-ConfirmAccountRollback')
+$bound=Invoke-Expression ('@{'+$text+'}')
+$middle=Invoke-Expression ('@{'+(ConvertTo-ScmManagementBindings $contract @('-ConfirmRestore','-Action','Backup','-ConfirmAccountRollback','-Port',18743))+'}')
+@{same=($bound.Archive -ceq $path);restore=$bound.ConfirmRestore;rollback=$bound.ConfirmAccountRollback;count=$bound.Count;action=$bound.Action;install=$bound.InstallDirectory
+  middle=@($middle.ConfirmRestore,$middle.ConfirmAccountRollback,$middle.Action,$middle.Port);types=@($bound.ConfirmRestore.GetType().Name,$bound.Archive.GetType().Name)} | ConvertTo-Json
+''', shell)
+            self.assertEqual((result['same'], result['restore'], result['rollback'], result['count']), (True, True, True, 6), shell)
+            self.assertEqual((result['action'], result['install']), ('Restore', r'C:\Program Files\SAP Lens Server'))
+            self.assertEqual(result['middle'], [True, True, 'Backup', '18743'])
+            self.assertEqual(result['types'], ['Boolean', 'String'])
+
+    def test_missing_values_unknown_names_duplicates_and_code_shaped_names_are_refused(self):
+        cases = {
+            'value at the end': "@('-Action','Restore','-Archive')",
+            'value replaced by the next parameter': "@('-Archive','-ConfirmRestore')",
+            'value replaced by a value parameter': "@('-Action','-InstallDirectory','C:\\x')",
+            'null value': "@('-Archive',$null)",
+            'unknown name': "@('-Action','Status','-Unknown','x')",
+            'wrong case is not a declared name': "@('-confirmrestore')",
+            'duplicate': "@('-Action','Status','-Action','Stop')",
+            'no dash': "@('Action','Status')",
+            'code in the name': "@('-Action;calc','x')",
+            'subexpression as a name': "@('$(calc)')",
+            'empty name': "@('-')",
+        }
+        body = "$out=@{}\n" + ''.join(
+            f"try {{ ConvertTo-ScmManagementBindings $contract {arguments} | Out-Null; $out['{label}']='accepted' }} catch {{ $out['{label}']=$_.Exception.Message }}\n" for label, arguments in cases.items()
+        ) + "$out | ConvertTo-Json"
+        for shell in SHELLS:
+            result = self.run_cases(body, shell)
+            for label in cases: self.assertNotEqual(result[label], 'accepted', (shell, label))
+            for label in ('value at the end', 'value replaced by the next parameter', 'value replaced by a value parameter', 'null value'):
+                self.assertIn('Missing management parameter value', result[label], label)
+            self.assertIn('Unknown management parameter', result['unknown name'])
+            self.assertIn('Invalid management parameter name', result['code in the name'])
+
+    def test_a_translated_restore_binds_in_a_real_child_process(self):
+        """End to end through Invoke-ScmManage: the child script must bind both switches and a path with a space and an apostrophe."""
+        with tempfile.TemporaryDirectory(prefix="scm bind's Æ ") as temporary:
+            root = Path(temporary); child = root / 'child.ps1'
+            child.write_text("param([string]$Action,[string]$Archive,[switch]$ConfirmRestore,[switch]$ConfirmAccountRollback)\n"
+                             "if ($Action -ne 'Restore' -or -not $ConfirmRestore -or -not $ConfirmAccountRollback -or $Archive -cne $env:EXPECTED_ARCHIVE) { throw 'binding failed' }\nexit 0\n", encoding='utf-8-sig')
+            main = (ROOT / 'scripts/test-server-service.ps1').read_text(encoding='utf-8')
+            function = main[main.index('function Invoke-ScmManage'):main.index('\ntry {\n    $bundlePath')]
+            archive = str(root / "bäckup O'Brien.slbak")
+            script = root / 'run.ps1'
+            script.write_text(f". '{self.HELPER}'\n$manage='{str(child).replace(chr(39), chr(39) * 2)}'\n$managementHost=(Get-Process -Id $PID).Path\nfunction Test-ScmRegistered {{ return $false }}\n"
+                              + function + "\nInvoke-ScmManage -Action Restore -Archive $env:EXPECTED_ARCHIVE -ConfirmRestore -ConfirmAccountRollback\n", encoding='utf-8-sig')
+            done = subprocess.run([SHELLS[0], '-NoProfile', '-File', str(script)], capture_output=True, text=True, timeout=60, env={**os.environ, 'EXPECTED_ARCHIVE': archive})
+            self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+            self.assertIn('[SCM] PASS | service Restore', done.stdout)

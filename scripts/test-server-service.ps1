@@ -46,23 +46,12 @@ function Invoke-ScmManage {
     Write-Host "[SCM] START | $stage"
     $passed=$false
     try {
-        # Encode quoted tokens; neither spaces/Unicode nor PowerShell metacharacters
-        # can turn an argument into executable code. This child alone is owned.
-        $bindings=New-Object 'System.Collections.Generic.List[string]'
-        for ($index=0; $index -lt $args.Count; $index++) {
-            $name=[string]$args[$index]
-            if ($name -notmatch '^-[A-Za-z]+$') { throw 'Invalid management parameter name.' }
-            $key=$name.Substring(1)
-            if ($key -eq 'ConfirmRestore') { $value='$true' }
-            else {
-                $index++
-                if ($index -ge $args.Count) { throw 'Missing management parameter value.' }
-                $value="'"+([string]$args[$index]).Replace("'","''")+"'"
-            }
-            $bindings.Add("'"+$key+"'="+$value)
-        }
+        # Names are checked against the management script's own param() block and values are encoded as quoted literals, so
+        # neither spaces/Unicode nor PowerShell metacharacters can turn an argument into executable code. This child alone is owned.
+        if (-not $script:manageContract) { $script:manageContract=Get-ScmManagementContract $manage }
+        $bindingText=ConvertTo-ScmManagementBindings $script:manageContract $args
         $quotedManage="'"+$manage.Replace("'","''")+"'"
-        $code='$ErrorActionPreference=''Stop''; $global:LASTEXITCODE=0; $parameters=@{'+($bindings -join ';')+'}; & '+$quotedManage+' @parameters; if (-not $?) { exit 1 }; exit $global:LASTEXITCODE'
+        $code='$ErrorActionPreference=''Stop''; $global:LASTEXITCODE=0; $parameters=@{'+$bindingText+'}; & '+$quotedManage+' @parameters; if (-not $?) { exit 1 }; exit $global:LASTEXITCODE'
         $encoded=[Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($code))
         Invoke-ScmManagementHost $managementHost $encoded $stage
         $passed=$true

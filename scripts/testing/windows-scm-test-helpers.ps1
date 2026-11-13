@@ -377,6 +377,50 @@ function Write-ScmEvidence([string]$Path,$Receipt) {
     }
 }
 
+function Get-ScmManagementContract([string]$ManagePath) {
+    # The management script's own param() block is the contract: every declared parameter, and whether it is a switch.
+    # Parsed without executing the script, so a new switch (ConfirmAccountRollback) can never be mistaken for a value parameter again.
+    $tokens=$null; $errors=$null
+    $ast=[System.Management.Automation.Language.Parser]::ParseFile($ManagePath,[ref]$tokens,[ref]$errors)
+    if ($errors -and $errors.Count) { throw 'The management script does not parse; its parameters cannot be read.' }
+    if (-not $ast.ParamBlock -or -not $ast.ParamBlock.Parameters.Count) { throw 'The management script declares no parameters.' }
+    $contract=@{}
+    foreach ($parameter in $ast.ParamBlock.Parameters) {
+        $name=$parameter.Name.VariablePath.UserPath
+        if ($name -notmatch '^[A-Za-z][A-Za-z0-9]*$') { throw 'Unsupported management parameter declaration.' }
+        $contract[$name]=($parameter.StaticType -eq [switch])
+    }
+    return $contract
+}
+function ConvertTo-ScmManagementBindings($Contract,[object[]]$Arguments) {
+    # Returns the body of a PowerShell hashtable literal for splatting. Names must be declared parameters; values are single-quoted
+    # literals with apostrophes doubled, so spaces, Unicode and PowerShell metacharacters in a value stay data and never become code.
+    $bindings=New-Object 'System.Collections.Generic.List[string]'
+    $seen=@{}
+    for ($index=0; $index -lt $Arguments.Count; $index++) {
+        $name=[string]$Arguments[$index]
+        if ($name -cnotmatch '^-[A-Za-z][A-Za-z0-9]*$') { throw 'Invalid management parameter name.' }
+        $key=$name.Substring(1)
+        $declared=@($Contract.Keys | Where-Object { $_ -ceq $key })
+        if ($declared.Count -ne 1) { throw "Unknown management parameter: -$key." }
+        if ($seen.ContainsKey($key)) { throw "Management parameter given twice: -$key." }
+        $seen[$key]=$true
+        if ($Contract[$key]) { $value='$true' }
+        else {
+            $index++
+            if ($index -ge $Arguments.Count) { throw "Missing management parameter value: -$key." }
+            $raw=$Arguments[$index]
+            if ($null -eq $raw) { throw "Missing management parameter value: -$key." }
+            $text=[string]$raw
+            # A following parameter name where a value belongs means the value was left out; no accepted value looks like one.
+            if ($text -cmatch '^-[A-Za-z][A-Za-z0-9]*$' -and @($Contract.Keys | Where-Object { $_ -ceq $text.Substring(1) }).Count) { throw "Missing management parameter value: -$key." }
+            if ($text.IndexOf([char]0) -ge 0) { throw "Invalid management parameter value: -$key." }
+            $value="'"+$text.Replace("'","''").Replace([string][char]0x2018,[string][char]0x2018+[char]0x2018).Replace([string][char]0x2019,[string][char]0x2019+[char]0x2019).Replace([string][char]0x201A,[string][char]0x201A+[char]0x201A).Replace([string][char]0x201B,[string][char]0x201B+[char]0x201B)+"'"
+        }
+        $bindings.Add("'"+$key+"'="+$value)
+    }
+    return ($bindings -join ';')
+}
 function Convert-ScmErrorOutput([string]$Text) {
     if ($Text -notmatch '(?m)^#< CLIXML\r?$') { return $Text }
     if ($Text.Length -gt 4194304) { throw 'Serialized management output exceeds the safe rendering limit.' }
