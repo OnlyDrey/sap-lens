@@ -295,6 +295,11 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
   checks a manual action (Retry) keeps the failure in place until that action happened, detected in the page, instead of racing the poll.
 - *Search-as-you-type lists*: server-backed option lists are debounced and show the previous results while a search runs. The shared
   `MultiSelectFilter` treats Enter during that window as a choice only for a value that matches the typed text; tests do not need sleeps.
+- *`PermissionError: [WinError 32]` on a `.sqlite3` file in teardown*: a SQLite connection is still open. Windows opens database files
+  without delete sharing, so one connection left to the garbage collector blocks removing the temporary directory (and, in production,
+  restoring or migrating a data directory). `with sqlite3.connect(...)` only commits; it does not close. Every connection is closed
+  explicitly (`contextlib.closing` or a `finally`), as `auth_store.ConnectionLifecycleTests` asserts with the collector disabled. Do not add
+  sleeps, retries or `ignore_cleanup_errors`; find the connection.
 - *Clipboard assertions*: never read `navigator.clipboard.readText()` back. The clipboard belongs to the whole browser (on Windows
   possibly to every browser process of a parallel run) and `writeText` finishes after the click, so a read can return an earlier
   test's value. Call `recordClipboard(page)` from `tests/support.ts` before the copy (it also grants the permissions) and assert

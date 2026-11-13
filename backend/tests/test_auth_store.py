@@ -193,3 +193,42 @@ class SecurityStoreTests(unittest.TestCase):
         self.assertFalse(missing.path.exists())
         with self.assertRaisesRegex(AuthError, 'bootstrap_closed'):
             self.store.create_user(None, 'new', 'New', 'administrator', PASSWORD, bootstrap=True)
+
+
+class ConnectionLifecycleTests(unittest.TestCase):
+    """Every connection the account store opens is closed when the operation returns, successful or not.
+
+    SQLite on Windows opens files without delete sharing: one connection left to the garbage collector keeps accounts.sqlite3 locked,
+    so a data directory cannot be removed, restored over or migrated (WinError 32). The store therefore never relies on collection.
+    """
+    def test_no_operation_leaves_a_connection_open_and_the_store_can_be_removed_at_once(self):
+        import gc
+        import sqlite3
+        from unittest.mock import patch
+        import auth_store
+        import auth_provisioning
+        opened, connect = [], sqlite3.connect
+        def recording(*args, **kwargs):
+            connection = connect(*args, **kwargs); opened.append(connection); return connection
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / 'data'; root.mkdir()
+            gc.disable()   # nothing may depend on the collector releasing a connection
+            try:
+                with patch.object(auth_store.sqlite3, 'connect', recording):
+                    store = auth_provisioning.prepare(root)                            # fresh initialization
+                    code = auth_provisioning.issue(store)['code']
+                    with self.assertRaises(AuthError): auth_provisioning.complete(store, 'x' * 43, 'admin', 'Admin', PASSWORD)   # refused code
+                    auth_provisioning.complete(store, code, 'admin', 'Admin', PASSWORD)
+                    actor, token, csrf = store.login('admin', PASSWORD, 'client')
+                    with self.assertRaises(AuthError): store.login('admin', 'wrong', 'client')                                  # failure paths too
+                    with self.assertRaises(AuthError): store.session('z' * 43)
+                    with self.assertRaises(AuthError): store.create_user(actor, 'admin', 'Duplicate', 'viewer', PASSWORD)
+                    store.session(token); store.csrf(actor, csrf); store.users(actor); store.sessions(actor); store.logout(actor)
+                    with self.assertRaises(FileExistsError): store.initialize()
+                self.assertGreater(len(opened), 10)
+                for connection in opened:
+                    with self.assertRaises(sqlite3.ProgrammingError): connection.execute('SELECT 1')   # closed, not merely unused
+                (root / 'security/accounts.sqlite3').unlink()      # on Windows this is refused while any handle is open
+                self.assertEqual([path.name for path in (root / 'security').iterdir() if path.name.startswith('accounts.sqlite3')], [])   # no -wal or -shm left behind
+            finally:
+                gc.enable()

@@ -3,7 +3,7 @@
 This foundation has no import-time I/O and never initializes merely because a
 request could not read its database. Bootstrap/migration explicitly create it.
 """
-from contextlib import contextmanager
+from contextlib import closing, contextmanager
 from dataclasses import dataclass
 import hashlib
 import hmac
@@ -117,7 +117,9 @@ class AuthStore:
         fd = os.open(self.path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
         os.close(fd)
         try:
-            with sqlite3.connect(self.path) as db:
+            # sqlite3's own context manager only commits; the connection must be closed explicitly or the file stays open
+            # (on Windows that blocks deleting or replacing it) until the garbage collector happens to release it.
+            with closing(sqlite3.connect(self.path)) as db:
                 db.executescript('''
                 CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL);
                 INSERT INTO meta VALUES('initialized','0');
