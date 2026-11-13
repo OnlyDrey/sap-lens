@@ -2566,3 +2566,50 @@ controlled identity migration plus TLS or a trusted TLS terminator; final Phase 
 updates the shipped Docker tooling/acceptance and documentation accordingly.
 Final integrated/full local validation remains pending. No main, product version
 or CI policy change; no workflow was dispatched.
+
+Phase 8 — integration, regression, security validation and documentation (2026-11-13)
+
+Taken over at e6e2df7. The first complete runs of the authentication work showed
+what the phase selections had not: the full backend suite had 15 failures, the
+ESLint warning limit was exceeded, and the complete browser suite (865 tests) had
+six failures. The shipped Docker tooling could not start, back up, upgrade or
+restore. `run-tests.py PROFILE --plan` executed tests for every profile except
+`changed` and feature-less quick/targeted; it now only prints the selection.
+
+Application defects found and fixed, each with a test that fails without the fix:
+a refused restore into an empty target (wrong key, modified archive) left a working
+folder, so the next valid restore was rejected as not empty; logout and password
+change cleared cookies without Secure/HttpOnly/SameSite; on desktop a launch
+capability from an earlier run made the new sign-in gate show an error card, which
+blocked the guarded automatic session recovery; the sign-in lock was a fixed 30
+seconds and the limit and denial-audit records were unbounded (now doubling to 15
+minutes, pruned above 4,096 clients without evicting a lock, newest 10,000 denial
+events kept; administrative and session audit is never removed).
+
+Outdated expectations (not defects) were ported, keeping their intent: the sweep
+over every declared API operation now proves that no operation answers without a
+session and that Basic credentials, the old shared secret, proxy identity headers
+and an invented cookie are refused; the secret-file policy is tested on the
+trusted-proxy token; five browser specs use the read-only local reviewer profile.
+
+Docker: compose.yml fixes session authentication over TLS with certificate, key,
+backup key and proxy token as host-only file secrets. manage.sh install creates
+missing host files only (self-signed ECDSA certificate with SANs for the host name
+and loopback unless --tls-cert/--tls-key supply a validated pair), never replaces
+one, and announces the generated certificate. New actions issue activation and
+recovery codes locally. Backup, upgrade and restore use encrypted .slbak archives;
+a shared-password installation is upgraded only with --migrate-legacy
+--new-administrator. The health probe verifies the configured certificate.
+
+Executed against a real Linux Docker engine (image built from this source):
+test-docker-deployment.py and test-docker-lifecycle.py passed; a one-off upgrade of
+a real pre-session Basic/HTTP installation with --migrate-legacy passed (refused
+without the flag, data kept, old secret opens nothing, recovery-code sign-in); a
+one-off trusted-proxy container answered 403 for every combination except trusted
+peer plus token plus forwarded https. Not executed: a production reverse proxy,
+systemd, host hardening, any Windows component.
+
+Final local validation is recorded in the delivery report for the closing commit.
+Native Windows C#/PowerShell/WebView2/ACL/installer/SCM acceptance of this
+implementation has not been run; the earlier SCM acceptance remains bound to its
+package (source 50e55d0) and was neither rebuilt nor modified.

@@ -13,6 +13,7 @@ test('Settings backup requires restart; restore validates before explicit replac
  await region.getByRole('button',{name:'Create backup (restart required)'}).click();await expect(region.getByText('Waiting for restart',{exact:true})).toBeVisible()
  expect((await request.post('/api/refresh',{headers})).status()).toBe(409)
  await region.getByRole('button',{name:'Cancel pending operation'}).click()
+ await expect(region.getByLabel('Application backup archive')).toBeEnabled() // the input stays disabled until the cancellation has finished; a file chosen earlier is ignored
  await region.getByLabel('Application backup archive').setInputFiles({name:'invalid.zip',mimeType:'application/zip',buffer:Buffer.from('invalid')})
  await expect(region.getByRole('alert')).toContainText('Choose a non-empty SAP Lens .slbak backup or acknowledged legacy .tar.gz archive.')
  await region.getByRole('checkbox',{name:/Allow a legacy unencrypted archive import/}).check()
