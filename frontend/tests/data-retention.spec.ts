@@ -20,6 +20,7 @@ async function open(page: import('@playwright/test').Page) {
   await page.goto('/#session=browser-test-session')
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Backup & Restore', exact: true }).click()
+  await page.getByRole('tab', { name: 'Retention', exact: true }).click()
 }
 
 test('source and review retention are separate, each needs its own preview and approval', async ({ page }) => {

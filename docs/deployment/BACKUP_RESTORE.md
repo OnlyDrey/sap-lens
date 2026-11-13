@@ -5,6 +5,10 @@ Desktop and server installations. It replaces a dataset rather than merging
 independent histories. Server access requires an administrator session. Desktop
 uses its launch capability. Never commit private archives or keys to Git.
 
+**Where to find it.** Settings, Backup & Restore has four tabs: **Overview** (encryption key, create a backup, restore), **Backup History**,
+**Scheduling** and **Retention**. A pending migration approval and the state of a running or waiting operation, with its cancel action,
+stay visible above the tabs on every tab. Text typed into the restore form is kept while switching tabs.
+
 ## Contents and protection
 
 New portable archives use the versioned `.slbak` envelope: AES-256-GCM with a new

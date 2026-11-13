@@ -61,6 +61,7 @@ test('Cancelling archive validation clears busy state without claiming a staged 
 
 test('Backup schedule uses validated cron settings and does not hide manual or restore actions',async({page,request})=>{
  await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Backup & Restore',exact:true}).click()
+ await page.getByRole('tab',{name:'Scheduling',exact:true}).click()
  const schedule=page.getByRole('region',{name:'Automatic backup scheduling'})
  await schedule.getByLabel('Backup time zone',{exact:true}).fill('Unknown/Nowhere')
  await schedule.getByRole('button',{name:'Save backup schedule'}).click()
@@ -71,7 +72,8 @@ test('Backup schedule uses validated cron settings and does not hide manual or r
  await expect(schedule.getByRole('button',{name:'Save backup schedule'})).toBeEnabled()
  expect((await request.get('/api/backups/schedule',{headers})).status()).toBe(200)
  expect((await (await request.get('/api/backups/schedule',{headers})).json()).schedule.keep).toBe(7)
- await expect(page.getByLabel('Application backup archive')).toBeEnabled()
+ await page.getByRole('tab',{name:'Overview',exact:true}).click() // manual backup and restore stay one tab away, never disabled by the schedule
+ await expect(page.getByRole('button',{name:'Create backup (restart required)'})).toBeVisible();await expect(page.getByLabel('Application backup archive')).toBeEnabled()
  const saved=await (await request.get('/api/backups/schedule',{headers})).json()
  await request.post('/api/backups/schedule',{headers,data:{revision:saved.revision,schedule:{...saved.schedule,keep:7,enabled:false}}})
 })
@@ -96,4 +98,24 @@ test('Encrypted archive authentication precedes preview and secrets are not pers
  const status=await (await request.get('/api/backups',{headers})).json()
  expect(status.crypto_plan).toBeUndefined()
  await region.getByRole('button',{name:'Cancel restore preview',exact:true}).click()
+})
+
+test('Backup & Restore is four compact tabs; unsaved restore input survives switching and a pending operation stays visible on every tab',async({page})=>{
+ await page.goto('/#session=browser-test-session');await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:'Backup & Restore',exact:true}).click()
+ const region=page.getByRole('region',{name:'Application backup and restore'}),tabs=region.getByRole('tablist',{name:'Backup and restore sections'})
+ await expect(tabs.getByRole('tab')).toHaveText(['Overview','Backup History','Scheduling','Retention'])
+ await expect(tabs.getByRole('tab',{name:'Overview',exact:true})).toHaveAttribute('aria-selected','true')
+ await expect(region.getByRole('button',{name:'Create backup (restart required)'})).toBeVisible();await expect(region.getByLabel('Application backup archive')).toBeVisible() // the two primary actions
+ await expect(region.getByRole('region',{name:'Automatic backup scheduling'})).toHaveCount(0)                                   // one section at a time
+ await region.getByLabel('Restore passphrase or exported recovery key').fill('unsaved synthetic secret')
+ await tabs.getByRole('tab',{name:'Overview',exact:true}).focus();await page.keyboard.press('ArrowRight')
+ await expect(tabs.getByRole('tab',{name:'Backup History',exact:true})).toBeFocused();await expect(tabs.getByRole('tab',{name:'Backup History',exact:true})).toHaveAttribute('aria-selected','true')
+ await page.keyboard.press('End');await expect(tabs.getByRole('tab',{name:'Retention',exact:true})).toHaveAttribute('aria-selected','true')
+ await tabs.getByRole('tab',{name:'Scheduling',exact:true}).click();await expect(region.getByRole('region',{name:'Automatic backup scheduling'})).toBeVisible()
+ await tabs.getByRole('tab',{name:'Overview',exact:true}).click()
+ await expect(region.getByLabel('Restore passphrase or exported recovery key')).toHaveValue('unsaved synthetic secret')
+ await region.getByRole('button',{name:'Create backup (restart required)'}).click();await expect(region.getByText('Waiting for restart',{exact:true})).toBeVisible()
+ for(const name of ['Backup History','Scheduling','Retention']){await tabs.getByRole('tab',{name,exact:true}).click();await expect(region.getByText('Waiting for restart',{exact:true})).toBeVisible();await expect(region.getByRole('button',{name:'Cancel pending operation'})).toBeVisible()}
+ await region.getByRole('button',{name:'Cancel pending operation'}).click();await expect(region.getByText('Waiting for restart',{exact:true})).toHaveCount(0)
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
 })

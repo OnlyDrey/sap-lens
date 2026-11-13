@@ -5,6 +5,7 @@ test.use({ locale: 'en-US', timezoneId: 'Europe/Oslo' })   // a 12-hour locale: 
 
 test('Backup & Restore uses a 24-hour time control and no AM/PM anywhere', async ({ page }) => {
   await openSettings(page, 'Backup & Restore')
+  await page.getByRole('tab', { name: 'Scheduling', exact: true }).click()
   const section = page.getByRole('region', { name: 'Automatic backup scheduling' })
   await expect(section).toBeVisible()
   const time = section.getByRole('textbox', { name: 'Backup daily time' })
