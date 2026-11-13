@@ -212,6 +212,57 @@ class Runtime(unittest.TestCase):
         self.tick(scheduler, 2026, 10, 31, 5, 59)
         self.assertEqual(self.tick(scheduler, 2026, 10, 31, 6, 0), 'partial')
 
+    def test_a_refresh_that_never_finishes_is_cancelled_and_the_schedule_and_later_refreshes_continue(self):
+        import threading
+        import csv_lifecycle
+        from data_loader import DataLoader
+        release, started = threading.Event(), threading.Event()
+        def stalled(settings, **kwargs):                                   # a read blocked on an unreachable share
+            started.set(); release.wait(30)
+            kwargs['before_commit']()                                        # an abandoned read can never publish
+            raise AssertionError('publication was not cancelled')
+        loader = DataLoader(); scheduler = Scheduler(loader); scheduler.deadline = 0.3
+        before = cache.get_snapshot()
+        async def scenario():
+            self.assertEqual(await scheduler.tick(utc(2026, 10, 28, 5, 59)), 'idle')
+            with patch.object(csv_lifecycle, 'load', stalled):
+                first = await scheduler.tick(utc(2026, 10, 28, 6, 0))
+            self.assertTrue(started.is_set())
+            self.assertEqual(first, 'failed'); self.assertFalse(loader.loading)                 # not stuck in "loading"
+            state = read_state()
+            self.assertIn('did not finish within', state['last_message']); self.assertIn('previous validated data was kept', state['last_message'])
+            self.assertEqual(state['consecutive_failures'], 1)
+            self.assertIs(cache.get_snapshot(), before)                                         # the active data is untouched
+            with patch.object(csv_lifecycle, 'load', lambda settings, **kwargs: dict(status='unchanged', sources=[])):
+                self.assertEqual(await scheduler.tick(utc(2026, 10, 29, 6, 0)), 'succeeded')    # the next slot runs normally
+            self.assertEqual(read_state()['consecutive_failures'], 0)
+            with patch.object(csv_lifecycle, 'load', stalled):                                  # a second stalled read is abandoned too
+                self.assertEqual(await scheduler.tick(utc(2026, 10, 30, 6, 0)), 'failed')
+            with patch.object(csv_lifecycle, 'load', lambda settings, **kwargs: dict(status='unchanged', sources=[])):
+                self.assertEqual(await scheduler.tick(utc(2026, 10, 31, 6, 0)), 'failed')       # bounded: no third thread is started
+            self.assertIn('still waiting on the filesystem', read_state()['last_message'])
+            release.set()
+        try: asyncio.run(scenario())
+        finally: release.set()
+        for worker in loader._workers: worker.join(10)
+        self.assertIs(cache.get_snapshot(), before)
+
+    def test_a_worker_that_dies_unexpectedly_still_answers_and_never_leaves_the_loader_busy(self):
+        import threading
+        import csv_lifecycle
+        from fastapi import HTTPException
+        from data_loader import DataLoader
+        class Fatal(BaseException): pass
+        def dying(settings, **kwargs): raise Fatal()
+        loader = DataLoader()
+        async def scenario():
+            with patch.object(csv_lifecycle, 'load', dying), patch.object(threading, 'excepthook', lambda *args: None):
+                with self.assertRaises(HTTPException) as refused: await loader.load(operation='refresh')
+            self.assertIn('stopped unexpectedly', str(refused.exception.detail)); self.assertFalse(loader.loading)
+            with patch.object(csv_lifecycle, 'load', lambda settings, **kwargs: dict(status='unchanged', sources=[])):
+                self.assertEqual((await loader.load(operation='refresh'))['status'], 'unchanged')
+        with self.assertLogs('data_loader', 'ERROR'): asyncio.run(scenario())
+
     def test_corrupt_state_is_ignored(self):
         (Path(self.temp.name) / 'refresh-schedule.json').write_text('{broken')
         self.assertIsNone(read_state()['last_status'])

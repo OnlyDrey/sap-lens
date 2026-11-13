@@ -124,7 +124,17 @@ class DataLoader:
             try: loop.call_soon_threadsafe(finish,error,source,category,report)
             except RuntimeError: pass
 
-        worker=threading.Thread(target=read,name='sap-lens-csv',daemon=True)
+        def guarded():
+            # Whatever happens in the worker, the waiting request or schedule gets an answer: without it `loading` would stay set and
+            # every later load, refresh and scheduled run would be refused until the process restarts.
+            try: read()
+            except BaseException as failure:  # noqa: BLE001 - reported, then re-raised for interrupts
+                logger.error('CSV load worker stopped unexpectedly (%s); previous data retained.', type(failure).__name__)
+                try: loop.call_soon_threadsafe(finish,'The CSV load stopped unexpectedly. Previous data was retained; retry the operation.',None,'failed',None)
+                except RuntimeError: pass
+                if not isinstance(failure, Exception): raise
+
+        worker=threading.Thread(target=guarded,name='sap-lens-csv',daemon=True)
         self._workers.append(worker);worker.start()
         try: return await result
         finally:

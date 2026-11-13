@@ -120,6 +120,22 @@ Each source can be Static (manual replacement) or Dynamic (Global Refresh reread
 
 **Settings → Runtime & Scheduling** holds the scheduled refresh and, in the Windows Desktop application only, the tray options. The schedule is saved in the `refresh_schedule` object of the settings (`enabled`, `mode` daily or cron, `time` HH:MM, `cron`, `timezone`) with the normal Apply/Cancel and revision checks; its run history is kept separately in `refresh-schedule.json` so refreshes never change the settings revision. See [Scheduled refresh](../data/IMPORT_AND_REFRESH.md#scheduled-refresh).
 
+**What a scheduled refresh guarantees.** It runs in a worker thread, so the application keeps answering. Sources are read and
+validated first and activated in one step; a source that fails, or a replacement that would drop an unusually large share of records
+(held for an administrator's confirmation), leaves the previous validated data active. A refresh never overlaps another load or refresh:
+the slot is recorded as skipped. A refresh that does not finish within 30 minutes (typically a source on an unreachable network share)
+is cancelled, recorded as failed with that reason and never activates anything; the schedule, scheduled backups and retention keep
+running, and at most two abandoned reads may wait on the file system before further refreshes are refused with a message that says so.
+If the worker stops unexpectedly the loader is released instead of staying "loading" until a restart. Status, last success, last
+failure, consecutive failures and the reason are shown under Runtime & Scheduling and in Health & Diagnostics; the log records the
+outcome and duration of every scheduled refresh (types and codes only, never paths or values).
+
+**Sizing.** Loading is CPU and memory bound inside the single process. Measured on Linux with synthetic data (800 composite roles,
+16,000 users, about 190,000 assignments): a refresh takes about 10 seconds, peak memory is about 1.1 GB because the previous and the
+new data exist side by side until activation, and individual requests can wait up to about 1.5 to 2 seconds while it runs. Give the
+host memory headroom accordingly (a container memory limit or a small virtual machine that cannot hold both generations ends the
+process), and schedule large refreshes outside working hours. Moving the load into a separate process is not implemented.
+
 Windows Desktop background preferences are under **Settings → Runtime & Scheduling → Windows
 Desktop** (marked with a four-pane window icon), visible only through the native Windows capability. The local `desktop`
 object contains `close_to_tray`, `run_at_signin` and `start_minimized`, all defaulting

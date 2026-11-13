@@ -627,7 +627,9 @@ def load(settings=None, operation='refresh', before_commit=None, strict=False, f
                 except OSError: pass
         report['id'] = report_id
         return summary(report)
-    except Exception:
+    except Exception as activation_error:
+        # Type only: the message can carry a path or source values.
+        logger.warning('Source activation did not commit (operation=%s exception=%s); previous data retained.', operation, type(activation_error).__name__)
         if report_id and report_id not in get_settings().data_lifecycle.history:
             try: private_path('reports', report_id).unlink(missing_ok=True)
             except OSError: pass

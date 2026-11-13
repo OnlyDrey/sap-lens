@@ -6,12 +6,17 @@ refresh keeps the previously validated data exactly like a manual refresh."""
 import asyncio
 import json
 import logging
+import time
 from datetime import datetime, timezone
 
 import cron_schedule as schedule
 from config import atomic_write, config_dir, get_settings
 
 TICK = 20  # seconds between evaluations; also how quickly a settings change is noticed
+# A scheduled refresh has no person who could cancel it. A source on an unreachable network share can block a read indefinitely; after
+# this many seconds the refresh is cancelled (the abandoned read is bounded by the loader), the previous data stays active and the
+# schedule, backups and retention keep running. Far above any measured load (about 10 s for 190,000 assignments).
+REFRESH_DEADLINE = 1800
 STATE_FILE = 'refresh-schedule.json'
 log = logging.getLogger('sap-lens')
 FIELDS = ('last_attempt', 'last_success', 'last_failure', 'last_status', 'last_message', 'consecutive_failures')
@@ -48,6 +53,7 @@ class Scheduler:
         self.signature = None
         self.backup_cursor = self.cursor
         self.task = None
+        self.deadline = REFRESH_DEADLINE
 
     def runtime(self, server):
         """What the schedule needs from the deployment: only the desktop application depends on staying open."""
@@ -95,14 +101,24 @@ class Scheduler:
             state.update(last_status='skipped', last_message='Skipped: another load or refresh was already running.')
             write_state(state)
             return 'skipped'
+        started = time.monotonic()
         try:
-            report = await self.loader.load(operation='refresh')
+            report = await asyncio.wait_for(self.loader.load(operation='refresh'), self.deadline)
             outcome = 'succeeded' if report['status'] in {'changed', 'unchanged'} else 'partial' if report['status'] == 'partial' else 'failed'
             message = {'succeeded': 'Refresh completed.', 'partial': 'Some sources failed; their previous validated data was kept.',
                        'failed': 'The refresh failed; previous validated data was kept.'}[outcome]
+        except asyncio.TimeoutError:
+            # wait_for cancelled the load: the loader released its state and cancelled publication, so nothing partial was activated.
+            minutes = max(1, round(self.deadline / 60))
+            outcome, message = 'failed', f'The refresh did not finish within {minutes} minutes and was cancelled (a source may be unreachable); previous validated data was kept.'
+            log.warning('Scheduled refresh exceeded its deadline of %s seconds and was cancelled; previous data retained.', self.deadline)
         except Exception as error:  # noqa: BLE001 - never stops the schedule
             outcome, message = 'failed', 'The refresh could not run; previous validated data was kept.'
+            detail = getattr(error, 'detail', None)
+            if isinstance(detail, str) and 'still waiting on the filesystem' in detail:
+                message = 'The refresh could not start: earlier reads are still waiting on the filesystem. Restore access to the source location or restart SAP Lens; previous validated data was kept.'
             log.warning('Scheduled refresh failed (%s); previous data retained.', type(error).__name__)
+        log.info('Scheduled refresh finished (status=%s seconds=%.1f).', outcome, time.monotonic() - started)
         if outcome == 'failed':
             state.update(last_failure=now.isoformat(), consecutive_failures=(state.get('consecutive_failures') or 0) + 1)
         else:
