@@ -1,4 +1,4 @@
-import {expectReviewerProfile} from './reviewer-profile'
+import {expectReviewerProfile,reviewerName} from './reviewer-profile'
 import {test,expect} from '@playwright/test'
 import {cleanup,seedGovernance,openSod,names,headers,decide} from './sod-fixture'
 import { layoutMatrix } from './matrix'
@@ -12,7 +12,7 @@ test('review tabs preserve shared reviewer, unsaved input and match derived queu
  await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  await panel.getByRole('tab',{name:/^Activities/}).click();await panel.getByRole('button',{name:'Review activity A',exact:true}).click();await panel.getByRole('textbox',{name:'Justification',exact:true}).fill('Unsaved synthetic rationale')
  await panel.getByRole('tab',{name:/^Roles/}).click();await expect(panel.getByRole('textbox',{name:'Justification',exact:true})).not.toBeVisible()
- await panel.getByRole('tab',{name:/^Activities/}).click();await expect(panel.getByRole('textbox',{name:'Justification',exact:true})).toHaveValue('Unsaved synthetic rationale');await expect(panel.getByRole('textbox',{name:'Reviewer (self-reported)',exact:true})).toHaveValue('Synthetic Shared Reviewer')
+ await panel.getByRole('tab',{name:/^Activities/}).click();await expect(panel.getByRole('textbox',{name:'Justification',exact:true})).toHaveValue('Unsaved synthetic rationale');await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
  await panel.getByRole('button',{name:'Cancel',exact:true}).click()
  const subject=await(await request.get('/api/sod/subject',{headers,params:{user:names.a}})).json()
  for(const row of subject.overview.assignments)await decide(request,'assignment','current',[{key:row.id,user:names.a,ref:row.role,evidence_version:row.evidence_version}],row.role==='ROLE_B'?'Remove':'Keep')
@@ -32,7 +32,7 @@ for (const { theme, width } of layoutMatrix([375,800,1280,1600]))test(`review co
  await page.screenshot({path:info.outputPath(`risk-review-${theme}-${width}.png`)})
 })
 
-test('role decisions update immediately and activity approval derives without a synthetic event',async({page})=>{
+test('role decisions update immediately and activity approval derives without a synthetic event',async({page,request})=>{
  await openSod(page,'Reviews');await page.getByRole('button',{name:`Open review for ${names.a}`,exact:true}).click()
  const panel=page.getByRole('dialog'),roles=panel.getByRole('region',{name:'Role Assignment Review',exact:true})
  await expectReviewerProfile(panel.getByRole('textbox',{name:'Reviewer (local profile, self-reported)',exact:true}))
@@ -41,7 +41,7 @@ test('role decisions update immediately and activity approval derives without a 
  for(const [action,label,tone] of [['Keep','Approved','success'],['Remove','Remove','error'],['Investigate','Investigate','warning']]){
   await first.getByRole('button',{name:`${action} ROLE_A1`,exact:true}).click();await expect(status).toHaveText(label);await expect(status.locator('.evidence-badge')).toHaveClass(new RegExp('evidence-'+tone))
  }
- await status.click();const popover=page.getByRole('dialog',{name:'Review method for ROLE_A1',exact:true});await expect(popover).toContainText(names.a);await expect(popover).toContainText('Synthetic status reviewer');await expect(popover).toContainText('Assignment ID');await expect(popover).toContainText('Explicit');await expect(popover).toContainText('Related activities');await page.keyboard.press('Escape')
+ await status.click();const popover=page.getByRole('dialog',{name:'Review method for ROLE_A1',exact:true});await expect(popover).toContainText(names.a);await expect(popover).toContainText(await reviewerName(request));await expect(popover).toContainText('Assignment ID');await expect(popover).toContainText('Explicit');await expect(popover).toContainText('Related activities');await page.keyboard.press('Escape')
  await first.getByRole('button',{name:'Keep ROLE_A1',exact:true}).click();await expect(status).toHaveText('Approved')
  const second=roles.getByRole('listitem').filter({hasText:'ROLE_A2'});await second.getByRole('button',{name:'Remove ROLE_A2',exact:true}).click();await expect(second.getByRole('button',{name:'Review method for ROLE_A2',exact:true})).toHaveText('Remove');await second.getByRole('button',{name:'Review method for ROLE_A2',exact:true}).click();await expect(page.getByRole('dialog',{name:'Review method for ROLE_A2',exact:true}).getByRole('region',{name:'Removal verification'})).toContainText('Still present in current evidence');await page.keyboard.press('Escape')
  await panel.getByRole('tab',{name:/^Activities/}).click();const activity=panel.getByRole('button',{name:'Review method for A',exact:true});await expect(activity).toHaveText('Approved');await activity.click();const detail=page.getByRole('dialog',{name:'Review method for A',exact:true});await expect(detail).toContainText('Supporting assignment decisions');await expect(detail).toContainText('Approved');await expect(detail).toContainText('Remove');await page.keyboard.press('Escape')

@@ -1,4 +1,4 @@
-import {expectReviewerProfile} from './reviewer-profile'
+import {expectReviewerProfile,reviewerName} from './reviewer-profile'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
@@ -113,7 +113,7 @@ test('View Members lists members with Directory context, filters, and removes a 
   await expect(table.getByRole('row')).toHaveCount(4)
   const a = table.getByRole('row').filter({ hasText: 'FG_A' })
   await expect(a).toContainText('Global Supply Chain'); await expect(a).toContainText('Senior Buyer'); await expect(a).toContainText('Person FG_A'); await expect(a).toContainText('Confirmed')
-  await expect(a).toContainText('Seeder')
+  await expect(a).toContainText(await reviewerName(request)); await expect(a).not.toContainText('Seeder') // the profile, not the alias the seeding request submitted
   await dialog.getByRole('searchbox', { name: 'Search members' }).fill('planner')
   await expect(table.getByRole('row')).toHaveCount(2)
   await dialog.getByRole('searchbox', { name: 'Search members' }).fill('')

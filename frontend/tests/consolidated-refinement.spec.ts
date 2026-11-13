@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
+import { expectReviewerProfile, setReviewerName } from './reviewer-profile'
 import { goTo, headers, openFilters, pickMulti, seedSources, type SeededSources } from './support'
 import { cleanup, createPeriod, names, openSod, seedGovernance } from './sod-fixture'
 
@@ -173,15 +174,16 @@ test.describe('SoD views', () => {
     await expect(page.locator('.id-pill-risk').first()).toBeVisible() // the established coloured risk pill, not a codeblock
   })
 
-  test('the reviewer name is remembered for the session across review workflows and can be changed', async ({ page }) => {
+  test('the local reviewer profile is the read-only reviewer across review workflows and changes only through the profile', async ({ page, request }) => {
+    await setReviewerName(request, 'Session Reviewer')
     await page.setViewportSize({ width: 1440, height: 1000 })
     await openSod(page, 'Risk Matrix')
     await page.getByRole('button', { name: new RegExp(`^Open ${names.a}`) }).click()
     const panel = page.getByRole('dialog', { name: new RegExp(`^${names.a}`) })
     const section = panel.getByRole('region', { name: 'Role Assignment Review', exact: true })
-    const quick = panel.getByRole('textbox', { name: 'Reviewer (self-reported)', exact: true })
+    const quick = panel.getByRole('textbox', { name: 'Reviewer (local profile, self-reported)', exact: true })
     await expect(quick).toHaveCount(1) // shared across the Roles, Activities and Risks tabs
-    await quick.fill('Session Reviewer')
+    await expect(quick).toHaveValue('Session Reviewer'); await expectReviewerProfile(quick) // shown, not typed per action
     await section.getByRole('button', { name: 'Keep ROLE_B', exact: true }).click()
     await expect(section.getByRole('button', { name: 'Keep ROLE_B', exact: true })).toHaveAttribute('aria-pressed', 'true')
     await page.keyboard.press('Escape')
@@ -190,9 +192,12 @@ test.describe('SoD views', () => {
     await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
     await page.getByRole('toolbar', { name: 'Bulk assignment review' }).getByRole('button', { name: 'Keep', exact: true }).click()
     const reviewer = page.getByRole('dialog', { name: 'Keep assignments' }).getByRole('textbox', { name: 'Reviewer' })
-    await expect(reviewer).toHaveValue('Session Reviewer')
-    await reviewer.fill('Another Reviewer') // it can be changed
-    await expect(reviewer).toHaveValue('Another Reviewer')
+    await expect(reviewer).toHaveValue('Session Reviewer'); await expectReviewerProfile(reviewer)
+    await setReviewerName(request, 'Another Reviewer') // it changes through the profile only, keeping the same identity
+    await page.reload()
+    await page.getByRole('checkbox', { name: 'Select all assignments on this page' }).check()
+    await page.getByRole('toolbar', { name: 'Bulk assignment review' }).getByRole('button', { name: 'Keep', exact: true }).click()
+    await expect(reviewer).toHaveValue('Another Reviewer'); await expectReviewerProfile(reviewer)
   })
 
   test('assignment review rows are compact: decisions and status collapsed, evidence and history on expand', async ({ page }) => {

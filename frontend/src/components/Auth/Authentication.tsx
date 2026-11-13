@@ -27,7 +27,13 @@ export function AuthenticationGate({children}:{children:ReactNode}) {
     if(!state.setup_required){try{await reload()}catch(error){if(!(error instanceof ApiError&&error.status===401))throw error}}
    }
    if(mounted)setReady(true)
-  }).catch(error=>{if(mounted)setError(authMessage(error))})
+  }).catch(error=>{
+   if(!mounted)return
+   // Desktop only: the launch capability of an earlier run was refused. That is not a sign-in question; the application shell
+   // must mount so its guarded session recovery reloads the trusted document (no sign-in form, no error card that blocks it).
+   if(error instanceof ApiError&&error.kind==='session'){setReady(true);return}
+   setError(authMessage(error))
+  })
   const expired=()=>{void qc.cancelQueries();qc.clear();setUser(null);setSessionRole(null)}
   window.addEventListener('sap-lens-sign-in-required',expired)
   return()=>{mounted=false;window.removeEventListener('sap-lens-sign-in-required',expired)}

@@ -1,4 +1,4 @@
-import {expectReviewerProfile} from './reviewer-profile'
+import {expectReviewerProfile,reviewerName} from './reviewer-profile'
 import { test, expect, type Page } from '@playwright/test'
 import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
@@ -204,7 +204,7 @@ test('batch Keep is confirmed with a summary, persists per assignment and keeps 
   for (const item of items) {
     const history = (await (await page.request.get('/api/sod/decisions/assignment/history', { headers, params: { key: item.id, context: 'current' } })).json()).items
     expect(history).toHaveLength(1)
-    expect(history[0]).toMatchObject({ decision: 'Keep', reviewer: 'Synthetic Reviewer', justification: 'Needed for synthetic purchasing' })
+    expect(history[0]).toMatchObject({ decision: 'Keep', reviewer: await reviewerName(page.request), justification: 'Needed for synthetic purchasing' })
   }
   expect(sourceHashes()).toEqual(before) // imported SAP evidence is never modified
 })
