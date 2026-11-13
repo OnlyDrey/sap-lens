@@ -740,3 +740,42 @@ it does not create another account or read an old password. The verified bundle
 and installation-ownership checks run before activation commands. Native C#
 compilation, fresh service registration and browser activation have not yet been
 accepted on Windows for this development version.
+
+## Native Windows acceptance checklist: accounts, reviewer identity and encrypted backups
+
+**Status: not executed.** Everything below was implemented and validated on Linux (unit, browser and real Docker containers) and by
+contract tests of the PowerShell and C# sources. None of it has run on Windows for this implementation, and the earlier SCM acceptance
+is bound to its own package. Record each item as passed only after it ran on Windows from the commit under test.
+
+Safety rules for every step: use a disposable virtual machine or a machine without a production SAP Lens; never point a test at an
+existing data directory or register over an installed `SAPLens` service; use synthetic CSV data only; keep the previous acceptance
+ZIP, its SHA-256 and `.scm-verification.json` untouched.
+
+Preparation (PowerShell 5.1 or 7, repository root):
+
+```powershell
+git fetch origin; git checkout work; git pull --ff-only origin work
+.\scripts\build.ps1 -Mode prerequisites
+.\.venv\Scripts\python.exe scripts\run-tests.py full --backend --log build\backend-windows.log
+.\.venv\Scripts\python.exe scripts\run-tests.py targeted --test test_server --test test_auth_store --test test_persistent_cache
+.\scripts\build.ps1 -Mode package -Platform windows -Target installer
+.\scripts\build.ps1 -Mode package -Platform windows -Target service
+```
+
+| # | Check | How | Expected |
+| --- | --- | --- | --- |
+| 1 | Desktop starts without sign-in | Install the desktop package on the clean machine and start it | The application opens directly; no sign-in or activation form; `GET /api/auth/state` reports `provider: desktop` |
+| 2 | Local reviewer profile | Open a review form; change the name under the reviewer profile; restart | Reviewer field is read-only and shows the profile; the name and its identity survive the restart; earlier reviews keep their recorded name |
+| 3 | Session recovery after restart | Leave the window open, exit from the tray, start again, reload the old window | "Restoring workspace" briefly, then the application; no error card and no sign-in form |
+| 4 | Service Manager build and start | Build the service target; open the manager from the verified bundle | The manager compiles (.NET Framework `csc.exe`) and shows service, binding, TLS, activation and recovery actions; no account or password editor |
+| 5 | Fresh server installation and first administrator | Install into an empty data directory with HTTPS; use **First-run activation code**; open the HTTPS URL | The code is shown once in the manager only; activation creates the administrator; a second use of the code and plain HTTP from another machine are refused |
+| 6 | ACLs | `icacls` on `security\accounts.sqlite3`, its folder and the backup key file | Inheritance removed; only SYSTEM, Administrators and `NT SERVICE\SAPLens` (read for the key); no Users, Everyone or Authenticated Users |
+| 7 | Administrator recovery | **Recover administrator** in the manager for the existing administrator | Sessions of that account end; the one-time code sets a new password under account recovery; the account identity and audit history are unchanged; no new account appears |
+| 8 | Migration and rollback | On a copy of a legacy installation (individual accounts, and separately shared password) run the stopped migration from the manager | Accounts, roles and disabled state preserved; shared password is not converted (a recovery code is issued); an encrypted pre-migration snapshot exists; a forced failure leaves the legacy files and data unchanged |
+| 9 | Encrypted backup, key export, restore | Create a backup; export the key; restore into an empty data directory on the same and on a second machine with the exported key | `.slbak` archive; restore needs confirmation; accounts, roles, branding, settings, periods and decisions return; sessions do not; a wrong key or a modified archive is refused and leaves the target empty |
+| 10 | SCM lifecycle | `.\scripts\test-server-service.ps1 -Bundle <verified bundle or ZIP>` in an elevated shell with no `SAPLens` service | Install, start, health, authenticated session checks, stop and uninstall pass; a new `.scm-verification.json` is written for this package only |
+| 11 | Installer isolation and cleanup | Install and uninstall the desktop installer and the service package on the disposable machine | No file outside the installation and data directories; uninstall keeps data; no leftover service, scheduled task or firewall rule beyond what the guide documents |
+| 12 | Preservation | Before and after items 8 and 9 compare accounts, review history, SoD decisions, periods and audit entries | Counts and identifiers equal; historical reviewer names unchanged; nothing rewritten in frozen periods |
+
+Also confirm on Windows the two lifecycle fixes that only Windows can show: the desktop build passes the `PackagingBackend` stage
+(no `WinError 32` on `accounts.sqlite3`), and the complete backend suite finishes without teardown `PermissionError`.
