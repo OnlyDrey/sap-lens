@@ -100,6 +100,44 @@ class SecurityStoreTests(unittest.TestCase):
         self.now += 31
         self.assertEqual(self.store.login('admin', PASSWORD, 'limited-client')[0].id, self.admin.id)
 
+    def test_repeated_failures_lock_longer_up_to_a_cap_and_relax_after_idle_time(self):
+        def fail():
+            with self.assertRaisesRegex(AuthError, 'invalid_credentials'): self.store.login('admin', 'wrong', 'escalating')
+        def locked():
+            with self.assertRaisesRegex(AuthError, 'temporarily_throttled'): self.store.login('admin', PASSWORD, 'escalating')
+        for _ in range(5): fail()
+        locked(); self.now += 31
+        for expected in (60, 120, 240, 480, 900, 900):          # each further failure doubles the lock, never beyond 15 minutes
+            fail(); locked()
+            self.now += expected - 1; locked()
+            self.now += 2
+        self.assertEqual(self.store.login('admin', PASSWORD, 'escalating')[0].id, self.admin.id)   # the correct password clears the record
+        for _ in range(4): fail()
+        self.assertEqual(self.store.login('admin', PASSWORD, 'escalating')[0].id, self.admin.id)
+        for _ in range(5): fail()
+        self.now += self.store.LOCK_IDLE + 31                    # quiet for half an hour after the lock: the count starts over
+        for _ in range(4): fail()
+        self.assertEqual(self.store.login('admin', PASSWORD, 'escalating')[0].id, self.admin.id)
+        with self.assertRaisesRegex(AuthError, 'invalid_credentials'): self.store.login('admin', 'wrong', 'someone-else')   # other clients are unaffected
+
+    def test_limit_and_denial_records_are_bounded_without_touching_locks_or_administrative_audit(self):
+        self.store.LIMIT_ROWS, self.store.DENIAL_ROWS = 20, 30
+        for _ in range(5):
+            with self.assertRaises(AuthError): self.store.login('admin', 'wrong', 'locked-client')
+        actor = self.store.login('admin', PASSWORD, 'trusted')[0]
+        created = self.store.create_user(actor, 'kept', 'Kept', 'viewer', PASSWORD)
+        for index in range(320):
+            with self.assertRaises(AuthError): self.store.login('admin', 'wrong', f'flood-{index}')
+        with self.store.connection() as db:
+            self.assertLessEqual(db.execute('SELECT COUNT(*) FROM login_limits').fetchone()[0], 21)
+            denied = db.execute("SELECT COUNT(*) FROM audit WHERE operation='session.login_denied'").fetchone()[0]
+            operations = [row[0] for row in db.execute("SELECT operation FROM audit WHERE operation<>'session.login_denied'")]
+            newest = db.execute("SELECT MAX(at) FROM audit WHERE operation='session.login_denied'").fetchone()[0]
+        self.assertTrue(30 <= denied <= 30 + 256 + 1, denied); self.assertEqual(newest, self.now)
+        self.assertIn('user.create', operations); self.assertIn('session.login', operations)      # nothing but denial noise is ever removed
+        with self.assertRaisesRegex(AuthError, 'temporarily_throttled'): self.store.login('admin', PASSWORD, 'locked-client')   # flooding did not lift the lock
+        self.assertEqual(created['username'], 'kept')
+
     def test_concurrent_last_admin_protection(self):
         row = self.store.create_user(self.admin, 'other', 'Other administrator', 'administrator', PASSWORD)
         other, _, _ = self.store.login('other', PASSWORD, 'other-client')

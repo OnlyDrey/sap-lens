@@ -174,11 +174,38 @@ class AuthStore:
         finally:
             db.close()
 
+    # Failed sign-ins and reset attempts per client (address digest). The fifth failure locks the client for LOCK seconds; every further
+    # failure doubles the lock up to LOCK_MAX, so guessing slows down instead of continuing at a fixed rate. A success clears the record,
+    # and a client that stayed quiet for LOCK_IDLE after its last lock starts over. Stored without a schema change: `failures` keeps
+    # counting past the threshold and `until_time` is the end of the last lock.
+    LOCK_AFTER, LOCK, LOCK_MAX, LOCK_IDLE = 5, 30, 900, 1800
+    LIMIT_ROWS = 4096       # clients tracked; rows that are not locked go first, so flooding cannot evict an active lock
+    DENIAL_ROWS = 10_000    # unauthenticated denial events kept; every other audit event is kept without limit
+
+    def _failed(self, db, client_key, now):
+        row = db.execute('SELECT * FROM login_limits WHERE client=?', (client_key,)).fetchone()
+        failures = row['failures'] if row else 0
+        if row and failures >= self.LOCK_AFTER and now - row['until_time'] > self.LOCK_IDLE:
+            failures = 0
+        failures += 1
+        until = now + min(self.LOCK * 2 ** (failures - self.LOCK_AFTER), self.LOCK_MAX) if failures >= self.LOCK_AFTER else 0
+        db.execute('INSERT INTO login_limits VALUES(?,?,?) ON CONFLICT(client) DO UPDATE SET failures=excluded.failures,until_time=excluded.until_time', (client_key, min(failures, 64), until))
+        if db.execute('SELECT COUNT(*) FROM login_limits').fetchone()[0] > self.LIMIT_ROWS:
+            db.execute('DELETE FROM login_limits WHERE until_time<=? AND client<>?', (now, client_key))
+
+    DENIALS = ('session.login_denied', 'bootstrap.rejected', 'recovery.rejected')
+
     def _audit(self, db, actor, operation, target='', before=None, after=None):
         # Only callers' public metadata is accepted; never verifier/token fields.
         def clean(value):
             return json.dumps({k: v for k, v in value.items() if k in {'id','username','display_name','role','enabled','revision','idle','absolute'}}) if value is not None else None
         db.execute('INSERT INTO audit VALUES(?,?,?,?,?,?,?)', (uuid4().hex, self.clock(), json.dumps(actor.snapshot()) if actor else 'local-bootstrap', operation, target, clean(before), clean(after)))
+        if operation in self.DENIALS:
+            # Anyone can cause these without signing in. Only this noise is bounded (the newest DENIAL_ROWS stay as evidence of an attack);
+            # account, role, password, session, policy and migration events are never removed.
+            marks = ','.join('?' * len(self.DENIALS))
+            if db.execute(f'SELECT COUNT(*) FROM audit WHERE operation IN ({marks})', self.DENIALS).fetchone()[0] > self.DENIAL_ROWS + 256:
+                db.execute(f'DELETE FROM audit WHERE operation IN ({marks}) AND id NOT IN (SELECT id FROM audit WHERE operation IN ({marks}) ORDER BY at DESC LIMIT ?)', (*self.DENIALS, *self.DENIALS, self.DENIAL_ROWS))
 
     def _authorize(self, db, actor, permission):
         require(actor, permission)
@@ -264,8 +291,7 @@ class AuthStore:
             current = db.execute('SELECT * FROM users WHERE id=?', (row['id'],)).fetchone() if row else None
             pending_reset = db.execute("SELECT 1 FROM one_time WHERE purpose IN ('reset','recovery') AND user_id=? AND consumed=0", (current['id'],)).fetchone() if current else None
             if not valid or pending_reset or not current or not current['enabled'] or current['credential_version'] != row['credential_version']:
-                failures = (blocked['failures'] if blocked else 0) + 1
-                db.execute('INSERT INTO login_limits VALUES(?,?,?) ON CONFLICT(client) DO UPDATE SET failures=excluded.failures,until_time=excluded.until_time', (client_key, failures if failures < 5 else 0, now + 30 if failures >= 5 else 0))
+                self._failed(db, client_key, now)
                 self._audit(db, None, 'session.login_denied')
                 error = AuthError('invalid_credentials', 401)
             else:
@@ -418,9 +444,7 @@ class AuthStore:
                 raise AuthError('temporarily_throttled', 429)
             row = db.execute("SELECT * FROM one_time WHERE purpose='reset' AND verifier=?", (digest(code),)).fetchone()
             if not row or row['consumed'] or row['expires'] <= now:
-                blocked = db.execute('SELECT * FROM login_limits WHERE client=?', (client_key,)).fetchone()
-                failures = (blocked['failures'] if blocked else 0) + 1
-                db.execute('INSERT INTO login_limits VALUES(?,?,?) ON CONFLICT(client) DO UPDATE SET failures=excluded.failures,until_time=excluded.until_time', (client_key, failures if failures < 5 else 0, now + 30 if failures >= 5 else 0))
+                self._failed(db, client_key, now)
                 error = AuthError('invalid_reset', 401)
             else:
                 db.execute("UPDATE one_time SET consumed=1 WHERE purpose IN ('reset','recovery') AND user_id=?", (row['user_id'],))
