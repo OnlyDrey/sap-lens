@@ -57,6 +57,8 @@ One command prepares and verifies everything below: `.\scripts\build.ps1 -Mode p
   CI always run it. No Windows binary is built on Linux.
 - Docker: a running Linux amd64 Docker engine and `docker compose`.
 
+Manual virtual-environment commands for Windows PowerShell and Linux, and the table of which Python environment
+runs tests, packaging and containers, are in [Development setup](development/DEVELOPMENT.md#1-one-time-setup).
 Detailed Windows installation, PATH, proxy/CA and tool checks live in
 [Windows build toolchain](development/DEVELOPMENT.md#windows-build-toolchain).
 Destination installations do not need Node or React compilation. Existing package

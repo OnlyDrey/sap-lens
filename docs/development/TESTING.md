@@ -300,6 +300,10 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
   restoring or migrating a data directory). `with sqlite3.connect(...)` only commits; it does not close. Every connection is closed
   explicitly (`contextlib.closing` or a `finally`), as `auth_store.ConnectionLifecycleTests` asserts with the collector disabled. Do not add
   sleeps, retries or `ignore_cleanup_errors`; find the connection.
+- *`ENVIRONMENT ERROR: the test interpreter is missing ... required package(s)`* (exit code 2, no test started): the Python that runs
+  the tests lacks pinned requirements, typically after an update added a dependency. Run the printed `pip install -r` command for that
+  interpreter or `build.ps1 -Mode prerequisites`; see [setup](DEVELOPMENT.md#1-one-time-setup). `--plan` and `--list-tests` need no
+  dependencies.
 - *Clipboard assertions*: never read `navigator.clipboard.readText()` back. The clipboard belongs to the whole browser (on Windows
   possibly to every browser process of a parallel run) and `writeText` finishes after the click, so a read can return an earlier
   test's value. Call `recordClipboard(page)` from `tests/support.ts` before the copy (it also grants the permissions) and assert

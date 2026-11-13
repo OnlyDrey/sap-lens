@@ -33,6 +33,58 @@ def python_exe():
     from build_system import python_env
     return python_env.test_interpreter(ROOT)
 
+
+
+def required_packages(path=None, seen=None):
+    """Pinned distributions of backend/requirements-dev.txt, following `-r` includes: {name: version}."""
+    path = Path(path or ROOT / 'backend' / 'requirements-dev.txt'); seen = seen if seen is not None else set()
+    found: dict[str, str] = {}
+    if path in seen or not path.is_file(): return found
+    seen.add(path)
+    for line in path.read_text(encoding='utf-8').splitlines():
+        line = line.split('#', 1)[0].strip()
+        if line.startswith('-r '): found.update(required_packages(path.parent / line[3:].strip(), seen))
+        elif '==' in line:
+            name, version = line.split(';', 1)[0].split('==', 1)
+            found[name.strip()] = version.strip()
+    return found
+
+
+def dependency_report(python=None):
+    """What the test interpreter lacks, asked from that interpreter itself: (missing names, {name: (installed, pinned)} that differ).
+
+    Read-only: nothing is installed or changed. One missing package (for example argon2-cffi after an update) otherwise fails every
+    module that imports the application, which reads as dozens of unrelated test failures."""
+    required = required_packages()
+    probe = ('import importlib.metadata as m,json,sys\nout={}\nfor n in json.loads(sys.argv[1]):\n'
+             ' try: out[n]=m.version(n)\n except m.PackageNotFoundError: out[n]=None\nprint(json.dumps(out))')
+    done = subprocess.run([python or python_exe(), '-c', probe, json.dumps(sorted(required))], capture_output=True, text=True, timeout=120)
+    if done.returncode != 0:
+        raise SystemExit(f'The test interpreter could not be inspected: {python or python_exe()}\n{done.stderr.strip()[-800:]}')
+    installed = json.loads(done.stdout)
+    missing = sorted(name for name, version in installed.items() if version is None)
+    different = {name: (version, required[name]) for name, version in installed.items() if version is not None and version != required[name]}
+    return missing, different
+
+
+def dependency_preflight() -> int:
+    """0 when the environment can run tests; otherwise prints one actionable message and returns 2 (infrastructure, not a test failure)."""
+    python = python_exe()
+    missing, different = dependency_report(python)
+    for name, (installed, pinned) in sorted(different.items()):
+        print(f"{status('WARNING', 'warn')}: {name} {installed} is installed; the project pins {pinned}.", flush=True)
+    if not missing: return 0
+    windows = os.name == 'nt'
+    print(f"{status('ENVIRONMENT ERROR', 'fail')}: the test interpreter is missing {len(missing)} required package(s); no test was started.\n"
+          f"  Interpreter: {python}\n"
+          f"  Missing:     {', '.join(missing)}\n"
+          '  Install them into that interpreter (nothing was changed automatically):\n'
+          + (f'    & "{python}" -m pip install -r backend\\requirements-dev.txt\n    or  .\\scripts\\build.ps1 -Mode prerequisites\n' if windows else
+             f"    '{python}' -m pip install -r backend/requirements-dev.txt\n    or  python3.12 scripts/build.py prerequisites\n")
+          + '  Setup guide: docs/development/DEVELOPMENT.md#1-one-time-setup', flush=True)
+    return 2
+
+
 FRONTEND = ROOT / 'frontend'
 BACKEND_TESTS = ROOT / 'backend' / 'tests'
 BROWSER_TESTS = FRONTEND / 'tests'
@@ -1382,6 +1434,12 @@ def main(argv: list[str]) -> int:
         if args.spec or args.test:
             print('backend: ' + ' '.join(args.test or []) + '\nbrowser: ' + ' '.join(args.spec or []) + (f' --grep {args.grep}' if args.grep else ''))
             return 0
+
+    if not args.list_tests and not (args.plan and args.profile == 'changed'):
+        # Before any worker starts: a missing dependency is one environment error, not a failure of every test that imports the application.
+        if (code := dependency_preflight()) != 0:
+            print(f"Summary: 0 passed | 0 failed | 0 skipped\nResult: {paint('NOT RUN (environment)', 'fail')} | Exit code: {code}", flush=True)
+            return code
 
     def smoke_stages() -> None:
         smoke = load_map()['smoke']

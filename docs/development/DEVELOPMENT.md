@@ -40,6 +40,45 @@ execution-policy change; other Python versions (3.13, 3.14, 3.15 as the default)
 
 Linux/macOS: `python3.12 scripts/build.py prerequisites [--check-only|--repair] [--json]`.
 
+**Manual alternative** (the same result, without the build CLI). Windows PowerShell 5.1 or 7:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -r backend\requirements-dev.txt
+npm --prefix frontend ci
+.\.venv\Scripts\python.exe scripts\run-tests.py targeted --test test_auth_store
+```
+
+Linux:
+
+```sh
+python3.12 -m venv .venv
+.venv/bin/python -m pip install -r backend/requirements-dev.txt
+npm --prefix frontend ci
+.venv/bin/python scripts/run-tests.py targeted --test test_auth_store
+```
+
+Repeat the `pip install -r` line after every update that changes `backend/requirements*.txt` (for example when
+`argon2-cffi` and `cryptography` were added for local accounts and encrypted backups). The test runner checks this
+before it starts anything: when the interpreter lacks a pinned package it prints **one** `ENVIRONMENT ERROR` with the
+interpreter path, the missing packages and the install command, starts no test and exits with code 2. It never
+installs or changes anything itself. A different installed version is a warning only.
+
+**Which Python runs what.** Three environments exist on purpose and are never mixed:
+
+| Environment | Location | Requirements | Used by |
+| --- | --- | --- | --- |
+| Project environment | `.venv` | `backend/requirements-dev.txt` (runtime, tests, Ruff) | `run-tests.py`, `validate.py`, `build.ps1`/`build.py` `-Mode quick`/`test`, running from source |
+| Packaging environment | `backend/build/python-env` | `backend/requirements-build.txt` (runtime, desktop, PyInstaller) | `build`/`package` on Windows, including the tests that gate packaging |
+| Container image | inside the image | `backend/requirements.txt` only | Docker |
+
+`run-tests.py` and `validate.py` use the interpreter that started them when it is Python 3.12 x64, otherwise the
+project `.venv`; every child process (workers, the browser test server) receives that same interpreter explicitly,
+never the first `python` on `PATH`. Running the runner with a different Python 3.12 than `.venv` (for example a
+system Python without the project requirements) is the usual cause of the environment error above. `.venv`,
+`backend/build/` and `node_modules` are ignored by Git and are not part of any release artifact (packages are
+built from an allowlist).
+
 - **Interpreter:** exactly Python 3.12 x64 with `venv`, found in this order: `SAP_LENS_PYTHON`, the
   running interpreter, `py -3.12`, registered installations, `python3.12`, then a bare `python` only if it
   really is 3.12. Every candidate is probed; the default `python` is never trusted by name.

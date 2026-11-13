@@ -171,6 +171,45 @@ class RiskBasedSelectionTests(unittest.TestCase):
         self.assertEqual(done.returncode, 0, done.stderr[-2000:]); self.assertIn('`fast` is now `quick`', done.stdout)
 
 
+class DependencyPreflightTests(unittest.TestCase):
+    """A missing Python dependency is one environment error before any worker starts, not a failure of every test that imports the application."""
+    def test_every_pinned_requirement_is_read_including_included_files(self):
+        required = runner.required_packages()
+        for name in ('fastapi', 'argon2-cffi', 'cryptography', 'httpx2', 'ruff'):   # runtime (through -r) and test-only pins
+            self.assertIn(name, required)
+        self.assertRegex(required['argon2-cffi'], r'^\d+\.\d+')
+        self.assertEqual(runner.dependency_report()[0], [], 'this environment is prepared, so nothing is missing')
+
+    def test_a_missing_package_is_named_with_the_interpreter_and_the_command_and_nothing_is_installed(self):
+        import contextlib, io
+        with patch.object(runner, 'required_packages', return_value={'fastapi': '0', 'sap-lens-absent-one': '1.0', 'sap-lens-absent-two': '2.0'}), \
+             patch.object(runner.subprocess, 'run', wraps=runner.subprocess.run) as calls:
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output): code = runner.dependency_preflight()
+        text = runner.plain(output.getvalue())
+        self.assertEqual(code, 2)                                            # infrastructure, never "tests failed"
+        self.assertIn('missing 2 required package(s); no test was started', text)
+        self.assertIn('sap-lens-absent-one, sap-lens-absent-two', text); self.assertIn(runner.python_exe(), text)
+        self.assertIn('-m pip install -r backend', text); self.assertIn('nothing was changed automatically', text)
+        self.assertIn('WARNING: fastapi', text)                              # a different version is reported, not fatal
+        for call in calls.call_args_list: self.assertNotIn('install', ' '.join(map(str, call.args[0])))   # read-only
+
+    @unittest.skipUnless(sys.platform == 'linux', 'Creates a throw-away virtual environment; the logic is platform independent')
+    def test_an_unprepared_interpreter_stops_the_run_once_before_any_test(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            created = subprocess.run([sys.executable, '-m', 'venv', '--without-pip', str(Path(temporary) / 'bare')], capture_output=True, text=True)
+            if created.returncode != 0: self.skipTest('The venv module is unavailable.')
+            bare = Path(temporary) / 'bare' / 'bin' / 'python'
+            done = subprocess.run([str(bare), str(ROOT / 'scripts' / 'run-tests.py'), 'targeted', '--test', 'test_auth_store'], cwd=ROOT, capture_output=True, text=True, timeout=120)
+            self.assertEqual(done.returncode, 2, done.stdout[-1500:] + done.stderr[-1500:])
+            self.assertEqual(done.stdout.count('ENVIRONMENT ERROR'), 1)
+            self.assertIn('argon2-cffi', done.stdout); self.assertIn(str(bare), done.stdout)
+            self.assertIn('Result: NOT RUN (environment)', done.stdout)
+            for executed in ('[start]', 'FAIL:', 'ModuleNotFoundError', 'Traceback'): self.assertNotIn(executed, done.stdout + done.stderr)
+            listed = subprocess.run([str(bare), str(ROOT / 'scripts' / 'run-tests.py'), 'full', '--plan'], cwd=ROOT, capture_output=True, text=True, timeout=120)
+            self.assertEqual(listed.returncode, 0, listed.stdout[-800:])        # listing needs no dependencies
+
+
 class BrowserIsolationGuardTests(unittest.TestCase):
     """Specs never read the shared browser clipboard back; they assert the page's recorded writeText value (tests/support.ts)."""
     def test_no_spec_reads_the_system_clipboard(self):
