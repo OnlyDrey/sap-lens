@@ -161,12 +161,14 @@ def connect(*, create=True):
                 connection.execute('ROLLBACK')
                 raise
         return connection
-    except StoreUnavailable:
-        connection.close()
-        raise
     except sqlite3.Error as error:
         connection.close()
         raise StoreUnavailable('The SQLite store is unreadable.') from error
+    except BaseException:
+        # Whatever stops the open (a newer schema, a failed migration step, an interrupt): the caller never receives this connection,
+        # so it is closed here. An open handle keeps the file locked on Windows until the collector happens to release it.
+        connection.close()
+        raise
 
 
 class transaction:
@@ -176,7 +178,11 @@ class transaction:
         lock.acquire()
         try:
             self.connection = connect()
-            self.connection.execute('BEGIN IMMEDIATE')
+            try:
+                self.connection.execute('BEGIN IMMEDIATE')
+            except BaseException:
+                self.connection.close()   # __exit__ never runs when __enter__ fails
+                raise
         except BaseException:
             lock.release()
             raise

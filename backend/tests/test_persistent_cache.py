@@ -188,3 +188,46 @@ class LoadIntegration(CacheCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class StoreConnectionLifecycleTests(CacheCase):
+    """A connection the caller never receives is closed where it was opened; on Windows an open handle keeps the store file locked."""
+    def recorded(self):
+        opened, connect = [], sqlite3.connect
+        def recording(*args, **kwargs):
+            connection = connect(*args, **kwargs); opened.append(connection); return connection
+        return opened, patch.object(store_db.sqlite3, 'connect', recording)
+
+    def assert_closed(self, opened):
+        self.assertTrue(opened)
+        for connection in opened:
+            with self.assertRaises(sqlite3.ProgrammingError): connection.execute('SELECT 1')
+
+    def test_a_failed_schema_step_or_newer_schema_closes_the_connection(self):
+        store_db.connect().close()
+        opened, recording = self.recorded()
+        def broken(connection): raise KeyError('not an sqlite error')          # anything a migration step can raise
+        with recording, patch.dict(store_db.LADDER, {store_db.SCHEMA_VERSION + 1: broken}), patch.object(store_db, 'SCHEMA_VERSION', store_db.SCHEMA_VERSION + 1):
+            with self.assertRaises(KeyError): store_db.connect()
+        self.assert_closed(opened)
+        opened, recording = self.recorded()
+        with recording, patch.object(store_db, 'SCHEMA_VERSION', store_db.SCHEMA_VERSION - 1):
+            with self.assertRaises(store_db.StoreUnavailable): store_db.connect()   # written by a "newer" version
+        self.assert_closed(opened)
+
+    def test_a_transaction_that_cannot_begin_closes_its_connection_and_releases_the_lock(self):
+        store_db.connect().close()
+        opened, recording = self.recorded()
+        class Refusing:
+            def __init__(self, real): self.real = real
+            def execute(self, sql, *args):
+                if sql == 'BEGIN IMMEDIATE': raise sqlite3.OperationalError('database is locked')
+                return self.real.execute(sql, *args)
+            def close(self): self.real.close()
+        original = store_db.connect
+        with recording, patch.object(store_db, 'connect', lambda **kwargs: Refusing(original(**kwargs))):
+            with self.assertRaises(sqlite3.OperationalError):
+                with store_db.transaction(): self.fail('the block must not run')
+        self.assert_closed(opened)
+        with store_db.transaction() as connection:                              # the store lock was released
+            self.assertEqual(connection.execute('SELECT 1').fetchone()[0], 1)

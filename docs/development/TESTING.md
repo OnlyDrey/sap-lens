@@ -299,7 +299,8 @@ change, browser smoke and changed specs for frontend changes); the manual Full V
   without delete sharing, so one connection left to the garbage collector blocks removing the temporary directory (and, in production,
   restoring or migrating a data directory). `with sqlite3.connect(...)` only commits; it does not close. Every connection is closed
   explicitly (`contextlib.closing` or a `finally`), as `auth_store.ConnectionLifecycleTests` asserts with the collector disabled. Do not add
-  sleeps, retries or `ignore_cleanup_errors`; find the connection.
+  sleeps, retries or `ignore_cleanup_errors`; find the connection. On Linux, `python scripts/testing/open-files-at-cleanup.py [MODULE ...]`
+  lists every file still open inside a temporary directory when it is cleaned up, which is exactly what Windows refuses.
 - *`ENVIRONMENT ERROR: the test interpreter is missing ... required package(s)`* (exit code 2, no test started): the Python that runs
   the tests lacks pinned requirements, typically after an update added a dependency. Run the printed `pip install -r` command for that
   interpreter or `build.ps1 -Mode prerequisites`; see [setup](DEVELOPMENT.md#1-one-time-setup). `--plan` and `--list-tests` need no
