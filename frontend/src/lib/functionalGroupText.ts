@@ -1,9 +1,10 @@
 import type { ClassificationStatus } from '../api/functionalGroups.ts'
-import { formatDate } from './dateFormat.ts'
+import { formatTimestamp } from './dateFormat.ts'
 
 /** Last confirmation as stored: a missing date and a missing reviewer are reported separately, and nothing is invented. */
 export function confirmationText(confirmedAt: string | null | undefined, confirmedBy: string | null | undefined, confirmed: boolean): string | null {
-  const when = confirmedAt ? formatDate(confirmedAt) : '', who = (confirmedBy ?? '').trim()
+  // The store keeps a full timestamp; a value that cannot be read is treated as not recorded, never shown as "Unknown".
+  const when = confirmedAt ? formatTimestamp(confirmedAt, '') : '', who = (confirmedBy ?? '').trim()
   if (when && who) return `Last confirmed ${when} by ${who}`
   if (when) return `Last confirmed ${when}; reviewer not recorded`
   if (who) return `Last confirmed by ${who}; date not recorded`

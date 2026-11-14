@@ -40,6 +40,10 @@ export interface UserRow {
   functional_group?: { id: string; name: string; status: string } | null;
   functional_groups?: { id: string; name: string; status: string }[];
   classification_status?: 'Unassigned' | 'Confirmed' | 'Needs review';
+  /** From the mapped Employee Directory employee; empty when the user is not uniquely matched or no Directory is loaded. */
+  job_title?: string;
+  department?: string;
+  directory_status?: 'matched' | 'unmatched' | 'unavailable';
 }
 export interface UserDetail extends UserRow {
   data_revision: string;

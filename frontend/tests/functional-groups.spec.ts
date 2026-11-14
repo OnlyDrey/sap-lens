@@ -225,6 +225,59 @@ test('Account Review filters by Functional Group and Manager', async ({ page, re
   await expect(page.getByRole('row').filter({ hasText: 'DEMO_FG' })).toHaveCount(0)
 })
 
+test('User Access shows Directory job title and department, group chips with overflow and remembers hidden columns', async ({ page, request }) => {
+  const csv = path.join(directory, 'employees.csv')
+  writeFileSync(csv, employee('Finance', 'Boss'))
+  const revision = (await (await request.get('/api/configuration', { headers })).json()).settings.revision
+  const preview = await request.post('/api/employees/preview', { headers, data: { path: csv, revision } })
+  expect((await request.post('/api/employees/import', { headers, data: { path: csv, revision, digest: (await preview.json()).digest } })).ok()).toBeTruthy()
+  const names = ['Alpha', 'Bravo', 'Charlie', 'Delta'].map(label => `${label} ${unique}`), ids: string[] = []
+  await classify(request, null)                                                    // storage persists across tests: start from no membership (refused when there is none)
+  expect((await (await request.get('/api/functional-groups/users/DEMO_FG', { headers })).json()).classification.memberships).toEqual([])
+  for (const name of names) ids.push((await (await request.post('/api/functional-groups', { headers, data: { name, description: '' } })).json()).id)
+  for (const id of ids) {
+    const current = (await (await request.get('/api/functional-groups/users/DEMO_FG', { headers })).json()).classification.revision
+    expect((await request.post('/api/functional-groups/memberships', { headers, data: { username: 'DEMO_FG', group_id: id, rationale: 'test', reviewer: 'R', expected_revision: current } })).ok()).toBeTruthy()
+  }
+  await page.goto(sessionUrl)
+  await page.goto('/#/user-access')
+  const table = page.getByRole('region', { name: 'User directory table', exact: true })
+  const row = table.getByRole('row').filter({ hasText: 'DEMO_FG' })
+  // Values come from the mapped Directory employee.
+  await expect(table.getByRole('columnheader', { name: 'Job title', exact: true })).toBeVisible()
+  await expect(row.locator('[data-col="title"]')).toHaveText('Buyer')
+  await expect(row.locator('[data-col="department"]')).toHaveText('Finance')
+  // Two chips and one "+2" control that names the rest; the table row keeps a single line.
+  const chips = row.getByRole('list', { name: 'Functional Groups of DEMO_FG', exact: true })
+  await expect(chips.locator('.fg-chip:not(.fg-chip-more)')).toHaveCount(2)
+  const more = chips.getByRole('button', { name: /^2 more Functional Groups of DEMO_FG: / })
+  await expect(more).toHaveText('+2')
+  const label = await more.getAttribute('aria-label')
+  for (const name of names) expect((await chips.textContent())! + label).toContain(name)
+  expect((await row.boundingBox())!.height).toBeLessThan(64)
+  // Sorting by a Directory column is a server sort and keeps the user.
+  await page.getByLabel('Sort users', { exact: true }).selectOption('job_title')
+  await expect(row.locator('[data-col="title"]')).toHaveText('Buyer')
+  // Column visibility is remembered across a reload.
+  await page.getByText('Columns', { exact: true }).click()
+  await page.getByRole('group', { name: 'Visible columns', exact: true }).getByLabel('Email', { exact: true }).uncheck()
+  await expect(table.getByRole('columnheader', { name: 'Email', exact: true })).toHaveCount(0)
+  await page.reload()
+  await expect(table.getByRole('columnheader', { name: 'Job title', exact: true })).toBeVisible()
+  await expect(table.getByRole('columnheader', { name: 'Email', exact: true })).toHaveCount(0)
+  await page.evaluate(() => window.localStorage.removeItem('sap-lens.user-access.columns'))
+  // The overflow control is keyboard reachable and opens the user, whose memberships show a real confirmation time.
+  expect((await request.post(`/api/functional-groups/${ids[3]}/archive`, { headers })).ok()).toBeTruthy()
+  await more.focus(); await page.keyboard.press('Enter')
+  const profile = page.getByRole('region', { name: 'Functional Group', exact: true })
+  // Memberships of active groups first; the archived group's membership is kept and listed separately.
+  await expect(profile.getByRole('list', { name: 'Functional Group memberships', exact: true }).getByRole('listitem')).toHaveCount(3)
+  await expect(profile.getByRole('list', { name: 'Archived Functional Group memberships', exact: true }).getByRole('listitem')).toHaveText([new RegExp(`^${names[3]} \\(archived\\)`)])
+  await expect(profile).toContainText(/Last confirmed \d{2}\.\d{2}\.\d{4} \d{2}:\d{2} by /)
+  await expect(profile).not.toContainText('Unknown')
+  expect((await classify(request, null)).ok()).toBeTruthy()                        // leave DEMO_FG unassigned for the other tests
+})
+
 test('User Access filters users by Functional Group on the server and shows the column', async ({ page, request }) => {
   const name = `Access ${unique}`
   const group = (await (await request.post('/api/functional-groups', { headers, data: { name, description: '' } })).json()).id

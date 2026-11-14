@@ -1,5 +1,4 @@
 import { BulkAssignDialog } from './BulkAssignDialog'
-import { membershipNames } from '@/lib/functionalGroupText'
 import {SAPUserLink} from '@/components/Shared/SAPUserLink'
 import {ExportCSVButton} from '@/components/Shared/ExportCSVButton'
 import { ASSIGNMENT_BANDS, LEGACY_ASSIGNMENT_BANDS } from '@/lib/assignmentBands'
@@ -55,8 +54,37 @@ import {
 const USER_SORTS = [
   { value: 'username', label: 'Username' }, { value: 'group', label: 'User group' }, { value: 'first_name', label: 'First name' },
   { value: 'last_name', label: 'Last name' }, { value: 'email', label: 'Email' }, { value: 'account_status', label: 'Account status' },
-  { value: 'relevant_roles', label: 'Relevant role count' },
+  { value: 'relevant_roles', label: 'Relevant role count' }, { value: 'job_title', label: 'Job title' }, { value: 'department', label: 'Department' },
 ]
+/** Optional columns of the user table. Username, statuses and the role count always stay visible. */
+const OPTIONAL_COLUMNS = [['name', 'Full name'], ['title', 'Job title'], ['department', 'Department'], ['fg', 'Functional Group'], ['group', 'SAP user group'], ['email', 'Email']] as const
+type ColumnKey = typeof OPTIONAL_COLUMNS[number][0]
+const COLUMNS_KEY = 'sap-lens.user-access.columns'
+function storedColumns(): Set<ColumnKey> {
+  const all = new Set<ColumnKey>(OPTIONAL_COLUMNS.map(([key]) => key))
+  try {
+    const saved: unknown = JSON.parse(window.localStorage.getItem(COLUMNS_KEY) || 'null')
+    if (Array.isArray(saved)) return new Set([...all].filter(key => !saved.includes(key)))   // stored as the hidden keys, so a new column starts visible
+  } catch { /* unavailable or malformed storage: every column is shown */ }
+  return all
+}
+const GROUP_CHIPS = 2
+/** Memberships as compact chips keyed by the stable group id; the rest is one "+N" control that names them and opens the user. */
+function GroupChips({ groups, username, onOpen }: { groups: { id: string; name: string; status: string }[]; username: string; onOpen: () => void }) {
+  const shown = groups.slice(0, GROUP_CHIPS), rest = groups.slice(GROUP_CHIPS), label = (group: { name: string; status: string }) => group.name + (group.status === 'archived' ? ' (archived)' : '')
+  return (
+    <span className="fg-chips" role="list" aria-label={`Functional Groups of ${username}`}>
+      {shown.map(group => <span role="listitem" key={group.id} className="fg-chip" title={label(group)}>{label(group)}</span>)}
+      {rest.length > 0 && <span role="listitem"><button type="button" className="fg-chip fg-chip-more" title={rest.map(label).join(', ')} aria-label={`${rest.length} more Functional ${rest.length === 1 ? 'Group' : 'Groups'} of ${username}: ${rest.map(label).join(', ')}`} onClick={onOpen}>+{rest.length}</button></span>}
+    </span>
+  )
+}
+/** A Directory value, or why there is none: the cell never shows a guessed value. */
+function DirectoryValue({ value, status }: { value?: string; status?: string }) {
+  if (value) return <span className="ud-ellipsis" title={value}>{value}</span>
+  const reason = status === 'unavailable' ? 'Employee Directory not loaded' : status === 'unmatched' ? 'No unique Directory match for this SAP user' : 'Not recorded in the Directory'
+  return <span className="text-muted" title={reason} aria-label={reason}>—</span>
+}
 export function UserAccess({
   initialUser,
   initialRole = "",
@@ -85,6 +113,7 @@ export function UserAccess({
   const openUser = (username: string) => { listScroll.current = window.scrollY; originUser.current = username; changeView({ user: username, userTrail: [] }) };
   const [search, setSearch] = useState(""),
     [sort, setSort] = useState("username"),
+    [columns, setColumns] = useState<Set<ColumnKey>>(storedColumns),
     [descending, setDescending] = useState(false);
   const organizationLabel = useOrganizationLabel()
   const [groups, setGroups] = useState<string[]>([]),
@@ -304,16 +333,22 @@ export function UserAccess({
           {assignOpen&&<BulkAssignDialog usernames={[...picked].sort()} onClose={()=>setAssignOpen(false)} onChanged={()=>undefined}/>}
           {selectionNote&&<p role="status" className="ui-description">{selectionNote}</p>}
           <details className="ui-evidence-disclosure"><summary>Export scope</summary><div><p className="ui-description">Exports all {result.data.export_assignments?.toLocaleString()??'available'} imported assignments for matching users, including other roles{expired?' and expired assignments':'; expired assignments are excluded while Show expired assignments is off'}. MATCHED_FILTER identifies assignment-level matches. Export covers all matching users and does not depend on the selection. Role-derived transactions are evidence, not proof of effective SAP authorization.</p></div></details>
+          <details className="ui-evidence-disclosure"><summary>Columns</summary><div className="flex flex-wrap gap-x-4 gap-y-2" role="group" aria-label="Visible columns">
+            {OPTIONAL_COLUMNS.map(([key,label])=><label key={key} className="inline-flex items-center gap-2"><input type="checkbox" checked={columns.has(key)} onChange={()=>setColumns(previous=>{const next=new Set(previous);if(next.has(key))next.delete(key);else next.add(key)
+              try{window.localStorage.setItem(COLUMNS_KEY,JSON.stringify(OPTIONAL_COLUMNS.map(([name])=>name).filter(name=>!next.has(name))))}catch{/* the choice then lasts for this visit only */}
+              return next})}/>{label}</label>)}</div></details>
           <div className="access-table user-directory-table" tabIndex={0} role="region" aria-label="User directory table">
             <table>
               <thead>
                 <tr>
                   <th className="col-select ud-sticky-1"><input type="checkbox" aria-label="Select all users on this page" checked={pageAll} ref={el=>{if(el)el.indeterminate=pageSome&&!pageAll}} onChange={()=>setPicked(prev=>{const n=new Set(prev);if(pageAll)pageNames.forEach(u=>n.delete(u));else pageNames.forEach(u=>n.add(u));return n})}/></th>
                   <th className="ud-sticky-2">Username</th>
-                  <th>Full name</th>
-                  <th>Functional Group</th>
-                  <th>SAP user group</th>
-                  <th>Email</th>
+                  {columns.has('name')&&<th>Full name</th>}
+                  {columns.has('title')&&<th>Job title</th>}
+                  {columns.has('department')&&<th>Department</th>}
+                  {columns.has('fg')&&<th>Functional Group</th>}
+                  {columns.has('group')&&<th>SAP user group</th>}
+                  {columns.has('email')&&<th>Email</th>}
                   <th>SAP account status</th>
                   <th>Lock status</th>
                   <th>Relevant roles</th>
@@ -329,10 +364,12 @@ export function UserAccess({
                     <td className="ud-sticky-2">
                       <SAPUserLink username={user.username} copyLabel="username" onOpen={()=>openUser(user.username)} openLabel={user.username}/>
                     </td>
-                    <td className="ud-cell" data-col="name"><span className="ud-ellipsis" title={full||undefined}>{full||"—"}</span></td>
-                    <td className="ud-cell" data-col="fg">{user.functional_groups?.length ? <span className="ud-ellipsis" title={membershipNames(user.functional_groups)}>{membershipNames(user.functional_groups)}</span> : <span className="text-muted">Unassigned</span>}{user.classification_status === "Needs review" && <> <ClassificationPill status="Needs review"/></>}</td>
-                    <td className="ud-cell" data-col="group"><span className="ud-ellipsis" title={group}>{group}</span></td>
-                    <td className="ud-cell" data-col="email"><span className="ud-ellipsis" title={user.email||undefined}>{user.email || "—"}</span></td>
+                    {columns.has('name')&&<td className="ud-cell" data-col="name"><span className="ud-ellipsis" title={full||undefined}>{full||"—"}</span></td>}
+                    {columns.has('title')&&<td className="ud-cell" data-col="title"><DirectoryValue value={user.job_title} status={user.directory_status}/></td>}
+                    {columns.has('department')&&<td className="ud-cell" data-col="department"><DirectoryValue value={user.department} status={user.directory_status}/></td>}
+                    {columns.has('fg')&&<td className="ud-cell" data-col="fg">{user.functional_groups?.length ? <GroupChips groups={user.functional_groups} username={user.username} onOpen={()=>openUser(user.username)}/> : <span className="text-muted">Unassigned</span>}{user.classification_status === "Needs review" && <> <ClassificationPill status="Needs review"/></>}</td>}
+                    {columns.has('group')&&<td className="ud-cell" data-col="group"><span className="ud-ellipsis" title={group}>{group}</span></td>}
+                    {columns.has('email')&&<td className="ud-cell" data-col="email"><span className="ud-ellipsis" title={user.email||undefined}>{user.email || "—"}</span></td>}
                     <td aria-label="Account validity">
                       <AccountStatus value={user.account_status}/>
                     </td><td aria-label="Account lock"><LockStatus value={user.lock_status}/>

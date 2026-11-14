@@ -1493,6 +1493,12 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .user-directory-table .ud-cell { max-width:16rem; min-width:8rem; }
 .user-directory-table .ud-cell[data-col="email"] { min-width:12rem; max-width:20rem; }
 .user-directory-table .ud-ellipsis { display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.fg-chips { display:inline-flex; align-items:center; gap:var(--space-1); max-width:100%; min-width:0; }
+.fg-chips > [role="listitem"] { min-width:0; }
+.fg-chip { display:inline-block; max-width:9rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:middle; padding:1px var(--space-2); border:1px solid var(--border); border-radius:999px; background:var(--surface2); color:var(--text); font-size:var(--text-xs,0.75rem); line-height:1.5; }
+.fg-chip-more { cursor:pointer; font-weight:600; }
+.fg-chip-more:hover { border-color:var(--accent2); }
+.fg-chip-more:focus-visible { outline:var(--focus-width) solid var(--focus); outline-offset:var(--focus-offset); }
 .user-directory-table .ud-sticky-1,.user-directory-table .ud-sticky-2 { position:sticky; z-index:1; background:var(--surface); }
 .user-directory-table thead .ud-sticky-1,.user-directory-table thead .ud-sticky-2 { background:var(--surface2); z-index:2; }
 .user-directory-table .ud-sticky-1 { left:0; width:2.75rem; min-width:2.75rem; max-width:2.75rem; padding-left:var(--space-3); padding-right:var(--space-3); }

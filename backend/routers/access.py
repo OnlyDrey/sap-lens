@@ -143,6 +143,8 @@ def directory_filters(
         "email",
         "account_status",
         "relevant_roles",
+        "job_title",
+        "department",
     ] = "username",
     descending: bool = False,
 ):
@@ -217,6 +219,8 @@ def directory_selection(snapshot, *, usernames='',search,group,role,tcode,groups
     term = search.strip()
     from .employees import available
     organization_keep = organization.selection(snapshot, available(snapshot), functional_groups, managers)
+    # Directory job title and department take part in the free-text search and in two sort orders; resolved only when one of them is used.
+    directory_fields = organization.directory_fields(snapshot, available(snapshot)) if term or sort in ('job_title', 'department') else None
     listed = None
     if usernames.strip():
         from username_filter import parse_usernames, apply, MAX_USERNAMES
@@ -240,9 +244,15 @@ def directory_selection(snapshot, *, usernames='',search,group,role,tcode,groups
             continue
         if (role_list or (include and snapshot.roles) or excluded or status) and key not in evidence:
             continue
-        if term and not search_fields(term, user["username"], *user["groups"], *user["emails"], *(" ".join(n) for n in user["names"])):
+        if term and not search_fields(term, user["username"], *user["groups"], *user["emails"], *(" ".join(n) for n in user["names"]), *directory_fields(user)[:2]):
             continue
         result.append(user_summary(user, evidence[key]))
+    if sort in ('job_title', 'department'):
+        # Users without a Directory value come last in both directions, so the sorted values are never pushed off the first page.
+        column = 0 if sort == 'job_title' else 1
+        valued = [(directory_fields(state.users[u['user_key']])[column], u) for u in result]
+        known = sorted((pair for pair in valued if pair[0]), key=lambda pair: (pair[0].casefold(), pair[1]['user_key']), reverse=descending)
+        return [u for _, u in known] + sorted((u for value, u in valued if not value), key=lambda u: u['user_key']), evidence
     result.sort(
         key=lambda u: (
             (u["groups"][0] if u["groups"] else "") if sort == "group" else u[sort],
@@ -285,7 +295,8 @@ def users(filters:dict=Depends(directory_filters),anchor:str=Query('',max_length
     snapshot=cache.get_snapshot();today=date.today()
     result,evidence=directory_selection(snapshot,**filters,today=today)
     if anchor:return dict(**page(result,offset,limit),navigation=record_navigation(result,anchor,'username',normalize_username))
-    return dict(**organization.annotate(page(result,offset,limit)),username_filter=username_feedback(snapshot,filters['usernames'],result),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
+    from .employees import available
+    return dict(**organization.annotate(page(result,offset,limit),snapshot,available(snapshot)),username_filter=username_feedback(snapshot,filters['usernames'],result),**source_info(snapshot,today),groups=snapshot.users.groups,groups_total=snapshot.users.group_count,
                 export_assignments=sum(audit_assignment_count(snapshot,u['user_key'],filters,today) for u in result))
 
 

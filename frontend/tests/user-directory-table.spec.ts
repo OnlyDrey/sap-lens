@@ -15,7 +15,7 @@ for (const [width, height] of [[375, 800], [800, 900], [1280, 900], [1600, 900]]
     const table = page.getByRole('region', { name: 'User directory table' })
     await expect(table).toBeVisible()
     const heads = await table.getByRole('columnheader').allTextContents()
-    expect(heads.map((h) => h.trim()).filter(Boolean)).toEqual(['Username', 'Full name', 'Functional Group', 'SAP user group', 'Email', 'SAP account status', 'Lock status', 'Relevant roles'])
+    expect(heads.map((h) => h.trim()).filter(Boolean)).toEqual(['Username', 'Full name', 'Job title', 'Department', 'Functional Group', 'SAP user group', 'Email', 'SAP account status', 'Lock status', 'Relevant roles'])
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
     if (width < 1280) {
       expect(await table.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)

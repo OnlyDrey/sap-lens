@@ -136,15 +136,23 @@ export function FunctionalGroupPanel({ username }: { username: string }) {
       {query.isError ? <p role="alert">{message(query.error, 'Functional Group data is unavailable.')}</p> : !current ? <LoadingState /> : (
         <>
           {count ? (
-            <ul className="fg-memberships" aria-label="Functional Group memberships">{current.memberships.map(item => (
-              <li key={item.group_id} className="fg-membership" data-status={item.status}>
-                <div className="fg-membership-main">
-                  <strong className="fg-name">{item.group.name}{item.group.status === 'archived' && ' (archived)'}</strong>
-                  <ClassificationPill status={item.status} />
-                  {confirmationText(item.confirmed_at, item.confirmed_by, item.status === 'Confirmed') && <span className="fg-meta">{confirmationText(item.confirmed_at, item.confirmed_by, item.status === 'Confirmed')}</span>}
-                  {item.review && <span className="fg-meta">Review required: {item.review.reason}</span>}
-                </div>
-              </li>))}</ul>
+            <>
+              {/* Active groups first; memberships of archived groups stay visible as their own, clearly labelled list. */}
+              {[['Functional Group memberships', current.memberships.filter(item => item.group.status !== 'archived'), ''] as const,
+                ['Archived Functional Group memberships', current.memberships.filter(item => item.group.status === 'archived'), 'Archived groups (kept on the user, cannot be newly assigned)'] as const].map(([label, items, heading]) => items.length > 0 && (
+                <div key={label} className="grid gap-1">
+                  {heading && <h3 className="fg-meta">{heading}</h3>}
+                  <ul className="fg-memberships" aria-label={label}>{items.map(item => (
+                    <li key={item.group_id} className="fg-membership" data-status={item.status}>
+                      <div className="fg-membership-main">
+                        <strong className="fg-name">{item.group.name}{item.group.status === 'archived' && ' (archived)'}</strong>
+                        <ClassificationPill status={item.status} />
+                        {confirmationText(item.confirmed_at, item.confirmed_by, item.status === 'Confirmed') && <span className="fg-meta">{confirmationText(item.confirmed_at, item.confirmed_by, item.status === 'Confirmed')}</span>}
+                        {item.review && <span className="fg-meta">Review required: {item.review.reason}</span>}
+                      </div>
+                    </li>))}</ul>
+                </div>))}
+            </>
           ) : <div className="fg-summary"><strong className="fg-name">Unassigned</strong><ClassificationPill status="Unassigned" /></div>}
           {(data?.suggestion?.groups ?? []).some(group => !group.already_member) && (
             <p className="fg-meta">Suggested (advisory): {data!.suggestion!.groups.filter(group => !group.already_member).map(group => group.group_name).join(', ')}</p>)}

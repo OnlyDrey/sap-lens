@@ -17,6 +17,20 @@ is Unknown, never implicitly Valid/Unlocked/Enabled. The profile shows source
 observations without claiming effective access. Previous/Next spans the filtered,
 sorted result set across pages; browser Back preserves investigation context.
 
+### Directory columns, group chips and column visibility
+
+- **Job title** and **Department** come from the mapped Employee Directory employee, the same evidence User Details shows. They are filled
+  only for a SAP user linked to exactly one Directory employee; otherwise the cell shows a dash whose tooltip states why (no Directory loaded,
+  no unique match, or not recorded). Nothing is derived from SAP fields. Both columns can be sorted on the server (users without a value come
+  last in both directions) and are covered by the free-text search.
+- **Functional Group** shows memberships as compact chips keyed by the group id: the first two groups, then one `+N` control that names the
+  remaining groups and opens the user. Archived groups are marked. The row stays on one line.
+- **Columns** (above the table) hides or shows Full name, Job title, Department, Functional Group, SAP user group and Email. The choice is kept
+  in this browser; Username, statuses and the role count always stay visible.
+- **User Details > Functional Groups** lists memberships of active groups first and memberships of archived groups in their own labelled
+  list. The last confirmation shows the stored date and time; when the store has no readable date it says so instead of "Unknown".
+- Bulk assignment (below) is unchanged: it previews additions per user, never replaces existing memberships, and reports conflicts per user.
+
 ## Filters and assignments
 
 Directory search, SAP User Group, catalogue-backed role-name/description selection,

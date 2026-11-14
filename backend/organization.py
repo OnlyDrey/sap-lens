@@ -102,10 +102,31 @@ def options(state, directory):
     return dict(functional_groups=group_options, managers=manager_options)
 
 
-def annotate(page):
-    """Add the SAP Lens-maintained Functional Group and classification status to the rows of one result page (never the whole dataset)."""
+def directory_fields(state, directory):
+    """Function SAP user -> (job title, department, status) from the mapped Employee Directory. Values exist only for a user linked to exactly one
+    Directory employee (`matched`); nothing is guessed for unmatched or ambiguous identities, and `unavailable` means no Directory is loaded."""
+    if not directory:
+        return lambda user: ('', '', 'unavailable')
+    matcher = identity_matcher(state.users, directory)
+
+    def fields(user):
+        match = matcher(dict(user, username=user.get('username') or user.get('user_key', ''), emails=user.get('emails', [])))
+        if match['status'] != 'matched' or not match['employee']:
+            return '', '', 'unmatched'
+        employee = match['employee']
+        return (employee.get('title') or '').strip(), (employee.get('department') or '').strip(), 'matched'
+    return fields
+
+
+def annotate(page, state=None, directory=None):
+    """Add the SAP Lens-maintained Functional Group, classification status and Directory job title/department to the rows of one result page
+    (never the whole dataset)."""
     classes = fg.classification_map()
+    fields = directory_fields(state, directory) if state is not None else None
     for item in page.get('items', []):
+        if fields:
+            people = state.users.users.get(item.get('user_key')) or item
+            item['job_title'], item['department'], item['directory_status'] = fields(people)
         record = classes.get(item['username'].strip().upper())
         item['functional_group'] = record['group'] if record else None  # only when the user has exactly one membership (compatibility)
         item['functional_groups'] = [m['group'] for m in record['memberships']] if record else []

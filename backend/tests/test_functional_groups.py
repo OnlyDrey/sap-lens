@@ -664,6 +664,32 @@ class Api(unittest.TestCase):
         self.assertEqual(result.status_code, 200, result.text)
         return {u['username'] for u in result.json()['items']}
 
+    def test_user_access_lists_sorts_and_searches_directory_job_title_and_department(self):
+        import routers.employees as employees
+        mapped = self.organisation('Finance', 'Accountant', 'm1@example.test')
+        patcher = patch.object(employees, 'available', return_value=mapped); patcher.start(); self.addCleanup(patcher.stop)
+        rows = self.client.get('/api/access/users?limit=100', headers=self.base.H).json()['items']
+        listed = {u['username']: u for u in rows}
+        context = self.call('GET', '/users/DEMO_NORMAL').json()['directory']
+        self.assertEqual(context['match_status'], 'matched')
+        normal = listed['DEMO_NORMAL']
+        # The values are the mapped Directory employee's, the same evidence User Details shows; nothing is derived from SAP fields.
+        self.assertEqual((normal['job_title'], normal['department'], normal['directory_status']), (context.get('title') or '', context.get('department') or '', 'matched'))
+        self.assertEqual((normal['job_title'], normal['department']), ('Accountant', 'Finance'))
+        unmatched = [u for u in rows if u['directory_status'] != 'matched']
+        self.assertTrue(all((u['job_title'], u['department']) == ('', '') for u in unmatched))       # missing Directory data is empty, never guessed
+        for column in ('job_title', 'department'):
+            for descending in ('false', 'true'):
+                ordered = self.client.get(f'/api/access/users?limit=100&sort={column}&descending={descending}', headers=self.base.H).json()['items']
+                self.assertEqual({u['username'] for u in ordered}, set(listed))                        # sorting never drops a user
+                values = [u[column] for u in ordered]
+                known = [value for value in values if value]
+                self.assertEqual(values, known + [''] * (len(values) - len(known)))                  # users without a value come last in both directions
+                self.assertEqual(known, sorted(known, key=str.casefold, reverse=descending == 'true'))
+        needle = (normal['department'] or normal['job_title']).upper()
+        self.assertIn('DEMO_NORMAL', self.users('search=' + needle))                                  # free-text search covers the Directory columns
+        self.assertEqual(self.client.get('/api/access/users?sort=manager', headers=self.base.H).status_code, 422)
+
     def test_user_access_filters_by_group_and_manager_server_side(self):
         gid = self.call('POST', '', json=dict(name='Finance')).json()['id']
         empty = self.call('POST', '', json=dict(name='Empty')).json()['id']
