@@ -1,6 +1,7 @@
-param([string]$ExecutablePath='')
+param([string]$ExecutablePath='', [string]$IdentityPath='')
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
+. (Join-Path $PSScriptRoot 'testing/windows-artifact-identity.ps1')
 $executable = (Resolve-Path $(if ($ExecutablePath) { $ExecutablePath } else { 'backend/dist/SAP-Lens.exe' })).Path
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $testRoot = Join-Path $tempRoot ('sap-lens-smoke/' + [guid]::NewGuid())
@@ -373,10 +374,11 @@ function Wait-Ready($application, [string]$directory, $contract) {
 
 try {
     $version = (Get-Item $executable).VersionInfo
-    $buildIdentity = Get-Content -Raw backend/build/build-version.json | ConvertFrom-Json
-    $expectedVersion = $buildIdentity.version
-    $numericVersion = $buildIdentity.file_version -join '.'
-    if ($version.ProductName -ne 'SAP Lens' -or $version.FileVersion -ne $numericVersion -or $version.ProductVersion -ne $expectedVersion) { throw 'Windows version metadata missing.' }
+    # The identity bound to THIS executable by its SHA-256 (written by package verification), never the shared mutable build metadata.
+    $buildIdentity = Resolve-ArtifactIdentity -ExecutablePath $executable -IdentityDirectory 'backend/build/artifact-identity' -IdentityPath $IdentityPath
+    $expectedVersion = $buildIdentity.Version
+    Assert-ArtifactVersionResource -Identity $buildIdentity -ProductName $version.ProductName -FileVersion $version.FileVersion -ProductVersion $version.ProductVersion
+    Write-Host "Build identity: $($buildIdentity.Version) commit $($buildIdentity.SourceSha.Substring(0,12)) executable SHA-256 $($buildIdentity.Sha256)"
     $bytes = [System.IO.File]::ReadAllBytes($executable)
     $peOffset = [BitConverter]::ToInt32($bytes, 0x3c)
     if ([BitConverter]::ToUInt16($bytes, $peOffset + 24 + 68) -ne 2) { throw 'EXE is not a console-free Windows GUI application.' }

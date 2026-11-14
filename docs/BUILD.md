@@ -343,6 +343,13 @@ failed build leaves the inventory, the checksum list and earlier artifacts as th
 `release-manifest.json` is not joined. Directories produced before this layout (a Desktop `build-manifest.json` in the
 root) are left untouched and are not converted; build into a new commit directory instead.
 
+Desktop smoke identity: package verification records the identity it verified inside `SAP-Lens.exe` under
+`backend/build/artifact-identity/<exe-sha256>.json`. `scripts/test-windows-exe.ps1` hashes the executable it is about to run,
+loads that record (or `-IdentityPath <record or manifests/desktop-build-manifest.json>` on another machine) and compares
+ProductName, FileVersion and ProductVersion with it. It no longer reads `backend/build/build-version.json`, which a later Server
+or Installer build rewrites. An executable without a bound record, a record for another digest, a changed checksum sidecar or
+a malformed commit is refused before anything is launched.
+
 Verify an archive against its adjacent `.sha256` using `Get-FileHash -Algorithm
 SHA256 <archive>` on Windows or `sha256sum -c <archive>.sha256` on Linux. The digest
 must also equal the record for that filename in `release-manifest.json`.
@@ -479,6 +486,7 @@ else is an internal helper and is not a supported entrypoint.
 | Orchestrators | package-windows-deployment.ps1 | KEEP | Windows desktop/service packaging steps shared by local and CI builds |
 | Windows helpers | build-desktop-installer.ps1, build-server-windows.ps1, build-service-manager.ps1, manage-server-service.ps1 | KEEP | Inno installer, service bundle, service-manager compile and the shipped service management script (need Windows/.NET) |
 | Windows tests | test-windows-exe.ps1, test-desktop-installer.ps1, test-server-service.ps1 | KEEP | Native EXE, installer and service smoke tests run by the packaging scripts |
+| Windows tests | testing/windows-artifact-identity.ps1 | KEEP | Internal Desktop smoke helper: resolves the build identity bound to an executable by its SHA-256 and compares the version resource; never reads the shared `build-version.json` |
 | Windows tests | testing/windows-scm-test-helpers.ps1 | KEEP | Internal SCM acceptance helpers: isolated marked workspaces, secure ZIP inspection and ownership-scoped protected cleanup; no production service behavior |
 | Windows tests | test-service-management.ps1 | KEEP | Portable service-helper regression test (state transitions, configuration reading, secret-repair guards); executed by check-powershell.ps1, so it runs wherever that check runs, including PowerShell 7 on Linux (`backend/tests/test_powershell.py`). No SCM operation is executed |
 | Linux/Docker | deployment-package.py, install-linux-server.py, run-installed-server.py, testing/test-native-deployment.py | KEEP | Native Linux archive, installer, runtime launcher and offline install smoke test (Python only) |

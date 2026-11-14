@@ -296,6 +296,32 @@ def validate_distribution(directory, expected_sha256=None):
     return data, digest
 
 
+def bind_identity(digest, info, directory=None):
+    """Record the identity that was verified INSIDE this executable under the executable's own SHA-256.
+
+    The smoke test looks the record up by hashing the executable it runs, so a later build that rewrites
+    backend/build/build-version.json cannot change what an already verified executable is compared with.
+    A record is created once; the same executable verified again must carry the same identity.
+    """
+    directory = directory or ROOT / 'backend/build/artifact-identity'
+    record = {'schema': 1, 'artifact': 'SAP-Lens.exe', 'exe_sha256': digest,
+              'identity': {key: info[key] for key in ('version', 'file_version', 'source_sha')}}
+    record['identity']['file_version'] = list(record['identity']['file_version'])
+    path = directory / f'{digest}.json'
+    if path.is_symlink():
+        raise PackageValidationError('Artifact identity record may not be linked.')
+    if path.exists():
+        try: existing = json.loads(path.read_text(encoding='utf-8'))
+        except ValueError: existing = None
+        if existing != record:
+            raise PackageValidationError('This executable is already bound to another build identity.')
+        return path
+    directory.mkdir(parents=True, exist_ok=True)
+    with path.open('x', encoding='utf-8', newline='\n') as stream:
+        json.dump(record, stream, indent=2)
+    return path
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--distribution', type=Path, default=ROOT / 'backend/dist')
@@ -330,6 +356,8 @@ def main():
         phase = 'verification-report'
         args.report.parent.mkdir(parents=True, exist_ok=True)
         args.report.write_text(json.dumps(report, indent=2), encoding='utf-8')
+        phase = 'artifact-identity'
+        bind_identity(digest, metadata_module().BUILD_INFO)
         print(f'Windows x64 GUI package verified; SHA-256 {digest}; {inventory["archive_entries"]} archive entries.')
     except Exception as error:
         # Third-party parser exceptions can embed untrusted filenames or binary values.

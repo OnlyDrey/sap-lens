@@ -217,7 +217,7 @@ QUICK_INPUTS = ('backend/resources/product-version.json', 'frontend/package.json
                 'assets/sap-lens.ico', 'assets/sap-lens.png', 'scripts/build-windows.ps1',
                 'scripts/build-server-windows.ps1', 'scripts/package-windows-deployment.ps1',
                 'scripts/packaging/verify-windows-package.py', 'scripts/packaging/verify-server-bundle.py',
-                'scripts/test-windows-exe.ps1', 'deploy/windows/LICENSE-WinSW.txt')
+                'scripts/test-windows-exe.ps1', 'scripts/testing/windows-artifact-identity.ps1', 'deploy/windows/LICENSE-WinSW.txt')
 
 
 def quick(requested, root=ROOT):

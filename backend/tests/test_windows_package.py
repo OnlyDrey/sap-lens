@@ -271,3 +271,96 @@ class WindowsPackageTests(unittest.TestCase):
         self.assertIn('Windows package inspection failed', output.getvalue())
         self.assertIn('phase=pe-resources', output.getvalue())
         self.assertIn('ValueError; malformed input or parser compatibility', output.getvalue())
+
+class ArtifactIdentityTests(unittest.TestCase):
+    """The Desktop smoke test compares an executable with the identity bound to that executable, not with the mutable build-version.json."""
+    HELPER = str(ROOT / 'scripts/testing/windows-artifact-identity.ps1').replace("'", "''")
+    INFO = dict(version='1.0.0-beta.2', file_version=(1, 0, 0, 2), source_sha='a' * 40, mode='deployment')
+
+    def setUp(self):
+        import tempfile as temporary
+        self.temp = temporary.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name); self.records = self.root / 'artifact-identity'
+        self.exe = self.root / 'SAP-Lens.exe'; self.exe.write_bytes(b'synthetic desktop executable, never executed')
+        import hashlib
+        self.sha = hashlib.sha256(self.exe.read_bytes()).hexdigest()
+
+    def resolve(self, extra='', check="'{0}|{1}|{2}|{3}' -f $i.Sha256,$i.Version,$i.FileVersion,$i.SourceSha"):
+        import shutil, subprocess
+        if not shutil.which('pwsh'): self.skipTest('PowerShell is required')
+        script = f". '{self.HELPER}'; $ErrorActionPreference='Stop'; $i=Resolve-ArtifactIdentity -ExecutablePath '{self.exe}' -IdentityDirectory '{self.records}' {extra}; {check}"
+        return subprocess.run(['pwsh', '-NoProfile', '-Command', script], capture_output=True, text=True, timeout=120)
+
+    def test_the_record_is_created_once_under_the_executable_digest_and_refuses_another_identity(self):
+        path = package.bind_identity(self.sha, self.INFO, self.records)
+        self.assertEqual(path.name, self.sha + '.json')
+        before = path.read_bytes()
+        self.assertEqual(package.bind_identity(self.sha, self.INFO, self.records), path)      # verifying the same executable again
+        with self.assertRaisesRegex(package.PackageValidationError, 'another build identity'):
+            package.bind_identity(self.sha, dict(self.INFO, source_sha='b' * 40), self.records)
+        self.assertEqual(path.read_bytes(), before)
+
+    def test_desktop_then_server_and_server_then_desktop_resolve_the_desktop_identity(self):
+        # A later Server build rewrites build-version.json and binds its own executable; neither changes the Desktop record.
+        for order in ('desktop-first', 'server-first'):
+            with self.subTest(order=order):
+                import shutil
+                shutil.rmtree(self.records, ignore_errors=True)
+                server = lambda: package.bind_identity('c' * 64, dict(self.INFO, version='9.9.9', file_version=(9, 9, 9, 0), source_sha='d' * 40), self.records)
+                desktop = lambda: package.bind_identity(self.sha, self.INFO, self.records)
+                for step in ((desktop, server) if order == 'desktop-first' else (server, desktop)): step()
+                (self.root / 'build-version.json').write_text('{"version":"9.9.9","file_version":[9,9,9,0]}')
+                done = self.resolve()
+                self.assertEqual(done.returncode, 0, done.stderr)
+                self.assertEqual(done.stdout.strip(), f"{self.sha}|1.0.0-beta.2|1.0.0.2|{'a' * 40}")
+
+    def test_version_resource_is_compared_field_by_field_with_the_bound_identity(self):
+        package.bind_identity(self.sha, self.INFO, self.records)
+        ok = self.resolve(check="Assert-ArtifactVersionResource -Identity $i -ProductName 'SAP Lens' -FileVersion '1.0.0.2' -ProductVersion '1.0.0-beta.2'; 'ok'")
+        self.assertEqual((ok.returncode, ok.stdout.strip()), (0, 'ok'), ok.stderr)
+        for arguments, named in (("-ProductName 'Other' -FileVersion '1.0.0.2' -ProductVersion '1.0.0-beta.2'", 'ProductName'),
+                                 ("-ProductName 'SAP Lens' -FileVersion '9.9.9.0' -ProductVersion '1.0.0-beta.2'", 'FileVersion'),
+                                 ("-ProductName 'SAP Lens' -FileVersion '1.0.0.2' -ProductVersion '9.9.9'", 'ProductVersion')):
+            with self.subTest(field=named):
+                done = self.resolve(check=f'Assert-ArtifactVersionResource -Identity $i {arguments}')
+                self.assertNotEqual(done.returncode, 0); self.assertIn(named, done.stderr)
+
+    def test_missing_mismatched_tampered_and_malformed_identities_are_refused(self):
+        missing = self.resolve()
+        self.assertNotEqual(missing.returncode, 0)
+        self.assertIn('No build identity is bound to this executable', missing.stderr); self.assertIn('-IdentityPath', missing.stderr)
+        path = package.bind_identity(self.sha, self.INFO, self.records)
+        good = path.read_text()
+        import json
+        for label, change, expected in (('another executable', lambda r: r.update(exe_sha256='e' * 64), 'another executable'),
+                                        ('no commit', lambda r: r['identity'].update(source_sha='short'), 'source commit'),
+                                        ('no version', lambda r: r['identity'].update(version=''), 'product or file version'),
+                                        ('bad file version', lambda r: r['identity'].update(file_version=[1, 0]), 'product or file version')):
+            with self.subTest(case=label):
+                record = json.loads(good); change(record); path.write_text(json.dumps(record))
+                done = self.resolve()
+                self.assertNotEqual(done.returncode, 0); self.assertIn(expected, done.stderr)
+        path.write_text(good)
+        self.exe.write_bytes(self.exe.read_bytes() + b' tampered')            # the executable no longer has a record
+        self.assertIn('No build identity is bound', self.resolve().stderr)
+        path.write_text('{not json'); other = self.resolve(extra=f"-IdentityPath '{path}'")
+        self.assertIn('not valid JSON', other.stderr)
+
+    def test_checksum_sidecar_and_desktop_build_manifest_are_honoured(self):
+        import json
+        manifest = self.root / 'desktop-build-manifest.json'
+        manifest.write_text(json.dumps(dict(schema=1, target='desktop', artifact='x.zip', sha256='0' * 64,
+                                            build_manifest=dict(exe_sha256=self.sha, identity=dict(version='1.0.0-beta.2', file_version=[1, 0, 0, 2], source_sha='a' * 40)))))
+        done = self.resolve(extra=f"-IdentityPath '{manifest}'")
+        self.assertEqual(done.returncode, 0, done.stderr); self.assertIn('1.0.0-beta.2', done.stdout)
+        (self.root / 'SAP-Lens.exe.sha256').write_text('f' * 64 + '  SAP-Lens.exe\n')
+        self.assertIn('differs from its checksum file', self.resolve(extra=f"-IdentityPath '{manifest}'").stderr)
+
+    def test_the_smoke_test_and_its_callers_no_longer_read_the_mutable_identity(self):
+        smoke = (ROOT / 'scripts/test-windows-exe.ps1').read_text(encoding='utf-8')
+        self.assertNotIn('build-version.json', smoke)
+        self.assertIn("Resolve-ArtifactIdentity -ExecutablePath $executable -IdentityDirectory 'backend/build/artifact-identity' -IdentityPath $IdentityPath", smoke)
+        self.assertIn('Assert-ArtifactVersionResource', smoke)
+        verifier = (ROOT / 'scripts/packaging/verify-windows-package.py').read_text(encoding='utf-8')
+        self.assertLess(verifier.index("inspect_archive(args.distribution / 'SAP-Lens.exe'"), verifier.index('bind_identity(digest, metadata_module().BUILD_INFO)'))
+
