@@ -6,10 +6,11 @@ import { RefreshHistory } from '@/components/Shared/RefreshReport'
 import { Button } from '@/components/Shared/Button'
 import { DirectoryDiagnostics } from './EmployeeDirectory'
 import { formatTimestamp } from '@/lib/dateFormat'
-import { useId, useState } from 'react'
+import { useId, useState, type ReactNode } from 'react'
+import { ContentTabs } from '@/components/Shared/Navigation'
 import { DisclosureChevron } from '@/components/Shared/DisclosureChevron'
 import { useQuery } from '@tanstack/react-query'
-import { Activity, BookUser, Download, FileText, FolderOpen, Library, ShieldCheck, UsersRound, Eye } from 'lucide-react'
+import { Activity, BookUser, Database, Download, FileText, FolderOpen, Library, RotateCcw, ShieldCheck, UsersRound, Eye } from 'lucide-react'
 import { apiRequest, applicationToken } from '@/api/client'
 const SOURCE_ICONS: Record<string, React.ReactNode> = { roles: <Library size={18} aria-hidden="true"/>, users: <UsersRound size={18} aria-hidden="true"/>, employees: <BookUser size={18} aria-hidden="true"/>, sod: <ShieldCheck size={18} aria-hidden="true"/> }
 interface DataSource {
@@ -71,7 +72,10 @@ export function Diagnostics({
   onEmployeeSettings,
   onEmployeeFeatures,
   onSource,
+  recovery,
 }: {
+  /** Configuration export, import and reset, owned by Settings (it holds the saved configuration). */
+  recovery?: ReactNode
   onSource?: (source: 'roles' | 'users' | 'employees' | 'sod') => void
   native: boolean
   onEmployeeFeatures?: () => void
@@ -83,6 +87,8 @@ export function Diagnostics({
     refetchInterval: 5000,
   })
   const [detail,setDetail]=useState<DataSource|null>(null)
+  // Kept here, above the tab panels: switching tabs never drops the action feedback, the open source dialog or the selected tab.
+  const [tab,setTab]=useState('sources')
   const [feedback, setFeedback] = useState<string | null>(null)
   const [failed, setFailed] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -172,12 +178,16 @@ export function Diagnostics({
           )}
         </details>
       </section>
+      {detail&&<SourceDetailsDialog source={detail} onClose={()=>setDetail(null)}>{detail.id==='employees'&&<DirectoryDiagnostics onConfigure={()=>{setDetail(null);onEmployeeSettings?.()}} onFeatureSettings={()=>{setDetail(null);onEmployeeFeatures?.()}}/>}</SourceDetailsDialog>}
+      <ContentTabs label="Health and diagnostics sections" value={tab} onChange={setTab} items={[{value:'sources',label:'Source Health',icon:<Database size={16} aria-hidden="true"/>},{value:'storage',label:'Storage & Logs',icon:<FolderOpen size={16} aria-hidden="true"/>},...(recovery?[{value:'recovery',label:'Configuration Recovery',icon:<RotateCcw size={16} aria-hidden="true"/>}]:[])]}>
+      {tab==='sources'&&<div className="space-y-5">
       <section className="space-y-3" aria-label="Data source health">
         <h2 className="settings-subheading">Data source health</h2>
         <IndependentColumns breakpoints={SOURCE_COLUMNS} items={(query.data?.sources ?? []).map((source) => <SourceHealthCard key={source.id} source={source} onDetail={() => setDetail(source)} onSource={onSource} />)} />
       </section>
-      {detail&&<SourceDetailsDialog source={detail} onClose={()=>setDetail(null)}>{detail.id==='employees'&&<DirectoryDiagnostics onConfigure={()=>{setDetail(null);onEmployeeSettings?.()}} onFeatureSettings={()=>{setDetail(null);onEmployeeFeatures?.()}}/>}</SourceDetailsDialog>}
       <RefreshHistory />
+      </div>}
+      {tab==='storage'&&<div className="space-y-5">
       <section className="settings-card space-y-3">
         <h2 className="settings-subheading">Data & storage</h2>
         <details className="settings-advanced">
@@ -261,6 +271,9 @@ export function Diagnostics({
           </dl>
         </details>
       </section>
+      </div>}
+      {tab==='recovery'&&recovery&&<div className="space-y-4">{recovery}</div>}
+      </ContentTabs>
     </div>
   )
 }

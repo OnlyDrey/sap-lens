@@ -81,6 +81,7 @@ for (const { theme, width } of layoutMatrix([375,800,1280])){
       expect(diagnostic.ok()).toBeTruthy();expect(await diagnostic.text()).not.toContain(root)
       expect((await(await context.request.get(origin+'/api/runtime')).json()).native_dialogs).toBeFalsy()
       await page.getByRole('tab',{name:'Health & Diagnostics',exact:true}).click()
+      await page.getByRole('tab',{name:'Storage & Logs',exact:true}).click()
       const downloaded=page.waitForEvent('download')
       await page.getByRole('button',{name:'Export diagnostics',exact:true}).click()
       const download=await downloaded

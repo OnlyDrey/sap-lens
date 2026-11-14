@@ -334,15 +334,20 @@ test('theme preview screenshot changes and cancel restores the original pixels',
   await page
     .getByRole('tab', { name: 'Health & Diagnostics', exact: true })
     .click()
+  await page.getByRole('tab',{name:'Storage & Logs',exact:true}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
+  await page.getByRole('tab',{name:'Source Health',exact:true}).click()
   await inspectTechnicalSources(page)
-  for (const name of [
-    'Application status',
-    'Data & storage',
-    'Troubleshooting',
-    'Configuration export & recovery'
-  ])
-    await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+  // Application status stays above the tabs; every other section is reachable from exactly one tab and nothing was dropped.
+  const sections = page.getByRole('tablist', { name: 'Health and diagnostics sections', exact: true })
+  await expect(sections.getByRole('tab')).toHaveText(['Source Health', 'Storage & Logs', 'Configuration Recovery'])
+  for (const [tab, headings] of [['Source Health', ['Application status', 'Data source health']], ['Storage & Logs', ['Application status', 'Data & storage', 'Troubleshooting']],
+                                 ['Configuration Recovery', ['Application status', 'Configuration export & recovery']]] as const) {
+    await sections.getByRole('tab', { name: tab, exact: true }).click()
+    await expect(sections.getByRole('tab', { name: tab, exact: true })).toHaveAttribute('aria-selected', 'true')
+    for (const name of headings) await expect(page.getByRole('heading', { name, exact: true })).toBeVisible()
+  }
+  await sections.getByRole('tab', { name: 'Storage & Logs', exact: true }).click()
   await expect(
     page.getByText('Configuration schema', { exact: true })
   ).toBeHidden()

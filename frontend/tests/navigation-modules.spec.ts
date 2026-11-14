@@ -24,7 +24,9 @@ test('data-source actions override every previous section while normal opening k
   }
   await page.reload()
   await page.getByRole('tab', { name: 'Health & Diagnostics', exact: true }).click()
+  await page.getByRole('tab',{name:'Storage & Logs',exact:true}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
+  await page.getByRole('tab',{name:'Source Health',exact:true}).click()
   await inspectTechnicalSources(page)
   await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
   await page.getByRole('button', { name: 'Review data source', exact: true }).click()

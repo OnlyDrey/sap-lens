@@ -1010,7 +1010,7 @@ export function SettingsView({
                   {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/></>}
                   {section === 4 && (
                     <>
-                      <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }}/>
+                      <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }} recovery={<>
                       <h2 className="settings-subheading">Configuration export & recovery</h2>
                       <p className="text-sm text-[var(--text2)]">
                         Export saved settings before an update, or restore a
@@ -1101,6 +1101,7 @@ export function SettingsView({
                         <RotateCcw size={16} aria-hidden="true" /> Reset to
                         defaults
                       </button>
+                      </>}/>
                     </>
                   )}
                 </>
