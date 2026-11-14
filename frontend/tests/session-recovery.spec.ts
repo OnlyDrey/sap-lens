@@ -152,3 +152,33 @@ test('the notification is compact, keyboard operable, readable in dark mode and 
   }
   void request; void headers
 })
+
+test('a write interrupted by a connection loss reports failure, keeps the typed input, and the notice clears by itself when the service returns', async ({ page, request }) => {
+  const name = `Interrupted ${Date.now().toString(36)}`
+  await page.goto('/#session=browser-test-session')
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  await page.getByRole('tab', { name: 'Functional Groups', exact: true }).click()
+  await page.getByRole('button', { name: 'New group', exact: true }).click()
+  const dialog = page.getByRole('dialog', { name: 'New Functional Group' })
+  await dialog.getByLabel('Name').fill(name)
+  let down = true, writes = 0
+  await page.route('**/api/**', route => { if (route.request().method() === 'POST' && route.request().url().includes('/api/functional-groups')) writes++; return down ? route.abort('connectionrefused') : route.fallback() })
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+  // Failure is stated, the dialog and the typed name stay, nothing is reported as created and nothing is retried silently.
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await expect(dialog.getByLabel('Name')).toHaveValue(name)
+  await expect(page.getByText(/created|saved successfully/i)).toHaveCount(0)
+  expect(writes).toBe(1)
+  expect((await (await request.get('/api/functional-groups', { headers })).json()).items.some((group: { name: string }) => group.name === name)).toBe(false)
+  // The service returns: background reads recover the session without a click, and the person can submit again explicitly.
+  down = false
+  await expect(notice(page)).toHaveCount(0, { timeout: 30_000 })
+  await expect(dialog.getByLabel('Name')).toHaveValue(name)
+  await dialog.getByRole('button', { name: 'Create', exact: true }).click()
+  await expect(dialog).toHaveCount(0)
+  expect(writes).toBe(2)
+  const created = (await (await request.get('/api/functional-groups', { headers })).json()).items.filter((group: { name: string }) => group.name === name)
+  expect(created).toHaveLength(1)
+  await request.delete(`/api/functional-groups/${created[0].id}`, { headers }).catch(() => undefined)
+  await page.unrouteAll({ behavior: 'wait' })
+})

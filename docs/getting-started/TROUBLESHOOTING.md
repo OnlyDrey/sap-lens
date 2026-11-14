@@ -40,6 +40,16 @@ If a problem persists, export the sanitized report from **Settings → Health & 
 
 **Session disconnected** means this window holds a local session from an earlier start of SAP Lens (for example after a restart while the window stayed open). Choose **Reconnect session**; your view and filters are kept. If you typed into a form, SAP Lens asks before reloading because that text is lost. **Connection lost** means the local service is not answering: wait a moment and choose **Retry connection**. If the notice returns after a normal start, close other SAP Lens windows, restart SAP Lens and open **Technical details** for the state and category. Nothing is saved or resubmitted automatically.
 
+## Connection lost
+
+**Connection lost** means SAP Lens could not reach its local service (a request got no response). It is shown once at the top of the
+window, separate from application errors (which name the failed action) and from **Session disconnected**. Data on screen may be out of
+date until the service answers. The notice clears by itself when background reads succeed again; **Retry connection** tries at once.
+
+A write that was interrupted is reported as failed in the form that sent it, never as saved. The form stays open with what you typed,
+and nothing is sent again automatically: check the result, then submit again yourself. Reconnecting a stale session asks before it
+reloads if a form holds typed text.
+
 ## Recovery
 
 Backups and restores are documented per deployment: [Windows desktop](../deployment/WINDOWS_DESKTOP.md#data-and-upgrades),
