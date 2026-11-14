@@ -29,6 +29,8 @@ from build_system.runner import StageProgress
 from version import make_local_deployment_info,product_version
 
 TARGETS = ('desktop', 'service', 'docker', 'linux-native')
+#: manifests/<key>-build-manifest.json; the portable Desktop export owns `desktop`, so the installer package uses `installer`.
+MANIFEST_KEYS = {'desktop': 'installer', 'service': 'server', 'docker': 'docker', 'linux-native': 'linux-native'}
 STEMS = {'desktop': ('win-desktop-x64', '.zip'), 'service': ('win-service-x64', '.zip'),
          'docker': ('linux-docker-amd64', '.tar.gz'), 'linux-native': ('linux-native-x64', '.tar.gz')}
 
@@ -154,7 +156,11 @@ class Builder:
                              built_at=datetime.now(timezone.utc).isoformat(), invocation=args.invocation, validation_scope=getattr(args,'scope','targeted'), targets={})
         old = self.output / 'build-manifest.json'
         if any(is_linked_output(path) for path in self.output.iterdir()): raise ValueError('Output files may not be linked.')
-        if any(self.output.iterdir()) and not old.is_file(): raise ValueError('Choose an empty output directory or an existing managed build output.')
+        # A directory started by the portable Desktop build of the same version and commit is joined, not refused: it has the
+        # shared inventory but no deployment manifest yet. Its artifacts and manifests are never rewritten here.
+        if any(self.output.iterdir()) and not old.is_file():
+            try: artifacts.inventory(self.output, args.version, self.source)
+            except (ValueError, OSError) as error: raise ValueError('Choose an empty output directory or an existing managed build output. ' + str(error)) from None
         if old.exists():
             value = json.loads(old.read_text(encoding='utf-8'))
             if not isinstance(value,dict) or value.get('version') != args.version or value.get('source_commit') != self.source:
@@ -247,8 +253,12 @@ class Builder:
     def save(self):
         if hasattr(self,'started'):self.manifest['total_seconds']=round(time.monotonic()-self.started,2)
         module('deployment-package').write(self.output / 'build-manifest.json', self.manifest)
-        rows = [f'{row["sha256"]}  {row["artifact"]}' for row in self.manifest['targets'].values() if row.get('status') == 'passed']
-        (self.output / 'SHA256SUMS.txt').write_text('\n'.join(rows) + '\n', encoding='ascii')
+        for target, row in self.manifest['targets'].items():
+            if row.get('status') == 'passed':
+                artifacts.write_bound_manifest(self.output, MANIFEST_KEYS[target], row['artifact'], row['sha256'], self.manifest['version'], self.manifest['source_commit'], row)
+        shared = artifacts.inventory(self.output, self.manifest['version'], self.manifest['source_commit']) if (self.output / 'release-manifest.json').exists() else None
+        if shared is not None: artifacts.write_sums(self.output, shared)   # every registered artifact, including other builders'
+        elif not (self.output / artifacts.SUMS).exists(): (self.output / artifacts.SUMS).write_text('', encoding='ascii')
 
     def validate(self):
         if self.validated: return

@@ -174,8 +174,12 @@ def export(requested, output, root=ROOT):
     allowed = (root / 'dist').resolve()
     if not output.is_relative_to(allowed) or output == allowed:
         raise ValueError('Local distribution must be below dist/.')
-    if output.exists():
-        raise ValueError('Local output already exists; choose a new output directory.')
+    # The directory is shared with the Server and Installer packages of the same version and commit. An existing managed
+    # directory is joined (artifacts.collect refuses another identity and an existing artifact); anything else is refused.
+    artifacts.inventory(output, info['version'], info['source_sha'])
+    portable = f"SAP-Lens-Windows-x64-{info['version']}.zip"
+    if (output / portable).exists() or any(artifacts.bound_manifest_path(output, 'desktop', kind).exists() for kind in ('build-manifest', 'verification-report')):
+        raise ValueError('The portable Desktop package of this version and commit already exists in the output directory; nothing was overwritten.')
     with tempfile.TemporaryDirectory(prefix='portable-export-', dir=root / 'backend/build') as temporary:
         work = Path(temporary)
         archive_dir = work / 'archive'
@@ -201,8 +205,9 @@ def export(requested, output, root=ROOT):
             raise ValueError('Native verifier did not produce its verification report.')
         verification = json.loads(report.read_text(encoding='utf-8'))
         artifacts.collect(archive, output, info['version'], info['source_sha'], 'windows-portable-x64', zip_sha)
-        write_json(output / 'build-manifest.json', manifest)
-        write_json(output / 'verification-report.json', verification)
+        # Desktop-owned records, bound to the archive by name and SHA-256; other targets keep their own files under manifests/.
+        artifacts.write_bound_manifest(output, 'desktop', archive.name, zip_sha, info['version'], info['source_sha'], manifest)
+        artifacts.write_bound_manifest(output, 'desktop', archive.name, zip_sha, info['version'], info['source_sha'], verification, kind='verification-report')
     print(f"Verified portable package: {output / archive.name}")
     print(f"Verified ZIP SHA-256: {zip_sha}")
 

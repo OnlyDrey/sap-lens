@@ -327,6 +327,22 @@ ZIP. CI download/upload staging paths remain compatible; public release assets
 remain limited to the existing selected packages and public manifest, without
 adding duplicate checksum assets.
 
+Desktop, Server and Installer builds of one product version and commit share this directory in either build order:
+
+| File | Owner | Rule |
+| --- | --- | --- |
+| `release-manifest.json` | shared collector | inventory of every registered artifact; another version or commit is refused |
+| `SHA256SUMS.txt` | derived from the inventory | rewritten atomically after each registration, so it always lists every artifact and no builder drops another's rows |
+| `manifests/desktop-build-manifest.json`, `manifests/desktop-verification-report.json` | portable Desktop export | bound to the portable ZIP by name and SHA-256, created once |
+| `manifests/server-build-manifest.json`, `manifests/installer-build-manifest.json` (also `linux-native`, `docker`) | deployment builder, per passed target | bound to that target's archive, created once |
+| `build-manifest.json`, `build.log` | deployment builder only | per-invocation record of its targets; the Desktop export no longer writes this name |
+| `<archive>.scm-verification.json` and other receipts | acceptance scripts | never read, rewritten or removed by a build |
+
+An existing artifact or a manifest that describes another digest is a conflict and stops the build without changes; a
+failed build leaves the inventory, the checksum list and earlier artifacts as they were. A non-empty directory without
+`release-manifest.json` is not joined. Directories produced before this layout (a Desktop `build-manifest.json` in the
+root) are left untouched and are not converted; build into a new commit directory instead.
+
 Verify an archive against its adjacent `.sha256` using `Get-FileHash -Algorithm
 SHA256 <archive>` on Windows or `sha256sum -c <archive>.sha256` on Linux. The digest
 must also equal the record for that filename in `release-manifest.json`.

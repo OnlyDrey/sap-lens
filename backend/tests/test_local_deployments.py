@@ -326,3 +326,106 @@ class SourceOutputIsolation(unittest.TestCase):
             self.assertTrue(actual.samefile(directory))
             self.assertTrue(actual.samefile(alias))
             self.assertEqual(actual, directory.resolve())
+
+class UnifiedReleaseDirectoryTests(unittest.TestCase):
+    """dist/<version>-<commit12>/ is shared by the portable Desktop export and the deployment builder (Server, Installer), in either order."""
+    setUp = legacy.LocalExportTests.setUp
+    artifacts = builder.artifacts
+
+    def export(self):
+        def verify(command, **kwargs):
+            Path(command[command.index('--report') + 1]).write_text('{"verification":"passed"}')
+        with patch.object(legacy.local, 'identity', return_value=self.info), patch.object(legacy.local, 'check', return_value={'stages': legacy.local.REQUIRED}), \
+                patch.object(legacy.local.subprocess, 'run', side_effect=verify):
+            legacy.local.export('0.1.0', self.output, self.root)
+
+    def server(self, content=b'synthetic service package'):
+        """What the deployment builder does for a passed Service target: collect the archive, record its manifest."""
+        name = f"sap-lens-win-service-x64-v{self.info['version']}.zip"
+        source = self.root / 'backend/build' / name; source.write_bytes(content); digest = self.artifacts.digest(source)
+        self.artifacts.collect(source, self.output, self.info['version'], self.info['source_sha'], 'service', digest)
+        self.artifacts.write_bound_manifest(self.output, 'server', name, digest, self.info['version'], self.info['source_sha'], dict(status='passed', artifact=name, sha256=digest))
+        return name, digest
+
+    def deployment_builder(self, source=None):
+        args = SimpleNamespace(version=self.info['version'], output_dir=self.output, invocation='d' * 32)
+        with patch.object(builder, 'ROOT', self.root), patch.object(builder.subprocess, 'run', return_value=SimpleNamespace(returncode=0)), \
+                patch.object(builder, 'checkout', return_value=source or self.info['source_sha']), patch.object(builder, 'make_local_deployment_info', return_value=self.info):
+            return builder.Builder(args)
+
+    def sums(self):
+        return dict(reversed(line.split('  ')) for line in (self.output / 'SHA256SUMS.txt').read_text(encoding='ascii').splitlines())
+
+    def snapshot(self):
+        return {path.relative_to(self.output).as_posix(): path.read_bytes() for path in sorted(self.output.rglob('*')) if path.is_file()}
+
+    def test_server_then_desktop_keeps_the_server_artifact_manifest_checksums_and_evidence(self):
+        name, digest = self.server()
+        evidence = self.output / (name + '.scm-verification.json'); evidence.write_text('{"status":"passed","historical":true}')
+        before = self.snapshot()
+        self.export()
+        after = self.snapshot()
+        for path, content in before.items():
+            if path not in ('release-manifest.json', 'SHA256SUMS.txt'): self.assertEqual(after[path], content, path)
+        portable = f"SAP-Lens-Windows-x64-{self.info['version']}.zip"
+        self.assertEqual(self.sums(), {name: digest, portable: self.artifacts.digest(self.output / portable)})
+        self.assertEqual(set(json.loads(after['release-manifest.json'])['artifacts']), {name, portable})
+        self.assertEqual({path for path in after if path.startswith('manifests/')},
+                         {'manifests/server-build-manifest.json', 'manifests/desktop-build-manifest.json', 'manifests/desktop-verification-report.json'})
+
+    def test_desktop_then_server_is_joined_by_the_deployment_builder_and_keeps_the_desktop_records(self):
+        self.export()
+        before = self.snapshot()
+        value = self.deployment_builder()          # a directory started by the Desktop export is a managed output, not a foreign one
+        name, digest = self.server()
+        value.manifest['targets']['service'] = dict(status='passed', artifact=name, sha256=digest)
+        value.save()
+        after = self.snapshot()
+        for path, content in before.items():
+            if path not in ('release-manifest.json', 'SHA256SUMS.txt'): self.assertEqual(after[path], content, path)
+        portable = f"SAP-Lens-Windows-x64-{self.info['version']}.zip"
+        self.assertEqual(set(self.sums()), {name, portable})
+        self.assertEqual(json.loads(after['build-manifest.json'])['targets']['service']['sha256'], digest)
+        self.assertEqual(json.loads(after['manifests/server-build-manifest.json'])['sha256'], digest)
+
+    def test_a_failed_deployment_target_does_not_drop_other_artifacts_from_the_checksum_list(self):
+        self.export(); expected = self.sums()
+        value = self.deployment_builder()
+        value.manifest['targets']['service'] = dict(status='failed', built=False)
+        value.save()
+        self.assertEqual(self.sums(), expected)
+        self.assertFalse((self.output / 'manifests/server-build-manifest.json').exists())
+
+    def test_another_commit_version_or_an_unmanaged_directory_is_refused_without_changes(self):
+        self.server(); before = self.snapshot()
+        other = dict(self.info, source_sha='b' * 40)
+        with patch.object(legacy.local, 'identity', return_value=other), self.assertRaisesRegex(ValueError, 'another version/source'):
+            legacy.local.export('0.1.0', self.output, self.root)
+        with self.assertRaisesRegex(ValueError, 'another version/source'): self.deployment_builder('b' * 40)
+        self.assertEqual(self.snapshot(), before)
+        stranger = self.root / 'dist/unmanaged'; stranger.mkdir(); (stranger / 'notes.txt').write_text('keep')
+        self.output = stranger
+        with self.assertRaisesRegex(ValueError, 'not a managed release directory'): self.export()
+        with self.assertRaisesRegex(ValueError, 'managed build output'): self.deployment_builder()
+        self.assertEqual(self.snapshot(), {'notes.txt': b'keep'})
+
+    def test_a_second_export_or_a_conflicting_manifest_never_overwrites(self):
+        self.export(); before = self.snapshot()
+        with self.assertRaisesRegex(ValueError, 'already exists'): self.export()
+        self.assertEqual(self.snapshot(), before)
+        name, digest = self.server()
+        with self.assertRaisesRegex(ValueError, 'another artifact'):
+            self.artifacts.write_bound_manifest(self.output, 'server', name, 'f' * 64, self.info['version'], self.info['source_sha'], {})
+        with self.assertRaisesRegex(ValueError, 'Invalid manifest key'): self.artifacts.bound_manifest_path(self.output, '../desktop')
+        self.assertEqual(json.loads((self.output / 'manifests/server-build-manifest.json').read_text())['sha256'], digest)
+
+    def test_a_failed_collection_leaves_inventory_checksums_and_artifacts_as_they_were(self):
+        self.server(); before = self.snapshot()
+        tampered = self.root / 'backend/build/other.zip'; tampered.write_bytes(b'changed after verification')
+        with self.assertRaisesRegex(ValueError, 'verified checksum'):
+            self.artifacts.collect(tampered, self.output, self.info['version'], self.info['source_sha'], 'desktop', '0' * 64)
+        with patch.object(self.artifacts, 'write_sums', side_effect=OSError('disk full')), self.assertRaises(OSError):
+            self.artifacts.collect(tampered, self.output, self.info['version'], self.info['source_sha'], 'desktop', self.artifacts.digest(tampered))
+        self.assertFalse((self.output / 'other.zip').exists())
+        self.assertEqual({path: content for path, content in self.snapshot().items() if path != 'release-manifest.json'},
+                         {path: content for path, content in before.items() if path != 'release-manifest.json'})

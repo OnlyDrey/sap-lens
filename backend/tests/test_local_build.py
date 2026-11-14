@@ -322,7 +322,10 @@ class LocalExportTests(unittest.TestCase):
         self.assertEqual(len(inspected), 1)
         self.assertFalse(inspected[0].exists(), 'Extracted intermediate must not remain in the release directory')
         self.assertTrue(pe.call_args.kwargs['check'])
-        manifest = json.loads((self.output / 'build-manifest.json').read_text())
+        self.assertFalse((self.output / 'build-manifest.json').exists())   # the root name belongs to the deployment builder
+        record = json.loads((self.output / 'manifests/desktop-build-manifest.json').read_text())
+        self.assertEqual((record['artifact'], record['sha256']), (archive_path.name, local.digest(archive_path)))
+        manifest = record['build_manifest']
         self.assertFalse(manifest['official_release'])
         self.assertEqual(manifest['signing'], 'disabled')
         self.assertEqual(manifest['exe_sha256'], self.sha)
@@ -360,7 +363,8 @@ class LocalExportTests(unittest.TestCase):
         with patch.object(local, 'identity', return_value=self.info), patch.object(local.subprocess, 'run', side_effect=subprocess.CalledProcessError(1, 'synthetic verifier')):
             with self.assertRaises(subprocess.CalledProcessError):
                 local.export('0.1.0', self.output, self.root)
-        self.assertFalse((self.output / 'build-manifest.json').exists())
+        self.assertFalse((self.output / 'manifests').exists())
+        self.assertFalse((self.output / 'release-manifest.json').exists())
 
 
 class BuildEntryRepairTests(unittest.TestCase):
