@@ -167,7 +167,7 @@ test('a write interrupted by a connection loss reports failure, keeps the typed 
   // Failure is stated, the dialog and the typed name stay, nothing is reported as created and nothing is retried silently.
   await expect(dialog.getByRole('alert')).toBeVisible()
   await expect(dialog.getByLabel('Name')).toHaveValue(name)
-  await expect(page.getByText(/created|saved successfully/i)).toHaveCount(0)
+  await expect(page.getByRole('status').filter({ hasText: /created|saved/i })).toHaveCount(0)
   expect(writes).toBe(1)
   expect((await (await request.get('/api/functional-groups', { headers })).json()).items.some((group: { name: string }) => group.name === name)).toBe(false)
   // The service returns: background reads recover the session without a click, and the person can submit again explicitly.

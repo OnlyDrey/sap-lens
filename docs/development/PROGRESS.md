@@ -2613,3 +2613,17 @@ Final local validation is recorded in the delivery report for the closing commit
 Native Windows C#/PowerShell/WebView2/ACL/installer/SCM acceptance of this
 implementation has not been run; the earlier SCM acceptance remains bound to its
 package (source 50e55d0) and was neither rebuilt nor modified.
+
+## Windows stabilization and backlog (A1-A6, B1-B5)
+
+- A1 unified `dist/<version>-<commit12>/` with artifact-bound manifests and derived SHA256SUMS (`7344eed`); A2 desktop smoke identity bound to the
+  executable SHA-256 (`8645d83`); A3/A5 Service Manager HTTP rule (IPv4/IPv6, field-level errors), full rollback of a failed Save, idempotent
+  service actions (`1622274`, `9ab9e54`); A4 3072-bit RSACng key, exclusive file creation, backend key-strength step (`e109582`).
+- B1 Health & Diagnostics tabs (`e2f2c86`); B2 Functional Groups tabs, status filter, safe deletion, inline creation, one count definition
+  (`c8ffa1c`); B3 User Access Directory columns, chips, column visibility (`f5de57d`); B4 Compare Roles strip with removable roles, five-role
+  limit unchanged and documented (`95ab145`); B5 connection-loss regression and documentation (`671b0e9`). The Release Roles PR/PO matrix
+  was reviewed and already derives every cell from role data with explicit empty and incomplete states; it was not changed.
+- Final FULL run: 2924 passed, 2 failed, 24 skipped. One failure was a too-broad text locator in the new B5 test (fixed). The other,
+  `startup-recovery` "Retry connection after an unrestorable session restores it", timed out once in the full run and once in a two-spec run,
+  and passed 12/12 as a file, on the pre-session sources, and 10/10 repeated: an intermittent timeout under load, root cause not found.
+- Native Windows acceptance: NOT EXECUTED (checklist rows 1-18 in `docs/deployment/WINDOWS_SERVICE.md`).
