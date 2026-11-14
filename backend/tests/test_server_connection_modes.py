@@ -128,6 +128,14 @@ class ConnectionModes(unittest.TestCase):
             with self.subTest(auth=auth),self.assertRaises(ConfigError):
                 self.settings(SAP_LENS_PUBLIC_ORIGIN='http://server01:18743',SAP_LENS_ALLOWED_HOSTS='server01',SAP_LENS_ALLOW_HTTP='1',SAP_LENS_AUTH=auth)
 
+    def test_http_follows_the_same_loopback_rule_for_ipv6_as_the_service_manager(self):
+        ok = self.settings(SAP_LENS_HOST='::1', SAP_LENS_PUBLIC_ORIGIN='http://[::1]:18743', SAP_LENS_ALLOWED_HOSTS='::1,localhost', SAP_LENS_AUTH='sessions')
+        self.assertIn('http://[::1]:18743', ok.origins)
+        for listener, origin, hosts in (('::', 'http://[::1]:18743', '::1'), ('2001:db8::10', 'http://[::1]:18743', '::1'), ('::1', 'http://[2001:db8::10]:18743', '2001:db8::10')):
+            with self.subTest(listener=listener, origin=origin):
+                error = self.fails(SAP_LENS_HOST=listener, SAP_LENS_PUBLIC_ORIGIN=origin, SAP_LENS_ALLOWED_HOSTS=hosts, SAP_LENS_AUTH='sessions', SAP_LENS_ALLOW_HTTP='1')
+                self.assertEqual(error.step, 'authentication boundary'); self.assertIn('HTTPS', error.detail)
+
     def test_loopback_hostname_does_not_authorize_a_non_loopback_http_listener(self):
         error=self.fails(SAP_LENS_HOST='0.0.0.0',SAP_LENS_PUBLIC_ORIGIN='http://localhost:18743',SAP_LENS_ALLOW_HTTP='1')
         self.assertEqual(error.step,'authentication boundary')
@@ -173,7 +181,7 @@ class ServiceManagerContract(unittest.TestCase):
         self.assertNotIn('"--manage-user " + Quote(Users)',self.SOURCE)
 
     def test_three_explicit_modes_with_https_self_signed_as_the_default(self):
-        for text in ('HTTPS - network access, generate a self-signed certificate (default)', 'HTTPS - use an existing certificate', 'HTTP - no certificate (unencrypted)'):
+        for text in ('Network access (HTTPS) - generate a self-signed certificate (default)', 'Network access (HTTPS) - use an existing certificate', 'Local access (HTTP) - this computer only, unencrypted'):
             self.assertIn(text, self.SOURCE)
         self.assertIn('mode.SelectedIndex=0', self.SOURCE)
         self.assertIn('const string ModeHttp = "http", ModeSelfSigned = "selfsigned", ModeCustom = "custom"', self.SOURCE)
@@ -188,20 +196,93 @@ class ServiceManagerContract(unittest.TestCase):
         self.assertLess(check, first_write)
         self.assertEqual(body.count('FileMode.CreateNew'), 2)      # an existing certificate or key is never overwritten
         self.assertNotIn('File.WriteAllText', body)
+        # RSACng and GetRSAPublicKey live in System.Core, which csc adds from its default response file unless /noconfig is passed.
+        for builder in ('scripts/build-service-manager.ps1', 'scripts/build_system/windows/service_manager.py'):
+            self.assertNotIn('/noconfig', (Path(deployment.__file__).parents[1] / builder).read_text(encoding='utf-8'))
+        self.assertIn('using System.Linq;', source)
+        self.assertIn('publicKey.KeySize<CertificateKeyBits', source)       # checked natively by the build-time self-test
 
-    def test_a_rejected_configuration_restores_the_previous_one_and_removes_only_this_attempts_certificate(self):
-        source = self.SOURCE; start = source.index('try { ValidateRuntime(settings); }'); block = source[start:start + 900]
-        self.assertIn('if (old == null) File.Delete(Config); else File.WriteAllText(Config, old);', block)
-        self.assertIn('if (https) { try { if (File.Exists(cert)) File.Delete(cert); if (File.Exists(key)) File.Delete(key); }', block)
-        self.assertLess(start, source.index('if (!installed) { Run(Wrapper, "install", null);'))  # validated before the service is registered
+    def test_a_failed_save_undoes_everything_the_attempt_created_and_nothing_else(self):
+        source = self.SOURCE; body = source[source.index('var undo = new List<Action>();'):source.index('public static void SelfTest()')]
+        steps = ['undo.Add(() => { if (File.Exists(createdBackupKey)) File.Delete(createdBackupKey); });',     # only a backup key created now
+                 'undo.Add(() => { if (File.Exists(newCert)) File.Delete(newCert); if (File.Exists(newKey)) File.Delete(newKey); });',
+                 'bool dataExisted = Directory.Exists(data);',                                                 # first-run data folder of this attempt
+                 'undo.Add(() => { if (old == null) File.Delete(Config); else File.WriteAllText(Config, old); });',
+                 'WriteConfig(settings);', 'ValidateRuntime(settings);', 'Run(Wrapper, "install", null);', '} catch {',
+                 'for (int index = undo.Count - 1; index >= 0; index--)']
+        positions = [body.index(step) for step in steps]
+        self.assertEqual(positions, sorted(positions))               # registered before the step, validated before the service exists
+        self.assertIn('if (!File.Exists(backupKey)) {', body)        # an existing backup key is never part of the rollback
+        self.assertLess(body.index('undo.Add(() => { if (File.Exists(newCert))'), body.index('GenerateCertificate(hosts, newCert, newKey);'))
+        self.assertLess(body.index('for (int index = undo.Count - 1'), body.index('Acl(data, true, true);'))   # ACL changes only after success
+        self.assertIn('some files created by this attempt could not be removed', body)
+
+    def portable_rules(self, cases):
+        """Compile the marked pure validation members with Mono and run them: the real C#, not a re-implementation."""
+        import shutil, tempfile as temporary
+        if not (shutil.which('mcs') and shutil.which('mono')): self.skipTest('Mono (mcs, mono) is needed to execute the Service Manager validation rules off Windows')
+        import re
+        members = ''.join(re.findall(r'// <portable-rules>[^\n]*\n(.*?)// </portable-rules>', self.SOURCE, re.S))
+        self.assertIn('HttpProblem(', members); self.assertIn('ValidateHosts(', members)
+        program = ('using System; using System.Linq; using System.Net; using System.Net.Sockets;\npublic static class Rules {\n' + members + """
+            public static int Main(string[] args) {
+                foreach (string line in Console.In.ReadToEnd().Split(new[]{'\\n'}, StringSplitOptions.RemoveEmptyEntries)) {
+                    string[] part = line.Split('|'); string result;
+                    try { result = part[0] == "hosts" ? String.Join(",", ValidateHosts(part[1])) : (HttpProblemText(part[1], part[2]) ?? "ALLOWED"); }
+                    catch (ArgumentException error) { result = "REFUSED " + error.Message; }
+                    Console.WriteLine(result.Replace("\\n", " "));
+                }
+                return 0; } }""")
+        with temporary.TemporaryDirectory() as directory:
+            source = Path(directory) / 'rules.cs'; source.write_text(program, encoding='utf-8')
+            built = subprocess.run(['mcs', '-langversion:5', '-out:' + str(Path(directory) / 'rules.exe'), str(source)], capture_output=True, text=True)
+            self.assertEqual(built.returncode, 0, built.stdout + built.stderr)
+            done = subprocess.run(['mono', str(Path(directory) / 'rules.exe')], input='\n'.join(cases) + '\n', capture_output=True, text=True, timeout=60)
+            self.assertEqual(done.returncode, 0, done.stderr)
+            return done.stdout.splitlines()
+
+    def test_http_is_allowed_only_for_a_loopback_listener_and_loopback_names_ipv4_and_ipv6(self):
+        allowed = ['http|127.0.0.1|localhost', 'http|127.0.0.1|127.0.0.1', 'http|::1|::1', 'http|::1|localhost,127.0.0.1,::1', 'http|127.0.0.5|127.0.0.1']
+        self.assertEqual(self.portable_rules(allowed), ['ALLOWED'] * len(allowed))
+        refused = {'http|0.0.0.0|localhost': 'Listen address: 0.0.0.0 accepts connections on every network interface',
+                   'http|::|localhost': 'Listen address: :: accepts connections on every network interface',
+                   'http|192.0.2.10|localhost': 'Listen address: 192.0.2.10 can be reached from the network',
+                   'http|2001:db8::10|::1': 'Listen address: 2001:db8::10 can be reached from the network',
+                   'http|127.0.0.1|server01': 'Server names: server01 is not a local name',
+                   'http|127.0.0.1|localhost,server01.example.invalid': 'Server names: server01.example.invalid is not a local name',
+                   'http|127.0.0.1|192.0.2.10': 'Server names: 192.0.2.10 is not a local name',
+                   'http|127.0.0.1|localhost.example.invalid': 'is not a local name',          # a look-alike name is not loopback
+                   'http|127.0.0.1|2001:db8::10': 'Server names: 2001:db8::10 is not a local name',
+                   'http|not-an-address|localhost': 'Listen address: enter an IP address',
+                   'http|127.0.0.1|0.0.0.0': 'wildcard or broadcast address',
+                   'http|127.0.0.1|http://localhost': 'is not a DNS name or IP address'}
+        for case, (line, expected) in zip(refused, zip(self.portable_rules(list(refused)), refused.values())):
+            with self.subTest(case=case):
+                self.assertIn(expected, line); self.assertNotEqual(line, 'ALLOWED')
+
+    def test_server_names_accept_dns_ipv4_and_ipv6_and_refuse_wildcards_ports_and_prefixes(self):
+        lines = self.portable_rules(['hosts|Server01, server01.example.invalid ,192.0.2.10,::1,2001:DB8::10', 'hosts|::', 'hosts|0.0.0.0', 'hosts|255.255.255.255',
+                                     'hosts|*.example.invalid', 'hosts|server01:18743', 'hosts|https://server01', 'hosts|'])
+        self.assertEqual(lines[0], 'server01,server01.example.invalid,192.0.2.10,::1,2001:db8::10')
+        for line in lines[1:]: self.assertTrue(line.startswith('REFUSED '), line)
+
+    def test_the_form_and_save_use_the_same_http_rule_and_bracket_ipv6_urls(self):
+        source = self.SOURCE
+        self.assertIn('string httpProblem = mode == ModeHttp ? HttpProblem(listener, hosts) : null;', source)
+        self.assertIn('ServiceSetup.HttpProblemText(listener.Text,hosts.Text)', source)
+        self.assertIn('listener.TextChanged += (s,e) => ApplyMode(); hosts.TextChanged += (s,e) => ApplyMode();', source)
+        self.assertLess(source.index('if (httpProblem != null) throw new ArgumentException(httpProblem);'), source.index('Directory.CreateDirectory(PrivateRoot)'))
+        self.assertIn('(https ? "https://" : "http://") + Bracket(hosts[0]) + ":" + port', source)
+        self.assertIn('+ServiceSetup.Bracket(h)+":"+v["SAP_LENS_PORT"]', source)
 
     def test_http_never_generates_or_carries_a_certificate_and_needs_acknowledgement_beyond_loopback(self):
         self.assertIn('cert = ""; key = "";', self.SOURCE)
         self.assertIn('if (https) { settings["SAP_LENS_TLS_CERT_FILE"] = cert; settings["SAP_LENS_TLS_KEY_FILE"] = key; }', self.SOURCE)
         self.assertIn('HttpNeedsAcknowledgement(listener, hosts) && !acknowledgeHttp', self.SOURCE)
         self.assertIn('settings["SAP_LENS_ALLOW_HTTP"] = "1"', self.SOURCE)
-        self.assertIn('Passwords and SAP role data cross the network in clear text', self.SOURCE)        # visible warning
-        self.assertIn('(https ? "https://" : "http://") + hosts[0]', self.SOURCE)
+        self.assertIn('Local access (HTTP) is not encrypted.', self.SOURCE)        # visible warning
+        self.assertIn('httpWarning.Text=problem!=null?"Not allowed: "+problem:HttpNote', self.SOURCE)   # the reason is shown while typing
+        self.assertIn('(https ? "https://" : "http://") + Bracket(hosts[0])', self.SOURCE)
 
     def test_urls_follow_the_configured_scheme_and_existing_https_is_never_switched_to_http(self):
         self.assertIn('StartsWith("http://",StringComparison.OrdinalIgnoreCase)?"http://":"https://"', self.SOURCE)

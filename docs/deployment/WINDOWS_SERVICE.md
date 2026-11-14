@@ -301,9 +301,20 @@ The Service Manager offers three explicit modes (default: HTTPS with a generated
 
 | Mode | Certificate | Notes |
 |---|---|---|
-| HTTPS, generate a self-signed certificate | generated and validated | SANs contain every enabled DNS name and IPv4 address; a wildcard listen address such as `0.0.0.0` is never a name |
-| HTTPS, use an existing certificate | PEM certificate and unencrypted PEM key | validity period, key match and SAN coverage of every enabled name are checked before activation |
-| HTTP, no certificate | none; nothing is generated | unencrypted. Binding HTTP beyond this computer needs the explicit acknowledgement in the Service Manager (`SAP_LENS_ALLOW_HTTP=1`); account authentication and the firewall restriction still apply. HTTPS is never downgraded automatically: an existing HTTPS installation opens in an HTTPS mode. |
+| Network access (HTTPS), generate a self-signed certificate | generated and validated | SANs contain every enabled DNS name and IPv4/IPv6 address; a wildcard listen address such as `0.0.0.0` or `::` is never a name |
+| Network access (HTTPS), use an existing certificate | PEM certificate and unencrypted PEM key | copied into protected storage; validity period, key strength, key match and SAN coverage of every enabled name are checked before activation |
+| Local access (HTTP), this computer only | none; nothing is generated | unencrypted, so accepted only with a loopback listen address (`127.0.0.1`, `::1`) and local server names (`localhost`, `127.0.0.1`, `::1`). HTTPS is never downgraded automatically. |
+
+HTTP rule (the same in the Service Manager and in the server's `authentication boundary` step): a wildcard listener (`0.0.0.0`, `::`),
+a network address, a server name other than the three local names, or a `localhost` that resolves to a network address on the
+computer is refused. The Service Manager shows the field and the reason under the mode selection while you type and again on
+Register, before anything is created. An older installation that was registered with HTTP on the network and
+`SAP_LENS_ALLOW_HTTP=1` keeps its stored configuration until it is saved again; the server itself already refuses to start
+remote password sign-in over HTTP, so switch such an installation to HTTPS.
+
+A failed Register / save leaves nothing behind: the previous configuration is restored, and a backup key, certificate pair,
+first-run data folder content or configuration file created by that attempt is removed again, newest first. Existing keys,
+certificates and data are never part of that rollback. If a file cannot be removed, the error names it.
 
 The access URLs shown by the Service Manager use the configured scheme. A failed registration now reports the validation step and the underlying error, for example `Invalid server configuration at step "TLS certificate names (SAN)": The TLS certificate SANs do not cover: 127.0.0.1. Present: DNS=localhost.` The steps are listen address, port, data and source directories, public origin, allowed hosts, authentication boundary, TLS certificate and key files, TLS certificate and private key (load and match), TLS certificate decoding, TLS certificate validity period, TLS certificate names (SAN) and account file. The same check can be run by hand with `SAP-Lens.exe --check-server-config` (with the service environment).
 
