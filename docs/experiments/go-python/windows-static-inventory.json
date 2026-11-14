@@ -1,0 +1,623 @@
+{
+ "files": 75,
+ "by_kind_and_state": {
+  "dll:cert-table": 4,
+  "dll:no-cert-table": 9,
+  "exe:no-cert-table": 10,
+  "pyd:no-cert-table": 52
+ },
+ "machines": [
+  "amd64",
+  "arm64",
+  "x86"
+ ],
+ "with_certificate_table": [
+  "python/DLLs/tcl86t.dll",
+  "python/DLLs/tk86t.dll",
+  "python/vcruntime140.dll",
+  "python/vcruntime140_1.dll"
+ ],
+ "total_image_bytes": 60469760,
+ "images": [
+  {
+   "path": "python/DLLs/_asyncio.pyd",
+   "kind": "pyd",
+   "size": 59392,
+   "sha256": "3141b88d5ce7402b5c33d8e57bb3c959c052ce874d4e8c950d8d588c36845a3f",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_bz2.pyd",
+   "kind": "pyd",
+   "size": 73216,
+   "sha256": "92d7002792bd9f942463627abb7612c0069169d9d6e53b53720e22143340e2bc",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_ctypes.pyd",
+   "kind": "pyd",
+   "size": 116224,
+   "sha256": "9b77b58c680def0f6bf445a7c8a4ca569e5f71541861cbefad5b9d715800ed39",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_ctypes_test.pyd",
+   "kind": "pyd",
+   "size": 25088,
+   "sha256": "e2f9cde8fe0fa4ed71d52f23d07e27e2888c708f96f0a6989da2c73a45aad917",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_decimal.pyd",
+   "kind": "pyd",
+   "size": 247808,
+   "sha256": "d71edd8945bd9715efb6fe14303cee7d7566f21cafadccdd56314f7453f914c8",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_elementtree.pyd",
+   "kind": "pyd",
+   "size": 122368,
+   "sha256": "1704814beffa0bdd24586c76d801add42e035919d388b6d4bb4adb16ebd54334",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_hashlib.pyd",
+   "kind": "pyd",
+   "size": 54784,
+   "sha256": "d93d980e9e4a98326dd7893d1c0210e3f147ef1021c9ae8a802eab931088a7b9",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_lzma.pyd",
+   "kind": "pyd",
+   "size": 146944,
+   "sha256": "314b9323e9339ff57479430f6135a12b87e42b7784ed44e229816015dd24e4cb",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_msi.pyd",
+   "kind": "pyd",
+   "size": 33280,
+   "sha256": "21ac8c719b4d2d931bd3f552dd75c3a1fd1eb145c23ad602a7afdd5e3f552019",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_multiprocessing.pyd",
+   "kind": "pyd",
+   "size": 24064,
+   "sha256": "a15837be2706cee8864bc86dd1e756617c957a8f7f4353fcd17dd59eb73ea4bf",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_overlapped.pyd",
+   "kind": "pyd",
+   "size": 44032,
+   "sha256": "6c756bc27b4244d5682c9045f356bc836f9479be38141763bf5d542b2f0db0ad",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_queue.pyd",
+   "kind": "pyd",
+   "size": 20480,
+   "sha256": "564972fce19433d8acd63488587baa81372fdcb9ad08bb69bb5427ecafda7a37",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_socket.pyd",
+   "kind": "pyd",
+   "size": 71680,
+   "sha256": "5909819ef3c4ef5a7af015020c9875864f9f9a895c359e33e43d43d1b8f8fb25",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_sqlite3.pyd",
+   "kind": "pyd",
+   "size": 112128,
+   "sha256": "4327e908a61ca8f46c8da60cc9a16969aa36570164a9185479c75fd1c0146a70",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_ssl.pyd",
+   "kind": "pyd",
+   "size": 165376,
+   "sha256": "7ce3f2890a3b1d57fc3eaef654e5706af726b0235c6370fee57c8f7a6af30179",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_testbuffer.pyd",
+   "kind": "pyd",
+   "size": 43520,
+   "sha256": "a664b3e89b5c564a9c4f4049c6a3c886fa731646a8bdf1ce73405e38de7ef667",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_testcapi.pyd",
+   "kind": "pyd",
+   "size": 297984,
+   "sha256": "4557719b14d1403ff59791bf78bb6a13b0fe26d9c00baa28a33567018e66d751",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_testclinic.pyd",
+   "kind": "pyd",
+   "size": 55296,
+   "sha256": "ff3858b187d3f92371ecbd3cc7bb4089c1fbb366a449aad6f7fcb66faeb3f92b",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_testconsole.pyd",
+   "kind": "pyd",
+   "size": 15360,
+   "sha256": "de4bc3d328bf54efe81f040efea379f3d633ae71ab0697062018c6e2e1d6d5e2",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_testimportmultiple.pyd",
+   "kind": "pyd",
+   "size": 13312,
+   "sha256": "e2ca60879500ca324312e2fb2be01339d50af2faf52ec8c473a4c8f62940311b",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_testinternalcapi.pyd",
+   "kind": "pyd",
+   "size": 39936,
+   "sha256": "d2e5860b9daf26a728ee38b520a4026332d0d44cf8f3c986b76a1ea944e77586",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_testmultiphase.pyd",
+   "kind": "pyd",
+   "size": 27648,
+   "sha256": "1322658885fdd6e0cf59d28bd227a25e3c296b082c3c3f3c432860de437060d7",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_testsinglephase.pyd",
+   "kind": "pyd",
+   "size": 18432,
+   "sha256": "d5c19710397f463f2e2bf5caec01bb30cac0245a9a438adb26900f883efa2fe7",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_tkinter.pyd",
+   "kind": "pyd",
+   "size": 55296,
+   "sha256": "fc1ae6c1dfec4bae7d4d7bf095eedcb8b921232359534da61694b2a5c4fc1502",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_uuid.pyd",
+   "kind": "pyd",
+   "size": 13824,
+   "sha256": "2133f7b675796f1a7675db6377f0a9d50136ec751e2a97e3ea01c33b14d3fb3a",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_wmi.pyd",
+   "kind": "pyd",
+   "size": 25600,
+   "sha256": "67c1cb72d430fe08be8a5a52aa51ff3a689c95fae4a97454bae1373ddbc130ed",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/_zoneinfo.pyd",
+   "kind": "pyd",
+   "size": 36352,
+   "sha256": "1cdb983e423f6977407e9ab550d43cebc45a34dfd331d05a0774e2798482618e",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/libcrypto-3-x64.dll",
+   "kind": "dll",
+   "size": 5932544,
+   "sha256": "f5baa6baf998ca2d74857e0fe579d7bf8c0f6902bf40c292c692d52cf4ce71a2",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/libffi-8.dll",
+   "kind": "dll",
+   "size": 28160,
+   "sha256": "6bce9a277067effb93f18dc7848d76e52f1e9e017f41ff4a2e8d38c287d833ed",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/libssl-3-x64.dll",
+   "kind": "dll",
+   "size": 936448,
+   "sha256": "6233c1a5388dc66749ac39e1d02fc164393124261486835265235c4f72cca26a",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/pyexpat.pyd",
+   "kind": "pyd",
+   "size": 192512,
+   "sha256": "097d250c4f46001ba84a8ad80a620d2486c3b549a40ebaef1f32561653675176",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/select.pyd",
+   "kind": "pyd",
+   "size": 18944,
+   "sha256": "279ac7ea8e3058179e5fa51eb5801036af8becc1aefe0b2d43b8d54bffaeeae3",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/sqlite3.dll",
+   "kind": "dll",
+   "size": 1570816,
+   "sha256": "36de53729851342743ca6a02e215efb16f28e4303f963f2097c778a4f3f5e533",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/tcl86t.dll",
+   "kind": "dll",
+   "size": 1859072,
+   "sha256": "59488f67a8e75a5d51c7cb865436b5581fbb16014e9233b34db0c22bea6d4765",
+   "machine": "amd64",
+   "certificate_table": true
+  },
+  {
+   "path": "python/DLLs/tk86t.dll",
+   "kind": "dll",
+   "size": 1534464,
+   "sha256": "e9a5815ad39619e22d581b7124bbaa4192e701229956a2edbaffc0c420864561",
+   "machine": "amd64",
+   "certificate_table": true
+  },
+  {
+   "path": "python/DLLs/unicodedata.pyd",
+   "kind": "pyd",
+   "size": 1126400,
+   "sha256": "c72368519b07a559d650549b94bb2e6c2e9778a2bafc5bea25ad1d067f1ea26a",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/DLLs/winsound.pyd",
+   "kind": "pyd",
+   "size": 18432,
+   "sha256": "acbdbe78e33ae968bb1b9cd4b4c4f993b024171ad82dc3c0dae1dcf0a9016a08",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/PIL/_avif.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 7893504,
+   "sha256": "3c31d65c8b3b4c91ac2838d5c843a6b2479d775b6904fe654d60b56d41772411",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/PIL/_imaging.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 2662400,
+   "sha256": "7140f56d38dd6cd51512f8122386bcb914c5df2a82eb5f719c973527d9213cee",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/PIL/_imagingcms.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 275456,
+   "sha256": "2640857cace64d69735bdcaa3987e9ad70f85168abc1a8662079c77ac44b5301",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/PIL/_imagingft.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 2250752,
+   "sha256": "985228f6086171978abb5d04f2f625c489fdc9d7f0a92f2077a621ff184a599e",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/PIL/_imagingmath.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 21504,
+   "sha256": "01c6f9de6f0d6ed46d1df1d4a9cdf47e399306870453f26a5326368f7db0b3ad",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/PIL/_imagingmorph.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 12288,
+   "sha256": "e74547cf128ee13d81d7c4ef6d5be079f230062b5a8e9ec648afdc9ce228af39",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/PIL/_imagingtk.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 14336,
+   "sha256": "e1c87f73e96d2269395624d03b3808300f4b0f795f5fad1ecc3d1492e5dcc7c2",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/PIL/_webp.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 415744,
+   "sha256": "bb9c64d38a6e4857bd3358e14dbe6cf3a4593b1efcd1185fdba1ef8931550896",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/_argon2_cffi_bindings/_ffi.pyd",
+   "kind": "pyd",
+   "size": 43520,
+   "sha256": "d332accecfdfc2ff873ccbdf0103fb36df30426eceee75ca73f2d15c243bd276",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/_cffi_backend.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 181248,
+   "sha256": "9af5e4f68a41f26b726f2e9424f9d58a4f5666189f6a48be95f406b257102aec",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/charset_normalizer/cd.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 115712,
+   "sha256": "2bdbc0805f85565d76f8d6166e451bfafa6d5490b06b36c9f423cd0102b4f149",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/charset_normalizer/md.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 208384,
+   "sha256": "b08be5d29125f39a92e22d0abe4b9160753f7a790fffd07258319a8e16394afa",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/cryptography/hazmat/bindings/_rust.pyd",
+   "kind": "pyd",
+   "size": 9897472,
+   "sha256": "1d4332a447cab13dec8e3a533ad579e0e562b79e40822c931f33769758fc7156",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/lxml/_elementpath.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 147456,
+   "sha256": "02d38ab4cc4ac2ed7398828990dd7a0a9f70b0b9e06ad6aabdc485181beb9b5a",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/lxml/builder.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 88064,
+   "sha256": "d5b94837735c1c2876ac31ee21db2aed6dcdb8fb6908869c8ce2e03b92276ecc",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/lxml/etree.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 4035584,
+   "sha256": "b42ee5cb764ab38afb290d5aa62fa4c81ee0bdbe09b1bf06d906b02d9a56e170",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/lxml/html/_difflib.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 365056,
+   "sha256": "e97ae331afc8c9725469656b7438704cdeab0b70e3471a6e96d52c120f156e6d",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/lxml/html/diff.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 230912,
+   "sha256": "7e949b2749bcb20a3c8f53d8fd3b2d0466b92b74965dc75a94d3f69058ef6331",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/lxml/objectify.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 1744896,
+   "sha256": "5b982fc392ca4873adf97eb6c22df0b76402be9bae680e441ce99ea9723ff790",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/lxml/sax.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 120320,
+   "sha256": "370ae45beb6468ac769299ec6fa7130d74f66d3bfbe5e0a082328b85bc04be69",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/pip/_vendor/distlib/t32.exe",
+   "kind": "exe",
+   "size": 97792,
+   "sha256": "5fd873e09786a1eaabaa44261e9e30609d88745da040ebb702c1a5069ab345ca",
+   "machine": "x86",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/pip/_vendor/distlib/t64-arm.exe",
+   "kind": "exe",
+   "size": 182784,
+   "sha256": "81f7936c6d05cadd4a185bb9a8a64abe9a72c937ad979ea5afe672de59123fcc",
+   "machine": "arm64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/pip/_vendor/distlib/t64.exe",
+   "kind": "exe",
+   "size": 108032,
+   "sha256": "acd47a82dc01132e3b8414f683c2e117c18aedbf650a370249fe9fdbc445cda1",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/pip/_vendor/distlib/w32.exe",
+   "kind": "exe",
+   "size": 91648,
+   "sha256": "f27b3724964ff524e837374847d2856f7d10a884516fc34200d0a2332a739789",
+   "machine": "x86",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/pip/_vendor/distlib/w64-arm.exe",
+   "kind": "exe",
+   "size": 168448,
+   "sha256": "f6704d3a1022f69ad6b7e604a927d00ce2f9dae515bfad5a7df9a2e3e4bd2448",
+   "machine": "arm64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/pip/_vendor/distlib/w64.exe",
+   "kind": "exe",
+   "size": 101888,
+   "sha256": "55b21889fd3d28799b834fba3d29482e7aa1b0519864b790e3914af7cdda666b",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/site-packages/pydantic_core/_pydantic_core.cp312-win_amd64.pyd",
+   "kind": "pyd",
+   "size": 5541888,
+   "sha256": "d38e098d798d381cc44f867162bc6da2ebc5d77bf444f0dd00d42a1bc8484297",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/venv/scripts/nt/python.exe",
+   "kind": "exe",
+   "size": 262144,
+   "sha256": "0dc5051f719ac983afbfb6584d6c51d945064732eb2faa4ebbb7ac81f8677614",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/Lib/venv/scripts/nt/pythonw.exe",
+   "kind": "exe",
+   "size": 249856,
+   "sha256": "972c17f9c4006239787563e62c8443ec7f8ac195b47463e7817939314d74faa7",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/python.exe",
+   "kind": "exe",
+   "size": 91648,
+   "sha256": "88a655a594d410e6bccef747f2cf2dc8307ec68264988bae6b274d3e5063d69f",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/python3.dll",
+   "kind": "dll",
+   "size": 56320,
+   "sha256": "4dda56607d22277dd6a203fb732afd51d9ec5a948c55d8ac770009758dba2676",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/python312.dll",
+   "kind": "dll",
+   "size": 6974464,
+   "sha256": "e1643b99a6f7b69410bd941f2bcd03614baa8f4d3eaf6fbe9a29929f5a3bf79e",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/pythonw.exe",
+   "kind": "exe",
+   "size": 90112,
+   "sha256": "fa67aa8de423db96b4ca00206ae4a9848a118c9e8821c292c6a598b9744dcb83",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/tcl/dde1.4/tcldde14.dll",
+   "kind": "dll",
+   "size": 25088,
+   "sha256": "c4b2476314444831713fd6a9e91b6050b2a6861752472f420607a681fff6e741",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/tcl/reg1.3/tclreg13.dll",
+   "kind": "dll",
+   "size": 22016,
+   "sha256": "50c249bda9236a6e1b160511fd699df7fd1bca71c834dea0ade16009f1e50222",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/tcl/tix8.4.3/tix84.dll",
+   "kind": "dll",
+   "size": 370688,
+   "sha256": "f3f650a920d4639c2a7a7c937be4740f0081a6fd7e9b8a4e0d37459afce8c4e3",
+   "machine": "amd64",
+   "certificate_table": false
+  },
+  {
+   "path": "python/vcruntime140.dll",
+   "kind": "dll",
+   "size": 103936,
+   "sha256": "f18b2e10bce61f9d9b721561c165c4d2486b30fc486d62d5a6e45ed76049c252",
+   "machine": "amd64",
+   "certificate_table": true
+  },
+  {
+   "path": "python/vcruntime140_1.dll",
+   "kind": "dll",
+   "size": 29184,
+   "sha256": "fe4f518343d41037b301396397b19be2ecf6afecc2ab4b965fbf6579c092b8dd",
+   "machine": "amd64",
+   "certificate_table": true
+  }
+ ]
+}

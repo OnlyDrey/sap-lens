@@ -167,8 +167,11 @@ class SecurityBoundary(unittest.TestCase):
         self.assertEqual(request(self.host.url + '/api/configuration')[0], 403)
 
     def test_api_with_wrong_capability_is_forbidden(self):
-        headers = {'X-SAP-Lens-Session': 'A' * 43, 'Authorization': 'Bearer ' + 'A' * 43}
-        self.assertEqual(request(self.host.url + '/api/configuration', headers)[0], 403)
+        # The backend reads the capability from X-SAP-Lens. (Phase 0 originally used a wrong header name, so this passed vacuously; the positive control below prevents that.)
+        self.assertEqual(request(self.host.url + '/api/settings', {'X-SAP-Lens': 'A' * 43})[0], 403)
+
+    def test_api_with_the_issued_capability_is_accepted(self):
+        self.assertEqual(request(self.host.url + '/api/settings', {'X-SAP-Lens': self.session()})[0], 200)
 
     def test_foreign_host_header_is_forbidden(self):
         self.assertEqual(request(self.host.url + '/health', {'Host': 'evil.example'})[0], 403)

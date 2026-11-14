@@ -3,7 +3,9 @@
 Branch `experiment/go-python` only. Nothing here is part of the product, the build system or CI, and it must not be merged into `work` or `main`.
 Question tested: can a small Go host supervise a bundled Python/FastAPI backend (no PyInstaller, no system Python) and serve the existing React build in browser mode?
 
-Files: [measurements](MEASUREMENTS.md), [security](SECURITY.md), [Windows limits and decision](DECISION.md), raw data in [measurements.json](measurements.json).
+Files: [measurements](MEASUREMENTS.md), [security](SECURITY.md), [Phase 0 decision](DECISION.md), raw data in [measurements.json](measurements.json).
+
+Phase 1 (Windows feasibility gate, INCOMPLETE: no Windows host available): [PHASE1](PHASE1.md), [Windows validation](WINDOWS_VALIDATION.md), [App Control](APP_CONTROL.md), [capability bootstrap](CAPABILITY_BOOTSTRAP.md), [packaging comparison](PACKAGING_COMPARISON.md), [signing contract](SIGNING_CONTRACT.md), [decision](PHASE1_DECISION.md).
 Code: `experiments/go-python/` (`host/`, `backend/`, `runtime/`, `tests/`, `measure/`, `run_all.py`). No existing backend, frontend, deployment or build file was modified.
 
 ## Architecture
