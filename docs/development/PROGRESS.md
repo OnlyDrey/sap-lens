@@ -2625,5 +2625,9 @@ package (source 50e55d0) and was neither rebuilt nor modified.
   was reviewed and already derives every cell from role data with explicit empty and incomplete states; it was not changed.
 - Final FULL run: 2924 passed, 2 failed, 24 skipped. One failure was a too-broad text locator in the new B5 test (fixed). The other,
   `startup-recovery` "Retry connection after an unrestorable session restores it", timed out once in the full run and once in a two-spec run,
-  and passed 12/12 as a file, on the pre-session sources, and 10/10 repeated: an intermittent timeout under load, root cause not found.
+  and passed 12/12 as a file and 10/10 repeated. Root cause (from the preserved error context, `build/test-artifacts/browser-full-3-process-es-20261114T082709`
+  and `browser-selected-specs-2-20261114T083022`): after the test removed its route the application recovered by itself (Main navigation was already visible),
+  so the Retry button the test then tried to click no longer existed. A test race, not a product defect; the same race is documented in
+  `session-recovery.spec.ts`. Fixed by holding the refusal until the Retry click is observed (flag kept in the test process, because Retry
+  reloads the document): 15/15 repeated passes.
 - Native Windows acceptance: NOT EXECUTED (checklist rows 1-18 in `docs/deployment/WINDOWS_SERVICE.md`).

@@ -51,12 +51,21 @@ test('a session that cannot be restored stops after one attempt and offers one a
 })
 
 test('Retry connection after an unrestorable session restores it once the service answers', async ({ page }) => {
-  await page.route('**/api/configuration', (route) => route.fulfill({ status: 403, json: STALE }))
+  // The service answers again only because Retry was clicked. A capture listener marks the click before the application's handler sends its
+  // request; until then every configuration read is refused. Un-routing earlier lets the application recover on its own (also correct) and
+  // remove the button before the test clicks it, which made this test depend on the timing of that background recovery.
+  // The flag lives in the test process: Retry reloads the document, which would reset a flag kept in the page.
+  let retried = false
+  await page.exposeFunction('markRetry', () => { retried = true })
+  await page.addInitScript(() => document.addEventListener('click', (event) => {
+    if ((event.target as Element | null)?.closest('button')?.textContent?.includes('Retry connection')) void (window as Window & { markRetry?: () => void }).markRetry?.()
+  }, true))
+  await page.route('**/api/configuration', (route) => (retried ? route.fallback() : route.fulfill({ status: 403, json: STALE })))
   await page.goto('/#session=browser-test-session')
   await expect(page.getByRole('button', { name: 'Retry connection' })).toBeVisible()
-  await page.unroute('**/api/configuration')
   await page.getByRole('button', { name: 'Retry connection' }).click()
   await expect(appVisible(page)).toBeVisible()
+  await page.unrouteAll({ behavior: 'wait' })
 })
 
 test('a service that is still starting is waited for and never reported as a session problem', async ({ page }) => {
