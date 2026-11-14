@@ -42,6 +42,11 @@ test('Settings administers groups and advisory rules', async ({ page }) => {
 
   // Suggestion rules are a compact table with a New rule action, not a permanent form.
   await expect(section.getByLabel('Rule Directory Department')).toHaveCount(0)
+  // Groups and Suggestion Rules are separate tabs of one section; the group catalogue is not shown beside the rules.
+  await expect(section.getByRole('tablist', { name: 'Functional Groups sections', exact: true }).getByRole('tab')).toHaveText(['Groups', 'Suggestion Rules'])
+  await expect(section.getByRole('button', { name: 'New rule' })).toHaveCount(0)
+  await section.getByRole('tab', { name: 'Suggestion Rules', exact: true }).click()
+  await expect(section.getByRole('table', { name: 'Functional Groups', exact: true })).toHaveCount(0)
   await section.getByRole('button', { name: 'New rule' }).click()
   const ruleDialog = page.getByRole('dialog', { name: 'New suggestion rule' })
   await expect(ruleDialog.getByRole('button', { name: 'Create rule' })).toBeDisabled()        // a condition and a group are required
@@ -60,12 +65,78 @@ test('Settings administers groups and advisory rules', async ({ page }) => {
   await page.getByRole('dialog', { name: 'Delete suggestion rule' }).getByRole('button', { name: 'Delete rule' }).click()
   await expect(rules.getByRole('row').filter({ hasText: name })).toHaveCount(0)
 
+  await section.getByRole('tab', { name: 'Groups', exact: true }).click()
   await row.getByRole('button', { name: `Archive ${name}` }).click()
   await expect(row).toContainText('Archived')
   await row.getByRole('button', { name: `Restore ${name}` }).click()
   await expect(row).toContainText('Active')
   await section.getByLabel('Search Functional Groups').fill('no such group')
-  await expect(section.getByText('No Functional Groups match the search.')).toBeVisible()
+  await expect(section.getByText('No Functional Groups match the search and status filter.')).toBeVisible()
+})
+
+test('status filter, safe permanent deletion of archived groups and inline group creation in a rule', async ({ page, request }) => {
+  const unused = `Unused ${unique}`, used = `Used ${unique}`, inline = `Inline ${unique}`
+  const create = async (name: string) => (await (await request.post('/api/functional-groups', { headers, data: { name, description: '' } })).json()).id as string
+  const unusedId = await create(unused), usedId = await create(used)
+  expect((await classify(request, usedId)).ok()).toBeTruthy()                       // DEMO_FG is a member: the group has a member and history
+  for (const id of [unusedId, usedId]) expect((await request.post(`/api/functional-groups/${id}/archive`, { headers })).ok()).toBeTruthy()
+  await openSettings(page, 'Functional Groups')
+  const section = page.getByRole('region', { name: 'Functional Groups', exact: true })
+  const table = section.getByRole('table', { name: 'Functional Groups', exact: true })
+  await section.getByLabel('Search Functional Groups').fill(unique)
+  await expect(table.getByRole('row').filter({ hasText: unused })).toBeVisible()
+  // Status filter: Active hides archived groups, Archived shows only them, and the filter survives a tab change.
+  await section.getByLabel('Group status').selectOption('active')
+  await expect(table.getByRole('row').filter({ hasText: unused })).toHaveCount(0)
+  await section.getByLabel('Group status').selectOption('archived')
+  await section.getByRole('tab', { name: 'Suggestion Rules', exact: true }).click()
+  await section.getByRole('tab', { name: 'Groups', exact: true }).click()
+  await expect(section.getByLabel('Group status')).toHaveValue('archived')
+  await expect(section.getByRole('searchbox', { name: 'Search Functional Groups' })).toHaveValue(unique)
+  const usedRow = table.getByRole('row').filter({ hasText: used }), unusedRow = table.getByRole('row').filter({ hasText: unused })
+  // Counts: zero is plain text, a positive count is the button that opens the members.
+  await expect(unusedRow.getByRole('button', { name: /^View \d+ members of/ })).toHaveCount(0)
+  await expect(unusedRow.getByRole('cell').nth(2)).toHaveText('0')
+  await expect(usedRow.getByRole('button', { name: `View 1 members of ${used}` })).toBeVisible()
+  // A group that still has a member and history cannot be deleted, in the UI or through the API, and nothing changes.
+  await expect(usedRow.getByRole('button', { name: `Delete ${used}` })).toBeDisabled()
+  const refused = await request.delete(`/api/functional-groups/${usedId}`, { headers })
+  expect(refused.status()).toBe(409); expect((await refused.json()).detail).toContain('1 member')
+  expect((await (await request.get('/api/functional-groups/users/DEMO_FG', { headers })).json()).classification.memberships.map((m: { group_id: string }) => m.group_id)).toContain(usedId)
+  // An unreferenced archived group is deleted only after an explicit confirmation; Cancel keeps it.
+  await unusedRow.getByRole('button', { name: `Delete ${unused}` }).click()
+  const confirm = page.getByRole('dialog', { name: 'Delete Functional Group' })
+  await expect(confirm).toContainText('This cannot be undone')
+  await confirm.getByRole('button', { name: 'Cancel', exact: true }).click()
+  await expect(unusedRow).toBeVisible()
+  await unusedRow.getByRole('button', { name: `Delete ${unused}` }).click()
+  await page.getByRole('dialog', { name: 'Delete Functional Group' }).getByRole('button', { name: 'Delete permanently', exact: true }).click()
+  await expect(unusedRow).toHaveCount(0)
+  await expect(usedRow).toBeVisible()
+  expect((await request.delete(`/api/functional-groups/${unusedId}`, { headers })).status()).toBe(404)
+  // Inline creation in the rule dialog: duplicate refused with the input kept, the new group is selected, the rule fields are kept.
+  await section.getByRole('tab', { name: 'Suggestion Rules', exact: true }).click()
+  await section.getByRole('button', { name: 'New rule' }).click()
+  const rule = page.getByRole('dialog', { name: 'New suggestion rule' })
+  await rule.getByLabel('Job Title contains').fill('Planner')
+  await rule.getByRole('button', { name: 'New group', exact: true }).click()
+  await rule.getByLabel('New Functional Group name').fill(used.toUpperCase())
+  await expect(rule.getByRole('alert')).toContainText('already exists')
+  await expect(rule.getByRole('button', { name: 'Create group', exact: true })).toBeDisabled()
+  await expect(rule.getByLabel('New Functional Group name')).toHaveValue(used.toUpperCase())
+  await rule.getByLabel('New Functional Group name').fill(inline)
+  await rule.getByRole('button', { name: 'Create group', exact: true }).click()
+  await expect(rule.getByLabel('Suggested Functional Group')).toHaveValue(/^fg_/)
+  await expect(rule.getByLabel('Suggested Functional Group').locator('option:checked')).toHaveText(inline)
+  await expect(rule.getByLabel('Job Title contains')).toHaveValue('Planner')
+  await rule.getByRole('button', { name: 'Create rule' }).click()
+  const rules = section.getByRole('table', { name: 'Functional Group suggestion rules' })
+  await expect(rules.getByRole('row').filter({ hasText: inline })).toContainText('Planner')
+  // Nothing was assigned by creating the group or the rule.
+  await section.getByRole('tab', { name: 'Groups', exact: true }).click()
+  await section.getByLabel('Group status').selectOption('all')
+  await expect(table.getByRole('row').filter({ hasText: inline }).getByRole('cell').nth(2)).toHaveText('0')
+  expect((await classify(request, null)).ok()).toBeTruthy()                        // storage persists across tests: leave DEMO_FG unassigned again
 })
 
 test('User Details classifies a user explicitly and keeps it separate from imported data', async ({ page, request }) => {
@@ -94,7 +165,9 @@ test('Functional Groups settings fit 375 px without horizontal scroll', async ({
   await page.setViewportSize({ width: 375, height: 800 })
   await openSettings(page, 'Functional Groups')
   await expect(page.getByRole('region', { name: 'Functional Groups', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'New rule' })).toBeVisible() // data has loaded
+  await expect(page.getByRole('button', { name: 'New group' })).toBeVisible() // data has loaded
+  await page.getByRole('tab', { name: 'Suggestion Rules', exact: true }).click()
+  await expect(page.getByRole('button', { name: 'New rule' })).toBeVisible()
   const wide = await page.evaluate(() => [...document.querySelectorAll('body *')].filter(e => !e.closest('.access-table table') && e.getBoundingClientRect().right > window.innerWidth + 1).slice(0, 6).map(e => e.tagName + '.' + String(e.className).slice(0, 80) + ':' + Math.round(e.getBoundingClientRect().right)))
   expect(wide).toEqual([])
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)

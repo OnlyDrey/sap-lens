@@ -9,7 +9,7 @@ One store, `functional-groups.json` (format 2) in the application data folder, i
 
 | Part | Content |
 | --- | --- |
-| `groups` | Global catalogue: stable id `fg_<12 hex>`, unique name, description, `active` or `archived`, created and modified timestamps. Groups are archived, never deleted. |
+| `groups` | Global catalogue: stable id `fg_<12 hex>`, unique name, description, `active` or `archived`, created and modified timestamps. Groups are archived; an archived group that nothing refers to can be deleted (see Settings below). |
 | `users` | At most one record per canonical SAP user (the upper-cased user name, hashed as in Account Review): `group_id`, status, revision, confirmation time and reviewer, rationale, open review, handled change ids. |
 | `history` | Append-only events: assigned, changed, confirmed, removed, review_required, reconfirmed, manager_changed. Each keeps user, previous and new group and status, actor, time, reason and the related organizational change id. |
 | `rules` | Advisory suggestion rules (see below). |
@@ -23,7 +23,7 @@ SAP-to-Directory match, which already refuses missing, duplicate and ambiguous m
 
 ## API
 
-`/api/functional-groups`: list, create, rename or edit (`PATCH`), `archive`, `restore`; `users/{username}` reads and writes one classification
+`/api/functional-groups`: list, create, rename or edit (`PATCH`), `archive`, `restore`, `DELETE` (archived and unreferenced only, otherwise 409); `users/{username}` reads and writes one classification
 (`group_id` null clears it, rationale required when clearing); `history/{username}`. A reviewer name is required unless the server supplies the
 signed-in actor.
 
@@ -36,6 +36,16 @@ the file restore to an empty catalogue.
 
 - **Settings > Functional Groups:** searchable table (name, description, assigned users, Active or Archived), create, edit and archive or restore.
   Duplicate names (case, spacing and Unicode-normalized) are refused. Archived groups stay on existing users and in history but cannot be newly assigned.
+  The section has two tabs, **Groups** and **Suggestion Rules**; search text and the status filter (All, Active, Archived) are kept when switching.
+  **Permanent deletion** is offered only for an archived group with no members, no suggestion rules and no classification history event, after an
+  explicit confirmation. Any of those references keeps the group archived (the button is disabled and names the reason, the API answers 409 and changes
+  nothing), so memberships are never dropped and every history event keeps resolving to its group. A new group can be created inside the suggestion
+  rule dialog; it is created active and without members, is selected at once, and the rule fields are kept. Nothing is ever assigned by creating a
+  group or a rule.
+  **Users count:** one definition everywhere a group is listed in Settings (`user_count`): distinct users with a stored membership in the group,
+  whatever its status (Confirmed or Needs review) and whether or not the user is in the current SAP import; archived groups keep their members and
+  their count. The members dialog lists exactly those users. Filter choices in User Access and SoD show a different, labelled number: SAP users of
+  the current import in the group. Zero is shown as plain text, a positive count opens its list.
 - **User Details > Functional Group:** shows the group and classification separately from the imported Directory fields. A reviewer can assign,
   change, confirm or clear. Nothing is preselected, the action button names the outcome ("Assign Purchasing", "Change to Logistics", "Confirm
   Purchasing"), the reviewer name is required (the signed-in actor in server mode) and clearing requires a rationale.

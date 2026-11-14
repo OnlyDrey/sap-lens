@@ -247,10 +247,27 @@ def counts(data):
     return result
 
 
+def references(data):
+    """What still refers to each group: members, suggestion rules and classification history events (review evidence)."""
+    result = {gid: dict(members=0, rules=0, history=0) for gid in data['groups']}
+    for gid, count in counts(data).items():
+        result[gid]['members'] = count
+    for rule in data.get('rules', []):
+        result[rule['group_id']]['rules'] += 1
+    for event in data['history']:
+        for gid in {event.get('previous_group'), event.get('new_group')} - {None}:
+            result[gid]['history'] += 1
+    return result
+
+
 def list_groups(include_archived=True):
+    """`user_count` is the one definition of a group's size: distinct users with a stored membership, whatever its status (Confirmed or Needs
+    review) and whether or not the user is in the current SAP import. Archived groups keep their members and their count."""
     data = read()
-    assigned = counts(data)
-    items = [dict(g, user_count=assigned.get(g['id'], 0)) for g in data['groups'].values() if include_archived or g['status'] == 'active']
+    used = references(data)
+    items = [dict(g, user_count=used[g['id']]['members'], references=used[g['id']],
+                  deletable=g['status'] == 'archived' and not any(used[g['id']].values()))
+             for g in data['groups'].values() if include_archived or g['status'] == 'active']
     return sorted(items, key=lambda g: (g['status'] != 'active', name_key(g['name']), g['id']))
 
 
@@ -286,7 +303,7 @@ def update_group(gid, name=None, description=None):
 
 
 def set_group_status(gid, status):
-    """Archive or restore. Groups are never deleted: users and history keep referring to them."""
+    """Archive or restore. Archiving never removes members or history; see delete_group for the only way a group disappears."""
     with lock:
         data = read()
         group = data['groups'].get(gid)
@@ -297,6 +314,26 @@ def set_group_status(gid, status):
             group['modified'] = now()
             write(data)
         return group
+
+
+def delete_group(gid):
+    """Permanently remove an archived group that nothing refers to. A group with members, suggestion rules or classification history stays
+    archived instead: memberships are never dropped and history events must keep resolving to the group they name."""
+    with lock:
+        data = read()
+        group = data['groups'].get(gid)
+        if group is None:
+            raise HTTPException(404, 'Functional Group not found.')
+        if group['status'] != 'archived':
+            raise HTTPException(409, 'Archive the Functional Group before deleting it.')
+        used = references(data)[gid]
+        blockers = [text for key, text in (('members', f"{used['members']} member(s)"), ('rules', f"{used['rules']} suggestion rule(s)"),
+                                           ('history', f"{used['history']} classification history event(s)")) if used[key]]
+        if blockers:
+            raise HTTPException(409, f'"{group["name"]}" cannot be deleted because it still has ' + ', '.join(blockers) + '. It stays archived; nothing was changed.')
+        del data['groups'][gid]
+        write(data)
+        return dict(status='deleted', id=gid, name=group['name'])
 
 
 # --- classification ----------------------------------------------------------------------------------------------------

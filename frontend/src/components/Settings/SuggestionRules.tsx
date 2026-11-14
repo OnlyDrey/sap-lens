@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eraser, Pencil, Plus, Trash2, Users } from 'lucide-react'
-import { addRule, deleteRule, fetchRuleMatches, fetchRuleSelection, fetchRules, rulesKey, updateRule, type FunctionalGroup, type Rule } from '@/api/functionalGroups'
+import { addRule, createGroup, deleteRule, fetchRuleMatches, fetchRuleSelection, fetchRules, rulesKey, updateRule, type FunctionalGroup, type Rule } from '@/api/functionalGroups'
 import { BulkAssignDialog } from '@/components/Access/BulkAssignDialog'
 import { Pagination } from '@/components/Access/Shared'
 import { Button, IconButton } from '@/components/Shared/Button'
@@ -9,6 +9,7 @@ import { Checkbox, FormField, SearchInput, controlClass } from '@/components/Sha
 import { Dialog } from '@/components/Shared/Dialog'
 import { DataTable, EmptyState, EvidenceDisclosure, LoadingState, StatusBadge } from '@/components/Shared/Presentation'
 import { Select } from '@/components/Shared/Select'
+import { GroupCount } from './GroupCount'
 import { SAPUserLink } from '@/components/Shared/SAPUserLink'
 
 const message = (error: unknown) => (error instanceof Error ? error.message : 'The request failed.')
@@ -19,7 +20,14 @@ function RuleDialog({ rule, groups, onClose }: { rule: Rule | null; groups: Func
   const client = useQueryClient()
   const [groupId, setGroupId] = useState(rule?.group_id ?? ''), [department, setDepartment] = useState(rule?.department ?? ''), [title, setTitle] = useState(rule?.title_contains ?? '')
   const [mode, setMode] = useState<'contains' | 'equals'>(rule?.department_mode ?? 'contains')
-  const active = groups.filter(group => group.status === 'active' || group.id === rule?.group_id)
+  // A group created here is selected at once and stays in the list while the catalogue refetches.
+  const [created, setCreated] = useState<FunctionalGroup[]>([]), [adding, setAdding] = useState(false), [newName, setNewName] = useState('')
+  const active = [...groups.filter(group => group.status === 'active' || group.id === rule?.group_id), ...created.filter(group => !groups.some(known => known.id === group.id))]
+  const create = useMutation({
+    mutationFn: () => createGroup(newName, ''),
+    onSuccess: async group => { setCreated(previous => [...previous, group]); setGroupId(group.id); setAdding(false); setNewName(''); await client.invalidateQueries({ queryKey: ['functional-groups'] }) },
+  })
+  const duplicate = Boolean(newName.trim()) && groups.some(group => group.name.trim().toLowerCase() === newName.trim().toLowerCase())
   const save = useMutation({
     mutationFn: () => { const body = { group_id: groupId, department, title_contains: title, department_mode: mode }; return rule ? updateRule(rule.id, body) : addRule(body) },
     onSuccess: async () => { await client.invalidateQueries({ queryKey: rulesKey }); onClose() },
@@ -36,6 +44,16 @@ function RuleDialog({ rule, groups, onClose }: { rule: Rule | null; groups: Func
             <Select value={mode} onChange={event => setMode(event.target.value as 'contains' | 'equals')}><option value="equals">Equals the whole value (existing rule)</option><option value="contains">Contains the text</option></Select></FormField>)}
         <FormField label="Job Title contains"><input className={controlClass} value={title} maxLength={200} onChange={event => setTitle(event.target.value)} /></FormField>
         <FormField label="Suggested Functional Group"><Select value={groupId} onChange={event => setGroupId(event.target.value)}><option value="">Select a group…</option>{active.map(group => <option key={group.id} value={group.id}>{group.name}</option>)}</Select></FormField>
+        {adding ? (
+          <div className="grid gap-2" role="group" aria-label="Create a Functional Group">
+            <FormField label="New Functional Group name" description="Created as an active group without members. The rule fields above are kept.">
+              <input className={controlClass} value={newName} maxLength={80} onChange={event => { setNewName(event.target.value); create.reset() }}
+                onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (newName.trim() && !duplicate && !create.isPending) create.mutate() } }} autoFocus /></FormField>
+            {duplicate && <p role="alert">A Functional Group with this name already exists. Select it in the list above.</p>}
+            {create.isError && <p role="alert">{message(create.error)}</p>}
+            <div className="flex flex-wrap gap-2"><Button variant="primary" disabled={!newName.trim() || duplicate || create.isPending} onClick={() => create.mutate()}>Create group</Button><Button onClick={() => { setAdding(false); create.reset() }}>Cancel</Button></div>
+          </div>
+        ) : <div><Button onClick={() => setAdding(true)}><Plus size={14} aria-hidden="true" />New group</Button></div>}
         {save.isError && <p role="alert">{message(save.error)}</p>}
       </form>
     </Dialog>
@@ -119,7 +137,7 @@ export function SuggestionRules({ groups }: { groups: FunctionalGroup[] }) {
               <td>{rule.department || 'Any'}{rule.department && rule.department_mode === 'equals' && <> <StatusBadge>Exact match (existing rule)</StatusBadge></>}</td>
               <td>{rule.title_contains || 'Any'}</td>
               <td>{rule.group_name}{rule.group_status === 'archived' && <> <StatusBadge>Archived</StatusBadge></>}</td>
-              <td>{rule.match_count == null ? 'n/a' : <button type="button" className="role-count-button" onClick={() => setMatching(rule)} aria-label={`View ${rule.match_count} users matching the rule for ${rule.group_name}`}>{rule.match_count.toLocaleString()}</button>}</td>
+              <td><GroupCount count={rule.match_count} label={`View ${rule.match_count} users matching the rule for ${rule.group_name}`} onOpen={() => setMatching(rule)} /></td>
               <td className="col-actions"><span className="inline-flex items-center gap-1">
                 <IconButton label={`View matches for the rule suggesting ${rule.group_name}`} tooltip="View matching users" size="icon" onClick={() => setMatching(rule)}><Users size={14} aria-hidden="true" /></IconButton>
                 <IconButton label={`Edit rule suggesting ${rule.group_name}`} tooltip="Edit rule" size="icon" onClick={() => setEditing(rule)}><Pencil size={14} aria-hidden="true" /></IconButton>

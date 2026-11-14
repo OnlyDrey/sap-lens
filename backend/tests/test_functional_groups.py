@@ -44,6 +44,53 @@ class Catalogue(Store):
         self.assertEqual((archived['status'], archived['user_count'], archived['description']), ('archived', 2, 'Buying'))
         self.assertEqual(fg.set_group_status(gid, 'active')['status'], 'active')
 
+    def test_only_an_archived_group_without_members_rules_or_history_can_be_deleted(self):
+        unused, used, ruled = self.group('Unused'), self.group('Used'), self.group('Ruled')
+        with self.assertRaises(HTTPException) as active:
+            fg.delete_group(unused)
+        self.assertEqual(active.exception.status_code, 409); self.assertIn('Archive', active.exception.detail)
+        fg.classify('U1', used, 'r', 0, 'rev')
+        fg.add_rule(ruled, department='Finance')
+        for gid in (unused, used, ruled):
+            fg.set_group_status(gid, 'archived')
+        listed = {g['name']: g for g in fg.list_groups()}
+        self.assertEqual({name: g['deletable'] for name, g in listed.items()}, {'Unused': True, 'Used': False, 'Ruled': False})
+        self.assertEqual(listed['Used']['references']['members'], 1); self.assertGreaterEqual(listed['Used']['references']['history'], 1)
+        self.assertEqual(listed['Ruled']['references'], dict(members=0, rules=1, history=0))
+        before = fg.read()
+        for gid, reason in ((used, 'member'), (ruled, 'suggestion rule')):
+            with self.assertRaises(HTTPException) as refused:
+                fg.delete_group(gid)
+            self.assertEqual(refused.exception.status_code, 409); self.assertIn(reason, refused.exception.detail); self.assertIn('nothing was changed', refused.exception.detail)
+        self.assertEqual(fg.read(), before)
+        self.assertEqual(fg.delete_group(unused)['status'], 'deleted')
+        self.assertEqual({g['name'] for g in fg.list_groups()}, {'Used', 'Ruled'})
+        fg.validate_storage(json.loads(json.dumps(fg.read())))            # still a valid, restorable store
+        with self.assertRaises(HTTPException) as gone:
+            fg.delete_group(unused)
+        self.assertEqual(gone.exception.status_code, 404)
+
+    def test_a_group_whose_only_trace_is_history_stays_archived_so_review_evidence_resolves(self):
+        gid = self.group('Temporary')
+        user = fg.classify('U1', gid, 'r', 0, 'rev')
+        fg.remove_membership('U1', gid, 'left', user['revision'], 'rev')
+        fg.set_group_status(gid, 'archived')
+        self.assertEqual(fg.list_groups()[0]['user_count'], 0)
+        with self.assertRaises(HTTPException) as refused:
+            fg.delete_group(gid)
+        self.assertIn('history', refused.exception.detail)
+        self.assertTrue(all(event['new_group'] in fg.read()['groups'] or event['new_group'] is None for event in fg.read()['history']))
+
+    def test_the_user_count_is_the_same_number_wherever_a_group_is_listed(self):
+        gid, other = self.group(), self.group('Logistics')
+        fg.classify('U1', gid, 'r', 0, 'rev'); fg.add_membership('U1', other, 'r', 1, 'rev'); fg.classify('U2', gid, 'r', 0, 'rev')
+        fg.flag_for_review('U2', 'change-1', 'Department changed')        # Needs review still counts as a member
+        fg.set_group_status(other, 'archived')                             # archived groups keep their members and their count
+        listed = {g['id']: g['user_count'] for g in fg.list_groups()}
+        self.assertEqual(listed, {gid: 2, other: 1})
+        self.assertEqual(listed, fg.counts(fg.read()))
+        self.assertEqual({key: value['members'] for key, value in fg.references(fg.read()).items()}, listed)
+
     def test_archived_group_keeps_users_but_cannot_be_newly_assigned(self):
         gid = self.group()
         fg.classify('U1', gid, '', 0, 'rev')

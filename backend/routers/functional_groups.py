@@ -134,6 +134,11 @@ def restore(gid: str):
     return fg.set_group_status(gid, 'active')
 
 
+@router.delete('/{gid}')
+def delete(gid: str):
+    return fg.delete_group(gid)
+
+
 @router.get('/options', dependencies=[Depends(require_mapping)])
 def options():
     """Functional Group and Manager choices (with SAP user counts) for filters in User Access and SoD."""

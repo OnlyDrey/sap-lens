@@ -177,6 +177,7 @@ test('suggestion rule: contains matching, View Matches, select all, and assignme
   await join(request, 'FG_C', existingId)
   await join(request, 'FG_A', id)                                                                              // already a member of the suggested group
   const section = await groupsSection(page, name)
+  await section.getByRole('tab', { name: 'Suggestion Rules', exact: true }).click()
   await section.getByRole('button', { name: 'New rule' }).click()
   const form = page.getByRole('dialog', { name: 'New suggestion rule' })
   await form.getByLabel('Directory Department contains').fill('supply chain')                                  // substring, case-insensitive: A, B and C
