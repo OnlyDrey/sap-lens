@@ -22,6 +22,37 @@ test('catalogue search visual order matches keyboard order and cards contain lon
  for(const card of await page.locator('article.role-card').all()){const box=(await card.boundingBox())!;expect(box.x+box.width).toBeLessThanOrEqual(1280);await expect(card.getByRole('button',{name:/View details/})).toHaveCSS('min-height','34px')}
  await tc.fill('MIGO');await expect(page.locator('article.role-card')).toHaveCount(2)
 })
+test('role comparison keeps one aligned non-wrapping row for 5, 3 and 2 roles and removes roles in place', async({page,request})=>{
+ const rolePath=path.join(directory,'many.csv'),count=5                       // five roles is the product's comparison limit
+ writeFileSync(rolePath,'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\n'+Array.from({length:count},(_,index)=>{const id=String(index+1).padStart(2,'0');return `MM,ZC:MANY:${id},Many ${id},ZS:MANY:SHARED,MIGO\nMM,ZC:MANY:${id},Many ${id},ZS:MANY:OWN${id},ME${id}N`}).join('\n')+'\n')
+ const value=await config(request);value.data_csv_path=rolePath;expect((await request.post('/api/configuration',{headers,data:value})).ok()).toBeTruthy()
+ await page.goto('/#session=browser-test-session');await goTo(page,'Role Lookup')
+ for(let index=1;index<=count;index++)await page.getByRole('article',{name:`Many ${String(index).padStart(2,'0')}`,exact:true}).getByRole('button',{name:'Add to comparison',exact:true}).click()
+ await page.getByRole('button',{name:'Compare now',exact:true}).click()
+ const comparison=page.getByRole('region',{name:'Role comparison',exact:true})
+ const roles=comparison.getByRole('list',{name:'Compared roles',exact:true}),exclusive=comparison.getByRole('group',{name:'Exclusive single roles by role',exact:true})
+ const layout=async(expected:number)=>{
+  await expect(roles.getByRole('listitem')).toHaveCount(expected);await expect(exclusive.locator('.comparison-column')).toHaveCount(expected)
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()           // the strips scroll, never the page
+  return page.evaluate(()=>[...document.querySelectorAll('.comparison-strip')].map(strip=>{const items=[...strip.children].map(item=>item.getBoundingClientRect())
+   return {tops:new Set(items.map(box=>Math.round(box.top))).size,widths:new Set(items.map(box=>Math.round(box.width))).size,min:Math.min(...items.map(box=>box.width)),lefts:items.map(box=>Math.round(box.left-strip.getBoundingClientRect().left+strip.scrollLeft)),scrolls:strip.scrollWidth>strip.clientWidth+1}}))
+ }
+ for(const expected of [5,3,2]){
+  while(await roles.getByRole('listitem').count()>expected)await roles.getByRole('listitem').last().getByRole('button',{name:/^Remove ZC:MANY:\d\d from comparison$/}).click()
+  const [header,columns]=await layout(expected)
+  for(const strip of [header,columns]){expect(strip.tops).toBe(1);expect(strip.widths).toBe(1);expect(strip.min).toBeGreaterThanOrEqual(270)}   // one row, equal columns, readable minimum
+  expect(columns.lefts).toEqual(header.lefts)                                                               // every role keeps the same column in both strips
+  expect(header.scrolls).toBe(expected>=5);expect(columns.scrolls).toBe(expected>=5)                         // 2 roles fit at 1280 px; many scroll inside the strip
+ }
+ // The first roles were kept in selection order, and a comparison never drops below two roles.
+ await expect(roles.getByRole('listitem')).toContainText(['ZC:MANY:01','ZC:MANY:02'])
+ await expect(roles.getByRole('button',{name:/from comparison$/})).toHaveCount(0)
+ await expect(exclusive.locator('.comparison-column')).toContainText(['1 exclusive','1 exclusive'])
+ // Keyboard: the strip itself is focusable for arrow-key scrolling and shows a focus ring.
+ await page.setViewportSize({width:375,height:800});await exclusive.focus();await expect(exclusive).toBeFocused()
+ expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy()
+ expect(await exclusive.evaluate(element=>element.scrollWidth>element.clientWidth)).toBeTruthy()
+})
 test('role comparison subset preserves Jaccard summaries and inspectable pair evidence', { tag: '@smoke' },async({page,request})=>{
  const response=await request.post('/api/compare',{headers,data:{roles:['ZC:SYN:A','ZC:SYN:B']}});expect((await response.json()).pairwise_single_overlaps[0].shared_count).toBe(1)
  await page.goto('/#session=browser-test-session');await goTo(page,'Role Lookup')

@@ -319,6 +319,11 @@ main h1,.settings-content h1 { font-size:var(--font-title); font-weight:600; }
 .assignment-status-control>.ui-button {padding:0;border:0;min-height:28px;background:transparent}
 .assignment-status-control>.ui-button:hover {background:var(--hover)}
 .comparison-evidence-item>p {margin-top:var(--space-1)}
+/* Compare Roles: one role per column on a single non-wrapping row. Columns share the width while they fit and keep a readable minimum
+   otherwise; the strip then scrolls inside itself, never the page. Padding keeps focus rings unclipped. */
+.comparison-strip {display:grid;grid-auto-flow:column;grid-auto-columns:minmax(min(17rem,82vw),1fr);align-items:start;gap:var(--space-4);min-width:0;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;padding:var(--space-1);scroll-padding-inline:var(--space-1)}
+.comparison-strip:focus-visible {outline:var(--focus-width) solid var(--focus);outline-offset:calc(-1 * var(--focus-width))}
+.comparison-strip-item {min-width:0}
 .release-matrices {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:start;gap:var(--space-4);min-width:0}
 .release-matrices>div {min-width:0;max-width:100%}
 .release-matrices>p {grid-column:1/-1}

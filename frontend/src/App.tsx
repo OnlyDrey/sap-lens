@@ -102,7 +102,7 @@ export function App() {
       {page === 'sod' && <Suspense fallback={<LoadingState/>}><SodWorkspace/></Suspense>}
       {visited.has('roles') && <div className={page==='roles'?'':'hidden'}>
       {showComparison
-        ? <ComparisonView roleNames={selectedRoles} onBack={() => setShowComparison(false)} />
+        ? <ComparisonView roleNames={selectedRoles} onBack={() => setShowComparison(false)} onRemove={name => setSelectedRoles(previous => previous.length > 2 ? previous.filter(role => role !== name) : previous)} />
         : <RoleList key={`${dataGeneration}:${kpiNavigation?.roles || 0}`}
             initialArea={catalogueArea}
             onFilteredRoles={setCatalogueOrder}

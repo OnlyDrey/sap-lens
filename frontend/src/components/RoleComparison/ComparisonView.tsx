@@ -9,6 +9,7 @@ import { ModuleBadge } from '@/components/Modules/ModuleBadge'
 import { RoleIdentifier } from '@/components/Shared/RoleIdentifier'
 import { TransactionCount } from '@/components/Shared/TransactionCount'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { IconButton } from '@/components/Shared/Button'
 import {
   ArrowLeft, Loader2, AlertTriangle, RefreshCw, GitCompare, Share2,
   Lock, X, TrendingDown, TrendingUp, ChevronDown, ChevronRight,
@@ -18,7 +19,8 @@ import { useComparison } from '@/hooks/useComparison'
 import { useRoleDetail } from '@/hooks/useRoleDetail'
 import type { TCode, SingleRoleInfo, ComparisonRole, PairwiseOverlap, RoleDetail } from '@/api/types'
 
-interface Props { roleNames: string[]; onBack: () => void }
+/** `onRemove` drops one role from the comparison; it is offered only while more than two roles are compared. */
+interface Props { roleNames: string[]; onBack: () => void; onRemove?: (name: string) => void }
 
 const lbl = (r:ComparisonRole) => presentRoleDescription(r.text,r.function_key?[r.function_key]:[]).description || r.agr_name
 
@@ -355,7 +357,7 @@ function InsightBar({
 function ExclusiveColumn({role,rows,patterns}:{role:ComparisonRole;rows:SingleRoleInfo[];patterns:string[]}) {
   return (
     <div
-      className="comparison-column min-w-0 self-start rounded-card overflow-hidden flex flex-col"
+      className="comparison-column comparison-strip-item min-w-0 self-start rounded-card overflow-hidden flex flex-col"
       style={{
         border:'1px solid var(--border)',
         backgroundColor:'var(--surface)'
@@ -417,7 +419,7 @@ function ExclusiveColumn({role,rows,patterns}:{role:ComparisonRole;rows:SingleRo
   )
 }
 
-export function ComparisonView({ roleNames, onBack }: Props) {
+export function ComparisonView({ roleNames, onBack, onRemove }: Props) {
   const { mutate, data, isPending, isError, error, reset } = useComparison()
 
   const [pairModal, setPairModal] = useState<{
@@ -470,10 +472,14 @@ export function ComparisonView({ roleNames, onBack }: Props) {
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2">
+      {/* One role per column in selection order, on a single row that scrolls inside itself: the same strip as the exclusive roles below. */}
+      <div className="comparison-strip" role="list" aria-label="Compared roles" tabIndex={0}>
         {roleNames.map(n => (
-          <div key={n} className="min-w-0 rounded-card border border-line bg-surface p-3">
-            <p className="mb-2 text-sm font-semibold text-content">{data?.roles.find(role=>role.agr_name===n)?.text || 'Description unavailable'}</p>
+          <div key={n} role="listitem" className="comparison-strip-item min-w-0 rounded-card border border-line bg-surface p-3">
+            <div className="flex items-start justify-between gap-2">
+              <p className="mb-2 min-w-0 text-sm font-semibold text-content">{data?.roles.find(role=>role.agr_name===n)?.text || 'Description unavailable'}</p>
+              {onRemove && roleNames.length > 2 && <IconButton label={`Remove ${n} from comparison`} tooltip="Remove from comparison" size="icon" onClick={() => onRemove(n)}><X size={14} aria-hidden="true" /></IconButton>}
+            </div>
             <RoleIdentifier value={n}/>
           </div>
         ))}
@@ -584,7 +590,7 @@ export function ComparisonView({ roleNames, onBack }: Props) {
             </div>
 
             {searching&&!mappingsLoading&&data.roles.every(role=>!selectRows(role.exclusive_single_roles,role.agr_name).length)&&<p className="text-sm text-muted">No matching exclusive single roles.</p>}
-            <div className="comparison-columns grid min-w-0 grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="comparison-columns comparison-strip" role="group" aria-label="Exclusive single roles by role" tabIndex={0}>
               {data.roles.filter(role=>!searching||selectRows(role.exclusive_single_roles,role.agr_name).length>0).map(r => (
                 <ExclusiveColumn
                   key={r.agr_name}

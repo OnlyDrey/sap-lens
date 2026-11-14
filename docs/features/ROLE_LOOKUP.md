@@ -123,6 +123,12 @@ The package turns catalogue roles into proposed SAP role names. It never assigns
 
 ## Single-role comparison
 
+Layout: the compared roles and their exclusive single roles are two strips with one role per column, in selection order, on a single
+row that never wraps. Columns share the width while they fit and keep a readable minimum otherwise; the strip then scrolls inside
+itself (it is keyboard focusable), never the page, so a role keeps the same column in both strips. Each compared role has a
+**Remove from comparison** action while more than two roles are compared; removing recomputes the comparison in place. A comparison
+holds two to five roles (the existing selection limit).
+
 Role Comparison keeps the high-level single-role and mapped-transaction similarity
 metrics, with responsive Shared by all tiles (maximum three columns) and Exclusive per composite lists. A shared single role expands vertically inside its own tile, pushing later content down, and exclusive single roles are compact list rows that expand beneath the row. Every single-role entry (also in Role Details) shows the module icon and code with the transaction count below, the description beside them and the copyable role identifier last. Expand an entry to inspect transaction evidence. Search comparison
 transactions accepts exact codes or explicit SAP `*` patterns and filters both
