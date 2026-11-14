@@ -1,0 +1,7 @@
+# Experiment output only; nothing here is a distributable artifact of SAP Lens.
+.cache/
+dist/
+out/
+*.test
+host/bin/
+__pycache__/

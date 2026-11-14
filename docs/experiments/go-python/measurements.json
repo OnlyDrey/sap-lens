@@ -1,0 +1,139 @@
+{
+ "host_binary_bytes": 8990724,
+ "machine": {
+  "cpus": 4,
+  "kernel": "6.18.44-fc-v470",
+  "python_harness": "3.12.3"
+ },
+ "runs_per_variant": 6,
+ "variants": {
+  "bundled-direct": {
+   "cold": {
+    "exit_code": 0,
+    "host_internal_ready_s": null,
+    "peak_hwm_mib": 78.7,
+    "processes": 1,
+    "ready_s": 0.963,
+    "shutdown_s": 0.466,
+    "steady_rss_mib": 78.7
+   },
+   "exit_codes": [
+    0
+   ],
+   "tree_bytes": 198070340,
+   "tree_files": 9343,
+   "warm_median": {
+    "peak_hwm_mib": 78.75,
+    "ready_s": 1.01,
+    "shutdown_s": 0.467,
+    "steady_rss_mib": 78.75
+   },
+   "warm_min_max_ready_s": [
+    0.91,
+    1.17
+   ]
+  },
+  "bundled-host": {
+   "cold": {
+    "exit_code": 0,
+    "host_internal_ready_s": 1.119,
+    "peak_hwm_mib": 86.9,
+    "processes": 2,
+    "ready_s": 1.126,
+    "shutdown_s": 0.416,
+    "steady_rss_mib": 86.9
+   },
+   "exit_codes": [
+    0
+   ],
+   "tree_bytes": 198070340,
+   "tree_files": 9343,
+   "warm_median": {
+    "peak_hwm_mib": 87.0,
+    "ready_s": 1.079,
+    "shutdown_s": 0.416,
+    "steady_rss_mib": 87.0
+   },
+   "warm_min_max_ready_s": [
+    0.986,
+    1.109
+   ]
+  },
+  "bundled-host-pruned": {
+   "cold": {
+    "exit_code": 0,
+    "host_internal_ready_s": 0.97,
+    "peak_hwm_mib": 87.2,
+    "processes": 2,
+    "ready_s": 0.974,
+    "shutdown_s": 0.466,
+    "steady_rss_mib": 87.2
+   },
+   "exit_codes": [
+    0
+   ],
+   "tree_bytes": 170740870,
+   "tree_files": 7700,
+   "warm_median": {
+    "peak_hwm_mib": 87.2,
+    "ready_s": 0.978,
+    "shutdown_s": 0.416,
+    "steady_rss_mib": 87.2
+   },
+   "warm_min_max_ready_s": [
+    0.91,
+    1.157
+   ]
+  },
+  "pyinstaller-direct": {
+   "cold": {
+    "exit_code": 0,
+    "host_internal_ready_s": null,
+    "peak_hwm_mib": 85.9,
+    "processes": 1,
+    "ready_s": 1.282,
+    "shutdown_s": 0.518,
+    "steady_rss_mib": 85.9
+   },
+   "exit_codes": [
+    0
+   ],
+   "tree_bytes": 82538345,
+   "tree_files": 1575,
+   "warm_median": {
+    "peak_hwm_mib": 86.0,
+    "ready_s": 1.293,
+    "shutdown_s": 0.492,
+    "steady_rss_mib": 86.0
+   },
+   "warm_min_max_ready_s": [
+    1.165,
+    1.43
+   ]
+  },
+  "venv-direct": {
+   "cold": {
+    "exit_code": 0,
+    "host_internal_ready_s": null,
+    "peak_hwm_mib": 78.4,
+    "processes": 1,
+    "ready_s": 1.136,
+    "shutdown_s": 0.466,
+    "steady_rss_mib": 78.4
+   },
+   "exit_codes": [
+    0
+   ],
+   "warm_median": {
+    "peak_hwm_mib": 78.1,
+    "ready_s": 1.135,
+    "shutdown_s": 0.441,
+    "steady_rss_mib": 78.1
+   },
+   "warm_min_max_ready_s": [
+    1.065,
+    1.18
+   ]
+  }
+ }
+}

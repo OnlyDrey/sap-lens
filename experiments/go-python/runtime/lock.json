@@ -1,0 +1,436 @@
+{
+  "python": {
+    "archives": {
+      "linux": {
+        "file": "cpython-3.12.11+20250902-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz",
+        "sha256": "49b3c31d7c51bfb469d6ff77db1b800cbdd7aaa11fafb9af0b517d9aa129b48b",
+        "size": 31388740,
+        "source_of_hash": "release 20250902 SHA256SUMS over TLS (not an independent signature)",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250902/cpython-3.12.11%2B20250902-x86_64-unknown-linux-gnu-install_only_stripped.tar.gz"
+      },
+      "windows": {
+        "file": "cpython-3.12.11+20250902-x86_64-pc-windows-msvc-install_only_stripped.tar.gz",
+        "sha256": "51583044693eaab95f98ddd9ec70594985eea35e6779819b478934776f9d0616",
+        "size": 21190018,
+        "source_of_hash": "release 20250902 SHA256SUMS over TLS (not an independent signature)",
+        "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20250902/cpython-3.12.11%2B20250902-x86_64-pc-windows-msvc-install_only_stripped.tar.gz"
+      }
+    },
+    "version": "3.12.11"
+  },
+  "requirements": [
+    "fastapi==0.151.0",
+    "uvicorn==0.54.0",
+    "pydantic==2.14.1",
+    "pydantic-settings==2.16.0",
+    "Pillow==13.0.0",
+    "python-docx==1.2.0",
+    "reportlab==5.1.0",
+    "lxml==6.1.3",
+    "charset-normalizer==3.5.2",
+    "tzdata==2026.6",
+    "python-multipart==0.0.32",
+    "argon2-cffi==25.1.0",
+    "cryptography==50.0.2",
+    "opentelemetry-api==1.45.2"
+  ],
+  "schema": 1,
+  "wheels": {
+    "linux": [
+      {
+        "file": "annotated_doc-0.0.6-py3-none-any.whl",
+        "name": "annotated-doc",
+        "sha256": "361ca0950cc7082f53fa69e9328409f40a62c61e57e0a47e1825a08078a58a53",
+        "size": 5293,
+        "version": "0.0.6"
+      },
+      {
+        "file": "annotated_types-0.8.0-py3-none-any.whl",
+        "name": "annotated-types",
+        "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+        "size": 13427,
+        "version": "0.8.0"
+      },
+      {
+        "file": "anyio-4.16.0-py3-none-any.whl",
+        "name": "anyio",
+        "sha256": "c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026",
+        "size": 134521,
+        "version": "4.16.0"
+      },
+      {
+        "file": "argon2_cffi-25.1.0-py3-none-any.whl",
+        "name": "argon2-cffi",
+        "sha256": "fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741",
+        "size": 14657,
+        "version": "25.1.0"
+      },
+      {
+        "file": "argon2_cffi_bindings-26.2.0-cp310-abi3-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+        "name": "argon2-cffi-bindings",
+        "sha256": "2d475baecbcb506e40ab1cb05a84c9cc913a8950061a4045fd0ec0eb54aa7fa2",
+        "size": 26650,
+        "version": "26.2.0"
+      },
+      {
+        "file": "cffi-2.1.1-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.whl",
+        "name": "cffi",
+        "sha256": "c1453022f490d2459a11819d83ad1d586e9ff65a12ac3e705ffebd46d3685dcf",
+        "size": 221822,
+        "version": "2.1.1"
+      },
+      {
+        "file": "charset_normalizer-3.5.2-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl",
+        "name": "charset-normalizer",
+        "sha256": "3d31298449090ab8d47b7b1b2a555ff73cac7ed438a08b7ac160980c7ebed649",
+        "size": 257601,
+        "version": "3.5.2"
+      },
+      {
+        "file": "click-8.5.1-py3-none-any.whl",
+        "name": "click",
+        "sha256": "8bb5376d2006950386f8c6427613334a2acadc5f559cb80e638d00b4df957e37",
+        "size": 126163,
+        "version": "8.5.1"
+      },
+      {
+        "file": "cryptography-50.0.2-cp311-abi3-manylinux_2_28_x86_64.whl",
+        "name": "cryptography",
+        "sha256": "4061c0079120205fb760c58acab6443e217307dcf05e3702cf970e0689972856",
+        "size": 4753050,
+        "version": "50.0.2"
+      },
+      {
+        "file": "fastapi-0.151.0-py3-none-any.whl",
+        "name": "fastapi",
+        "sha256": "498923b00b193654c839ec613dd84d1b0f98f8c20a5371e4f41100c522f114b9",
+        "size": 145297,
+        "version": "0.151.0"
+      },
+      {
+        "file": "h11-0.16.0-py3-none-any.whl",
+        "name": "h11",
+        "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+        "size": 37515,
+        "version": "0.16.0"
+      },
+      {
+        "file": "idna-3.20-py3-none-any.whl",
+        "name": "idna",
+        "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+        "size": 69583,
+        "version": "3.20"
+      },
+      {
+        "file": "lxml-6.1.3-cp312-cp312-manylinux_2_26_x86_64.manylinux_2_28_x86_64.whl",
+        "name": "lxml",
+        "sha256": "909f4e927bb051f7740d6367285fc60cdcfdaf0258c2dba4ff5ba7eadadc250c",
+        "size": 5244675,
+        "version": "6.1.3"
+      },
+      {
+        "file": "opentelemetry_api-1.45.2-py3-none-any.whl",
+        "name": "opentelemetry-api",
+        "sha256": "2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34",
+        "size": 60335,
+        "version": "1.45.2"
+      },
+      {
+        "file": "pillow-13.0.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl",
+        "name": "pillow",
+        "sha256": "42d63be3af4f9b951b199b0a9d23365d37ab14687e6d77b74940432c8515c4ca",
+        "size": 7144542,
+        "version": "13.0.0"
+      },
+      {
+        "file": "pycparser-3.12-py3-none-any.whl",
+        "name": "pycparser",
+        "sha256": "a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e",
+        "size": 62600,
+        "version": "3.12"
+      },
+      {
+        "file": "pydantic-2.14.1-py3-none-any.whl",
+        "name": "pydantic",
+        "sha256": "9195d967ec791692a04438115466764fb8b9a27b31f14a760437694f40d6b454",
+        "size": 488106,
+        "version": "2.14.1"
+      },
+      {
+        "file": "pydantic_core-2.50.1-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+        "name": "pydantic-core",
+        "sha256": "93ba4e9d8210d941c200431a56b2c0400b131865947903937ed3ec5404307d2e",
+        "size": 2160157,
+        "version": "2.50.1"
+      },
+      {
+        "file": "pydantic_settings-2.16.0-py3-none-any.whl",
+        "name": "pydantic-settings",
+        "sha256": "7e73acf7f61936a15e5a3b6eedaea29f133357faf7272f2607ba479b049dd7f2",
+        "size": 80364,
+        "version": "2.16.0"
+      },
+      {
+        "file": "python_docx-1.2.0-py3-none-any.whl",
+        "name": "python-docx",
+        "sha256": "3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7",
+        "size": 252987,
+        "version": "1.2.0"
+      },
+      {
+        "file": "python_dotenv-1.2.4-py3-none-any.whl",
+        "name": "python-dotenv",
+        "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc",
+        "size": 23266,
+        "version": "1.2.4"
+      },
+      {
+        "file": "python_multipart-0.0.32-py3-none-any.whl",
+        "name": "python-multipart",
+        "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+        "size": 30042,
+        "version": "0.0.32"
+      },
+      {
+        "file": "reportlab-5.1.0-py3-none-any.whl",
+        "name": "reportlab",
+        "sha256": "59fdbaec5efe437095ad1d7292ec9a271c8ca2d3ec75e889c6e61400929b90df",
+        "size": 2018647,
+        "version": "5.1.0"
+      },
+      {
+        "file": "starlette-1.10.0-py3-none-any.whl",
+        "name": "starlette",
+        "sha256": "478c0ab3b4ced6e82719849c118fa406f0278a3499c1a898cd15cd31bdc38ce4",
+        "size": 80571,
+        "version": "1.10.0"
+      },
+      {
+        "file": "typing_extensions-4.16.0-py3-none-any.whl",
+        "name": "typing-extensions",
+        "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+        "size": 45571,
+        "version": "4.16.0"
+      },
+      {
+        "file": "typing_inspection-0.4.5-py3-none-any.whl",
+        "name": "typing-inspection",
+        "sha256": "bc210535442b39e1bf2805e0c7a17dfd6a4ace760c84c7f7d16245d23a6b1c39",
+        "size": 14874,
+        "version": "0.4.5"
+      },
+      {
+        "file": "tzdata-2026.6-py2.py3-none-any.whl",
+        "name": "tzdata",
+        "sha256": "0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec",
+        "size": 348210,
+        "version": "2026.6"
+      },
+      {
+        "file": "uvicorn-0.54.0-py3-none-any.whl",
+        "name": "uvicorn",
+        "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+        "size": 87427,
+        "version": "0.54.0"
+      }
+    ],
+    "windows": [
+      {
+        "file": "annotated_doc-0.0.6-py3-none-any.whl",
+        "name": "annotated-doc",
+        "sha256": "361ca0950cc7082f53fa69e9328409f40a62c61e57e0a47e1825a08078a58a53",
+        "size": 5293,
+        "version": "0.0.6"
+      },
+      {
+        "file": "annotated_types-0.8.0-py3-none-any.whl",
+        "name": "annotated-types",
+        "sha256": "f072f4d804ea359e4eaf198b1af7a8b0943881a87f31bb764f8bf219bb9419e0",
+        "size": 13427,
+        "version": "0.8.0"
+      },
+      {
+        "file": "anyio-4.16.0-py3-none-any.whl",
+        "name": "anyio",
+        "sha256": "c66ae634e0b8228396b801741beb3294326d4b6102f7bba4041c0dfb58c29026",
+        "size": 134521,
+        "version": "4.16.0"
+      },
+      {
+        "file": "argon2_cffi-25.1.0-py3-none-any.whl",
+        "name": "argon2-cffi",
+        "sha256": "fdc8b074db390fccb6eb4a3604ae7231f219aa669a2652e0f20e16ba513d5741",
+        "size": 14657,
+        "version": "25.1.0"
+      },
+      {
+        "file": "argon2_cffi_bindings-26.2.0-cp310-abi3-win_amd64.whl",
+        "name": "argon2-cffi-bindings",
+        "sha256": "d2d4ae065e7cce4b286d3eb7c59128bfd11f8e407863b88629e9d391b864a3df",
+        "size": 25783,
+        "version": "26.2.0"
+      },
+      {
+        "file": "cffi-2.1.1-cp312-cp312-win_amd64.whl",
+        "name": "cffi",
+        "sha256": "f53e442b08449d42821fa4a4fba000095af9f62742a500f978a9f557ec44339a",
+        "size": 185919,
+        "version": "2.1.1"
+      },
+      {
+        "file": "charset_normalizer-3.5.2-cp312-cp312-win_amd64.whl",
+        "name": "charset-normalizer",
+        "sha256": "780fbe7cab297b81dad9fb8dc5eb003c0468ffb0d9e5f65068c53a34661a96bc",
+        "size": 207486,
+        "version": "3.5.2"
+      },
+      {
+        "file": "click-8.5.1-py3-none-any.whl",
+        "name": "click",
+        "sha256": "8bb5376d2006950386f8c6427613334a2acadc5f559cb80e638d00b4df957e37",
+        "size": 126163,
+        "version": "8.5.1"
+      },
+      {
+        "file": "cryptography-50.0.2-cp311-abi3-win_amd64.whl",
+        "name": "cryptography",
+        "sha256": "7afa5a6602a9f29af1f3a2965f831bae7c9d5d597b7cbb716d41ab3b7d89879c",
+        "size": 3824692,
+        "version": "50.0.2"
+      },
+      {
+        "file": "fastapi-0.151.0-py3-none-any.whl",
+        "name": "fastapi",
+        "sha256": "498923b00b193654c839ec613dd84d1b0f98f8c20a5371e4f41100c522f114b9",
+        "size": 145297,
+        "version": "0.151.0"
+      },
+      {
+        "file": "h11-0.16.0-py3-none-any.whl",
+        "name": "h11",
+        "sha256": "63cf8bbe7522de3bf65932fda1d9c2772064ffb3dae62d55932da54b31cb6c86",
+        "size": 37515,
+        "version": "0.16.0"
+      },
+      {
+        "file": "idna-3.20-py3-none-any.whl",
+        "name": "idna",
+        "sha256": "ab7ae7122974553370f0bdb919e1a960b2cd1bc1ef0276416d896db81c14582c",
+        "size": 69583,
+        "version": "3.20"
+      },
+      {
+        "file": "lxml-6.1.3-cp312-cp312-win_amd64.whl",
+        "name": "lxml",
+        "sha256": "3e9a00d1c2c30936f7add097c41afc5da6556c580909104aafd382cac92a855c",
+        "size": 4005999,
+        "version": "6.1.3"
+      },
+      {
+        "file": "opentelemetry_api-1.45.2-py3-none-any.whl",
+        "name": "opentelemetry-api",
+        "sha256": "2cbd737377e710ee740d261c94e93fa0f08e6d037c18f17513cc0a2d94479a34",
+        "size": 60335,
+        "version": "1.45.2"
+      },
+      {
+        "file": "pillow-13.0.0-cp312-cp312-win_amd64.whl",
+        "name": "pillow",
+        "sha256": "ff3fe9eb621fbb9db4c4be33ab946f6bac5f98ab50ca8d3260503653656c961b",
+        "size": 7272166,
+        "version": "13.0.0"
+      },
+      {
+        "file": "pycparser-3.12-py3-none-any.whl",
+        "name": "pycparser",
+        "sha256": "a076f3f489b39b43ed13563a1dafe42447445bec2e294154ec5c57fcdda4c85e",
+        "size": 62600,
+        "version": "3.12"
+      },
+      {
+        "file": "pydantic-2.14.1-py3-none-any.whl",
+        "name": "pydantic",
+        "sha256": "9195d967ec791692a04438115466764fb8b9a27b31f14a760437694f40d6b454",
+        "size": 488106,
+        "version": "2.14.1"
+      },
+      {
+        "file": "pydantic_core-2.50.1-cp312-cp312-win_amd64.whl",
+        "name": "pydantic-core",
+        "sha256": "132529c83901437ff642f585216831bf5fd7a91df66829907e155192ead62498",
+        "size": 2172522,
+        "version": "2.50.1"
+      },
+      {
+        "file": "pydantic_settings-2.16.0-py3-none-any.whl",
+        "name": "pydantic-settings",
+        "sha256": "7e73acf7f61936a15e5a3b6eedaea29f133357faf7272f2607ba479b049dd7f2",
+        "size": 80364,
+        "version": "2.16.0"
+      },
+      {
+        "file": "python_docx-1.2.0-py3-none-any.whl",
+        "name": "python-docx",
+        "sha256": "3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7",
+        "size": 252987,
+        "version": "1.2.0"
+      },
+      {
+        "file": "python_dotenv-1.2.4-py3-none-any.whl",
+        "name": "python-dotenv",
+        "sha256": "42269a8a5b3fd54ffa6f3d84b18abed50064717576b4ecf03dc4a55d8aa04fdc",
+        "size": 23266,
+        "version": "1.2.4"
+      },
+      {
+        "file": "python_multipart-0.0.32-py3-none-any.whl",
+        "name": "python-multipart",
+        "sha256": "ff6d3f776f16878c894e52e107296ffc890e913c611b1a4ec6c44e2821fe2e23",
+        "size": 30042,
+        "version": "0.0.32"
+      },
+      {
+        "file": "reportlab-5.1.0-py3-none-any.whl",
+        "name": "reportlab",
+        "sha256": "59fdbaec5efe437095ad1d7292ec9a271c8ca2d3ec75e889c6e61400929b90df",
+        "size": 2018647,
+        "version": "5.1.0"
+      },
+      {
+        "file": "starlette-1.10.0-py3-none-any.whl",
+        "name": "starlette",
+        "sha256": "478c0ab3b4ced6e82719849c118fa406f0278a3499c1a898cd15cd31bdc38ce4",
+        "size": 80571,
+        "version": "1.10.0"
+      },
+      {
+        "file": "typing_extensions-4.16.0-py3-none-any.whl",
+        "name": "typing-extensions",
+        "sha256": "481caa481374e813c1b176ada14e97f1f67a4539ce9cfeb3f350d78d6370c2e8",
+        "size": 45571,
+        "version": "4.16.0"
+      },
+      {
+        "file": "typing_inspection-0.4.5-py3-none-any.whl",
+        "name": "typing-inspection",
+        "sha256": "bc210535442b39e1bf2805e0c7a17dfd6a4ace760c84c7f7d16245d23a6b1c39",
+        "size": 14874,
+        "version": "0.4.5"
+      },
+      {
+        "file": "tzdata-2026.6-py2.py3-none-any.whl",
+        "name": "tzdata",
+        "sha256": "0a10eec6e13ef16b627fabed9a5f2ba61a62b1c67f327305f4e7e412a70b4aec",
+        "size": 348210,
+        "version": "2026.6"
+      },
+      {
+        "file": "uvicorn-0.54.0-py3-none-any.whl",
+        "name": "uvicorn",
+        "sha256": "505bdb0f318731d45f1f712071fc781a8981f6847a31c902c9f5e652d4f67faf",
+        "size": 87427,
+        "version": "0.54.0"
+      }
+    ]
+  }
+}
