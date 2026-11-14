@@ -138,6 +138,8 @@ their reasons, and every partial profile says that it is partial and what it lef
 
 Windows-only items are reported NOT EXECUTED on Linux: the checklist in [Windows service](../deployment/WINDOWS_SERVICE.md#native-windows-acceptance-checklist-accounts-reviewer-identity-and-encrypted-backups) (rows 1 to 18) is the list of what a Windows run must still show. The Service Manager C# is parse-checked and its pure validation members are compiled and run under Mono when `mcs` and `mono` are installed; it is not compiled with the .NET Framework `csc.exe` here. CI runs only on pushes to `main` after a merge; development validates locally (focused tests per change, REGRESSION per phase, FULL before a merge).
 
+App Control diagnostics are tested without touching any policy: `test_windows_app_control_evidence.py` runs the PowerShell evidence functions against synthetic Code Integrity events (field spellings, path correlation, window, 3077 and 3033, audit-only 3076, unreadable events), the backup-key command contract against throw-away directories, and the installer-harness contracts; `test_native_blocked_reporting.py` covers the blocked manifest row, the verdict lines and the exit status. Real enforcement is NOT EXECUTED on Linux.
+
 A Linux run never proves Docker image runs, the Windows installer, service, WebView2, native Linux packages or systemd; those belong to
 the manual build workflows and the [validation matrix](../deployment/README.md#validation-status).
 

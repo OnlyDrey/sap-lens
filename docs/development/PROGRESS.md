@@ -2631,3 +2631,16 @@ package (source 50e55d0) and was neither rebuilt nor modified.
   `session-recovery.spec.ts`. Fixed by holding the refusal until the Retry click is observed (flag kept in the test process, because Retry
   reloads the document): 15/15 repeated passes.
 - Native Windows acceptance: NOT EXECUTED (checklist rows 1-18 in `docs/deployment/WINDOWS_SERVICE.md`).
+
+## Windows App Control diagnostics and honest native reporting
+
+- Confirmed on a policy-enforced Windows machine: the unsigned Desktop EXE and the Inno-extracted payload are refused by Code Integrity (events 3077, 3033);
+  the process is never created. Native smoke and installer acceptance now classify this as `blocked` (`environment_policy_blocked`) from a documented
+  native error code (1260, 4551) or a correlated event, never from "unsigned" alone, and write one machine-readable result each.
+- The `[build-stage] PASS` seen next to `desktop: failed` was the **Server** target: both targets used the identical step label. No exit-code defect was
+  found (a throwing smoke aborts the package script). Labels now name the target and the build prints packaging, package integrity and native acceptance
+  separately, exits non-zero for a blocked target and reports `Overall native acceptance: NOT VERIFIED` and `Release readiness: NOT APPROVED`.
+- Installer: the pre-upgrade backup was always encrypted-only and aborted installation (before any change) without a protected key, with a misleading
+  message. Setup now checks the key first and says what to do; the harness proves the refusal, then provisions a throw-away key outside the data directory.
+  No plaintext fallback exists or was added. Not executed on Windows.
+- Signing assessment and the remaining administrator decisions: `docs/deployment/CODE_SIGNING.md`. Nothing was signed, disabled or excluded.

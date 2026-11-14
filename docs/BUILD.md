@@ -350,6 +350,12 @@ ProductName, FileVersion and ProductVersion with it. It no longer reads `backend
 or Installer build rewrites. An executable without a bound record, a record for another digest, a changed checksum sidecar or
 a malformed commit is refused before anything is launched.
 
+Native result files and the build verdict: `test-windows-exe.ps1` writes `backend/build/native-smoke-result.json` and the installer acceptance writes
+`backend/build/native-installer-result.json` on failure or block (`passed`, `failed` or `blocked`; a Windows App Control refusal is `blocked` with reason
+`environment_policy_blocked`; schema in [Windows App Control blocks](deployment/WINDOWS_DESKTOP.md#windows-app-control-blocks-diagnosis-and-meaning-of-blocked)).
+The deployment builder records a blocked target as `status: blocked` with the packaging stage outcomes and the allow-listed evidence, prints packaging,
+package integrity and native acceptance separately for each target, and exits non-zero unless every target passed.
+
 Verify an archive against its adjacent `.sha256` using `Get-FileHash -Algorithm
 SHA256 <archive>` on Windows or `sha256sum -c <archive>.sha256` on Linux. The digest
 must also equal the record for that filename in `release-manifest.json`.

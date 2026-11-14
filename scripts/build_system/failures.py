@@ -55,6 +55,10 @@ def classify_lock(text):
 
 
 def hint(stage, lock, output=''):
+    if 'NATIVE ACCEPTANCE BLOCKED [environment_policy_blocked]' in str(output):
+        return ('Windows App Control (Code Integrity) refused to run an unsigned executable, so the application never started and the native test verified nothing. '
+                'This is an environment limitation, not an application failure and not a pass. Do not disable or bypass the policy: get the binaries signed and approved by '
+                'your security administrator (docs/deployment/CODE_SIGNING.md), or run native acceptance on a machine whose policy allows it.')
     if 'ACCEPTANCE PREREQUISITE' in str(output):
         return ('The native Windows service (SCM) acceptance installs, starts and removes a real Windows service and needs an elevated shell. Packaging itself does not: '
                 'run the normal command without -NativeAcceptance, then run scripts\\test-server-service.ps1 -Bundle <bundle> from an elevated PowerShell.')
@@ -91,6 +95,7 @@ class StageFailure(ValueError):
         self.output_tail, self.log, self.failure_class = tail(output), str(log) if log else None, failure_class
         self.failed_tests = failing_tests(output)
         if 'ACCEPTANCE PREREQUISITE' in str(output): failure_class = 'acceptance_prerequisite'
+        if 'NATIVE ACCEPTANCE BLOCKED [environment_policy_blocked]' in str(output): failure_class = 'environment_policy_blocked'
         self.lock = classify_lock(output)
         self.hint = hint(stage, self.lock, output) or note
         if 'BLOCKED (prerequisite' in str(output): failure_class = 'prerequisite'

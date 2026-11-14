@@ -1,7 +1,8 @@
-param([string]$ExecutablePath='', [string]$IdentityPath='')
+param([string]$ExecutablePath='', [string]$IdentityPath='', [string]$ResultPath='backend/build/native-smoke-result.json')
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
 . (Join-Path $PSScriptRoot 'testing/windows-artifact-identity.ps1')
+. (Join-Path $PSScriptRoot 'testing/windows-app-control-evidence.ps1')
 $executable = (Resolve-Path $(if ($ExecutablePath) { $ExecutablePath } else { 'backend/dist/SAP-Lens.exe' })).Path
 $tempRoot = if ($env:RUNNER_TEMP) { $env:RUNNER_TEMP } else { [System.IO.Path]::GetTempPath() }
 $testRoot = Join-Path $tempRoot ('sap-lens-smoke/' + [guid]::NewGuid())
@@ -120,6 +121,7 @@ namespace SAPLensSmoke {
 
 function Get-ApplicationControlEvidence([string]$path, [datetime]$attemptedAt, [datetime]$failedAt) {
     $correlated = @()
+    $records = @()
     $limitations = @()
     $expected = [System.IO.Path]::GetFullPath($path)
     $devicePath = $null
@@ -134,29 +136,15 @@ function Get-ApplicationControlEvidence([string]$path, [datetime]$attemptedAt, [
             StartTime = $attemptedAt.AddSeconds(-2); EndTime = $failedAt.AddSeconds(2)
         } -MaxEvents 128 -ErrorAction Stop)
         if ($events.Count -eq 128) { $limitations += 'Event query limit reached; evidence may be incomplete.' }
-        foreach ($event in $events) {
-            if ($event.Id -notin @(3077, 3033) -or $event.TimeCreated -lt $attemptedAt.AddSeconds(-2) -or $event.TimeCreated -gt $failedAt.AddSeconds(2)) { continue }
-            try {
-                [xml]$xml = $event.ToXml()
-                $fields = @{}
-                foreach ($field in $xml.Event.EventData.Data) { $fields[[string]$field.Name] = [string]$field.'#text' }
-                $file = [string]$fields['FileName']
-                if ($file.StartsWith('\??\')) { $file = $file.Substring(4) }
-                if ($file.StartsWith('\\?\')) { $file = $file.Substring(4) }
-                # Exact full-path comparison, never basename/suffix matching (nor ProcessName, which may be the parent).
-                if (-not [string]::Equals($file, $expected, [System.StringComparison]::OrdinalIgnoreCase) -and
-                    -not ($devicePath -and [string]::Equals($file, $devicePath, [System.StringComparison]::OrdinalIgnoreCase))) { continue }
-                $policy = 'not recorded'
-                foreach ($key in @('PolicyID', 'PolicyId', 'PolicyGUID')) {
-                    if ([string]$fields[$key] -match '^\{?[0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}\}?$') { $policy = [string]$fields[$key]; break }
-                }
-                $correlated += "event_id=$($event.Id); policy_id=$policy"
-            } catch { $limitations += "An event could not be parsed ($($_.Exception.GetType().Name))." }
-        }
+        # Parsing, whole-path correlation and the bounded window live in windows-app-control-evidence.ps1 (testable on synthetic events).
+        $selected = Select-CorrelatedCodeIntegrityEvents $events $expected $devicePath $attemptedAt.AddSeconds(-2) $failedAt.AddSeconds(2)
+        foreach ($record in $selected.Records) { $correlated += "event_id=$($record.Id); policy_id=$($record.PolicyId); correlation=$($record.Correlation)" }
+        $records += $selected.Records
+        $limitations += $selected.Limitations
     } catch {
         if ($_.FullyQualifiedErrorId -notlike 'NoMatchingEventsFound*') { $limitations += "Code Integrity log unavailable ($($_.Exception.GetType().Name))." }
     }
-    return @{ Matches = $correlated; Limitations = $limitations }
+    return @{ Matches = $correlated; Records = $records; Limitations = $limitations }
 }
 
 function Get-LaunchFailureDiagnostic($exception, [string]$path, [datetime]$attemptedAt, [datetime]$failedAt) {
@@ -167,11 +155,14 @@ function Get-LaunchFailureDiagnostic($exception, [string]$path, [datetime]$attem
     catch { $evidence.Limitations += "Authenticode inspection unavailable ($($_.Exception.GetType().Name))." }
     $class = 'process_creation_failed'
     # ERROR_ACCESS_DISABLED_BY_POLICY is definitive; invalid-image-hash 577 alone is not proof of WDAC.
-    if ($code -eq 1260 -or $evidence.Matches.Count -gt 0) { $class = 'windows_application_control_blocked' }
+    if ((Get-PolicyBlockName $code) -or $evidence.Matches.Count -gt 0) { $class = 'windows_application_control_blocked' }
+    $verdict = Get-NativeSmokeVerdict $class
+    $script:LaunchEvidence = @{ executable_started = $false; native_error_code = $code; native_error_name = (Get-PolicyBlockName $code); authenticode = $signature
+        correlated_events = (ConvertTo-EvidenceRecords $evidence.Records); limitations = @($evidence.Limitations); status = $verdict.Status; reason = $verdict.Reason }
     $codeText = if ($null -eq $code) { 'unavailable' } else { [string]$code }
     $eventsText = if ($evidence.Matches.Count) { $evidence.Matches -join '; ' } else { 'No correlated blocking events found.' }
     $next = if ($class -eq 'windows_application_control_blocked') {
-        'Ask your security administrator for organization-approved signing/deployment. Do not disable or bypass App Control. Desktop verification did not run.'
+        'NATIVE ACCEPTANCE BLOCKED [environment_policy_blocked]: the operating system refused to run this file, so the application was never started and nothing about it was verified. Ask your security administrator for organization-approved signing/deployment. Do not disable or bypass App Control.'
     } else { 'Inspect the original process creation error. No application startup or health verification was completed.' }
     return @{ Class = $class; Text = "Process creation failed; executable_started=False; native_error_code=$codeText; Authenticode=$signature`n$eventsText`n$($evidence.Limitations -join ' ')`nNext: $next" }
 }
@@ -278,6 +269,7 @@ function Start-Application([string]$directory) {
         $env:SAP_LENS_DEPLOYMENT_MODE = 'desktop'
         $env:DATA_CSV_PATH = ''
         $attemptedAt = Get-Date
+        $script:LaunchEvidence = $null
         try { return Start-Process -FilePath $executable -PassThru -ErrorAction Stop }
         catch {
             $original = $_.Exception
@@ -286,7 +278,11 @@ function Start-Application([string]$directory) {
             try { $diagnostic = Get-LaunchFailureDiagnostic $original $executable $attemptedAt $failedAt }
             catch {
                 $code = Get-LaunchNativeErrorCode $original
-                if ($code -eq 1260) { $diagnostic.Class = 'windows_application_control_blocked' }
+                if (Get-PolicyBlockName $code) {
+                    $diagnostic.Class = 'windows_application_control_blocked'
+                    $diagnostic.Text += ' NATIVE ACCEPTANCE BLOCKED [environment_policy_blocked]'
+                    $script:LaunchEvidence = @{ executable_started = $false; native_error_code = $code; native_error_name = (Get-PolicyBlockName $code); authenticode = 'unavailable'; correlated_events = @(); limitations = @('event correlation unavailable'); status = 'blocked'; reason = 'environment_policy_blocked' }
+                }
                 if ($null -ne $code) { $diagnostic.Text += " native_error_code=$code;" }
                 $diagnostic.Text += " ($($_.Exception.GetType().Name))"
             }
@@ -389,6 +385,7 @@ try {
     if (Test-InstanceHeld) {
         throw (New-SmokeException 'prerequisite_existing_instance' 'Another SAP Lens instance already runs in this Windows session. Close it and run the smoke test again. Nothing was started or terminated.' $null)
     }
+    $passedScenarios = @()
     foreach ($scenario in @('first-launch', 'configured', 'relaunch', 'port-conflict')) {
         $script:ScenarioStart = Get-Date
         $script:State = @{ Scenario = $scenario; Directory = ''; Launcher = 0; Runtime = 0; Condition = 'not started'; Health = $null; HttpError = ''; RecordSeen = $false; OwnedSeen = $false; ExpectedStatus = ''; ExpectedRoles = 0; Readiness = 'not probed' }
@@ -466,6 +463,7 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
                 try { $probe.Connect('127.0.0.1', ([uri]$record.origin).Port); $connected = $true } catch [System.Net.Sockets.SocketException] { }
                 if ($connected) { throw 'Backend remains after the application closed.' }
             } finally { $probe.Dispose() }
+            $passedScenarios += $scenario
             Write-Host "PASS $scenario : owned API, bundled frontend, branding, CORS, GUI window, no dev tools, clean shutdown"
         } catch {
             # Keep the original exception (as the inner exception) and add the scenario diagnostics once.
@@ -475,6 +473,17 @@ MM,DEMO:B,Synthetic B,SHARED,Shared,DEMO,Demo
             if ($busy) { $busy.Stop() }
         }
     }
+    Write-NativeResult $ResultPath @{ kind = 'windows-native-smoke'; status = 'passed'; reason = 'all_scenarios_passed'; executable = (Split-Path $executable -Leaf)
+        executable_sha256 = $buildIdentity.Sha256; scenarios_passed = $passedScenarios; executable_started = $true }
+} catch {
+    # One machine-readable result per run: blocked (the OS refused to run the file) is kept apart from failed (the application ran and misbehaved).
+    $class = [string]$_.Exception.Data['SmokeClass']
+    $verdict = Get-NativeSmokeVerdict $(if ($class) { $class } else { 'unclassified' })
+    $result = @{ kind = 'windows-native-smoke'; status = $verdict.Status; reason = $verdict.Reason; executable = (Split-Path $executable -Leaf); scenarios_passed = @($passedScenarios) }
+    if ($script:LaunchEvidence) { foreach ($key in $script:LaunchEvidence.Keys) { $result[$key] = $script:LaunchEvidence[$key] } }
+    elseif ($verdict.Status -eq 'failed') { $result.executable_started = $null }
+    Write-NativeResult $ResultPath $result
+    throw
 } finally {
     # Never terminate processes by name: only handles captured from our own launches.
     foreach ($process in $owned.Values) {

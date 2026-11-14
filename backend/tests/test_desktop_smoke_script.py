@@ -42,12 +42,16 @@ class SmokeScriptContracts(unittest.TestCase):
     def test_application_control_uses_structured_correlated_bounded_evidence(self):
         helper = SCRIPT[SCRIPT.index('function Get-ApplicationControlEvidence'):SCRIPT.index('function Format-DiagnosticsCore')]
         for contract in ('Microsoft-Windows-CodeIntegrity/Operational', 'Id = @(3077, 3033)', 'StartTime = $attemptedAt.AddSeconds(-2)',
-                         'EndTime = $failedAt.AddSeconds(2)', '-MaxEvents 128', '[xml]$xml = $event.ToXml()', "['FileName']",
-                         '[System.StringComparison]::OrdinalIgnoreCase', "$code -eq 1260 -or $evidence.Matches.Count -gt 0",
+                         'EndTime = $failedAt.AddSeconds(2)', '-MaxEvents 128', 'Select-CorrelatedCodeIntegrityEvents',
+                         "(Get-PolicyBlockName $code) -or $evidence.Matches.Count -gt 0",
                          'Get-AuthenticodeSignature -LiteralPath $path', 'NoMatchingEventsFound', 'Code Integrity log unavailable'):
             self.assertIn(contract, helper)
         self.assertNotIn('$event.Message', helper)
         self.assertIn('$correlated = @()', helper, 'PowerShell regex matching must not replace the event accumulator via automatic $Matches')
+        module = (ROOT / 'scripts/testing/windows-app-control-evidence.ps1').read_text(encoding='utf-8')
+        for contract in ('[xml]$xml = $Event.ToXml()', "$fields['filename']", '[System.StringComparison]::OrdinalIgnoreCase', '-notin @(3077, 3033)'):
+            self.assertIn(contract, module, contract)
+        self.assertNotIn('$Event.Message', module)
         self.assertNotIn('-like', helper[:helper.index('} catch {\n        if ($_.FullyQualifiedErrorId')])
         self.assertIn('QueryDosDevice', SCRIPT, 'NT paths must use an actual drive mapping, not a suffix guess')
 
@@ -181,7 +185,8 @@ class LaunchDiagnosticBehavior(unittest.TestCase):
 
     def invoke(self, body):
         names = ('Get-LaunchNativeErrorCode', 'Get-DosDeviceName', 'Get-ApplicationControlEvidence', 'Get-LaunchFailureDiagnostic', 'Start-Application')
-        functions = '\n'.join(re.search(r'^function ' + re.escape(name) + r'\b.*?(?=^function |\Z)', SCRIPT, re.M | re.S)[0] for name in names)
+        module = (ROOT / 'scripts/testing/windows-app-control-evidence.ps1').read_text(encoding='utf-8')
+        functions = module + '\n' + '\n'.join(re.search(r'^function ' + re.escape(name) + r'\b.*?(?=^function |\Z)', SCRIPT, re.M | re.S)[0] for name in names)
         setup = r'''
 $ErrorActionPreference = 'Stop'
 $executable = 'C:\synthetic\SAP-Lens.exe'
@@ -236,6 +241,21 @@ $result = Get-LaunchFailureDiagnostic (New-Object System.ComponentModel.Win32Exc
 ''')
         self.assertEqual(result['Class'], 'windows_application_control_blocked')
         self.assertIn('Code Integrity log unavailable', result['Text'])
+
+    def test_system_integrity_policy_violation_code_is_a_block_and_records_the_verdict(self):
+        result = self.invoke(r'''
+$r = Get-LaunchFailureDiagnostic (New-Object System.ComponentModel.Win32Exception(4551)) $executable (Get-Date) (Get-Date)
+$result = @{Class=$r.Class; Text=$r.Text; Status=$script:LaunchEvidence.status; Reason=$script:LaunchEvidence.reason; Started=$script:LaunchEvidence.executable_started}
+''')
+        self.assertEqual((result['Class'], result['Status'], result['Reason'], result['Started']), ('windows_application_control_blocked', 'blocked', 'environment_policy_blocked', False))
+        self.assertIn('NATIVE ACCEPTANCE BLOCKED [environment_policy_blocked]', result['Text'])
+
+    def test_unsigned_executable_with_a_generic_creation_error_stays_a_failure(self):
+        result = self.invoke(r'''
+$r = Get-LaunchFailureDiagnostic (New-Object System.ComponentModel.Win32Exception(2)) $executable (Get-Date) (Get-Date)
+$result = @{Class=$r.Class; Status=$script:LaunchEvidence.status}
+''')
+        self.assertEqual(result, {'Class': 'process_creation_failed', 'Status': 'failed'})
 
     def test_correlated_device_path_and_policy_id_classify_localized_error(self):
         result = self.invoke(r'''

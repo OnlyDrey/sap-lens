@@ -225,6 +225,12 @@ begin
   DataDirectory := RemoveBackslashUnlessRoot(DataDirectory);
   if Pos('"', DataDirectory) <> 0 then begin Result := 'Invalid data-directory override.'; Exit; end;
   if DirExists(DataDirectory) and HasFiles(DataDirectory) then begin
+    // The pre-upgrade backup is always encrypted and needs a protected key outside the data directory. Check that first and say so before anything
+    // changes. There is no unencrypted fallback and the backup is never skipped.
+    if not Exec(TemporaryExe, '--maintenance check-backup-key --data ' + Quoted(DataDirectory), '', SW_HIDE, ewWaitUntilTerminated, ExitCode) or (ExitCode <> 0) then begin
+      Result := 'Setup needs a protected backup key before it can back up your data. Open SAP Lens, go to Settings > Backup & Restore, create or select the backup key, then run Setup again. Nothing was installed or changed and your data is intact. Setup never skips this backup and never creates an unencrypted one.';
+      Exit;
+    end;
 #ifdef AcceptanceId
     BackupDirectory := AddBackslash(AcceptanceRoot()) + 'backups';
 #else

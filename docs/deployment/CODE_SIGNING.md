@@ -108,6 +108,31 @@ FAQ notes that expired identity validation stops profile renewal and signing.
 Never assume a renewed certificate has the same thumbprint. Validate the permitted
 publisher/certificate policy explicitly during rollover and retain signing records.
 
+## Distribution under an enforced Windows App Control policy
+
+Observed on a Windows test machine: an enforcing, signed platform policy (`VerifiedAndReputableDesktop`, plus a supplemental policy) blocks the unsigned
+Desktop EXE and the payload the installer extracts (Code Integrity events 3077 and 3033; see
+[Windows App Control blocks](WINDOWS_DESKTOP.md#windows-app-control-blocks-diagnosis-and-meaning-of-blocked)). Facts and limits:
+
+- A signature is **necessary but not sufficient**. Whether a given publisher or reputation level is accepted depends on the organization's policy. No
+  evidence shows that self-signing, an arbitrary commercial certificate or a local exception would be accepted; none is claimed.
+- Every executable SAP Lens starts must satisfy the policy: the Desktop EXE (and the payload Setup extracts), the Setup program, and for the Server the
+  application executable, the Service Manager and the WinSW wrapper (its signature status is whatever upstream ships).
+
+**Implementable in the repository (design only, not implemented, because it needs approved credentials and a publisher decision).** An optional,
+fail-closed signing step: a signing command supplied by the environment (never a key in the repository), run only when explicitly enabled, which
+fails the build when the signature, trusted timestamp or expected publisher does not verify, and never falls back to unsigned output when signing was
+requested. Required follow-ups: the package verifier currently **rejects** a certificate table by design (`verify-windows-package.py`, "unsigned builds"),
+so it needs a signed mode; the order is sign the payload EXE, then compute SHA-256, manifests and the artifact-bound identity, then compile the installer
+with Inno's signing directive for Setup and uninstaller, then sign the Server executables, then verify Authenticode on Windows and record it. Signing changes the
+bytes, so every digest recorded before it is void.
+
+**Requires IT or security administrator approval (cannot be done in the repository).** Choosing the publisher and certificate or an internal code-signing CA;
+adding that publisher (or the file hashes) to the organization's App Control policy, usually as a supplemental policy; confirming whether the reputation
+rules of `VerifiedAndReputableDesktop` could ever accept a new publisher; key custody and audit. Hash rules for unsigned files change with every build and
+are not a sustainable path. Until this is decided, native acceptance must run on a machine whose policy allows the binaries, and results from a blocked
+machine are reported `BLOCKED`, not `passed`.
+
 ## Future human prerequisites — no action requested now
 
 - Select an eligible IV provider after confirming Norway support and current costs.

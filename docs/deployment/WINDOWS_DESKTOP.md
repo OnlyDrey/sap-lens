@@ -434,6 +434,50 @@ remains unverified until that setup succeeds on the affected Windows network;
 packaging success or Linux/mock tests cannot establish it.
 
 
+## Windows App Control blocks: diagnosis and meaning of BLOCKED
+
+**What it is.** Windows App Control (formerly WDAC, enforced by Code Integrity) can refuse to run an executable that does not meet the policy's
+signing or reputation requirements. SAP Lens binaries are **unsigned** (`CODE_SIGNING.md`), so on a machine with an enforcing policy the operating
+system refuses to create the process. The application never starts; a missing health response afterwards is a symptom, not a FastAPI failure.
+
+**Inspect the policy (read-only).** In an elevated PowerShell: `CiTool.exe --list-policies` lists the active policies with their IDs, friendly
+names, whether each is signed and enforced. Policy names such as `VerifiedAndReputableDesktop` are Microsoft-defined; do not infer from a name alone
+what a policy allows, and ask the security administrator which publishers or reputation rules apply. Do not disable, remove or bypass a policy, and do
+not add antivirus exclusions to make a test pass.
+
+**Code Integrity events** (`Event Viewer > Applications and Services Logs > Microsoft > Windows > CodeIntegrity > Operational`):
+
+| Event | Meaning |
+|---|---|
+| 3077 | enforced: a file did not meet the signing level or policy and **was blocked**; names the file, the loading process and the policy ID |
+| 3033 | a file did not meet the required signing level (reported together with a block) |
+| 3076 | audit only: the file **would** be blocked but was allowed. Not a block |
+
+**How the smoke test and the installer acceptance classify it.** A launch is `BLOCKED` (reason `environment_policy_blocked`) only with evidence:
+a native error code that Windows documents as a policy refusal (1260, 4551), or event 3077/3033 whose file path matches the executable and whose time
+lies inside the launch window (path correlation is exact, or the same path under a `\Device\HarddiskVolume` device; for the installer's
+extracted payload, the `is-*.tmp\SAP-Lens.exe` shape, labelled as pattern evidence). An unsigned file alone is **not** treated as blocked, and a
+generic creation error without evidence stays `failed` (`process_creation_failed`). Evidence is recorded in
+`backend/build/native-smoke-result.json` and `backend/build/native-installer-result.json` (status, reason, started or not, native error code, Authenticode
+status, correlated event IDs and policy IDs, limitations; no environment values or directory names). A missing event log or insufficient rights becomes a
+stated limitation.
+
+| Status | Meaning |
+|---|---|
+| `passed` | the executable ran and met every acceptance criterion |
+| `failed` | the application ran (or could not be created for an undetermined reason) and a criterion was not met |
+| `blocked` | the operating system refused to run the file; **nothing about the application was verified** |
+
+**Packaging success is not native acceptance.** The build prints per target: `packaging`, `package integrity` and `native acceptance`, then
+`Overall native acceptance` and `Release readiness`. A blocked Desktop smoke with a passing Server package reads
+`desktop: packaging PASS, package integrity PASS, native acceptance BLOCKED (environment_policy_blocked)`, `Overall native acceptance: NOT VERIFIED`,
+`Release readiness: NOT APPROVED`, and the build exits non-zero. The same step label previously said "Canonical Windows package and native smoke
+tests" for both targets, so a passing Server line could look like a pass for the Desktop; it now names its target.
+
+**Limits of a policy-enforced test machine.** Desktop smoke, installer acceptance and anything that launches an unsigned SAP Lens binary cannot
+verify the application there. Run them on a machine whose policy allows the binaries, or after the binaries are signed and approved. Until then
+the result is an environmental limitation, not a pass.
+
 ## Isolated native installer acceptance
 
 A registered SAP Lens copy can remain installed. Exit any running copy, including
@@ -457,6 +501,14 @@ resource-checked and hashed, never installed. Production uninstall registrations
 are read-only snapshots checked through the lifecycle. Registry differences and
 file paths are reported without file contents. The private plan contains local
 paths and hashes and is not a distribution/upload artifact.
+
+**Pre-upgrade backup and the backup key.** When the data directory holds files, Setup first runs `--maintenance check-backup-key` and then the encrypted
+backup. Without a protected key outside the data directory Setup **refuses before changing anything**, with a message that says what to do (Settings >
+Backup & Restore, create or select the key); it never skips the backup and never makes an unencrypted one, and existing data stays intact. The
+acceptance harness proves this refusal first (no executable left, settings unchanged, no archive, no registration), then creates a throw-away key
+inside the isolated workspace, outside the data directory, so the install, reinstall and uninstall stages exercise the real encrypted backup. A
+refusal caused by App Control does not count as that proof. Retention is unchanged: automatic backups 90 days, migration backups until the
+administrator confirms the upgrade, manual backups until deleted.
 
 A success receipt is written only after test uninstall, production-invariance
 checks and workspace cleanup complete. It binds the source production installer,

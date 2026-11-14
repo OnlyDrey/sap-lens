@@ -197,7 +197,7 @@ class Builder:
         if label == 'build': return 'frontend_build'
         if label in ('types', 'catalog'): return 'frontend_validation'
         if text.startswith('browser regression'): return 'browser_smoke'
-        if 'canonical windows package' in text: return getattr(self, 'current_target', None) + '_packaging' if getattr(self, 'current_target', None) else 'packaging'
+        if re.search(r'canonical windows (desktop |service )?package', text): return getattr(self, 'current_target', None) + '_packaging' if getattr(self, 'current_target', None) else 'packaging'
         if 'native' in text and 'smoke' in text or 'runtime' in text: return 'runtime_smoke'
         if 'package' in text: return 'packaging'
         return 'validation'
@@ -356,7 +356,7 @@ class Builder:
             destination = Path(temporary)
             if target in ('desktop', 'service'):
                 accept = target == 'service' and (getattr(self.args, 'native_acceptance', False) or os.environ.get('GITHUB_ACTIONS') == 'true')
-                self.run('Canonical Windows package and native smoke tests', [self.powershell, '-NoProfile', '-File', 'scripts/package-windows-deployment.ps1', '-Target', 'Desktop' if target == 'desktop' else 'Service', '-OutputDirectory', destination, *(['-NativeAcceptance'] if accept else [])])
+                self.run('Canonical Windows ' + ('Desktop' if target == 'desktop' else 'Service') + ' package and native smoke tests', [self.powershell, '-NoProfile', '-File', 'scripts/package-windows-deployment.ps1', '-Target', 'Desktop' if target == 'desktop' else 'Service', '-OutputDirectory', destination, *(['-NativeAcceptance'] if accept else [])])
             elif target == 'linux-native':
                 self.run('Canonical Linux native package', [self.python, 'scripts/deployment-package.py', 'native', '--output', destination])
                 self.run('Offline installation and runtime/persistence smoke tests', [self.python, 'scripts/testing/test-native-deployment.py', '--artifacts', destination])
@@ -431,7 +431,58 @@ class Builder:
         if record.get('failure_class') == 'acceptance_prerequisite':
             # A missing prerequisite of the privileged acceptance is neither a packaging nor a validation failure: nothing was attempted past the check.
             return dict(status='blocked', blocked_by='acceptance_prerequisite', native_acceptance=dict(kind='windows-scm', status='blocked', reason='administrator rights required'), **base, **record)
+        if record.get('failure_class') == 'environment_policy_blocked':
+            # The packaging stages before the native smoke ran; the operating system then refused to start the unsigned executable. That is
+            # neither a pass nor an application failure: the native smoke is BLOCKED, nothing about the running application was verified.
+            stages = self.native_stage_evidence()
+            return dict(status='blocked', blocked_by='environment_policy_blocked', built=stages['packaging'] == 'passed', package_verified=stages['verification'] == 'passed',
+                        runtime_smoke_tested=False, host_os=self.system,
+                        native_smoke=dict(status='blocked', reason='environment_policy_blocked', stages=stages, result=self.native_smoke_result()), **record)
         return dict(status='failed', **base, **record)
+
+    def native_stage_evidence(self):
+        """Outcome of the packaging, verification and smoke stages of the last build, from the timing journal the stages append to."""
+        names = dict(packaging='PyInstaller packaging (clean)', verification='Package verification and checksum', smoke='EXE smoke testing')
+        found = dict.fromkeys(names, 'not_recorded')
+        try:
+            for line in (self.build / 'timings.jsonl').read_text(encoding='utf-8-sig').splitlines():
+                row = json.loads(line)
+                for key, name in names.items():
+                    if row.get('stage') == name and row.get('status') in ('passed', 'failed'): found[key] = row['status']
+        except (OSError, ValueError, AttributeError): pass
+        return found
+
+    def native_smoke_result(self):
+        """The smoke script's machine-readable result when present and well-formed; only an allow-list of fields is kept."""
+        try:
+            value = json.loads((self.build / 'native-smoke-result.json').read_text(encoding='utf-8-sig'))
+        except (OSError, ValueError, AttributeError): return None
+        if not isinstance(value, dict) or value.get('schema') != 1: return None
+        keep = ('kind', 'status', 'reason', 'executable', 'executable_started', 'native_error_code', 'native_error_name', 'authenticode', 'correlated_events', 'limitations', 'scenarios_passed', 'recorded_utc')
+        return {key: value[key] for key in keep if key in value}
+
+    @staticmethod
+    def verdict_lines(rows):
+        """Packaging, package integrity and native acceptance are different facts. Native acceptance is VERIFIED only when every target passed and ran."""
+        lines, verified = [], True
+        for target, row in rows.items():
+            status = row.get('status')
+            packaging = 'PASS' if row.get('built') else ('NOT RUN' if status == 'blocked' and not row.get('built') and row.get('blocked_by') == 'shared_validation' else 'FAIL')
+            integrity = 'PASS' if row.get('package_verified') else ('NOT RUN' if packaging == 'NOT RUN' else 'FAIL')
+            if status == 'passed' and row.get('runtime_smoke_tested') is True:
+                native = 'PASS'
+                if (row.get('native_acceptance') or {}).get('status') == 'not_run':
+                    native = 'NOT RUN (privileged SCM acceptance not executed)'; verified = False
+            elif status == 'blocked':
+                native = 'BLOCKED (' + str(row.get('blocked_by')) + ')'; verified = False
+            elif row.get('built') and row.get('package_verified'):
+                native = 'FAILED'; verified = False
+            else:
+                native = 'NOT RUN'; verified = False
+            lines.append(f'{target}: packaging {packaging}, package integrity {integrity}, native acceptance {native}')
+        lines.append('Overall native acceptance: ' + ('VERIFIED' if verified else 'NOT VERIFIED'))
+        lines.append('Release readiness: ' + ('local criteria met; publication remains a separate authorized step' if verified else 'NOT APPROVED'))
+        return lines
 
     def execute(self):
         targets = requested(self.args.platform)
@@ -453,6 +504,7 @@ class Builder:
         for target in targets:
             row = self.manifest['targets'][target]
             print(f'{target}: {row["status"]} — {row.get("artifact", row.get("error", ""))}')
+        for line in self.verdict_lines({target: self.manifest['targets'][target] for target in targets}): print(line)
         print('Manifest: ' + str(self.output / 'build-manifest.json'))
         return 0 if all(self.manifest['targets'][target]['status'] == 'passed' for target in targets) else 1
 
