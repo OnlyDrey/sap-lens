@@ -4,10 +4,10 @@ import http.client
 import json
 import os
 from pathlib import Path
-import shutil
 import socket
 import ssl
 import subprocess
+from tls_fixture import issue
 import sys
 import tempfile
 import time
@@ -200,14 +200,12 @@ class AccountsTests(unittest.TestCase):
             ACTOR.reset(token)
 
 
-@unittest.skipUnless(shutil.which('openssl'), 'OpenSSL is needed to generate test certificates')
 class TlsTests(unittest.TestCase):
     def test_direct_https_listener_serves_authenticated_requests(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             cert, key = root/'cert.pem', root/'key.pem'
-            subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1','-subj','/CN=localhost',
-                            '-addext','subjectAltName=DNS:localhost,IP:127.0.0.1','-keyout',str(key),'-out',str(cert)],check=True,capture_output=True)
+            issue(root,'cert','DNS:localhost,IP:127.0.0.1',days=1); cert, key = root/'cert.crt', root/'cert.key'
             secret=root/'secret'; secret.write_text('synthetic-secret-'+'a'*40); secret.chmod(0o600)
             frontend=root/'frontend'; frontend.mkdir(); (frontend/'index.html').write_text('<html>synthetic</html>')
             with socket.socket() as listener:
@@ -258,9 +256,7 @@ class TlsTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             cert, key = root/'server.crt', root/'server.key'
-            subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-days','1',
-                '-subj','/CN=server01','-addext','subjectAltName=DNS:server01,DNS:server01.example.invalid,IP:192.0.2.10',
-                '-keyout',str(key),'-out',str(cert)],check=True,capture_output=True)
+            issue(root,'server','DNS:server01,DNS:server01.example.invalid,IP:192.0.2.10',days=1,common_name='server01')
             env = dict(SAP_LENS_HOST='0.0.0.0',SAP_LENS_PORT='19443',SAP_LENS_DATA_DIR=str(root/'data'),
                 SAP_LENS_SOURCE_DIR=str(root/'sources'),SAP_LENS_PUBLIC_ORIGIN='https://server01:19443',
                 SAP_LENS_ALLOWED_HOSTS='server01,server01.example.invalid,192.0.2.10',SAP_LENS_AUTH='basic',

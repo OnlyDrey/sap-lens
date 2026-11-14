@@ -307,6 +307,13 @@ The Service Manager offers three explicit modes (default: HTTPS with a generated
 
 The access URLs shown by the Service Manager use the configured scheme. A failed registration now reports the validation step and the underlying error, for example `Invalid server configuration at step "TLS certificate names (SAN)": The TLS certificate SANs do not cover: 127.0.0.1. Present: DNS=localhost.` The steps are listen address, port, data and source directories, public origin, allowed hosts, authentication boundary, TLS certificate and key files, TLS certificate and private key (load and match), TLS certificate decoding, TLS certificate validity period, TLS certificate names (SAN) and account file. The same check can be run by hand with `SAP-Lens.exe --check-server-config` (with the service environment).
 
+Certificate key strength: the generated certificate uses a 3072-bit RSA key, created at that size and checked before any file is
+written. The server refuses a certificate whose key is weaker than RSA 2048 bits or EC P-256 at the step
+`TLS certificate key strength`. An installation that failed earlier with `EE_KEY_TOO_SMALL` has no activated configuration; save
+again with the corrected Service Manager. Certificate and key files are created under new names and never overwritten, and the
+files of a rejected attempt are removed while the previous configuration is restored. To replace a weak existing certificate,
+supply a new pair under new file names; the old files are not changed or deleted for you.
+
 The command-line `manage-server-service.ps1` keeps its stricter rule: network public origins require HTTPS there; HTTP on the network is a Service Manager decision with acknowledgement.
 
 ## Isolated native SCM acceptance

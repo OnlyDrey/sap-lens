@@ -1,6 +1,5 @@
 """Server connection modes (HTTP, HTTPS self-signed, HTTPS existing certificate) and step-named configuration diagnostics."""
 import os
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -13,10 +12,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import deployment
 from deployment import ConfigError, ServerSettings
 
-OPENSSL = shutil.which('openssl')
+from tls_fixture import issue
 
 
-@unittest.skipUnless(OPENSSL, 'OpenSSL is needed to generate test certificates')
 class ConnectionModes(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(); self.addCleanup(self.temporary.cleanup)
@@ -27,11 +25,40 @@ class ConnectionModes(unittest.TestCase):
         manage_user(self.accounts, dict(username='admin', password='correct-horse-battery-1', role='administrator', enabled=True))
         self.accounts.chmod(0o600)
 
-    def certificate(self, name, san, days=30, bits=2048):
-        key, cert = self.root / f'{name}.key', self.root / f'{name}.crt'
-        subprocess.run([OPENSSL, 'req', '-x509', '-newkey', f'rsa:{bits}', '-nodes', '-keyout', key, '-out', cert, '-days', str(days), '-subj', '/CN=localhost',
-                        '-addext', f'subjectAltName={san}'], check=True, capture_output=True)
-        return str(cert), str(key)
+    def certificate(self, name, san, days=30, bits=2048, **options):
+        return issue(self.root, name, san, days=days, bits=bits, **options)
+
+    # --- key strength and validity (regression: the Service Manager once produced a 1024-bit key, EE_KEY_TOO_SMALL) ----
+    def test_modern_rsa_and_ec_keys_are_accepted(self):
+        for label, options in (('rsa2048', dict(bits=2048)), ('rsa3072', dict(bits=3072)), ('rsa4096', dict(bits=4096)), ('p256', dict(curve='p256')), ('p384', dict(curve='p384'))):
+            with self.subTest(key=label):
+                cert, key = self.certificate(label, 'DNS:localhost,IP:127.0.0.1', **options)
+                self.assertEqual(self.settings(SAP_LENS_TLS_CERT_FILE=cert, SAP_LENS_TLS_KEY_FILE=key).tls_cert, cert)
+
+    def test_a_weak_rsa_key_is_refused_with_an_actionable_message_that_names_no_key_material(self):
+        cert, key = self.certificate('weak', 'DNS:localhost,IP:127.0.0.1', bits=1024)
+        error = self.fails(SAP_LENS_TLS_CERT_FILE=cert, SAP_LENS_TLS_KEY_FILE=key)
+        self.assertEqual(error.step, 'TLS certificate key strength')
+        for text in ('RSA 1024 bits', 'at least 2048 bits', 'were not changed'): self.assertIn(text, error.detail)
+        self.assertNotIn('PRIVATE KEY', error.detail); self.assertNotIn('ee key too small', error.detail.lower())
+        self.assertTrue(Path(cert).is_file() and Path(key).is_file())  # refused, never deleted or replaced
+
+    def test_expired_and_not_yet_valid_certificates_are_refused(self):
+        from datetime import timedelta
+        for label, start in (('expired', timedelta(days=-3)), ('future', timedelta(days=2))):
+            with self.subTest(case=label):
+                cert, key = self.certificate(label, 'DNS:localhost,IP:127.0.0.1', days=1, start=start)
+                self.assertEqual(self.fails(SAP_LENS_TLS_CERT_FILE=cert, SAP_LENS_TLS_KEY_FILE=key).step, 'TLS certificate validity period')
+
+    def test_a_certificate_without_san_or_with_another_host_or_address_is_refused(self):
+        for label, san in (('nosan', ''), ('otherhost', 'DNS:other.example.invalid,IP:127.0.0.1'), ('otherip', 'DNS:localhost,IP:192.0.2.7')):
+            with self.subTest(case=label):
+                cert, key = self.certificate(label, san)
+                self.assertEqual(self.fails(SAP_LENS_TLS_CERT_FILE=cert, SAP_LENS_TLS_KEY_FILE=key).step, 'TLS certificate names (SAN)')
+
+    def test_ipv6_loopback_in_the_san_is_matched(self):
+        cert, key = self.certificate('v6', 'DNS:localhost,IP:127.0.0.1,IP:::1')
+        self.assertIn('::1', self.settings(SAP_LENS_TLS_CERT_FILE=cert, SAP_LENS_TLS_KEY_FILE=key, SAP_LENS_ALLOWED_HOSTS='localhost,127.0.0.1,::1').hosts)
 
     def environment(self, **extra):
         base = {'SAP_LENS_HOST': '0.0.0.0', 'SAP_LENS_PORT': '18743', 'SAP_LENS_DATA_DIR': str(self.root / 'data'), 'SAP_LENS_AUTH': 'users', 'SAP_LENS_USERS_FILE': str(self.accounts),
@@ -146,10 +173,27 @@ class ServiceManagerContract(unittest.TestCase):
         self.assertNotIn('"--manage-user " + Quote(Users)',self.SOURCE)
 
     def test_three_explicit_modes_with_https_self_signed_as_the_default(self):
-        for text in ('HTTPS - generate a self-signed certificate (default)', 'HTTPS - use an existing certificate', 'HTTP - no certificate (unencrypted)'):
+        for text in ('HTTPS - network access, generate a self-signed certificate (default)', 'HTTPS - use an existing certificate', 'HTTP - no certificate (unencrypted)'):
             self.assertIn(text, self.SOURCE)
         self.assertIn('mode.SelectedIndex=0', self.SOURCE)
         self.assertIn('const string ModeHttp = "http", ModeSelfSigned = "selfsigned", ModeCustom = "custom"', self.SOURCE)
+
+    def test_the_generated_certificate_key_is_created_at_its_real_size_and_checked_before_any_file_exists(self):
+        source = self.SOURCE; body = source[source.index('static void GenerateCertificate'):source.index('static void WriteConfig')]
+        # RSA.Create() + KeySize is ignored by the .NET Framework CSP provider (1024-bit key, EE_KEY_TOO_SMALL in the runtime).
+        self.assertNotIn('RSA.Create()', body); self.assertNotIn('rsa.KeySize =', body)
+        self.assertIn('public const int CertificateKeyBits = 3072;', source)
+        self.assertIn('new RSACng(CertificateKeyBits)', body)
+        check, first_write = body.index('p.Modulus.Length * 8 < CertificateKeyBits'), body.index('new FileStream(')
+        self.assertLess(check, first_write)
+        self.assertEqual(body.count('FileMode.CreateNew'), 2)      # an existing certificate or key is never overwritten
+        self.assertNotIn('File.WriteAllText', body)
+
+    def test_a_rejected_configuration_restores_the_previous_one_and_removes_only_this_attempts_certificate(self):
+        source = self.SOURCE; start = source.index('try { ValidateRuntime(settings); }'); block = source[start:start + 900]
+        self.assertIn('if (old == null) File.Delete(Config); else File.WriteAllText(Config, old);', block)
+        self.assertIn('if (https) { try { if (File.Exists(cert)) File.Delete(cert); if (File.Exists(key)) File.Delete(key); }', block)
+        self.assertLess(start, source.index('if (!installed) { Run(Wrapper, "install", null);'))  # validated before the service is registered
 
     def test_http_never_generates_or_carries_a_certificate_and_needs_acknowledgement_beyond_loopback(self):
         self.assertIn('cert = ""; key = "";', self.SOURCE)
@@ -166,7 +210,7 @@ class ServiceManagerContract(unittest.TestCase):
 
     def test_the_runtime_validation_still_runs_before_activation_and_reports_the_step(self):
         self.assertIn('--check-server-config', self.SOURCE)
-        self.assertIn('catch { if (old == null) File.Delete(Config); else File.WriteAllText(Config, old); throw; }', self.SOURCE)
+        self.assertIn('if (old == null) File.Delete(Config); else File.WriteAllText(Config, old);', self.SOURCE)
         self.assertIn('Server configuration is invalid.', self.SOURCE)
 
 

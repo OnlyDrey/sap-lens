@@ -21,6 +21,22 @@ def default_server_data():
     return Path(os.environ.get('XDG_DATA_HOME', Path.home()/'.local/share')) / 'sap-lens-server'
 
 
+MIN_RSA_BITS, MIN_EC_BITS = 2048, 256
+WEAK_KEY_ADVICE = ('The TLS certificate key is too weak for this runtime. Use RSA with at least 2048 bits (3072 recommended) or an EC P-256 or stronger key. '
+                   'Generate a new certificate and key pair under new file names; the existing files were not changed.')
+
+
+def weak_certificate_key(path):
+    """A message when the certificate's public key is weaker than the minimum, else ''. Reads the public certificate only, never the private key."""
+    from cryptography import x509
+    from cryptography.hazmat.primitives.asymmetric import ec, rsa
+    try: public = x509.load_pem_x509_certificate(Path(path).read_bytes()).public_key()
+    except (ValueError, TypeError): return ''  # not a readable certificate: the load step reports that
+    if isinstance(public, rsa.RSAPublicKey) and public.key_size < MIN_RSA_BITS: return f'RSA {public.key_size} bits. ' + WEAK_KEY_ADVICE
+    if isinstance(public, ec.EllipticCurvePublicKey) and public.key_size < MIN_EC_BITS: return f'EC {public.key_size} bits. ' + WEAK_KEY_ADVICE
+    return ''
+
+
 def certificate_has_name(certificate, name):
     """Match typed SAN entries only; never accept a DNS SAN as an IP SAN."""
     try: address = ipaddress.ip_address(name)
@@ -154,8 +170,14 @@ class ServerSettings:
             if missing: raise ValueError('The TLS ' + ' and '.join(missing) + ' must be absolute paths to existing files.')
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.minimum_version = ssl.TLSVersion.TLSv1_2
+            mark('TLS certificate key strength')
+            weak = weak_certificate_key(cert)
+            if weak: raise ValueError(weak)
             mark('TLS certificate and private key (load and match)')
-            context.load_cert_chain(cert, key)
+            try: context.load_cert_chain(cert, key)
+            except ssl.SSLError as error:
+                if 'KEY_TOO_SMALL' in str(error): raise ValueError(WEAK_KEY_ADVICE) from None
+                raise
             mark('TLS certificate decoding')
             # Validate every advertised alias, not just the primary URL. An untrusted
             # self-signed issuer is allowed; mismatched or expired certificates are not.

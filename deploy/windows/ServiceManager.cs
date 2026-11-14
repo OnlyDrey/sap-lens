@@ -138,9 +138,12 @@ namespace SapLens {
             var data = bytes.Skip(start).ToList(); if ((data[0] & 128) != 0) data.Insert(0, 0); return Der(2, data.ToArray());
         }
         static string Pem(string label, byte[] bytes) { return "-----BEGIN " + label + "-----\n" + Convert.ToBase64String(bytes, Base64FormattingOptions.InsertLineBreaks) + "\n-----END " + label + "-----\n"; }
+        public const int CertificateKeyBits = 3072;
         static void GenerateCertificate(string[] hosts, string cert, string key) {
-            using (var rsa = RSA.Create()) {
-                rsa.KeySize = 3072;
+            // The platform default RSA factory on .NET Framework returns the legacy CSP provider, which ignores the key size setter and generates a 1024-bit
+            // key; the packaged runtime's OpenSSL rejects that (EE_KEY_TOO_SMALL). RSACng takes the size in its constructor.
+            using (var rsa = new RSACng(CertificateKeyBits)) {
+                if (rsa.KeySize != CertificateKeyBits) throw new InvalidOperationException("The certificate key could not be created with " + CertificateKeyBits + " bits. No certificate was written.");
                 var request = new CertificateRequest("CN=" + hosts[0], rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
                 var san = new List<byte>();
                 foreach (string host in hosts) { IPAddress ip; san.AddRange(IPAddress.TryParse(host, out ip) ? Der(0x87, ip.GetAddressBytes()) : Der(0x82, Encoding.ASCII.GetBytes(host))); }
@@ -148,13 +151,19 @@ namespace SapLens {
                 request.CertificateExtensions.Add(new X509BasicConstraintsExtension(false, false, 0, true));
                 request.CertificateExtensions.Add(new X509KeyUsageExtension(X509KeyUsageFlags.DigitalSignature | X509KeyUsageFlags.KeyEncipherment, true));
                 var eku = new OidCollection(); eku.Add(new Oid("1.3.6.1.5.5.7.3.1")); request.CertificateExtensions.Add(new X509EnhancedKeyUsageExtension(eku, false));
+                string certificatePem;
                 using (var certificate = request.CreateSelfSigned(DateTimeOffset.UtcNow.AddMinutes(-5), DateTimeOffset.UtcNow.AddDays(365))) {
-                    File.WriteAllText(cert, Pem("CERTIFICATE", certificate.Export(X509ContentType.Cert)), Encoding.ASCII);
+                    certificatePem = Pem("CERTIFICATE", certificate.Export(X509ContentType.Cert));
                 }
                 RSAParameters p = rsa.ExportParameters(true);
+                // Checked on the key that is actually exported, before any file exists: a weak key is never written or activated.
+                if (p.Modulus == null || p.Modulus.Length * 8 < CertificateKeyBits) throw new InvalidOperationException("The generated certificate key is weaker than " + CertificateKeyBits + " bits. No certificate was written.");
                 byte[] der = Der(0x30, new byte[][] { Integer(new byte[] {0}), Integer(p.Modulus), Integer(p.Exponent), Integer(p.D), Integer(p.P), Integer(p.Q), Integer(p.DP), Integer(p.DQ), Integer(p.InverseQ) }.SelectMany(b => b).ToArray());
-                File.WriteAllText(key, Pem("RSA PRIVATE KEY", der), Encoding.ASCII);
-                Array.Clear(der, 0, der.Length);
+                // New files only (exclusive creation): an existing certificate or key is never overwritten.
+                try {
+                    using (var stream = new FileStream(key, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { byte[] pem = Encoding.ASCII.GetBytes(Pem("RSA PRIVATE KEY", der)); stream.Write(pem, 0, pem.Length); Array.Clear(pem, 0, pem.Length); }
+                    using (var stream = new FileStream(cert, FileMode.CreateNew, FileAccess.Write, FileShare.None)) { byte[] pem = Encoding.ASCII.GetBytes(certificatePem); stream.Write(pem, 0, pem.Length); }
+                } finally { Array.Clear(der, 0, der.Length); }
             }
         }
         static void WriteConfig(Dictionary<string,string> settings) {
@@ -225,6 +234,8 @@ namespace SapLens {
             SaveUser(path, name, password, role, enabled, true);
         }
         public const string ModeHttp = "http", ModeSelfSigned = "selfsigned", ModeCustom = "custom";
+        // One wording for the rule, shown before anything is saved: what HTTP allows, why, and what to choose instead.
+        public const string HttpLocalOnly = "HTTP is for local access on this computer only, because passwords would cross the network unencrypted. To use HTTP set Listen address to 127.0.0.1 and use only localhost or 127.0.0.1 as host names. For access from other computers choose HTTPS; a self-signed certificate can be generated for you.";
         public static bool IsLoopbackName(string host) { IPAddress ip; return host == "localhost" || (IPAddress.TryParse(host, out ip) && IPAddress.IsLoopback(ip)); }
         // HTTP carries passwords and data unencrypted: binding it beyond this computer needs an explicit acknowledgement. It is never chosen for an existing HTTPS installation automatically.
         public static bool HttpNeedsAcknowledgement(string listener, string[] hosts) { IPAddress address; return !(IPAddress.TryParse(listener, out address) && IPAddress.IsLoopback(address)) || hosts.Any(h => !IsLoopbackName(h)); }
@@ -249,6 +260,9 @@ namespace SapLens {
             if (!installed && Directory.Exists(data) && Directory.EnumerateFileSystemEntries(data).Any()) throw new ArgumentException("Choose an empty dedicated data folder for first registration. Existing files were preserved.");
             if (installed && !String.Equals(Settings()["SAP_LENS_DATA_DIR"], data, StringComparison.OrdinalIgnoreCase)) throw new InvalidOperationException("Data relocation requires a stopped-service backup/migration. The existing data location was preserved.");
             if (!installed && File.Exists(Config)) throw new InvalidOperationException("An existing service configuration is preserved. Review it before registering again.");
+            // Transport rules are checked before anything is created or changed.
+            if (mode == ModeHttp && HttpNeedsAcknowledgement(listener, hosts)) throw new ArgumentException(HttpLocalOnly);
+            if (mode == ModeCustom && (!Path.IsPathRooted(cert) || !Path.IsPathRooted(key) || !File.Exists(cert) || !File.Exists(key))) throw new ArgumentException("Select an existing PEM certificate and unencrypted PEM private key.");
             Directory.CreateDirectory(PrivateRoot); PrivateAcl(PrivateRoot);
             string auth = current != null && current.ContainsKey("SAP_LENS_AUTH") ? current["SAP_LENS_AUTH"] : "sessions";
             string backupKey = current != null && current.ContainsKey("SAP_LENS_BACKUP_KEY_FILE") ? current["SAP_LENS_BACKUP_KEY_FILE"] : Path.Combine(PrivateRoot,"backup-"+Guid.NewGuid().ToString("N")+".key");
@@ -256,7 +270,7 @@ namespace SapLens {
             Run(Path.Combine(Root,@"app\SAP-Lens.exe"),"--maintenance check-backup-key --data "+Quote(data)+" --key-file "+Quote(backupKey),null);
             bool https = mode != ModeHttp;
             if (!https && HttpNeedsAcknowledgement(listener, hosts))
-                throw new ArgumentException("Session passwords require HTTPS for remote access. Choose HTTPS or use a loopback-only listener and hostname.");
+                throw new ArgumentException(HttpLocalOnly);
             if (!https) {
                 if (HttpNeedsAcknowledgement(listener, hosts) && !acknowledgeHttp) throw new ArgumentException("HTTP is not encrypted: passwords and data cross the network in clear text. Confirm the acknowledgement to bind HTTP beyond this computer.");
                 cert = ""; key = "";  // HTTP mode never carries or generates a certificate
@@ -285,7 +299,13 @@ namespace SapLens {
             var old = File.Exists(Config) ? File.ReadAllText(Config) : null;
             WriteConfig(settings);
             try { ValidateRuntime(settings); }
-            catch { if (old == null) File.Delete(Config); else File.WriteAllText(Config, old); throw; }
+            catch {
+                // The previous configuration stays exactly as it was; the certificate files created by THIS attempt (unique names) are
+                // removed so a rejected pair is neither left behind nor picked up later. Files of earlier configurations are untouched.
+                if (old == null) File.Delete(Config); else File.WriteAllText(Config, old);
+                if (https) { try { if (File.Exists(cert)) File.Delete(cert); if (File.Exists(key)) File.Delete(key); } catch (IOException) { } catch (UnauthorizedAccessException) { } }
+                throw;
+            }
             if (!installed) { Run(Wrapper, "install", null); Run("sc.exe", "sidtype SAPLens unrestricted", null); }
             Directory.CreateDirectory(data); Acl(data, true, true);
             Directory.CreateDirectory(Path.Combine(data,"logs")); Directory.CreateDirectory(Path.Combine(data,"sources"));
@@ -335,7 +355,7 @@ namespace SapLens {
             listener.Text="0.0.0.0"; Add(table,"Listen IPv4 address",listener);
             port.Minimum=1; port.Maximum=65535; port.Value=18743; Add(table,"Port",port);
             data.Text=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),"SAP Lens Server"); Add(table,"Data directory",data);
-            mode.DropDownStyle=ComboBoxStyle.DropDownList; mode.Items.AddRange(new object[]{"HTTPS - generate a self-signed certificate (default)","HTTPS - use an existing certificate","HTTP - no certificate (unencrypted)"}); mode.SelectedIndex=0; Add(table,"Connection mode",mode);
+            mode.DropDownStyle=ComboBoxStyle.DropDownList; mode.Items.AddRange(new object[]{"HTTPS - network access, generate a self-signed certificate (default)","HTTPS - use an existing certificate","HTTP - no certificate (unencrypted)"}); mode.SelectedIndex=0; Add(table,"Connection mode",mode);
             Add(table,"Existing PEM certificate",cert); Add(table,"Existing PEM private key",key);
             httpWarning.Text="Warning: HTTP is not encrypted. Passwords and SAP role data cross the network in clear text. Use HTTP only on a loopback listener and hostname; remote password sign-in requires HTTPS."; httpWarning.AutoSize=true; httpWarning.MaximumSize=new Size(550,0); httpWarning.ForeColor=Color.DarkRed; Add(table,"",httpWarning);
             acknowledge.Text="I understand that HTTP traffic is unencrypted"; acknowledge.AutoSize=true; Add(table,"",acknowledge);
