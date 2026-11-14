@@ -86,6 +86,15 @@ direct TLS (a supplied certificate, or a self-signed one generated at installati
 never overwritten) or runs behind a trusted TLS-terminating proxy; see the
 [Docker guide](LINUX_DOCKER.md). Never publish plaintext password authentication.
 
+The Windows Service Manager applies the same rule before anything is created: HTTP only with a loopback listen address
+(`127.0.0.1`, `::1`) and local names (`localhost`, `127.0.0.1`, `::1`); wildcard listeners, network addresses, other names and a
+`localhost` that resolves to a network address are refused with the field and reason.
+
+Key strength: the server refuses a certificate whose public key is weaker than RSA 2048 bits or EC P-256 (step `TLS certificate key
+strength`, message without key material). The Service Manager generates RSA 3072 (checked before any file is written), creates the
+certificate and key files exclusively (an existing pair is never overwritten), restricts the key to SYSTEM, Administrators and the
+service account, and removes only the files of a failed attempt while restoring the previous configuration.
+
 Direct TLS uses `SAP_LENS_TLS_CERT_FILE` and `SAP_LENS_TLS_KEY_FILE`, with an HTTPS
 public origin. Files must match, be in date, and cover every allowed alias in typed
 SANs. Private keys remain host-local. Windows Service Manager can provision a

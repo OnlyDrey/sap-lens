@@ -136,6 +136,8 @@ Useful switches: `--backend` / `--browser` (one side), `--jobs N` (backend proce
 `check` validates the map. The runner rebuilds the frontend only when sources are newer than `frontend/dist`, prints skipped tests with
 their reasons, and every partial profile says that it is partial and what it left out.
 
+Windows-only items are reported NOT EXECUTED on Linux: the checklist in [Windows service](../deployment/WINDOWS_SERVICE.md#native-windows-acceptance-checklist-accounts-reviewer-identity-and-encrypted-backups) (rows 1 to 18) is the list of what a Windows run must still show. The Service Manager C# is parse-checked and its pure validation members are compiled and run under Mono when `mcs` and `mono` are installed; it is not compiled with the .NET Framework `csc.exe` here. CI runs only on pushes to `main` after a merge; development validates locally (focused tests per change, REGRESSION per phase, FULL before a merge).
+
 A Linux run never proves Docker image runs, the Windows installer, service, WebView2, native Linux packages or systemd; those belong to
 the manual build workflows and the [validation matrix](../deployment/README.md#validation-status).
 

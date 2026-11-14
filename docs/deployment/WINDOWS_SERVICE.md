@@ -13,12 +13,13 @@ Unsigned EXEs can still be subject to company application-control policy.
 1. Extract the complete service ZIP to a permanent, administrator-controlled folder,
    for example `C:\Program Files\SAP Lens Server`. Keep the complete `app/` folder.
 2. Open `SAP-Lens-Service-Manager.exe` and approve elevation.
-3. Review the detected hostname, FQDN and active IPv4 addresses. Keep only the
+3. Review the detected hostname, FQDN and active IP addresses. Keep only the
    addresses users should use; add a DNS alias if needed. Enter comma-separated
    names/IPs without URL schemes or ports. Detection is a suggestion, not DNS
    provisioning: each selected name must resolve from the client computers.
-4. Choose the HTTPS port (default 18743), a dedicated local data directory and the
-   IPv4 listen address. `0.0.0.0` listens on all IPv4 interfaces; it is not a URL.
+4. Choose the port (default 18743), a dedicated local data directory and the
+   listen address (IPv4 or IPv6). `0.0.0.0` and `::` listen on all interfaces; they are not URLs and are refused for
+   Local access (HTTP). See [Connection modes](#connection-modes-and-registration-diagnostics).
    The manager initially requires an empty data directory and refuses Windows,
    Program Files, application and credential-directory locations.
 5. Generate a self-signed certificate or specify an existing PEM certificate and

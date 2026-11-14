@@ -127,6 +127,11 @@ does not claim the file is currently reachable.
 
 ### User assignment views and transaction evidence
 
+`GET /api/access/users` rows add `job_title`, `department` and `directory_status` (`matched`, `unmatched`, `unavailable`) from the mapped Employee
+Directory, accept `sort=job_title|department` (users without a value last) and include both in `search`. `GET /api/functional-groups`
+items add `deletable` and `references` (`members`, `rules`, `history`); `DELETE /api/functional-groups/{id}` removes an archived group
+only when all three are zero, otherwise 409 and no change.
+
 `GET /api/access/users/{username}` accepts `scope=business|release|all` for the
 User Details views. `all` is strictly the ZC/ZO union, filtered before pagination;
 legacy `other` and empty scopes retain their existing API behavior. `status`,
