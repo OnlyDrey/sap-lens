@@ -275,6 +275,19 @@ class ServiceManagerContract(unittest.TestCase):
         self.assertIn('(https ? "https://" : "http://") + Bracket(hosts[0]) + ":" + port', source)
         self.assertIn('+ServiceSetup.Bracket(h)+":"+v["SAP_LENS_PORT"]', source)
 
+    def test_service_actions_reach_the_requested_state_without_unintended_restarts_and_report_the_real_state(self):
+        source = self.SOURCE; body = source[source.index('public static void Control(string command)'):source.index('static void Acl(')]
+        self.assertIn('if ((command == "start" && status == "Running") || (command == "stop" && status == "Stopped")) return;', body)
+        self.assertIn('if (command == "restart" && status == "Stopped") command = "start";', body)
+        self.assertLess(body.index('status == "Running") ||'), body.index('Run(Wrapper, command, null);'))
+        self.assertIn('service.Refresh();', body); self.assertIn('Windows reports " + service.Status', body)
+        # Status is read from the Service Control Manager on every call, and every action button refreshes it afterwards.
+        status = source[source.index('public static string Status()'):source.index('public static void Control')]
+        self.assertIn('using (var service = new ServiceController("SAPLens")) return service.Status.ToString();', status)
+        self.assertIn('try{action();RefreshStatus();}', source); self.assertIn('Button(actions,"Refresh",()=>{});', source)
+        self.assertIn('ServiceSetup.Quote(ServiceSetup.LogDirectory(data.Text))', source)
+        self.assertIn('File.Exists(Config) ? Settings()["SAP_LENS_DATA_DIR"] : typed', source)
+
     def test_http_never_generates_or_carries_a_certificate_and_needs_acknowledgement_beyond_loopback(self):
         self.assertIn('cert = ""; key = "";', self.SOURCE)
         self.assertIn('if (https) { settings["SAP_LENS_TLS_CERT_FILE"] = cert; settings["SAP_LENS_TLS_KEY_FILE"] = key; }', self.SOURCE)

@@ -79,14 +79,31 @@ namespace SapLens {
         public static Dictionary<string,string> Settings() {
             return ReadConfig().Root.Elements("env").ToDictionary(e => (string)e.Attribute("name"), e => (string)e.Attribute("value"));
         }
+        // The registered service's log folder, not whatever is currently typed in the form.
+        public static string LogDirectory(string typed) {
+            string root = File.Exists(Config) ? Settings()["SAP_LENS_DATA_DIR"] : typed;
+            string logs = Path.Combine(root.TrimEnd(Path.DirectorySeparatorChar), "logs");
+            if (!Directory.Exists(logs)) throw new InvalidOperationException("There are no logs yet: " + logs + " is created when the service is registered.");
+            return logs;
+        }
         public static void Control(string command) {
             string status = Status();
             if (status == "Not registered") throw new InvalidOperationException("Register the service first.");
             if (!new string[] { "start", "stop", "restart", "uninstall" }.Contains(command)) throw new ArgumentException("Unknown action.");
             if (command == "uninstall" && status != "Stopped") Control("stop");
+            // The requested state is the result: a running service is not started again and a stopped one is not stopped again,
+            // so a repeated click never restarts the service or reports a wrapper error for a state that is already reached.
+            if ((command == "start" && status == "Running") || (command == "stop" && status == "Stopped")) return;
+            if (command == "restart" && status == "Stopped") command = "start";
             Run(Wrapper, command, null);
             var target = command == "stop" ? ServiceControllerStatus.Stopped : ServiceControllerStatus.Running;
-            if (command != "uninstall") using (var service = new ServiceController("SAPLens")) service.WaitForStatus(target, TimeSpan.FromSeconds(40));
+            if (command != "uninstall") using (var service = new ServiceController("SAPLens")) {
+                try { service.WaitForStatus(target, TimeSpan.FromSeconds(40)); }
+                catch (System.ServiceProcess.TimeoutException) {
+                    service.Refresh();
+                    throw new InvalidOperationException("The service did not reach " + target + " within 40 seconds; Windows reports " + service.Status + ". Use Open logs to see the server and wrapper logs, then Refresh.");
+                }
+            }
         }
         static void Acl(string path, bool writable, bool directory) {
             string inherit = directory ? "(OI)(CI)" : "";
@@ -420,7 +437,7 @@ namespace SapLens {
             Button(actions,"Recover administrator",()=>{ if(MessageBox.Show("Revoke this administrator's sessions and issue a one-time recovery code?",Text,MessageBoxButtons.YesNo)==DialogResult.Yes)MessageBox.Show(ServiceSetup.ActivationCode(recoveryUser.Text),"Administrator recovery code — valid for 15 minutes"); });
             Button(actions,"First-run activation code",()=>{ string code=ServiceSetup.ActivationCode(null); MessageBox.Show("Use this code on the SAP Lens first-run page within 15 minutes. It is shown only here; do not put it in logs.\n\n"+code,Text); });
             Button(actions,"Export backup recovery key",()=>{using(var dialog=new SaveFileDialog{Title="Store a private recovery key separately from backup archives",Filter="SAP Lens recovery key (*.key)|*.key",FileName="SAP-Lens-recovery.key"}){if(dialog.ShowDialog()==DialogResult.OK){ServiceSetup.ExportBackupKey(dialog.FileName);MessageBox.Show("Recovery copy created. Keep it private and separate from archives. In SAP Lens Backup & Restore, verify this copy before enabling automatic backups.",Text);}}});
-            Button(actions,"Open logs",()=>Process.Start("explorer.exe",ServiceSetup.Quote(Path.Combine(data.Text,"logs")))); Add(table,"Actions",actions);
+            Button(actions,"Open logs",()=>Process.Start("explorer.exe",ServiceSetup.Quote(ServiceSetup.LogDirectory(data.Text)))); Add(table,"Actions",actions);
             urls.Multiline=true;urls.ReadOnly=true;urls.Height=85;Add(table,"Configured URLs",urls);
             Add(table,"Deployment",new Label{AutoSize=true,MaximumSize=new Size(550,0),Text="Keep this extracted folder in its permanent location. Restrict the port in Windows Firewall to approved machines/subnets. No firewall rule is opened automatically. Self-signed certificates show a browser trust warning. Stop the service before changing configuration. Data relocation requires a separate backup/migration."});
             LoadConfig(); RefreshStatus();
