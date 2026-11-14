@@ -168,6 +168,33 @@ class ProductVersionTests(unittest.TestCase):
         self.assertEqual(version.next_prerelease('1.0.0','beta',['v1.0.0-beta-1','v1.0.0-beta.3','v2.0.0-beta-99']),4)
         self.assertEqual(version.next_prerelease('1.0.0','rc',['v1.0.0-rc.1','v1.0.0-beta.99']),2)
 
+    def test_numeric_file_version_contract_for_every_release_channel(self):
+        for text, expected in (('1.0.0', [1, 0, 0, 0]), ('1.0.0-alpha.1', [1, 0, 0, 1]), ('1.0.0-beta.2', [1, 0, 0, 2]), ('2.10.3-rc.65535', [2, 10, 3, 65535]),
+                               ('0.1.0-beta.12', [0, 1, 0, 12])):
+            with self.subTest(version=text):
+                self.assertEqual(version.release_file_version(text), expected)
+        for bad in ('1.0.0-beta.0', '1.0.0-beta.65536', '1.0.0-dev.1', '1.0.0-beta', '1.0', '', None, '1.0.0+local.abc'):
+            with self.subTest(bad=bad), self.assertRaises(ValueError):
+                version.release_file_version(bad)
+
+    def test_every_derivation_agrees_with_the_contract_including_the_development_fallback(self):
+        sha = 'a' * 40
+        for text in ('1.0.0', '1.0.0-alpha.3', '1.0.0-beta.2', '1.0.0-rc.4'):
+            expected = version.release_file_version(text)
+            channel = text.split('-')[1].split('.')[0] if '-' in text else 'stable'
+            with self.subTest(version=text):
+                self.assertEqual(version.make_local_deployment_info(text, sha)['file_version'], expected)
+                self.assertEqual(version.make_deployment_info(text.split('-')[0], channel, text.rsplit('.', 1)[-1] if '-' in text else '', sha, '1', '1')['file_version'], expected)
+                with patch.object(version, 'product_version', return_value=text):
+                    fallback = version.local_build_info()
+                self.assertEqual((fallback['version'], fallback['file_version']), (text, expected),
+                                 'the fallback identity used when generated metadata belongs to another commit must follow the same numeric contract')
+
+    def test_the_fallback_identity_for_the_current_product_version_matches_a_generated_identity(self):
+        current = version.product_version()
+        generated = version.make_local_deployment_info(current, 'b' * 40)
+        self.assertEqual(version.local_build_info()['file_version'], generated['file_version'])
+
     def test_product_resource_and_resolved_identity_have_one_base(self):
         current=version.product_version()
         self.assertEqual(version.local_build_info()['version'],current)

@@ -174,6 +174,13 @@ numeric resources; ProductName/FileDescription are SAP Lens. For 0.1.0-beta-1,
 ProductVersion is 0.1.0-beta-1 and FileVersion is 0.1.0.1; stable is 0.1.0 / 0.1.0.0.
 Fixed numeric product/file versions both use the same four-number tuple.
 
+**Numeric version contract (one rule for every channel).** The Windows FileVersion and ProductVersion tuple of a release is `MAJOR.MINOR.PATCH.N`, where
+`N` is the prerelease number for `alpha`, `beta` and `rc` and `0` for a stable release: `1.0.0` is `1.0.0.0`, `1.0.0-alpha.1` is `1.0.0.1`,
+`1.0.0-beta.2` is `1.0.0.2`, `1.0.0-rc.3` is `1.0.0.3`. `backend/version.py:release_file_version` is the single implementation; the deployment,
+local-deployment and development-fallback identities all use it. (The fallback identity, used when the generated `build-version.json` belongs to another
+commit, previously always ended in `0`, so a genuine `1.0.0-beta.2` installer with `[1, 0, 0, 2]` was compared with `[1, 0, 0, 0]` and rejected.)
+CI development builds keep their separate 32768+ numeric range, and legacy `beta-N` tags keep their historical mapping.
+
 Windows PE has four 16-bit components, so beta sequence N must be 1–65535; overflow
 fails **before reserving a tag** and requires a new reviewed base version.
 Development builds use the upper half of the fourth component, derived from run

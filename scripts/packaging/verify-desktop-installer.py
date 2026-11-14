@@ -1,5 +1,7 @@
 """Installer resource checks supplement, never replace, portable payload verification."""
 import argparse
+import json
+import re
 import uuid
 from pathlib import Path
 import sys
@@ -10,6 +12,37 @@ sys.path.insert(0,str(ROOT/'backend'))
 
 class InstallerValidationError(ValueError):
     """Only fixed, nonprivate diagnostics may be shown in build logs."""
+
+
+def bound_identity(payload_sha256, directory=None):
+    """The identity recorded for the verified payload EXE, instead of whatever the checkout's current build identity is.
+
+    `verify-windows-package.py` writes `backend/build/artifact-identity/<exe-sha256>.json` only after it has checked that the identity embedded in
+    that exact executable is consistent, so an installer built from an earlier commit is compared with the identity of ITS payload and not with the
+    current repository. Missing, linked, oversized or inconsistent records are refused; there is no fallback to the current identity."""
+    from version import BASE_PATTERN, base_numbers, release_file_version
+    if not isinstance(payload_sha256, str) or not re.fullmatch('[0-9a-f]{64}', payload_sha256):
+        raise InstallerValidationError('Payload checksum is not a SHA-256 digest.')
+    path = Path(directory or ROOT / 'backend/build/artifact-identity') / f'{payload_sha256}.json'
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 4096:
+        raise InstallerValidationError('No build identity is bound to the payload executable; run package verification for it first.')
+    try:
+        record = json.loads(path.read_text(encoding='utf-8'))
+        identity = record['identity']
+        ok = (isinstance(record, dict) and record.get('schema') == 1 and record.get('exe_sha256') == payload_sha256 and isinstance(identity, dict)
+              and set(identity) == {'version', 'file_version', 'source_sha'} and isinstance(identity['version'], str)
+              and re.fullmatch('[0-9a-f]{40}', str(identity['source_sha'])) and isinstance(identity['file_version'], list) and len(identity['file_version']) == 4
+              and all(type(n) is int and 0 <= n <= 65535 for n in identity['file_version']))
+        if ok:
+            base = re.match('(' + BASE_PATTERN + ')', identity['version'])
+            ok = bool(base) and identity['file_version'][:3] == base_numbers(base[1])
+        if ok and re.fullmatch('(' + BASE_PATTERN + r')(-(alpha|beta|rc)\.[1-9][0-9]{0,4})?', identity['version']):
+            ok = identity['file_version'] == release_file_version(identity['version'])   # the numeric contract is not negotiable per record
+    except (ValueError, KeyError, TypeError):
+        ok = False
+    if not ok:
+        raise InstallerValidationError('The build identity bound to the payload is malformed or violates the version contract.')
+    return dict(version=identity['version'], file_version=identity['file_version'], source_sha=identity['source_sha'])
 
 
 def verify(path, expected=None, acceptance_id=None):
@@ -61,6 +94,7 @@ def verify(path, expected=None, acceptance_id=None):
 def main():
     parser=argparse.ArgumentParser();parser.add_argument('--installer',type=Path,required=True)
     parser.add_argument('--acceptance-id')
+    parser.add_argument('--payload-sha256', help='verify against the build identity bound to this payload executable instead of the current checkout identity')
     parser.add_argument('--compiler-fixture-channel',choices=['alpha','beta','rc','stable'])
     args=parser.parse_args()
     try:
@@ -68,6 +102,9 @@ def main():
         if args.compiler_fixture_channel:
             from version import make_deployment_info
             expected=make_deployment_info('0.1.0',args.compiler_fixture_channel,'1','a'*40,'1','1',1)
+        if args.payload_sha256:
+            if args.compiler_fixture_channel: raise InstallerValidationError('--payload-sha256 and --compiler-fixture-channel are exclusive.')
+            expected = bound_identity(args.payload_sha256)
         verify(args.installer,expected,args.acceptance_id)
         if expected is not None:print('Compiler fixture only; no application payload or native installation was accepted.')
     except InstallerValidationError as error:parser.exit(1,'Installer verification failed: '+str(error)+'\n')

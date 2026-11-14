@@ -231,13 +231,25 @@ def next_prerelease(base, channel, tags):
     return number
 
 
+def release_file_version(version):
+    """The one numeric (Windows FileVersion/ProductVersion) contract for a release version: MAJOR.MINOR.PATCH plus the prerelease number for
+    alpha, beta and rc (`1.0.0-beta.2` -> [1, 0, 0, 2]), and 0 for a stable release. Used by every identity that is derived from the version string."""
+    match = re.fullmatch(r'(' + BASE_PATTERN + r')(?:-(alpha|beta|rc)\.([1-9][0-9]{0,4}))?', version if isinstance(version, str) else '')
+    if not match:
+        raise ValueError('Not a MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N] release version.')
+    sequence = int(match[6]) if match[6] else 0
+    if sequence > 65535:
+        raise ValueError('Prerelease number exceeds Windows FileVersion limits.')
+    return [*base_numbers(match[1]), sequence]
+
+
 def local_build_info():
     return dict(
         schema=1,
         version=product_version(),
         base_version=product_version().split("-",1)[0],
         mode="local",
-        file_version=[*base_numbers(product_version().split("-",1)[0]), 0],
+        file_version=release_file_version(product_version()),
         source_sha="",
         run_id="",
         run_number="",

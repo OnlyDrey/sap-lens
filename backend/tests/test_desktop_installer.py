@@ -68,6 +68,92 @@ class RealInstallerResourceTests(unittest.TestCase):
                 with self.assertRaises(rules.InstallerValidationError):rules.verify(path,info)
 
 
+@unittest.skipUnless(importlib.util.find_spec('pefile'), 'Install build requirements for real PE resource tests')
+class PayloadBoundIdentityTests(unittest.TestCase):
+    """An installer is verified against the identity bound to its payload EXE, not the checkout's current identity (a stale or newer checkout must
+    neither reject a genuine installer nor accept a mismatched one)."""
+    SHA = 'c' * 64
+
+    def record(self, directory, info, sha=None, **changes):
+        value = {'schema': 1, 'artifact': 'SAP-Lens.exe', 'exe_sha256': sha or self.SHA,
+                 'identity': {key: info[key] for key in ('version', 'file_version', 'source_sha')}, **changes}
+        (Path(directory) / f'{sha or self.SHA}.json').write_text(__import__('json').dumps(value), encoding='utf-8')
+
+    def info(self, text='1.0.0-beta.2', sha='d' * 40):
+        from version import make_local_deployment_info
+        return make_local_deployment_info(text, sha)
+
+    def test_an_installer_from_an_older_commit_verifies_against_its_bound_identity_for_every_channel(self):
+        from version import release_file_version
+        with tempfile.TemporaryDirectory() as directory:
+            for text in ('1.0.0', '1.0.0-alpha.1', '1.0.0-beta.2', '1.0.0-rc.3'):
+                info = self.info(text)
+                self.assertEqual(info['file_version'], release_file_version(text))
+                self.record(directory, info)
+                bound = rules.bound_identity(self.SHA, directory)
+                installer = Path(directory) / 'setup.exe'
+                installer.write_bytes(installer_resource_fixture(info))
+                with self.subTest(version=text):
+                    rules.verify(installer, bound)
+                    other = dict(info, file_version=[*info['file_version'][:3], info['file_version'][3] + 1])
+                    installer.write_bytes(installer_resource_fixture(other))
+                    with self.assertRaisesRegex(rules.InstallerValidationError, 'numeric file version differs'):
+                        rules.verify(installer, bound)
+
+    def test_the_reported_mismatch_is_a_fallback_identity_not_the_installer(self):
+        # [1,0,0,2] installer vs the former development fallback [1,0,0,0]: the strict comparison still rejects it, and the fallback now follows the contract.
+        import version
+        info = self.info('1.0.0-beta.2')
+        with tempfile.TemporaryDirectory() as directory:
+            installer = Path(directory) / 'setup.exe'
+            installer.write_bytes(installer_resource_fixture(info))
+            old_fallback = dict(version.local_build_info(), file_version=[1, 0, 0, 0], version='1.0.0-beta.2')
+            with self.assertRaisesRegex(rules.InstallerValidationError, 'numeric file version differs'):
+                rules.verify(installer, old_fallback)
+            with patch.object(version, 'product_version', return_value='1.0.0-beta.2'):
+                rules.verify(installer, version.local_build_info())
+
+    def test_missing_foreign_tampered_and_contract_violating_records_are_refused(self):
+        info = self.info()
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(rules.InstallerValidationError, 'No build identity is bound'):
+                rules.bound_identity(self.SHA, directory)
+            for label, build in (('another payload', lambda: self.record(directory, info, exe_sha256='e' * 64)),
+                                 ('schema', lambda: self.record(directory, info, schema=2)),
+                                 ('numeric contract', lambda: self.record(directory, dict(info, file_version=[1, 0, 0, 0]))),
+                                 ('numeric base', lambda: self.record(directory, dict(info, file_version=[1, 0, 1, 2]))),
+                                 ('numeric type', lambda: self.record(directory, dict(info, file_version=[1, 0, 0, True]))),
+                                 ('source', lambda: self.record(directory, dict(info, source_sha='short'))),
+                                 ('extra field', lambda: self.record(directory, info, identity={**{k: info[k] for k in ('version', 'file_version', 'source_sha')}, 'extra': 1}))):
+                build()
+                with self.subTest(case=label), self.assertRaisesRegex(rules.InstallerValidationError, 'malformed|violates'):
+                    rules.bound_identity(self.SHA, directory)
+            (Path(directory) / f'{self.SHA}.json').write_text('{not json')
+            with self.assertRaises(rules.InstallerValidationError):
+                rules.bound_identity(self.SHA, directory)
+            for bad in ('xyz', 'C' * 64, '../x', None):
+                with self.subTest(sha=bad), self.assertRaisesRegex(rules.InstallerValidationError, 'not a SHA-256'):
+                    rules.bound_identity(bad, directory)
+
+    def test_the_cli_uses_the_bound_identity_and_fails_closed_without_one(self):
+        info = self.info()
+        script = str(ROOT / 'scripts/packaging/verify-desktop-installer.py')
+        with tempfile.TemporaryDirectory() as directory:
+            installer = Path(directory) / 'setup.exe'
+            installer.write_bytes(installer_resource_fixture(info))
+            missing = subprocess.run([sys.executable, script, '--installer', str(installer), '--payload-sha256', 'f' * 64], capture_output=True, text=True)
+            self.assertEqual(missing.returncode, 1)
+            self.assertIn('No build identity is bound', missing.stderr)
+            both = subprocess.run([sys.executable, script, '--installer', str(installer), '--payload-sha256', 'f' * 64, '--compiler-fixture-channel', 'beta'], capture_output=True, text=True)
+            self.assertEqual(both.returncode, 1)
+
+    def test_the_acceptance_harness_verifies_with_the_payload_binding(self):
+        harness = (ROOT / 'scripts/test-desktop-installer.ps1').read_text(encoding='utf-8')
+        self.assertEqual(harness.count('--payload-sha256 $payloadSha'), 2)
+        self.assertIn("package-verification.json')", harness)
+        self.assertLess(harness.index('$payloadSha='), harness.index('--installer $Installer --payload-sha256'))
+
+
 class InstallerResourceTests(unittest.TestCase):
     def image(self,version=None,signed=False,numeric=None,subsystem=2,product_numeric=None,padded=False,description='SAP Lens Setup'):
         values=numeric or BUILD_INFO['file_version']

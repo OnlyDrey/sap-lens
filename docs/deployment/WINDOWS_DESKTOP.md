@@ -502,6 +502,13 @@ are read-only snapshots checked through the lifecycle. Registry differences and
 file paths are reported without file contents. The private plan contains local
 paths and hashes and is not a distribution/upload artifact.
 
+**Which identity the installer is verified against.** The source and test installers are compared (ProductName, ProductVersion, numeric file and
+product version, GUI subsystem, no signature, test GUID) with the build identity **bound to the payload executable**, found by its SHA-256 in
+`backend/build/artifact-identity/<sha>.json` (written by package verification only after the identity embedded in that exact EXE was checked), and not with
+whatever identity the checkout has now. A missing, linked, foreign, malformed or contract-violating record fails closed; there is no fallback to the current
+identity and no comparison is relaxed. The same numeric rule applies to every record (see [Releases](RELEASES.md)). An installer built before the binding
+existed has no record and must be rebuilt.
+
 **Pre-upgrade backup and the backup key.** When the data directory holds files, Setup first runs `--maintenance check-backup-key` and then the encrypted
 backup. Without a protected key outside the data directory Setup **refuses before changing anything**, with a message that says what to do (Settings >
 Backup & Restore, create or select the key); it never skips the backup and never makes an unencrypted one, and existing data stays intact. The

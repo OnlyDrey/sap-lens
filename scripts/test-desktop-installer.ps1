@@ -110,7 +110,10 @@ function Uninstall-TestPackage {
     $null=Invoke-Plan 'unregistered'
 }
 try {
-    & $python (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer $Installer
+    # Compare the installer with the identity bound to ITS payload executable (written by package verification), never with whatever identity the
+    # checkout happens to have now; a missing or inconsistent binding fails closed.
+    $payloadSha=(Get-Content -Raw (Join-Path $root 'backend/build/package-verification.json') | ConvertFrom-Json).exe_sha256
+    & $python (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer $Installer --payload-sha256 $payloadSha
     if ($LASTEXITCODE -ne 0) { throw 'Source production installer resource verification failed.' }
     $stage='prepare isolated identity and production snapshot'
     $testParent=if ($previous['RUNNER_TEMP']) { $previous['RUNNER_TEMP'] } else { [IO.Path]::GetTempPath() }
@@ -133,7 +136,7 @@ try {
     $proof=Get-Content -LiteralPath (Join-Path $plan.root 'compiled-acceptance.json') -Raw | ConvertFrom-Json
     if ($proof.test_id -ne $plan.test_id -or $proof.production_installer_sha256 -ne $plan.installer_sha256 -or
         $proof.payload_sha256 -ne $plan.payload_sha256 -or $proof.recipe_sha256 -ne $plan.recipe_sha256) { throw 'Isolated compiler proof differs from the acceptance plan.' }
-    & $python (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer $testInstaller --acceptance-id $plan.test_id
+    & $python (Join-Path $root 'scripts/packaging/verify-desktop-installer.py') --installer $testInstaller --acceptance-id $plan.test_id --payload-sha256 $payloadSha
     if ($LASTEXITCODE -ne 0) { throw 'Test-only installer identity resource differs; execution refused.' }
     $null=Invoke-Plan 'verify-production'
     $stage='refusal without a protected backup key'
