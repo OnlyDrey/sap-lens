@@ -1,0 +1,259 @@
+{
+ "role_lookup": [
+  {},
+  {
+   "search": "synthetic role 1"
+  },
+  {
+   "search": "ZC:FI*"
+  },
+  {
+   "search": "*ROLE_0001*"
+  },
+  {
+   "function_keys": [
+    "FI",
+    "MM"
+   ]
+  },
+  {
+   "function_key": "UNCLASSIFIED",
+   "search": "conflict"
+  },
+  {
+   "tcodes": [
+    "T0001",
+    "T0002"
+   ],
+   "transaction_mode": "and"
+  },
+  {
+   "tcodes": [
+    "T0001",
+    "T0002"
+   ],
+   "transaction_mode": "or"
+  },
+  {
+   "tcodes": [
+    "T00*"
+   ],
+   "transaction_mode": "or",
+   "search": "role"
+  },
+  {
+   "tcodes": [
+    "fb01"
+   ],
+   "exclude_matching": true
+  },
+  {
+   "exclude_tcodes": [
+    "T0003",
+    "T0004"
+   ],
+   "exclude_mode": "all"
+  },
+  {
+   "exclude_tcodes": [
+    "T0003",
+    "T0004"
+   ],
+   "exclude_mode": "any",
+   "tcodes": [
+    "T0010"
+   ]
+  },
+  {
+   "tcode": "T001"
+  },
+  {
+   "tcode": "*01"
+  },
+  {
+   "tcode": "fb0"
+  }
+ ],
+ "user_lookup": [
+  {},
+  {
+   "search": "edge"
+  },
+  {
+   "search": "*example.invalid"
+  },
+  {
+   "groups": [
+    "GRP_FIN",
+    "GRP_HR"
+   ]
+  },
+  {
+   "group": "GRP_*LITERAL"
+  },
+  {
+   "roles": [
+    "ZC:CONFLICT:AREA",
+    " zc:mm:dupa "
+   ]
+  },
+  {
+   "role": "ZC:FI:WILD*"
+  },
+  {
+   "tcodes": [
+    "T0001",
+    "T0002"
+   ],
+   "transaction_mode": "or"
+  },
+  {
+   "tcodes": [
+    "T0001",
+    "T0002"
+   ],
+   "transaction_mode": "and"
+  },
+  {
+   "exclude_tcodes": [
+    "T0001"
+   ],
+   "exclude_mode": "any"
+  },
+  {
+   "status": "expired"
+  },
+  {
+   "status": "future",
+   "sort": "last_name",
+   "descending": true
+  },
+  {
+   "show_expired": true,
+   "sort": "relevant_roles"
+  },
+  {
+   "sort": "group"
+  },
+  {
+   "sort": "lock_status",
+   "descending": true
+  }
+ ],
+ "comparison": [
+  {
+   "user_a": "USER00001",
+   "user_b": "USER00008",
+   "validity": "active"
+  },
+  {
+   "user_a": "user00010",
+   "user_b": "USER00098",
+   "validity": "all"
+  },
+  {
+   "user_a": "USER00989",
+   "user_b": "USER03958",
+   "validity": "expired"
+  },
+  {
+   "user_a": "USER00001",
+   "user_b": "USER00008",
+   "validity": "all"
+  },
+  {
+   "user_a": "user00017",
+   "user_b": "USER00035",
+   "validity": "unknown"
+  },
+  {
+   "user_a": "USER00001",
+   "user_b": "user00001",
+   "validity": "active"
+  },
+  {
+   "user_a": "USER00001",
+   "user_b": "NOBODY",
+   "validity": "active"
+  }
+ ],
+ "comparison_listing": [
+  {
+   "pair": 1,
+   "kind": "roles",
+   "difference": "",
+   "search": "",
+   "areas": [],
+   "sort": "identifier",
+   "descending": false
+  },
+  {
+   "pair": 1,
+   "kind": "roles",
+   "difference": "shared",
+   "search": "",
+   "areas": [],
+   "sort": "a",
+   "descending": true
+  },
+  {
+   "pair": 1,
+   "kind": "transactions",
+   "difference": "",
+   "search": "F*",
+   "areas": [],
+   "sort": "difference",
+   "descending": false
+  },
+  {
+   "pair": 3,
+   "kind": "transactions",
+   "difference": "a",
+   "search": "",
+   "areas": [
+    "Financial Accounting",
+    "Unclassified"
+   ],
+   "sort": "b",
+   "descending": false
+  }
+ ],
+ "sod": [
+  {
+   "validity": "active"
+  },
+  {
+   "validity": "all"
+  },
+  {
+   "validity": "expired",
+   "selected_roles": [
+    "ZC:CONFLICT:AREA",
+    "ZC:FI:ROLE_00001"
+   ]
+  }
+ ],
+ "import_checks": [
+  {
+   "source": "roles",
+   "after": "small-changed"
+  },
+  {
+   "source": "users",
+   "after": "small-changed"
+  },
+  {
+   "source": "roles",
+   "after": "small-shrunk"
+  },
+  {
+   "source": "users",
+   "after": "small-shrunk"
+  },
+  {
+   "source": "sod",
+   "after": "small-shrunk"
+  }
+ ],
+ "_comment": "Large-dataset variant of scenarios.json: identical lookups, SoD and import checks; comparison pairs use users that exist in the large dataset."
+}
