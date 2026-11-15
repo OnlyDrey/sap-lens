@@ -1,37 +1,18 @@
 using SapLens.Api;
 
-// Server entry point (Windows and Linux): SapLens.Api --data-dir <absolute path> [--port 18790] [--no-worker]. The UI is embedded in the binary.
-var options = args.Select((value, index) => (value, index)).Where(p => p.value.StartsWith("--", StringComparison.Ordinal))
-    .ToDictionary(p => p.value, p => p.index + 1 < args.Length && !args[p.index + 1].StartsWith("--", StringComparison.Ordinal) ? args[p.index + 1] : "true");
-var dataDirectory = options.GetValueOrDefault("--data-dir") ?? Environment.GetEnvironmentVariable("SAP_LENS_V2_DATA_DIR");
-if (string.IsNullOrWhiteSpace(dataDirectory)) { Console.Error.WriteLine("--data-dir (or SAP_LENS_V2_DATA_DIR) is required."); return 2; }
-var port = int.TryParse(options.GetValueOrDefault("--port"), out var p) && p is > 0 and < 65536 ? p : 18790;
-Directory.CreateDirectory(dataDirectory);
-
-// The token comes from the environment (service configuration) or is generated once and kept in a file only the service account can read.
-var token = Environment.GetEnvironmentVariable("SAP_LENS_V2_TOKEN");
-if (string.IsNullOrEmpty(token))
-{
-    var tokenFile = Path.Combine(dataDirectory, "api-token");
-    if (!File.Exists(tokenFile))
-    {
-        var options2 = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
-        // Linux: owner read/write only. Windows: the file inherits the data directory ACL, which the installer restricts to the service account.
-        if (!OperatingSystem.IsWindows()) options2.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
-        using var stream = new FileStream(tokenFile, options2);
-        using var writer = new StreamWriter(stream);
-        writer.Write(HostSettings.NewToken());
-    }
-    token = File.ReadAllText(tokenFile).Trim();
-}
-
+// Server entry point (Windows and Linux). Defaults to http://127.0.0.1:18790. LAN access only with --network, one private --listen address,
+// --allowed-hosts and an HTTPS certificate. Runs as a console process, a Windows service or a systemd notify service. See ServerConfiguration.
 try
 {
-    var app = SapLensHost.Build(new HostSettings
+    var settings = ServerConfiguration.Parse(args, Environment.GetEnvironmentVariable);
+    var app = SapLensHost.Build(settings, [], builder =>
     {
-        DataDirectory = Path.GetFullPath(dataDirectory), Url = $"http://127.0.0.1:{port}", AccessToken = token,
-        WorkerEnabled = !options.ContainsKey("--no-worker"), PrincipalName = Environment.GetEnvironmentVariable("SAP_LENS_V2_PRINCIPAL") ?? "server-operator",
-    }, args);
+        builder.Services.AddWindowsService(o => o.ServiceName = "SapLens2");
+        // A Windows service has no console: keep the same (secret-free) log lines in <data-dir>\logs.
+        if (Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService())
+            builder.Logging.AddProvider(new FileLoggerProvider(Path.Combine(settings.DataDirectory, "logs"), "server"));
+        builder.Services.AddSystemd();
+    });
     await app.RunAsync();
     return 0;
 }

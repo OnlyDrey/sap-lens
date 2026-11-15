@@ -19,6 +19,7 @@ Evidence tags used in every document: **[M]** measured on Linux x64 in this envi
 | [FUNCTIONAL_EQUIVALENCE.md](FUNCTIONAL_EQUIVALENCE.md) | Python v1 versus .NET on identical synthetic data: 68/68 small, 68/68 large |
 | [PERFORMANCE_BENCHMARK.md](PERFORMANCE_BENCHMARK.md) | Algorithm and service benchmarks, concurrency under import, memory, sizes |
 | [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md) | Desktop (WebView2) and Server builds, run commands, packaging assessment |
+| [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md) | Trusted-LAN access: HTTPS, binding policy, authentication review, firewall, deployment and verification |
 | [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | How v1 data, decisions and evidence would move, with rollback |
 
 ## Code
@@ -33,7 +34,7 @@ Everything lives in [`experiments/dotnet-backend`](../../../experiments/dotnet-b
 | `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded prototype UI (`wwwroot`), startup probe |
 | `src/SapLens.Desktop` | Windows shell: WinForms + WebView2, in-process core, loopback, per-run token (built on Linux, never run) |
 | `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
-| `tests/SapLens.Tests` | 65 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, publish acceptance (`Category=Publish`, slow) |
+| `tests/SapLens.Tests` | 84 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, publish acceptance (`Category=Publish`, slow) |
 | `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses |
 
 ## Reproduce

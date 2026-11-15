@@ -21,7 +21,7 @@ public sealed class StartupTests : IDisposable
 
     private HostSettings Settings(string data) => new()
     {
-        DataDirectory = data, Mode = HostMode.Desktop, Url = "http://127.0.0.1:0", AccessToken = _token, JsonConsoleLogging = false,
+        DataDirectory = data, Mode = HostMode.Desktop, Port = 0, AccessToken = _token, JsonConsoleLogging = false,
     };
 
     private (FileLoggerProvider Logs, ILoggerFactory Factory, ILogger Log) Logging()

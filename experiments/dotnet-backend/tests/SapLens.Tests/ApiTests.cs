@@ -20,7 +20,7 @@ public sealed class ApiTests : IAsyncLifetime
     {
         _app = SapLensHost.Build(new HostSettings
         {
-            DataDirectory = Path.Combine(_root, "data"), Url = "http://127.0.0.1:0", AccessToken = _token,
+            DataDirectory = Path.Combine(_root, "data"), Port = 0, AccessToken = _token,
             JsonConsoleLogging = false, PrincipalName = "tester",
         });
         await _app.StartAsync();
@@ -82,8 +82,8 @@ public sealed class ApiTests : IAsyncLifetime
     [Fact]
     public void Non_loopback_bind_and_short_tokens_are_refused()
     {
-        Assert.Throws<InvalidOperationException>(() => SapLensHost.Build(new HostSettings { DataDirectory = Path.Combine(_root, "x"), Url = "http://0.0.0.0:18799", AccessToken = _token }));
-        Assert.Throws<InvalidOperationException>(() => SapLensHost.Build(new HostSettings { DataDirectory = Path.Combine(_root, "x"), Url = "http://127.0.0.1:0", AccessToken = "short" }));
+        Assert.Throws<InvalidOperationException>(() => SapLensHost.Build(new HostSettings { DataDirectory = Path.Combine(_root, "x"), ListenAddress = System.Net.IPAddress.Any, AccessToken = _token }));
+        Assert.Throws<InvalidOperationException>(() => SapLensHost.Build(new HostSettings { DataDirectory = Path.Combine(_root, "x"), Port = 0, AccessToken = "short" }));
     }
 
     [Fact]

@@ -14,8 +14,17 @@ public static class SapLensHost
         var ui = UiAssets.Create();
         // Content root is the application directory (never the current working directory); no file is read from it at runtime.
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = args ?? [], ContentRootPath = AppContext.BaseDirectory });
-        builder.WebHost.UseUrls(settings.Url);
-        builder.WebHost.ConfigureKestrel(k => { k.AddServerHeader = false; k.Limits.MaxRequestBodySize = 1024 * 1024; });
+        builder.WebHost.ConfigureKestrel(k =>
+        {
+            k.AddServerHeader = false;
+            k.Limits.MaxRequestBodySize = 1024 * 1024;
+            // Exactly one endpoint, from validated settings; ASPNETCORE_URLS and similar are not used.
+            k.Listen(settings.ListenAddress, settings.Port, listen =>
+            {
+                if (settings.Certificate is { } certificate)
+                    listen.UseHttps(https => { https.ServerCertificate = certificate; https.SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13; });
+            });
+        });
         builder.Logging.ClearProviders();
         if (settings.JsonConsoleLogging) builder.Logging.AddJsonConsole(o => { o.IncludeScopes = true; o.UseUtcTimestamp = true; o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ"; });
         builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(15));
@@ -35,6 +44,14 @@ public static class SapLensHost
         configure?.Invoke(builder);
 
         var app = builder.Build();
+        var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SapLens.Startup");
+        startup.LogInformation("Listening on {Address}:{Port} ({Scheme}), network access {Network}, allowed hosts {Hosts}", settings.ListenAddress, settings.Port,
+            settings.Https ? "https" : "http", settings.NetworkAccess ? "enabled" : "disabled", settings.AllowedHosts.Count == 0 ? "loopback only" : string.Join(",", settings.AllowedHosts));
+        if (settings.Certificate is { } cert)
+        {
+            startup.LogInformation("TLS certificate {Subject}, thumbprint {Thumbprint}, valid until {NotAfter:u}", cert.Subject, cert.Thumbprint, cert.NotAfter);
+            foreach (var warning in CertificatePolicy.Validate(cert, settings.AllowedHosts, DateTimeOffset.UtcNow).Warnings) startup.LogWarning("TLS certificate: {Warning}", warning);
+        }
         app.UseExceptionHandler();
         app.UseMiddleware<RequestBoundary>();
         app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = ui });
@@ -55,16 +72,17 @@ public static class SapLensHost
         if (settings.Mode != HostMode.Server) return; // Desktop never needs a sign-in: the shell supplies the token.
         app.MapPost("/auth/login", async (HttpContext http, SessionStore sessions, ILogger<SessionStore> log) =>
         {
-            if (sessions.Throttled()) return Results.Problem("Too many failed sign-ins. Wait a minute.", statusCode: 429);
+            var client = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            if (sessions.Throttled(client)) return Results.Problem("Too many failed sign-ins. Wait a minute.", statusCode: 429);
             var form = await http.Request.ReadFormAsync(http.RequestAborted);
             var boundary = http.RequestServices.GetRequiredService<RequestBoundaryTokenCheck>();
             if (!boundary.Matches(form["token"].ToString()))
             {
-                sessions.RecordFailure();
-                log.LogWarning("Failed sign-in");
+                sessions.RecordFailure(client);
+                log.LogWarning("Failed sign-in from {Client}", client);
                 return Results.Problem("Invalid access token.", statusCode: 401);
             }
-            http.Response.Cookies.Append(SessionStore.CookieName, sessions.Create(), new CookieOptions
+            http.Response.Cookies.Append(SessionStore.CookieNameFor(http.Request.IsHttps), sessions.Create(), new CookieOptions
             {
                 HttpOnly = true, SameSite = SameSiteMode.Strict, Secure = http.Request.IsHttps, Path = "/", MaxAge = SessionStore.Lifetime, IsEssential = true,
             });
@@ -72,8 +90,9 @@ public static class SapLensHost
         }).DisableAntiforgery().ExcludeFromDescription();
         app.MapPost("/auth/logout", (HttpContext http, SessionStore sessions) =>
         {
-            sessions.Revoke(http.Request.Cookies[SessionStore.CookieName]);
-            http.Response.Cookies.Delete(SessionStore.CookieName, new CookieOptions { Path = "/" });
+            var name = SessionStore.CookieNameFor(http.Request.IsHttps);
+            sessions.Revoke(http.Request.Cookies[name]);
+            http.Response.Cookies.Delete(name, new CookieOptions { Path = "/", Secure = http.Request.IsHttps, HttpOnly = true, SameSite = SameSiteMode.Strict });
             return Results.Redirect("/login.html");
         }).ExcludeFromDescription();
     }

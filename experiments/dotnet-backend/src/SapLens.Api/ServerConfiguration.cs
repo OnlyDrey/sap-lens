@@ -1,0 +1,71 @@
+using System.Net;
+
+namespace SapLens.Api;
+
+/// <summary>Server configuration from command-line options and environment variables (options win). No secret is accepted on the command line, where
+/// any local user could read it from the process list: the certificate password comes from SAP_LENS_V2_CERT_PASSWORD or a file
+/// (--cert-password-file, for example a systemd credential), the access token from SAP_LENS_V2_TOKEN or the protected api-token file.
+/// Unknown options are errors, so a typo never silently falls back to a default.</summary>
+public static class ServerConfiguration
+{
+    public static readonly string[] ValueOptions = ["--data-dir", "--listen", "--port", "--allowed-hosts", "--cert", "--cert-key", "--cert-password-file"];
+    public static readonly string[] FlagOptions = ["--network", "--no-worker"];
+
+    public static HostSettings Parse(string[] args, Func<string, string?> environment)
+    {
+        var options = new Dictionary<string, string>(StringComparer.Ordinal);
+        for (var i = 0; i < args.Length; i++)
+        {
+            var name = args[i];
+            if (name is "--cert-password" or "--token") throw new InvalidOperationException($"{name} is not accepted on the command line; use the environment or a protected file.");
+            if (FlagOptions.Contains(name)) { options[name] = "true"; continue; }
+            if (!ValueOptions.Contains(name)) throw new InvalidOperationException($"Unknown option '{name}'.");
+            if (i + 1 >= args.Length || args[i + 1].StartsWith("--", StringComparison.Ordinal)) throw new InvalidOperationException($"{name} needs a value.");
+            options[name] = args[++i];
+        }
+        string? Get(string option, string variable) => options.TryGetValue(option, out var v) ? v : environment(variable) is { Length: > 0 } e ? e : null;
+
+        var dataDirectory = Get("--data-dir", "SAP_LENS_V2_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_V2_DATA_DIR) is required.");
+        if (!Path.IsPathFullyQualified(dataDirectory)) throw new InvalidOperationException("--data-dir must be an absolute path.");
+        var listenText = Get("--listen", "SAP_LENS_V2_LISTEN") ?? "127.0.0.1";
+        if (!IPAddress.TryParse(listenText, out var listen)) throw new InvalidOperationException($"--listen must be an IP address, not '{listenText}'.");
+        var portText = Get("--port", "SAP_LENS_V2_PORT");
+        var port = 18790;
+        if (portText is not null && (!int.TryParse(portText, out port) || port is < 1 or > 65535)) throw new InvalidOperationException("--port must be between 1 and 65535.");
+        var network = options.ContainsKey("--network") || string.Equals(environment("SAP_LENS_V2_NETWORK"), "true", StringComparison.OrdinalIgnoreCase);
+        var hosts = (Get("--allowed-hosts", "SAP_LENS_V2_ALLOWED_HOSTS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        var certificatePath = Get("--cert", "SAP_LENS_V2_CERT");
+        var certificate = certificatePath is null ? null : CertificatePolicy.Load(Path.GetFullPath(certificatePath), Get("--cert-key", "SAP_LENS_V2_CERT_KEY"), Password(Get("--cert-password-file", "SAP_LENS_V2_CERT_PASSWORD_FILE"), environment));
+        Directory.CreateDirectory(dataDirectory);
+        return new HostSettings
+        {
+            DataDirectory = Path.GetFullPath(dataDirectory), ListenAddress = listen, Port = port, NetworkAccess = network, AllowedHosts = hosts, Certificate = certificate,
+            AccessToken = Token(dataDirectory, environment), WorkerEnabled = !options.ContainsKey("--no-worker"),
+            PrincipalName = environment("SAP_LENS_V2_PRINCIPAL") ?? "server-operator",
+        };
+    }
+
+    private static string? Password(string? file, Func<string, string?> environment)
+    {
+        if (file is null) return environment("SAP_LENS_V2_CERT_PASSWORD");
+        if (!File.Exists(file)) throw new InvalidOperationException($"The certificate password file '{file}' does not exist.");
+        return File.ReadAllText(file).TrimEnd('\r', '\n');
+    }
+
+    /// <summary>The token comes from the environment (service configuration) or is generated once into a file only the service account can read.</summary>
+    private static string Token(string dataDirectory, Func<string, string?> environment)
+    {
+        if (environment("SAP_LENS_V2_TOKEN") is { Length: > 0 } token) return token;
+        var tokenFile = Path.Combine(dataDirectory, "api-token");
+        if (!File.Exists(tokenFile))
+        {
+            var create = new FileStreamOptions { Mode = FileMode.CreateNew, Access = FileAccess.Write };
+            // Linux: owner read/write only. Windows: inherits the data directory ACL, which the deployment restricts to the service account and admins.
+            if (!OperatingSystem.IsWindows()) create.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+            using var writer = new StreamWriter(new FileStream(tokenFile, create));
+            writer.Write(HostSettings.NewToken());
+        }
+        return File.ReadAllText(tokenFile).Trim();
+    }
+}

@@ -72,7 +72,7 @@ test-time dependency as the equivalence reference while v1 exists. See [DEPENDEN
 | Audit trail moves from JSON stores to SQLite | High | Import with per-record hashes, chain anchored on v1 hashes, verification gate, v1 untouched until confirmation |
 | Decisions orphaned by identity drift | High | SoD identities proven byte-identical; keep the equivalence suite as a permanent gate |
 | v1 API surface (about 25 routers) to reproduce | High effort | Compatibility facade with replayed contract tests, router by router |
-| Server identity, roles, approvals, TLS absent | High (blocks remote server) | Design before Phase 2 build; prototype refuses non-loopback binds |
+| Per-user identity, roles and approvals absent (trusted-LAN HTTPS exists with a shared token) | High (blocks production server use) | OIDC or Windows authentication with roles before use beyond a trusted test LAN |
 | Memory 1.4x to 1.8x v1 | Medium (desktop laptops) | Interning, compact records, release staging early, workstation GC on Desktop |
 | Report layout changes | Medium | Frozen model as evidence; one-time accepted layout change or isolated renderer |
 | Windows behaviour unknown (service, WebView2, App Control) | High until measured | Phase 2 Windows acceptance runs |
@@ -88,7 +88,7 @@ accounts and sessions, encrypted portable backups and restore, scheduled refresh
 1. Windows acceptance of the fixed Desktop build (checklist in DESKTOP_SERVER_DEPLOYMENT.md) and of the Server as a service.
 2. Suffix handling (organizational suffix evidence and Access Package preview) not ported or equivalence-tested.
 3. No rehearsed migration of v1 JSON stores.
-4. No authenticated remote Server design (accounts, roles, TLS).
+4. No per-user identity for Server mode: trusted-LAN access now exists (HTTPS, fail-closed binding, shared token, sessions; not yet verified from another device), but accounts and roles do not.
 
 ## Conditions to convert to GO (Phase 2 exit criteria)
 
@@ -97,7 +97,7 @@ accounts and sessions, encrypted portable backups and restore, scheduled refresh
 2. Port suffix handling and add it to the equivalence suite; all scenarios match on small and large sets.
 3. Reduce loaded memory to at most 1.2x v1 on the large set, measured with the same harness.
 4. Rehearse the migration importer on synthetic v1 stores with the verification gate passing and a demonstrated rollback.
-5. Approve an identity design for Server mode before any non-loopback exposure.
+5. Approve an identity design (OIDC or Windows authentication, roles) before network access is used beyond a trusted test LAN.
 
 ## Open questions for the owner
 

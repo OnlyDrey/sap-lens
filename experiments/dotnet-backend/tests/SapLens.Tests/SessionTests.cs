@@ -25,7 +25,7 @@ public sealed class SessionTests : IAsyncLifetime
     {
         var app = SapLensHost.Build(new HostSettings
         {
-            DataDirectory = Path.Combine(_root, mode.ToString()), Url = "http://127.0.0.1:0", AccessToken = _token, Mode = mode, JsonConsoleLogging = false,
+            DataDirectory = Path.Combine(_root, mode.ToString()), Port = 0, AccessToken = _token, Mode = mode, JsonConsoleLogging = false,
         });
         await app.StartAsync();
         _apps.Add(app);
@@ -34,8 +34,12 @@ public sealed class SessionTests : IAsyncLifetime
 
     private static HttpClient Client(Uri origin) => new(new HttpClientHandler { AllowAutoRedirect = false, UseCookies = false, UseProxy = false }) { BaseAddress = origin };
 
-    private static Task<HttpResponseMessage> Login(HttpClient client, string token) =>
-        client.PostAsync("/auth/login", new FormUrlEncodedContent([new KeyValuePair<string, string>("token", token)]));
+    private static Task<HttpResponseMessage> Login(HttpClient client, string token, bool withOrigin = true)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, "/auth/login") { Content = new FormUrlEncodedContent([new KeyValuePair<string, string>("token", token)]) };
+        if (withOrigin) request.Headers.Add("Origin", client.BaseAddress!.GetLeftPart(UriPartial.Authority)); // what a browser sends for the form post
+        return client.SendAsync(request);
+    }
 
     [Fact]
     public async Task Sign_in_sets_an_httponly_strict_cookie_that_does_not_contain_the_token()
@@ -66,6 +70,19 @@ public sealed class SessionTests : IAsyncLifetime
         using var forged = new HttpRequestMessage(HttpMethod.Get, "/api/v1/session");
         forged.Headers.Add("Cookie", SessionStore.CookieName + "=forged-value");
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(forged)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Sign_in_without_a_same_origin_signal_or_from_another_origin_is_refused()
+    {
+        using var client = Client(await StartAsync(HostMode.Server));
+        Assert.Equal(HttpStatusCode.Forbidden, (await Login(client, _token, withOrigin: false)).StatusCode);
+        using var foreign = new HttpRequestMessage(HttpMethod.Post, "/auth/login") { Content = new FormUrlEncodedContent([new KeyValuePair<string, string>("token", _token)]) };
+        foreign.Headers.Add("Origin", "http://evil.example");
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(foreign)).StatusCode);
+        using var fetchMetadata = new HttpRequestMessage(HttpMethod.Post, "/auth/login") { Content = new FormUrlEncodedContent([new KeyValuePair<string, string>("token", _token)]) };
+        fetchMetadata.Headers.Add("Sec-Fetch-Site", "same-origin");
+        Assert.Equal(HttpStatusCode.Redirect, (await client.SendAsync(fetchMetadata)).StatusCode);
     }
 
     [Fact]

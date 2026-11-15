@@ -44,8 +44,8 @@ SAP_LENS_V2_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-
 - **Data directory**: `--data-dir` or `SAP_LENS_V2_DATA_DIR`; must be absolute and local (UNC, `//host/share` and network drives refused).
 - **Token**: `SAP_LENS_V2_TOKEN`, otherwise generated once into `<data>/api-token` (mode 0600 on Linux; on Windows it inherits the data
   directory ACL, which an installer must restrict to the service account [U]). Every `/api` request needs `X-SAP-Lens-Token`.
-- **Binding**: `127.0.0.1` only. Any non-loopback URL is refused at startup, with or without a token, because the prototype has no TLS and
-  no identity provider. Remote access is a deliberate blocker, not a configuration option.
+- **Binding**: `127.0.0.1` by default. Access from other devices only with `--network`, one private LAN address, HTTPS with a validated
+  certificate and explicit `--allowed-hosts`; everything else is refused at startup. See [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md).
 - **UI**: `http://127.0.0.1:<port>/` serves the embedded prototype UI. In a browser it signs in through `/login.html`: the token is posted
   once in a plain HTML form to `/auth/login`, which answers with an HttpOnly, SameSite=Strict session cookie (8 h, in memory, not the token).
   Cookie-authenticated state changes also need a same-origin signal; 5 failed sign-ins per minute are throttled. API clients keep using the
@@ -57,8 +57,9 @@ SAP_LENS_V2_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-
 - **Shutdown**: SIGTERM / service stop. Measured 164 ms with data loaded; a running import is handed back (status Queued, attempt not
   counted, staging discarded) and resumes on the next start [M]. After a crash (SIGKILL) the job is recovered when its 30 s lease expires,
   staging is discarded and the import completes exactly once (35.7 s after restart in the test) [M].
-- **Service wrappers** (not built): Linux systemd unit with `Type=notify` via `Microsoft.Extensions.Hosting.Systemd`; Windows service via
-  `Microsoft.Extensions.Hosting.WindowsServices` (`UseWindowsService`), which removes the need for WinSW. Both are first-party packages.
+- **Service hosting**: the same executable runs as a Windows service (`AddWindowsService`, file log in `<data-dir>\logs`) and as a systemd
+  `Type=notify` service (`AddSystemd`); both are no-ops in a console. Deployment commands: [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md#5-deployment).
+  Not yet run as a Windows service [U].
 
 ## Desktop
 

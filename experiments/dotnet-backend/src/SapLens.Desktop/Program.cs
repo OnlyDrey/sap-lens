@@ -43,7 +43,7 @@ internal static class Program
 
         var settings = new HostSettings
         {
-            DataDirectory = dataDirectory, Mode = HostMode.Desktop, Url = "http://127.0.0.1:0", AccessToken = HostSettings.NewToken(),
+            DataDirectory = dataDirectory, Mode = HostMode.Desktop, Port = 0, AccessToken = HostSettings.NewToken(),
             PrincipalName = Environment.UserName, JsonConsoleLogging = false,
         };
         var outcome = LocalStartup.StartAsync(settings, log, StartupTimeout, b => b.Logging.AddProvider(logs)).GetAwaiter().GetResult();

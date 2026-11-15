@@ -31,23 +31,24 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
         headers.ContentSecurityPolicy = ContentSecurityPolicy;
         using var scope = logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlation });
 
-        var host = context.Request.Host.Host;
-        if (host is not ("127.0.0.1" or "localhost" or "[::1]" or "::1")) { await Reject(context, 421, "Unexpected host."); return; }
+        if (context.Request.IsHttps) headers.StrictTransportSecurity = "max-age=31536000";
+        if (!settings.HostAllowed(context.Request.Host.Host)) { await Reject(context, 421, "Unexpected host."); return; }
         var request = context.Request;
-        var unsafeMethod = !HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method);
+        var unsafeMethod = !HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method);
         var origin = request.Headers.Origin.ToString();
         var sameOrigin = string.Equals(origin, $"{request.Scheme}://{request.Host}", StringComparison.OrdinalIgnoreCase);
         if (unsafeMethod && origin.Length > 0 && !sameOrigin) { await Reject(context, 403, "Cross-origin request refused."); return; }
+        var tokenAuthenticated = token.Matches(request.Headers[TokenHeader].ToString());
+        // CSRF: a state change that is not authenticated by the custom header (which browsers never attach cross-site) must carry a same-origin signal
+        // (Origin equal to this server, or Sec-Fetch-Site: same-origin). SameSite=Strict on the session cookie is the second layer.
+        if (unsafeMethod && !tokenAuthenticated && !sameOrigin && !(origin.Length == 0 && request.Headers["Sec-Fetch-Site"].ToString() == "same-origin"))
+        { await Reject(context, 403, "State-changing requests need a same-origin signal."); return; }
 
         if (request.Path.StartsWithSegments("/api"))
         {
             headers.CacheControl = "no-store";
-            if (token.Matches(request.Headers[TokenHeader].ToString())) { await next(context); return; }
-            if (settings.Mode == HostMode.Server && sessions.IsValid(request.Cookies[SessionStore.CookieName]))
+            if (tokenAuthenticated || (settings.Mode == HostMode.Server && sessions.IsValid(request.Cookies[SessionStore.CookieNameFor(request.IsHttps)])))
             {
-                // Cookie authentication needs proof that the request came from our own page: SameSite=Strict plus an explicit same-origin signal.
-                if (unsafeMethod && !sameOrigin && request.Headers["Sec-Fetch-Site"].ToString() != "same-origin")
-                { await Reject(context, 403, "State-changing requests need a same-origin signal."); return; }
                 await next(context);
                 return;
             }
@@ -65,15 +66,19 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
 }
 
 /// <summary>Server-mode browser sessions: random identifiers, only their SHA-256 kept in memory, 8 hour lifetime, lost on restart (sign in again).
-/// The cookie never contains the access token. Failed sign-ins are throttled (5 per minute per process).</summary>
+/// The cookie never contains the access token; over HTTPS it is named with the __Host- prefix (Secure, Path=/, no Domain enforced by browsers).
+/// Failed sign-ins are throttled per client address (5 per minute) and in total (30 per minute).</summary>
 public sealed class SessionStore(TimeProvider clock)
 {
     public const string CookieName = "saplens_session";
+    public const string SecureCookieName = "__Host-saplens_session";
+    public static string CookieNameFor(bool https) => https ? SecureCookieName : CookieName;
     public static readonly TimeSpan Lifetime = TimeSpan.FromHours(8);
     private const int MaxSessions = 200;
-    private const int MaxFailuresPerMinute = 5;
+    private const int MaxFailuresPerClient = 5;
+    private const int MaxFailuresTotal = 30;
     private readonly ConcurrentDictionary<string, DateTimeOffset> _sessions = new(StringComparer.Ordinal);
-    private readonly Queue<DateTimeOffset> _failures = new();
+    private readonly Queue<(DateTimeOffset At, string Client)> _failures = new();
 
     private static string Hash(string id) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(id)));
 
@@ -91,15 +96,15 @@ public sealed class SessionStore(TimeProvider clock)
 
     public void Revoke(string? id) { if (!string.IsNullOrEmpty(id)) _sessions.TryRemove(Hash(id), out _); }
 
-    public bool Throttled()
+    public bool Throttled(string client)
     {
         lock (_failures)
         {
             var cutoff = clock.GetUtcNow() - TimeSpan.FromMinutes(1);
-            while (_failures.Count > 0 && _failures.Peek() < cutoff) _failures.Dequeue();
-            return _failures.Count >= MaxFailuresPerMinute;
+            while (_failures.Count > 0 && _failures.Peek().At < cutoff) _failures.Dequeue();
+            return _failures.Count >= MaxFailuresTotal || _failures.Count(f => f.Client == client) >= MaxFailuresPerClient;
         }
     }
 
-    public void RecordFailure() { lock (_failures) _failures.Enqueue(clock.GetUtcNow()); }
+    public void RecordFailure(string client) { lock (_failures) _failures.Enqueue((clock.GetUtcNow(), client)); }
 }

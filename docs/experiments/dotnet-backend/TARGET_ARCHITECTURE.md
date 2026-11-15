@@ -60,7 +60,7 @@ paged, snake_case JSON. Errors become RFC 9457 problem details with the correlat
 | | Desktop | Server |
 | --- | --- | --- |
 | Entry | `SapLens.Desktop` (WinForms + WebView2) | `SapLens.Api` executable |
-| Bind | `127.0.0.1:0` (OS-assigned) | `127.0.0.1:<port>` (default 18790); any non-loopback bind is refused |
+| Bind | `127.0.0.1:0` (OS-assigned), never anything else | `127.0.0.1:18790` by default; trusted LAN only with `--network`, one private address, HTTPS and explicit host names ([SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md)) |
 | Token | New 256-bit token per run, injected into `/api` requests by WebView2 `WebResourceRequested`; never visible to page script | `SAP_LENS_V2_TOKEN` or a generated `api-token` file (0600 on Linux) |
 | Data | `%LOCALAPPDATA%\SAP Lens 2 Prototype\data` | `--data-dir` (absolute, local; UNC and network drives refused) |
 | UI | Embedded prototype UI for `/api/v1` (in `SapLens.Api.dll`), token injected by the shell | Same embedded UI; browser sign-in exchanges the token for an HttpOnly session cookie |
@@ -68,8 +68,8 @@ paged, snake_case JSON. Errors become RFC 9457 problem details with the correlat
 
 ## Deliberate non-decisions
 
-- **Remote server access** is out of scope until TLS and a real identity model (Windows authentication or OIDC, roles, approvals) exist.
-  The prototype refuses to listen beyond loopback instead of offering a weak option.
+- **Network access** is limited to a trusted LAN behind HTTPS with a shared access token and browser sessions. Per-user identity, roles and
+  approvals (OIDC or Windows authentication) are required before production use; public exposure is refused by design.
 - **API compatibility with the v1 frontend** is not provided: the prototype API is `/api/v1` with its own contract. See
   [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) for the compatibility facade approach.
 - **Native AOT** is not used: EF Core and reflection-based JSON are not AOT-clean, and WinForms is not supported by AOT. See

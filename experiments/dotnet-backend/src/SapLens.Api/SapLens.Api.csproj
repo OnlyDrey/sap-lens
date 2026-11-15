@@ -12,6 +12,8 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
     <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.15" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.15" />
   </ItemGroup>
 
   <ItemGroup>
