@@ -1,0 +1,42 @@
+# Release status and checkpoint (Phases 3 to 6)
+
+Durable checkpoint for the next session. Evidence tags as in [README](README.md). Branch `experiment/dotnet-backend`; `work` and `main` are not
+touched; CI runs only on pushes to `main` (`validate.yml`), so experiment pushes trigger nothing.
+
+## Release decision: NO-GO (not a Release Candidate)
+
+SAP Lens 2 on .NET is **not** a Release Candidate. The architecture, security boundary, packaging and the migrated areas are sound and tested, but
+functional parity is far from complete: **20 of 144** API routes the React UI references are served ([ROUTE_AUDIT.md](ROUTE_AUDIT.md)); account
+review, SoD governance, accounts and roles, Employee Directory, backups and reports are not migrated. A release without them would remove audit
+functionality users rely on. Windows runtime acceptance has not been performed for the current build.
+
+## Phase status
+
+| Phase | Status | Evidence | What blocks exit |
+| --- | --- | --- | --- |
+| 3 Integration and stabilization | **In progress; exit criteria not met** | Route audit generated from code (no undocumented 501: every unmigrated route answers `501 not_migrated`, contract-tested); React UI verified against .NET in Chromium for sign-in, Data Sources import, Role Lookup, User Access, Compare Users [M]; Data Health findings equal Python v1 `calculations()` on the small synthetic set (11 of 11) [M]; 115 automated tests [T] | 124 routes not migrated; no per-user identity (shared token); browser tests exist only as ad-hoc scripts in `tools/` and scratch, not a suite |
+| 4 Platform and distribution | **Partial** | Reproducible release build (`scripts/build-release.sh`, `.ps1`): React build, tests, self-contained Server win-x64 and linux-x64, Desktop win-x64, build identity stamped (`+<sha>`) and verified, `SHA256SUMS`, `manifest.json` [M on Linux]; Windows service and systemd hosting in code; install/upgrade commands documented | No Windows run of the current build; installer and upgrade/rollback scripts are documented commands, not tested tooling; Desktop installer not built |
+| 5 Full regression and hardening | **Not started as a phase** | Existing suites: equivalence 68/68 small and large (domain), benchmarks, security and TLS tests, multi-process SQLite tests [T][M] | Depends on Phase 3 parity; the v1 Playwright suite cannot pass until the UI's areas are migrated |
+| 6 Release Candidate and acceptance | **Not started** | Windows acceptance commands and checklists exist ([UI_INTEGRATION.md](UI_INTEGRATION.md), [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md), [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md)) | No RC exists (see decision); no Windows or mobile acceptance run |
+
+## Remaining work, in dependency order
+
+1. Dashboard (`/api/dashboard`), diagnostics, saved filters, functional groups (read paths the shell calls on every page).
+2. Per-user identity: v1 local accounts (Argon2id migration), sessions, roles (viewer, reviewer, administrator) enforced per route; this is a
+   precondition for every audit-relevant write below.
+3. Account Review (v1 decision model, history, bulk, export) on the existing append-only decision store with reappearance invalidation.
+4. Employee Directory (import, matching, managers, coverage) and the User Access filters that depend on it.
+5. Access Packages and organizational suffixes (with an equivalence extension).
+6. SoD governance (53 routes): catalogue, reference library, decisions, periods, frozen snapshots, remediation, explorer, matrix.
+7. Backups (encrypted portable), restore, retention approval; settings export/import/reset.
+8. Reports (DOCX, PDF, CSV exports) from frozen models.
+9. Then Phase 5 (v1 Playwright suite against .NET, security tests, performance) and Phase 6 (Windows and mobile acceptance).
+
+## Next commands
+
+```bash
+git fetch origin && git checkout experiment/dotnet-backend && git pull --ff-only
+cd experiments/dotnet-backend && dotnet build SapLens.slnx -c Release && dotnet test tests/SapLens.Tests -c Release --no-build
+python -I tools/route_audit.py ../.. ../../docs/experiments/dotnet-backend/ROUTE_AUDIT.md     # regenerate parity after each step
+scripts/build-release.sh /tmp/saplens-rc --skip-tests                                          # Linux; Windows: scripts\build-release.ps1 -Output C:\saplens2\release-next
+```

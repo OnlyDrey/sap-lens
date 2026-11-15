@@ -12,6 +12,8 @@ Evidence tags used in every document: **[M]** measured on Linux x64 in this envi
 | Document | Content |
 | --- | --- |
 | [FEATURE_PARITY.md](FEATURE_PARITY.md) | Phase 0 inventory: every UI area, v1 implementation, .NET status, gaps, complexity, tests |
+| [ROUTE_AUDIT.md](ROUTE_AUDIT.md) | Generated route-by-route status of every API route the React UI references |
+| [RELEASE_STATUS.md](RELEASE_STATUS.md) | Phase 3 to 6 status, release decision (NO-GO), remaining work, next commands |
 | [UI_INTEGRATION.md](UI_INTEGRATION.md) | The production React UI served by .NET: build, adapter, authentication, Windows VM commands |
 | [PHASE1_DECISION.md](PHASE1_DECISION.md) | Recommendation (CONDITIONAL GO), evidence, blockers, open questions |
 | [ARCHITECTURE_ASSESSMENT.md](ARCHITECTURE_ASSESSMENT.md) | What v1 is, read from source and tests; what a C# backend must preserve |
@@ -36,9 +38,9 @@ Everything lives in [`experiments/dotnet-backend`](../../../experiments/dotnet-b
 | `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded production React UI (`frontend/dist`) and sign-in page, v1 compatibility API (`V1Compatibility.cs`), startup probe |
 | `src/SapLens.Desktop` | Windows shell: WinForms + WebView2, in-process core, loopback, per-run token (built on Linux, never run) |
 | `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
-| `tests/SapLens.Tests` | 96 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, v1 compatibility contracts, publish acceptance (`Category=Publish`, slow) |
+| `tests/SapLens.Tests` | 115 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, v1 compatibility contracts, publish acceptance (`Category=Publish`, slow) |
 | `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses, v1 reference-data export |
-| `scripts/` | `build-release.ps1` (Windows) and `build-release.sh` (Linux): UI build, .NET build and tests, self-contained packages |
+| `scripts/` | `build-release.ps1` (Windows) and `build-release.sh` (Linux): UI build, .NET build and tests, self-contained packages, build identity check, `SHA256SUMS`, `manifest.json` |
 
 ## Reproduce
 

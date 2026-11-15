@@ -21,7 +21,10 @@ public static class V1Compatibility
     public static readonly string Boot = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
     private static readonly Lazy<JsonObject> Registry = new(() => Load("registry.json"));
     private static readonly Lazy<JsonObject> DefaultSettings = new(() => Load("default-settings.json"));
-    public static readonly string Version = typeof(V1Compatibility).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
+    private static readonly string Informational = typeof(V1Compatibility).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
+    public static readonly string Version = Informational.Split('+')[0];
+    /// <summary>The commit the build was made from (release scripts pass -p:SourceRevisionId); null for builds without it.</summary>
+    public static readonly string? SourceSha = Informational.Contains('+') ? Informational.Split('+')[1] : null;
 
     /// <summary>A fresh copy of v1's default settings document.</summary>
     public static JsonObject DefaultSettingsDocument() => DefaultSettings.Value.DeepClone().AsObject();
@@ -41,6 +44,7 @@ public static class V1Compatibility
         "POST /api/configuration", "POST /api/configuration/theme", "GET /api/data-sources/history", "GET /api/data-sources/{source}/preview", "POST /api/data/cancel",
         "POST /api/data-sources/{source}/select", "POST /api/server/uploads/{source}/activate",
         "GET /api/access/users", "GET /api/access/users/{username}", "GET /api/user-comparison", "GET /api/user-comparison/evidence",
+        "GET /api/data-health",
     ];
 
     public static void Map(WebApplication app)
@@ -68,7 +72,7 @@ public static class V1Compatibility
         api.MapGet("/version", () => new { app = "SAP Lens", version = Version, mode = "dotnet-preview" });
         api.MapGet("/application-info", () => new
         {
-            version = Version, mode = "dotnet-preview", source_sha = (string?)null, file_version = (string?)null, python = (string?)null,
+            version = Version, mode = "dotnet-preview", source_sha = SourceSha, file_version = (string?)null, python = (string?)null,
             runtime = $".NET {Environment.Version}", platform = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
         });
         api.MapGet("/runtime", (HostSettings settings) => new
@@ -110,6 +114,7 @@ public static class V1Compatibility
 
         V1DataSources.Map(api);
         V1Access.Map(api);
+        V1DataHealth.Map(api);
 
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).
         api.Map("/{**rest}", (HttpContext http, string? rest) =>

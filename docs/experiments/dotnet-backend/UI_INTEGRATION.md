@@ -37,6 +37,7 @@ and Server. The earlier simplified prototype UI was removed. Status tags as in [
 | `GET /api/data-sources/history`, `/api/data-sources/{source}/preview`, `POST /api/data/cancel` | Import history (refresh reports), active-source preview, cancel the running import |
 | `GET /api/access/users`, `/api/access/users/{username}` | Phase 2B User Access list and user detail from the C# domain; unmigrated filters answer 501 |
 | `GET /api/user-comparison`, `/api/user-comparison/evidence` | Phase 2B Compare Users with summary, areas and evidence |
+| `GET /api/data-health` | Data Health findings (equal to Python v1 on the synthetic set), coverage, sources, review continuity |
 
 Data is loaded through the UI (Settings → Data Sources: upload, or a local path on the Desktop), or through the .NET import API. See [FEATURE_PARITY.md](FEATURE_PARITY.md) for everything else.
 
