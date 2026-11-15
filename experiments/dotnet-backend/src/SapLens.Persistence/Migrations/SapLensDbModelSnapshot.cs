@@ -221,6 +221,34 @@ namespace SapLens.Persistence.Migrations
                     b.ToTable("Jobs");
                 });
 
+            modelBuilder.Entity("SapLens.Persistence.RefreshReport", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Json")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Operation")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("TimestampUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TimestampUtc");
+
+                    b.ToTable("RefreshReports");
+                });
+
             modelBuilder.Entity("SapLens.Persistence.ReviewDecision", b =>
                 {
                     b.Property<long>("Id")
@@ -298,6 +326,31 @@ namespace SapLens.Persistence.Migrations
                     b.HasIndex("AssignmentKey", "CreatedUtc");
 
                     b.ToTable("ReviewInvalidations");
+                });
+
+            modelBuilder.Entity("SapLens.Persistence.SettingsDocument", b =>
+                {
+                    b.Property<int>("Id")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Json")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Settings");
                 });
 
             modelBuilder.Entity("SapLens.Persistence.DatasetRecord", b =>

@@ -32,9 +32,11 @@ and Server. The earlier simplified prototype UI was removed. Status tags as in [
 | `GET /api/registry/modules` | v1 SAP area registry (49 areas, icons, colours), exported from Python v1 |
 | `GET /api/version`, `/api/application-info`, `/api/runtime` | .NET host |
 | `GET /api/modules`, `/api/roles`, `/api/roles/{agr_name}` | C# catalogue and Role Lookup (equivalence-tested against v1) |
+| `POST /api/configuration`, `/api/configuration/theme` | Settings document in SQLite with optimistic revision (409 on conflict), strict validation; source paths only through imports |
+| `POST /api/server/uploads/{source}/activate`, `/api/data-sources/{source}/select` | Phase 2A import workflow for roles, users and SoD: staged import, profiles, held-import confirmation, refresh report; Server accepts uploads only |
+| `GET /api/data-sources/history`, `/api/data-sources/{source}/preview`, `POST /api/data/cancel` | Import history (refresh reports), active-source preview, cancel the running import |
 
-Data is loaded through the existing .NET import API (`POST /api/v1/imports/{roles|users|sod}` with the access token) until the v1 Data Sources
-contract is migrated. See [FEATURE_PARITY.md](FEATURE_PARITY.md) for everything else.
+Data is loaded through the UI (Settings → Data Sources: upload, or a local path on the Desktop), or through the .NET import API. See [FEATURE_PARITY.md](FEATURE_PARITY.md) for everything else.
 
 ## Evidence (Linux) [M][T]
 

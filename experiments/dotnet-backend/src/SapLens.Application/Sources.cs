@@ -18,13 +18,13 @@ public static class Sources
     public static bool IsKnown(string source) => All.Contains(source, StringComparer.Ordinal);
 
     /// <summary>Streams the canonical records of a CSV. SoD keeps only the core headers, exactly as the v1 SoD source does.</summary>
-    public static (IEnumerable<IReadOnlyDictionary<string, string>> Records, ImportReport Report) Read(string source, string path, CancellationToken cancellation)
+    public static (IEnumerable<IReadOnlyDictionary<string, string>> Records, ImportReport Report) Read(string source, string path, CancellationToken cancellation, CsvProfile? profile = null)
     {
         var import = source switch
         {
-            Roles => new CsvImport(path, new CsvProfile(), CsvSpec.Roles),
-            Users => new CsvImport(path, new CsvProfile(), CsvSpec.Users),
-            Sod => new CsvImport(path, new CsvProfile(Id: "sod"), CsvSpec.Sod),
+            Roles => new CsvImport(path, profile ?? new CsvProfile(), CsvSpec.Roles),
+            Users => new CsvImport(path, profile ?? new CsvProfile(), CsvSpec.Users),
+            Sod => new CsvImport(path, profile ?? new CsvProfile(Id: "sod"), CsvSpec.Sod),
             _ => throw new DomainValidationException("Unknown import source."),
         };
         IEnumerable<IReadOnlyDictionary<string, string>> records = source == Sod

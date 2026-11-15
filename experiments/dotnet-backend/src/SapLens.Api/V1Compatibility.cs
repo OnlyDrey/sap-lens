@@ -23,6 +23,9 @@ public static class V1Compatibility
     private static readonly Lazy<JsonObject> DefaultSettings = new(() => Load("default-settings.json"));
     public static readonly string Version = typeof(V1Compatibility).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
 
+    /// <summary>A fresh copy of v1's default settings document.</summary>
+    public static JsonObject DefaultSettingsDocument() => DefaultSettings.Value.DeepClone().AsObject();
+
     private static JsonObject Load(string name)
     {
         using var stream = typeof(V1Compatibility).Assembly.GetManifestResourceStream("V1Reference." + name)
@@ -35,6 +38,8 @@ public static class V1Compatibility
     [
         "GET /api/auth/state", "GET /api/configuration", "GET /api/presentation", "GET /api/registry/modules", "GET /api/version", "GET /api/application-info",
         "GET /api/runtime", "GET /api/modules", "GET /api/roles", "GET /api/roles/{agr_name}",
+        "POST /api/configuration", "POST /api/configuration/theme", "GET /api/data-sources/history", "GET /api/data-sources/{source}/preview", "POST /api/data/cancel",
+        "POST /api/data-sources/{source}/select", "POST /api/server/uploads/{source}/activate",
     ];
 
     public static void Map(WebApplication app)
@@ -67,8 +72,10 @@ public static class V1Compatibility
         });
         api.MapGet("/runtime", (HostSettings settings) => new
         {
-            deployment_mode = settings.Mode == HostMode.Server ? "server" : "desktop", browser_upload = false, username = settings.PrincipalName, role = "",
-            native_dialogs = false, source_path_policy = "not_migrated",
+            // Browser uploads are migrated (Phase 2A). The .NET Desktop has no native file dialogs; WebView2 uses the browser file picker. A Server never
+            // accepts server file paths from a browser (selection answers 400), so its policy is the restrictive one.
+            deployment_mode = settings.Mode == HostMode.Server ? "server" : "desktop", browser_upload = true, username = settings.PrincipalName, role = "",
+            native_dialogs = false, source_path_policy = settings.Mode == HostMode.Server ? "configured_root" : "desktop_filesystem",
         });
 
         api.MapGet("/modules", async (SnapshotService snapshots, CancellationToken ct) =>
@@ -100,6 +107,8 @@ public static class V1Compatibility
                 : Results.Json(new { detail = $"Role '{agrName}' not found." }, statusCode: 404);
         });
 
+        V1DataSources.Map(api);
+
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).
         api.Map("/{**rest}", (HttpContext http, string? rest) =>
             rest is not null && (rest == "v1" || rest.StartsWith("v1/", StringComparison.Ordinal))
@@ -107,27 +116,28 @@ public static class V1Compatibility
                 : NotMigrated(http, rest ?? ""));
     }
 
-    public static IResult NotMigrated(HttpContext http, string rest) => Results.Json(new
+    public static IResult NotMigrated(HttpContext? http, string rest) => Results.Json(new
     {
-        detail = $"This SAP Lens function is not available in the .NET server yet ({http.Request.Method} /api/{rest}). No data was changed.",
+        detail = $"This SAP Lens function is not available in the .NET server yet ({http?.Request.Method ?? "GET"} /api/{rest}). No data was changed.",
         code = "not_migrated", status = 501,
     }, statusCode: 501);
 
     private static IResult Unprocessable(string message) => Results.Json(new { detail = message }, statusCode: 422);
 
-    private static async Task<IResult> Configuration(HostSettings settings, IDbContextFactory<SapLensDb> factory, CancellationToken ct)
+    private static async Task<IResult> Configuration(V1Settings store, IDbContextFactory<SapLensDb> factory, CancellationToken ct) =>
+        Results.Content((await ConfigurationResponse(store, factory, ct)).ToJsonString(), "application/json");
+
+    public static async Task<JsonObject> ConfigurationResponse(V1Settings store, IDbContextFactory<SapLensDb> factory, CancellationToken ct)
     {
         await using var db = await factory.CreateDbContextAsync(ct);
         var ids = await SnapshotService.ActiveAsync(db, ct);
-        var body = new JsonObject
+        return new JsonObject
         {
-            ["settings"] = DefaultSettings.Value.DeepClone(),
-            ["notice"] = "SAP Lens .NET server: this build shows Role Lookup from the data imported through the .NET import API. Settings are read-only "
-                         + "SAP Lens defaults; functions not migrated yet say so where they are used.",
+            ["settings"] = await store.GetAsync(ct),
+            ["notice"] = null,
             ["error"] = null, ["loading"] = false, ["progress"] = null, ["analysis"] = new JsonObject(),
             ["data_revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.0", ["instance_id"] = Boot,
         };
-        return Results.Content(body.ToJsonString(), "application/json");
     }
 
     private static JsonObject? RegistryEntry(string id) =>

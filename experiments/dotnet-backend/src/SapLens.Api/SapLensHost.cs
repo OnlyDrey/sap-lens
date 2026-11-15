@@ -36,6 +36,7 @@ public static class SapLensHost
         builder.Services.AddSingleton(settings);
         builder.Services.AddSapLensCore(new DatabaseOptions { DataDirectory = settings.DataDirectory }, new WorkerOptions { Enabled = settings.WorkerEnabled });
         builder.Services.AddSingleton<SessionStore>();
+        builder.Services.AddSingleton<V1Settings>();
         builder.Services.AddSingleton<RequestBoundaryTokenCheck>();
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ProblemMapper>();

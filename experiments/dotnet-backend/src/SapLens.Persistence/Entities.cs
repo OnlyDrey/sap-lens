@@ -106,3 +106,24 @@ public sealed class BackupRecord
     public DateTime? AdminConfirmedUtc { get; set; }
     public DateTime? DeletedUtc { get; set; }
 }
+
+/// <summary>The application settings document (v1 AppConfig JSON), one row, with an optimistic-concurrency revision: a save names the revision it was
+/// based on and is refused if another save happened in between.</summary>
+public sealed class SettingsDocument
+{
+    public int Id { get; set; } = 1;
+    public int Revision { get; set; }
+    public required string Json { get; set; }
+    public DateTime UpdatedUtc { get; set; }
+    public string UpdatedBy { get; set; } = "";
+}
+
+/// <summary>Evidence of one import or refresh (v1 refresh report): the summary the UI shows, kept as written.</summary>
+public sealed class RefreshReport
+{
+    public required string Id { get; set; }
+    public DateTime TimestampUtc { get; set; }
+    public required string Operation { get; set; }
+    public required string Status { get; set; }
+    public required string Json { get; set; }
+}

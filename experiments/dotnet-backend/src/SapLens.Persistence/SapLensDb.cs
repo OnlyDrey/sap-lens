@@ -10,6 +10,8 @@ public sealed class SapLensDb(DbContextOptions<SapLensDb> options) : DbContext(o
     public DbSet<ReviewDecision> ReviewDecisions => Set<ReviewDecision>();
     public DbSet<ReviewInvalidation> ReviewInvalidations => Set<ReviewInvalidation>();
     public DbSet<BackupRecord> Backups => Set<BackupRecord>();
+    public DbSet<SettingsDocument> Settings => Set<SettingsDocument>();
+    public DbSet<RefreshReport> RefreshReports => Set<RefreshReport>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -43,5 +45,7 @@ public sealed class SapLensDb(DbContextOptions<SapLensDb> options) : DbContext(o
             e.HasOne<Dataset>().WithMany().HasForeignKey(x => x.DatasetId).OnDelete(DeleteBehavior.Restrict);
         });
         model.Entity<BackupRecord>(e => e.HasIndex(x => new { x.Kind, x.CreatedUtc }));
+        model.Entity<SettingsDocument>(e => { e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Revision).IsConcurrencyToken(); });
+        model.Entity<RefreshReport>(e => { e.Property(x => x.Id).HasMaxLength(32); e.HasIndex(x => x.TimestampUtc); });
     }
 }

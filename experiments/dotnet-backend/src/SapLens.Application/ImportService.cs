@@ -9,7 +9,8 @@ using SapLens.Persistence;
 
 namespace SapLens.Application;
 
-public sealed record ImportPayload(string Source, string UploadPath, string FileName);
+/// <summary>An import request. Profile carries the v1 import profile (column mapping, delimiter, encoding); null means the documented defaults.</summary>
+public sealed record ImportPayload(string Source, string UploadPath, string FileName, SapLens.Domain.Csv.CsvProfile? Profile = null);
 
 public sealed class ImportConflictException(string message) : Exception(message);
 
@@ -64,7 +65,7 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
         var ct = context.Cancellation;
         var payload = JsonSerializer.Deserialize<ImportPayload>(context.Job.PayloadJson, Sources.Json) ?? throw new DomainValidationException("Invalid import payload.");
         if (!Sources.IsKnown(payload.Source)) throw new DomainValidationException("Unknown import source.");
-        var (records, report) = Sources.Read(payload.Source, payload.UploadPath, ct);
+        var (records, report) = Sources.Read(payload.Source, payload.UploadPath, ct, payload.Profile);
 
         var dataset = await writer.WriteAsync(async (db, c) =>
         {
@@ -114,7 +115,7 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
         var diff = ImportChecks.Diff(payload.Source, previous, staged);
         var held = evaluation.Suspicious;
         var removed = newKeys is null ? [] : current.AssignmentKeys.Where(k => !newKeys.Contains(k)).Order(StringComparer.Ordinal).ToList();
-        var evaluationJson = JsonSerializer.Serialize(new { evaluated_against = active?.Id, evaluation.Suspicious, anomalies = evaluation.Anomalies, diff }, Sources.Json);
+        var evaluationJson = JsonSerializer.Serialize(new { evaluated_against = active?.Id, previous_content_hash = active?.ContentHash, evaluation.Suspicious, anomalies = evaluation.Anomalies, old = evaluation.Old, @new = evaluation.New, diff }, Sources.Json);
         var reportJson = JsonSerializer.Serialize(report, Sources.Json);
         var result = new ImportResult(dataset.Id, held ? DatasetStatus.Held : DatasetStatus.Active, contentHash, staged.Count, held, evaluation.Anomalies.Select(a => a.Message).ToList(), diff, held ? 0 : removed.Count);
 
