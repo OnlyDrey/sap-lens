@@ -25,7 +25,9 @@ param(
     [switch]$KeepTemp,
     [switch]$AllowElevated
 )
-. (Join-Path $PSScriptRoot 'Phase1Common.ps1')
+# Run-Phase1.ps1 runs this script in its own session and has already loaded the helpers; loading them again would raise another authorization prompt.
+if (-not (Get-Command Get-OverallVerdict -ErrorAction SilentlyContinue)) { . (Join-Path $PSScriptRoot 'Phase1Common.ps1') }
+$ErrorActionPreference = 'Stop'
 
 $stages = @()   # plain arrays only: Constrained Language Mode rejects New-Object ArrayList
 function Add-Stage($Result) { $script:stages += , $Result; Write-Host ("{0,-13} {1} {2}" -f $Result.status, $Result.id, $Result.detail) }

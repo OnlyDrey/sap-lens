@@ -15,7 +15,8 @@ param(
     [int]$SinceMinutes = 60,
     [string]$OutDir
 )
-. (Join-Path $PSScriptRoot 'Phase1Common.ps1')
+if (-not (Get-Command Get-OverallVerdict -ErrorAction SilentlyContinue)) { . (Join-Path $PSScriptRoot 'Phase1Common.ps1') }
+$ErrorActionPreference = 'Stop'
 if ($env:OS -ne 'Windows_NT') { Write-Host 'NOT EXECUTED: Code Integrity evidence exists only on Windows.'; exit 3 }
 if ($SinceMinutes -lt 1 -or $SinceMinutes -gt 1440) { throw 'SinceMinutes must be 1..1440 (bounded query).' }
 $RuntimeDir = (Resolve-Path -LiteralPath $RuntimeDir).Path.TrimEnd('\')

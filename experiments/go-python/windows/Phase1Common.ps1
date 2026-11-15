@@ -3,12 +3,13 @@
 # platform with PowerShell (PowerShell 5.1 compatible: no ternary, no &&, no -AsHashtable).
 $ErrorActionPreference = 'Stop'
 
-$script:ValidStatus = @('PASS', 'FAIL', 'BLOCKED', 'NOT EXECUTED', 'HARNESS ERROR')
+# Constants are functions, not script-scoped variables: scripts run in-process by Run-Phase1.ps1 have their own script scope and would not see them.
+function Get-ValidStatuses { return @('PASS', 'FAIL', 'BLOCKED', 'NOT EXECUTED', 'HARNESS ERROR') }
 # ERROR_ACCESS_DISABLED_BY_POLICY, ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION: the only native codes treated as policy refusal (same rule as the product's evidence tooling).
-$script:PolicyCodes = @(1260, 4551)
+function Get-PolicyBlockCodes { return @(1260, 4551) }
 
 function New-StageResult([string]$Id, [string]$Status, [string]$Detail, $Evidence) {
-    if ($script:ValidStatus -notcontains $Status) { throw "Invalid status '$Status'" }
+    if ((Get-ValidStatuses) -notcontains $Status) { throw "Invalid status '$Status'" }
     return [ordered]@{ id = $Id; status = $Status; detail = $Detail; evidence = $Evidence }
 }
 
@@ -64,7 +65,7 @@ function Get-FailureClass([string]$Stage, $NativeErrorCode, [string]$ExceptionNa
     # Never classifies by translated message text. A block needs a documented native code or an enforced Code Integrity record for the file in question.
     $enforced = @($IntegrityRecords | Where-Object { $_.Enforced })
     $audit = @($IntegrityRecords | Where-Object { -not $_.Enforced })
-    $byCode = ($null -ne $NativeErrorCode) -and ($script:PolicyCodes -contains [int]$NativeErrorCode)
+    $byCode = ($null -ne $NativeErrorCode) -and ((Get-PolicyBlockCodes) -contains [int]$NativeErrorCode)
     switch ($Stage) {
         'host' {
             if ($byCode -or ($enforced | Where-Object { (Get-FileKind $_.Relative) -eq 'executable' -and $_.Relative -like '*saplens-host*' })) { return @{ Class = 'executable_blocked_by_policy'; Evidence = 'native_code_or_event' } }
@@ -216,9 +217,9 @@ function Get-Descendants($Table, [int]$RootId) {
 
 # ---- Phase 1 runner support: pure, testable on any platform --------------------------------------------------------------------------------------------
 
-$script:SumsLine = '^([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9_.\-/]*)$'
-$script:RequiredBundleFiles = @('saplens-host.exe', 'runtime.tar.gz', 'scripts/Run-Phase1.ps1', 'scripts/Test-WindowsFeasibility.ps1', 'scripts/Get-AppControlDiagnostics.ps1',
-                                'scripts/Phase1Common.ps1', 'scripts/Test-Phase1Logic.ps1')
+function Get-SumsLinePattern { return '^([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9_.\-/]*)$' }
+function Get-RequiredBundleFiles { return @('saplens-host.exe', 'runtime.tar.gz', 'scripts/Run-Phase1.ps1', 'scripts/Test-WindowsFeasibility.ps1', 'scripts/Get-AppControlDiagnostics.ps1',
+                                            'scripts/Phase1Common.ps1', 'scripts/Test-Phase1Logic.ps1') }
 
 function ConvertTo-SafeMessage([string]$Text, [int]$Max = 300) {
     # Error text for reports: user profile folder abbreviated, control characters removed, bounded. No environment values, no credentials.
@@ -249,12 +250,12 @@ function Test-BundleSums([string]$Dir, [string]$TrustedSha256) {
     $listed = @{}
     foreach ($line in @(Get-Content -LiteralPath $sums -Encoding ASCII)) {
         if (-not $line) { continue }
-        $m = [regex]::Match($line, $script:SumsLine)
+        $m = [regex]::Match($line, (Get-SumsLinePattern))
         if (-not $m.Success -or ($m.Groups[2].Value -split '/') -contains '..' -or ($m.Groups[2].Value -split '/') -contains '' -or ($m.Groups[2].Value -split '/') -contains '.') { $problems += "malformed or unsafe SHA256SUMS line: $(ConvertTo-SafeMessage $line 80)"; continue }
         if ($listed.ContainsKey($m.Groups[2].Value)) { $problems += "duplicate entry: $($m.Groups[2].Value)"; continue }
         $listed[$m.Groups[2].Value] = $m.Groups[1].Value
     }
-    foreach ($required in $script:RequiredBundleFiles) { if (-not $listed.ContainsKey($required)) { $problems += "required file not listed: $required" } }
+    foreach ($required in (Get-RequiredBundleFiles)) { if (-not $listed.ContainsKey($required)) { $problems += "required file not listed: $required" } }
     $root = (Resolve-Path -LiteralPath $Dir).Path.TrimEnd('\', '/')
     foreach ($relative in @($listed.Keys | Sort-Object)) {
         $full = Join-Path $root ($relative -replace '/', [System.IO.Path]::DirectorySeparatorChar)
@@ -337,7 +338,7 @@ function Resolve-HarnessOutcome($ExitCode, [string]$JsonPath) {
     try { $result = Get-Content -LiteralPath $JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { return @{ Status = 'HARNESS ERROR'; Reason = "result file unreadable (exit code $ExitCode)"; Overall = $null } }
     $stages = @($result.stages)
     if ($result.schema -ne 1 -or -not $result.overall -or $stages.Count -eq 0) { return @{ Status = 'HARNESS ERROR'; Reason = "result file has an unexpected shape (exit code $ExitCode)"; Overall = $null } }
-    foreach ($stage in $stages) { if ($script:ValidStatus -notcontains [string]$stage.status) { return @{ Status = 'HARNESS ERROR'; Reason = "unknown stage status '$($stage.status)'"; Overall = $null } } }
+    foreach ($stage in $stages) { if ((Get-ValidStatuses) -notcontains [string]$stage.status) { return @{ Status = 'HARNESS ERROR'; Reason = "unknown stage status '$($stage.status)'"; Overall = $null } } }
     $recomputed = Get-OverallVerdict @($stages | ForEach-Object { @{ status = [string]$_.status } })
     if ($recomputed -ne [string]$result.overall) { return @{ Status = 'HARNESS ERROR'; Reason = "recorded overall '$($result.overall)' differs from the stages ('$recomputed')"; Overall = [string]$result.overall } }
     if (-not $expected.ContainsKey([string]$result.overall) -or [int]$ExitCode -ne $expected[[string]$result.overall]) { return @{ Status = 'HARNESS ERROR'; Reason = "exit code $ExitCode does not match overall '$($result.overall)'"; Overall = [string]$result.overall } }
@@ -392,4 +393,93 @@ function Invoke-Native([string]$File, [string[]]$Arguments, [int]$TimeoutSeconds
     if ($LogPath) { $text | Set-Content -LiteralPath $LogPath -Encoding UTF8 }
     $result.Output = $text
     return $result
+}
+
+
+# ---- script authorization: Mark-of-the-Web, execution policy and in-process execution -----------------------------------------------------------------------
+# Windows asks for confirmation before running a script that carries a Mark-of-the-Web (Zone.Identifier) when the effective policy is Unrestricted, and
+# refuses it when the policy is RemoteSigned or stricter. A child PowerShell started with -NonInteractive cannot answer the prompt and fails with
+# "AuthorizationManager check failed". The runner therefore runs the bundle's scripts in ITS OWN interactive session, where the standard prompt can be
+# answered by the person at the keyboard. Nothing here unblocks files, removes the Mark-of-the-Web, changes the policy or bypasses authorization.
+
+function Get-ZoneIdentifierState([string]$Path) {
+    # Read-only. Returns @{ Present = $true/$false/$null (unknown); ZoneId = number or $null }.
+    try {
+        $stream = Get-Item -LiteralPath $Path -Stream 'Zone.Identifier' -ErrorAction Stop
+        $zone = $null
+        try { $m = [regex]::Match([string](Get-Content -LiteralPath $Path -Stream 'Zone.Identifier' -Raw -ErrorAction Stop), 'ZoneId=(\d+)'); if ($m.Success) { $zone = [int]$m.Groups[1].Value } } catch { }
+        return @{ Present = $true; ZoneId = $zone }
+    } catch {
+        if ($_.FullyQualifiedErrorId -like 'GetItemNotFound*' -or $_.CategoryInfo.Category -eq 'ObjectNotFound') { return @{ Present = $false; ZoneId = $null } }
+        return @{ Present = $null; ZoneId = $null }    # alternate data streams not supported here (non-Windows) or not readable
+    }
+}
+
+function Get-ScriptAuthorizationAdvice([string]$EffectivePolicy, [int]$MarkedScripts, [bool]$Interactive) {
+    # What PowerShell is expected to do with the bundle's scripts. Expectation: none, prompt, refused, prompt-impossible (needs an interactive session).
+    $policy = ([string]$EffectivePolicy).ToLowerInvariant()
+    if ($policy -eq 'bypass') { return @{ Expectation = 'none'; Message = 'Execution policy Bypass: no authorization prompts (the policy is the organization''s, nothing was changed).' } }
+    if ($policy -in @('restricted', 'allsigned')) { return @{ Expectation = 'refused'; Message = "Execution policy $EffectivePolicy refuses unsigned scripts. Nothing can be run without a signature approved by IT; do not work around this." } }
+    if ($MarkedScripts -le 0) { return @{ Expectation = 'none'; Message = 'No Mark-of-the-Web on the bundle scripts: no authorization prompts expected.' } }
+    if ($policy -eq 'unrestricted') {
+        if (-not $Interactive) { return @{ Expectation = 'prompt-impossible'; Message = 'The scripts carry a Mark-of-the-Web and the policy is Unrestricted, so PowerShell must ask for confirmation, but this session is not interactive. Start the runner from an interactive PowerShell window.' } }
+        return @{ Expectation = 'prompt'; Message = "PowerShell will ask 'Run once' for each of the $MarkedScripts marked scripts it loads. Answer R for each. Nothing is unblocked." }
+    }
+    if ($policy -in @('remotesigned', 'undefined')) { return @{ Expectation = 'refused'; Message = "Execution policy $EffectivePolicy refuses scripts that carry a Mark-of-the-Web and are not signed. Obtain the bundle through a channel that does not add it (network share, USB) or ask IT; the runner does not unblock files." } }
+    return @{ Expectation = 'none'; Message = "Execution policy ${EffectivePolicy}: no specific expectation." }
+}
+
+function Test-SecurityRecord($Record) {
+    # Typed detection only (never message text): PowerShell reports an authorization or execution-policy refusal as PSSecurityException / SecurityError.
+    if ($null -eq $Record) { return $false }
+    $exception = $Record.Exception
+    if ($exception -is [System.Management.Automation.PSSecurityException]) { return $true }
+    $info = $Record.CategoryInfo
+    return ($null -ne $info -and [string]$info.Category -eq 'SecurityError')
+}
+
+function Invoke-PhaseScript([string]$Script, [hashtable]$Arguments, [hashtable]$Environment, [string]$LogPath, [string]$ErrorLogPath, [bool]$Echo = $true) {
+    # Runs one script of the bundle IN THIS SESSION (call operator; the script's own `exit` returns here with $LASTEXITCODE), with process environment
+    # overrides that are restored afterwards. Returns the raw exit code, the captured output, and, for a terminating error, its type, id and message
+    # unchanged. Security = the failure was an authorization or execution-policy refusal (typed), which is not a failed assertion.
+    $result = [ordered]@{ Started = $false; ExitCode = $null; Security = $false; ErrorType = $null; ErrorId = $null; Error = $null; Output = '' }
+    $state = @{ Security = $false; Builder = (New-Object System.Text.StringBuilder) }
+    $saved = @{}
+    foreach ($key in @($Environment.Keys)) { $saved[$key] = [System.Environment]::GetEnvironmentVariable($key); [System.Environment]::SetEnvironmentVariable($key, [string]$Environment[$key]) }
+    $arguments = $Arguments; if ($null -eq $arguments) { $arguments = @{} }
+    try {
+        $global:LASTEXITCODE = $null
+        & $Script @arguments *>&1 | ForEach-Object {
+            if ($_ -is [System.Management.Automation.ErrorRecord] -and (Test-SecurityRecord $_)) { $state.Security = $true }
+            $line = [string]$_
+            [void]$state.Builder.AppendLine($line)
+            if ($Echo) { Write-Host $line }
+        }
+        $result.Started = -not $state.Security
+        $result.ExitCode = $global:LASTEXITCODE
+    } catch {
+        $record = $_
+        $result.ErrorType = $record.Exception.GetType().FullName
+        $result.ErrorId = [string]$record.FullyQualifiedErrorId
+        $result.Error = ConvertTo-SafeMessage ([string]$record.Exception.Message) 1000
+        $state.Security = (Test-SecurityRecord $record)
+        $result.Started = $false
+        if ($ErrorLogPath) { ConvertTo-SafeMessage (($record | Out-String)) 8000 | Set-Content -LiteralPath $ErrorLogPath -Encoding UTF8 }
+    } finally {
+        foreach ($key in @($saved.Keys)) { $previous = $saved[$key]; if ($null -eq $previous) { $previous = [NullString]::Value }; [System.Environment]::SetEnvironmentVariable($key, $previous) }   # a variable that did not exist is removed again
+    }
+    $result.Security = $state.Security
+    $text = $state.Builder.ToString()
+    $result.Output = $text
+    if ($LogPath) { $text | Set-Content -LiteralPath $LogPath -Encoding UTF8 }
+    return $result
+}
+
+function Resolve-ScriptStep($Run, [string]$Name) {
+    # One classification for a script step run by Invoke-PhaseScript. Security restrictions are NOT EXECUTED (nothing was verified and nothing failed);
+    # anything the tooling did wrong is a HARNESS ERROR. The caller maps a clean exit code further (self-test: 0 = PASS; harness: Resolve-HarnessOutcome).
+    if ($Run.Security) { return @{ Status = 'NOT EXECUTED'; Kind = 'security'; Reason = "security restriction: PowerShell did not authorize $Name ($($Run.ErrorType), id $($Run.ErrorId)). This is not a failed assertion. Original message: $($Run.Error)" } }
+    if ($Run.ErrorType) { return @{ Status = 'HARNESS ERROR'; Kind = 'error'; Reason = "$Name ended with an unexpected terminating error ($($Run.ErrorType), id $($Run.ErrorId)): $($Run.Error)" } }
+    if ($null -eq $Run.ExitCode) { return @{ Status = 'HARNESS ERROR'; Kind = 'noexit'; Reason = "$Name ended without an exit code" } }
+    return @{ Status = $null; Kind = 'exit'; Reason = "$Name returned exit code $($Run.ExitCode)" }
 }

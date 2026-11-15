@@ -19,6 +19,12 @@ FORBIDDEN = [r'Set-ExecutionPolicy', r'-ExecutionPolicy\s+Bypass', r'Set-MpPrefe
              r'msiexec', r'RunAs', r'netsh', r'Disable-', r'Unblock-File', r'Add-Type\s+-TypeDefinition', r'DownloadString', r'DownloadFile', r'Invoke-WebRequest\s+[^\n]*https?://[^l]']
 
 
+def code_of(path):
+    """Script text without block comments (help) and line comments."""
+    text = re.sub(r'<#.*?#>', '', Path(path).read_text(encoding='utf-8'), flags=re.DOTALL)
+    return '\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#'))
+
+
 class Static(unittest.TestCase):
     def test_scripts_exist(self):
         self.assertEqual({p.name for p in SCRIPTS}, {'Phase1Common.ps1', 'Test-Phase1Logic.ps1', 'Test-WindowsFeasibility.ps1', 'Get-AppControlDiagnostics.ps1', 'Run-Phase1.ps1'})
@@ -60,6 +66,26 @@ class Static(unittest.TestCase):
         self.assertNotIn('Stop-Process -Name', text)
         self.assertEqual(len(re.findall(r'Stop-Process', text)), 2)  # exactly two call sites: Stop-OwnedLeftovers (harness) and the timeout path of Invoke-Native; both select by recorded ownership
 
+    def test_runner_runs_bundle_scripts_in_process_not_in_noninteractive_children(self):
+        """Root cause of the first Windows run: a -NonInteractive child cannot answer PowerShell's prompt for a script with a Mark-of-the-Web."""
+        code = code_of(WINDOWS / 'Run-Phase1.ps1')
+        self.assertNotIn('-NonInteractive', code.replace("GetCommandLineArgs() -contains '-NonInteractive'", ''))  # only the read-only check that the session is interactive
+        self.assertNotIn("'-File'", code)
+        self.assertEqual(len(re.findall(r'Invoke-PhaseScript \(Join-Path \$scripts', code)), 3)  # self-test, harness, diagnostics
+        for name in ('Test-WindowsFeasibility.ps1', 'Get-AppControlDiagnostics.ps1', 'Test-Phase1Logic.ps1'):
+            text = (WINDOWS / name).read_text()
+            self.assertIn("if (-not (Get-Command Get-OverallVerdict -ErrorAction SilentlyContinue)) { . (Join-Path $PSScriptRoot 'Phase1Common.ps1') }", text, name)  # no second authorization prompt
+
+    def test_nothing_unblocks_or_alters_the_mark_of_the_web(self):
+        for script in SCRIPTS:
+            code = code_of(script)
+            for match in re.finditer(r'[^\n]*-Stream[^\n]*', code):
+                self.assertRegex(match.group(0), r'Get-(Item|Content)', f'{script.name}: only reads of alternate data streams are allowed: {match.group(0).strip()}')
+            for pattern in (r'Unblock-File', r'Clear-Content', r'Set-ExecutionPolicy', r'(?<=\s)-ExecutionPolicy', r'SessionState\.LanguageMode\s*=(?!=)', r'Add-Type'):
+                self.assertIsNone(re.search(pattern, code), f'{script.name}: {pattern}')
+            if script.name == 'Run-Phase1.ps1':
+                self.assertNotIn('Remove-Item', code)
+
     def test_wrong_capability_check_uses_the_real_header(self):
         text = (WINDOWS / 'Test-WindowsFeasibility.ps1').read_text()
         self.assertIn("'X-SAP-Lens'", text)
@@ -76,6 +102,31 @@ class Powershell(unittest.TestCase):
     def test_logic_self_test(self):
         result = subprocess.run([PWSH, '-NoProfile', '-File', str(WINDOWS / 'Test-Phase1Logic.ps1')], capture_output=True, text=True, timeout=120)
         self.assertEqual(result.returncode, 0, result.stdout[-800:])
+
+    def test_bundle_scripts_run_in_process_with_raw_exit_codes_and_scoped_helpers(self):
+        """The runner's R04 to R06 mechanics on Linux: the real scripts run through Invoke-PhaseScript in one session that loaded the helpers once."""
+        with tempfile.TemporaryDirectory() as tmp:
+            command = f'''
+. '{WINDOWS}/Phase1Common.ps1'
+$out = '{tmp}/evidence'; New-Item -ItemType Directory -Force $out | Out-Null
+$before = $env:TEMP
+$self = Invoke-PhaseScript '{WINDOWS}/Test-Phase1Logic.ps1' @{{}} @{{ TEMP = '{tmp}'; TMP = '{tmp}' }} "$out/self.txt" "$out/self.err" $false
+$harness = Invoke-PhaseScript '{WINDOWS}/Test-WindowsFeasibility.ps1' @{{ HostExe = '/bin/true'; RuntimeDir = '{tmp}'; OutDir = "$out/harness" }} @{{ TEMP = '{tmp}' }} "$out/h.txt" "$out/h.err" $false
+$diag = Invoke-PhaseScript '{WINDOWS}/Get-AppControlDiagnostics.ps1' @{{ RuntimeDir = '{tmp}' }} @{{}} "$out/d.txt" "$out/d.err" $false
+$outcome = Resolve-HarnessOutcome $harness.ExitCode "$out/harness/phase1-windows-result.json"
+[ordered]@{{ self_exit = $self.ExitCode; self_ok = ($self.Output -match 'all assertions passed'); self_step = (Resolve-ScriptStep $self 'x').Kind; harness_exit = $harness.ExitCode;
+            harness_status = $outcome.Status; diag_exit = $diag.ExitCode; diag_kind = (Resolve-ScriptStep $diag 'x').Kind; env_restored = ($env:TEMP -eq $before); errors = @($self.ErrorType, $harness.ErrorType, $diag.ErrorType) }} | ConvertTo-Json -Compress
+'''
+            result = subprocess.run([PWSH, '-NoProfile', '-Command', command], capture_output=True, text=True, timeout=300)
+            data = json.loads(result.stdout.strip().splitlines()[-1])
+            self.assertEqual(data['self_exit'], 0, result.stdout[-600:])
+            self.assertTrue(data['self_ok'])
+            self.assertEqual(data['harness_exit'], 3)
+            self.assertEqual(data['harness_status'], 'NOT EXECUTED')
+            self.assertEqual(data['diag_exit'], 3)
+            self.assertEqual((data['self_step'], data['diag_kind']), ('exit', 'exit'))
+            self.assertTrue(data['env_restored'])
+            self.assertEqual([e for e in data['errors'] if e], [])
 
     def test_non_windows_run_reports_not_executed_for_every_stage(self):
         with tempfile.TemporaryDirectory() as tmp:

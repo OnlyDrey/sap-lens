@@ -1,6 +1,8 @@
 # Self-test of the pure logic in Phase1Common.ps1 with synthetic data. Runs on Linux or Windows PowerShell; exits non-zero on the first failed assertion.
 # It does not touch Windows policy, registry or any installed application.
-. (Join-Path $PSScriptRoot 'Phase1Common.ps1')
+# Loaded once by Run-Phase1.ps1 when this runs in-process (a second load would raise another authorization prompt for marked files).
+if (-not (Get-Command Get-OverallVerdict -ErrorAction SilentlyContinue)) { . (Join-Path $PSScriptRoot 'Phase1Common.ps1') }
+$ErrorActionPreference = 'Stop'
 $failures = 0
 function Assert-Equal($Actual, $Expected, [string]$Name) {
     if ("$Actual" -ne "$Expected") { Write-Host "FAIL $Name : expected '$Expected' got '$Actual'"; $script:failures++ } else { Write-Host "ok   $Name" }
@@ -49,8 +51,8 @@ Assert-Equal (Find-Secret 'short' @('short')).Count 0 'short strings are not tre
 function New-TestDir { $d = Join-Path ([System.IO.Path]::GetTempPath()) ('p1logic-' + [guid]::NewGuid().ToString('N').Substring(0, 10)); New-Item -ItemType Directory -Force $d | Out-Null; return $d }
 function New-TestBundle {
     $d = New-TestDir; New-Item -ItemType Directory -Force (Join-Path $d 'scripts') | Out-Null
-    foreach ($f in $script:RequiredBundleFiles) { Set-Content -LiteralPath (Join-Path $d ($f -replace '/', [System.IO.Path]::DirectorySeparatorChar)) -Value "synthetic $f" -Encoding ASCII }
-    $lines = foreach ($f in ($script:RequiredBundleFiles | Sort-Object)) { '{0}  {1}' -f (Get-FileHash -LiteralPath (Join-Path $d ($f -replace '/', [System.IO.Path]::DirectorySeparatorChar)) -Algorithm SHA256).Hash.ToLower(), $f }
+    foreach ($f in (Get-RequiredBundleFiles)) { Set-Content -LiteralPath (Join-Path $d ($f -replace '/', [System.IO.Path]::DirectorySeparatorChar)) -Value "synthetic $f" -Encoding ASCII }
+    $lines = foreach ($f in ((Get-RequiredBundleFiles) | Sort-Object)) { '{0}  {1}' -f (Get-FileHash -LiteralPath (Join-Path $d ($f -replace '/', [System.IO.Path]::DirectorySeparatorChar)) -Algorithm SHA256).Hash.ToLower(), $f }
     ($lines -join "`n") + "`n" | Set-Content -LiteralPath (Join-Path $d 'SHA256SUMS.txt') -Encoding ASCII -NoNewline
     return @{ Dir = $d; Trusted = (Get-FileHash -LiteralPath (Join-Path $d 'SHA256SUMS.txt') -Algorithm SHA256).Hash.ToLower() }
 }
@@ -149,28 +151,107 @@ Assert-Equal (Get-OverallVerdict @(@{ status = 'PASS' }, @{ status = 'HARNESS ER
 Assert-Equal (ConvertTo-SafeMessage 'x token=abcdef secret: hunter2 y') 'x token=<redacted> secret: <redacted> y' 'credential-looking values are redacted in messages'
 
 
-# ---- runner support: child processes keep their raw exit code, quoting and timeouts --------------------------------------------------------------------
+# ---- runner support: native child processes keep their raw exit code and timeouts (inline -Command only: no script file, so no authorization involved) ----
 $shell = (Get-Process -Id $PID).Path
 $td = New-TestDir
-$echo = Join-Path $td 'echo.ps1'
-Set-Content -LiteralPath $echo -Value 'param([string]$A, [string]$B, [string]$C, [int]$Code = 0) "arg=[$A]"; "arg=[$B]"; "arg=[$C]"; "tempvar=[$($env:P1_PROBE)]"; exit $Code'
-$r = Invoke-Native $shell @('-NoProfile', '-File', $echo, '-A', 'a b', '-B', 'c"d', '-C', 'e\', '-Code', '7') 60 @{ P1_PROBE = 'redirected' } (Join-Path $td 'log.txt') $td $null $null
+$r = Invoke-Native $shell @('-NoProfile', '-NonInteractive', '-Command', '"tempvar=[$($env:P1_PROBE)]"; exit 7') 60 @{ P1_PROBE = 'redirected' } (Join-Path $td 'log.txt') $td $null $null
 Assert-Equal $r.ExitCode 7 'the raw native exit code is returned unchanged'
-Assert-Equal ($r.Output -match 'arg=\[a b\]') $true 'arguments with spaces survive quoting'
-Assert-Equal ($r.Output -match 'arg=\[c"d\]') $true 'embedded quotes survive quoting'
-Assert-Equal ($r.Output -match 'arg=\[e\\\]') $true 'a trailing backslash survives quoting'
 Assert-Equal ($r.Output -match 'tempvar=\[redirected\]') $true 'environment overrides reach the child only'
 Assert-Equal ([string]$env:P1_PROBE) '' 'the parent environment is not changed'
 Assert-Equal (Test-Path -LiteralPath (Join-Path $td 'log.txt')) $true 'the child output is preserved in a log file'
-$sleep = Join-Path $td 'sleep.ps1'; Set-Content -LiteralPath $sleep -Value 'Start-Sleep -Seconds 60'
+Assert-Equal (ConvertTo-ArgumentString @('a b')) '"a b"' 'quoting: spaces'
+Assert-Equal (ConvertTo-ArgumentString @('c"d')) '"c\"d"' 'quoting: embedded quote'
+Assert-Equal (ConvertTo-ArgumentString @('e\')) 'e\' 'quoting: trailing backslash without whitespace is left alone'
+Assert-Equal (ConvertTo-ArgumentString @('a b\')) '"a b\\"' 'quoting: trailing backslash inside quotes is doubled'
+Assert-Equal (ConvertTo-ArgumentString @('')) '""' 'quoting: empty argument'
 $started = Get-Date
-$t = Invoke-Native $shell @('-NoProfile', '-File', $sleep) 2 @{} $null $td $null $null
+$t = Invoke-Native $shell @('-NoProfile', '-NonInteractive', '-Command', 'Start-Sleep -Seconds 60') 2 @{} $null $td $null $null
 Assert-Equal $t.TimedOut $true 'a hung child is reported as timed out'
 Assert-Equal (((Get-Date) - $started).TotalSeconds -lt 30) $true 'a hung child is stopped promptly'
 Assert-Equal ($null -ne (Get-Process -Id $t.Pid -ErrorAction SilentlyContinue)) $false 'the timed-out child is gone'
-$missing = Invoke-Native (Join-Path $td 'no-such-binary') @() 5 @{} $null $td $null $null
+$missing = Invoke-Native $shell.Replace('pwsh', 'no-such-binary').Replace('powershell', 'no-such-binary') @() 5 @{} $null $td $null $null
 Assert-Equal $missing.Started $false 'a missing executable is reported, not thrown'
 
+# ---- script authorization: in-process execution, typed security classification, Mark-of-the-Web advice -----------------------------------------------------
+function Invoke-Quiet($Script, $Arguments, $Environment, $LogPath, $ErrorLogPath) { return (Invoke-PhaseScript $Script $Arguments $Environment $LogPath $ErrorLogPath $false) }   # keeps the nested test runs quiet
+function New-TestScript([string]$Body) { $f = Join-Path (New-TestDir) 'step.ps1'; Set-Content -LiteralPath $f -Value $Body -Encoding ASCII; return $f }
+$ok = Invoke-Quiet (New-TestScript 'param([string]$Name = "x", [switch]$Flag) "hello $Name flag=$Flag"; Write-Host "to-host"; exit 7') @{ Name = 'world'; Flag = $true } @{ P1_ENV = 'set' } (Join-Path $td 'phase.log') (Join-Path $td 'phase.err')
+Assert-Equal $ok.ExitCode 7 'in-process: the script''s own exit code is returned raw'
+Assert-Equal ($ok.Output -match 'hello world flag=True') $true 'in-process: named parameters and switches are passed'
+Assert-Equal ($ok.Output -match 'to-host') $true 'in-process: Write-Host output is captured'
+Assert-Equal ($null -eq $env:P1_ENV) $true 'in-process: environment overrides are restored afterwards (a variable that did not exist is removed again)'
+Assert-Equal (Test-Path -LiteralPath (Join-Path $td 'phase.log')) $true 'in-process: output is preserved in a log'
+$envSeen = Invoke-Quiet (New-TestScript '"seen=[$($env:P1_ENV)]"; exit 0') @{} @{ P1_ENV = 'inside' } $null $null
+Assert-Equal ($envSeen.Output -match 'seen=\[inside\]') $true 'in-process: the child sees the override'
+$tryFinally = Invoke-Quiet (New-TestScript 'try { exit 3 } finally { Write-Host "cleanup-ran" }') @{} @{} $null $null
+Assert-Equal $tryFinally.ExitCode 3 'in-process: exit inside try/finally returns control with the exit code'
+Assert-Equal ($tryFinally.Output -match 'cleanup-ran') $true 'in-process: finally blocks of the script still run'
+$noExit = Invoke-Quiet (New-TestScript '"no exit here"') @{} @{} $null $null
+Assert-Equal ($null -eq $noExit.ExitCode) $true 'in-process: a script that ends without exit has no exit code (not a stale one)'
+Assert-Equal (Resolve-ScriptStep $noExit 'step').Status 'HARNESS ERROR' 'a missing exit code is a HARNESS ERROR'
+$scoped = Invoke-Quiet (New-TestScript '(New-StageResult "x" "PASS" "d" $null).status; (Get-OverallVerdict @(@{ status = "PASS" })); (Get-RequiredBundleFiles).Count; exit 0') @{} @{} $null $null
+Assert-Equal ((($scoped.Output -split "`r?`n") | Where-Object { $_ }) -join ',') 'PASS,PASS,7' 'in-process: shared helpers and constants work in a script that does not load them itself'
+
+$thrown = Invoke-Quiet (New-TestScript 'throw "original failure text"') @{} @{} $null (Join-Path $td 'thrown.err')
+Assert-Equal $thrown.Security $false 'a generic terminating error is not a security restriction'
+Assert-Equal ($thrown.Error -match 'original failure text') $true 'the original error message is preserved'
+Assert-Equal (Resolve-ScriptStep $thrown 'step').Status 'HARNESS ERROR' 'a generic terminating error is a HARNESS ERROR'
+Assert-Equal (Test-Path -LiteralPath (Join-Path $td 'thrown.err')) $true 'the original error is written to an error log'
+$sec = Invoke-Quiet (New-TestScript 'throw (New-Object System.Management.Automation.PSSecurityException "AuthorizationManager check failed.")') @{} @{} $null $null
+Assert-Equal $sec.Security $true 'a PSSecurityException is recognized as a security restriction (typed, not by text)'
+Assert-Equal $sec.ErrorType 'System.Management.Automation.PSSecurityException' 'the original error type is preserved'
+$secStep = Resolve-ScriptStep $sec 'Test-Phase1Logic.ps1'
+Assert-Equal $secStep.Status 'NOT EXECUTED' 'an authorization failure is NOT EXECUTED, not a failed assertion'
+Assert-Equal ($secStep.Reason -match 'AuthorizationManager check failed') $true 'the original message appears in the explanation'
+Assert-Equal ($secStep.Reason -match 'not a failed assertion') $true 'the explanation distinguishes a restriction from an assertion failure'
+$lookalike = Invoke-Quiet (New-TestScript 'throw "AuthorizationManager check failed."') @{} @{} $null $null
+Assert-Equal $lookalike.Security $false 'the same words in an ordinary error are NOT treated as a security restriction'
+$missingScript = Invoke-Quiet (Join-Path $td 'does-not-exist.ps1') @{} @{} $null $null
+Assert-Equal $missingScript.Started $false 'a missing script is reported, not thrown'
+Assert-Equal $missingScript.Security $false 'a missing script is not a security restriction'
+$assertFail = Invoke-Quiet (New-TestScript 'Write-Host "assertion text"; exit 1') @{} @{} $null $null
+Assert-Equal (Resolve-ScriptStep $assertFail 'step').Kind 'exit' 'a failing assertion run ends with a normal exit code, kept raw'
+Assert-Equal $assertFail.ExitCode 1 'the failing exit code is preserved'
+Assert-Equal $assertFail.Security $false 'a failing assertion is not a security restriction'
+
+Assert-Equal (Get-ScriptAuthorizationAdvice 'Unrestricted' 3 $true).Expectation 'prompt' 'Unrestricted + Mark-of-the-Web, interactive: prompts expected, answerable'
+Assert-Equal (Get-ScriptAuthorizationAdvice 'Unrestricted' 3 $false).Expectation 'prompt-impossible' 'Unrestricted + Mark-of-the-Web, non-interactive: the prompt cannot be answered'
+Assert-Equal (Get-ScriptAuthorizationAdvice 'Unrestricted' 0 $false).Expectation 'none' 'no Mark-of-the-Web: no prompt even when non-interactive'
+Assert-Equal (Get-ScriptAuthorizationAdvice 'RemoteSigned' 2 $true).Expectation 'refused' 'RemoteSigned + Mark-of-the-Web: refused (needs a signature), not prompted'
+Assert-Equal (Get-ScriptAuthorizationAdvice 'RemoteSigned' 0 $true).Expectation 'none' 'RemoteSigned without Mark-of-the-Web: local scripts run'
+Assert-Equal (Get-ScriptAuthorizationAdvice 'AllSigned' 0 $true).Expectation 'refused' 'AllSigned refuses unsigned scripts'
+Assert-Equal (Get-ScriptAuthorizationAdvice 'Restricted' 0 $true).Expectation 'refused' 'Restricted refuses scripts'
+Assert-Equal (Get-ScriptAuthorizationAdvice 'Bypass' 5 $false).Expectation 'none' 'an organization-set Bypass policy needs no prompt (nothing here sets it)'
+Assert-Equal (@(Get-ScriptAuthorizationAdvice 'Unrestricted' 3 $true).Message -match 'Nothing is unblocked') $true 'the advice states that nothing is unblocked'
+$zone = Get-ZoneIdentifierState (New-TestScript 'x')
+Assert-Equal ($zone.Present -ne $true) $true 'a freshly created local script has no Mark-of-the-Web'
+
+# ---- Windows PowerShell 5.1 compatibility (syntax and features that exist only in PowerShell 7) --------------------------------------------------------------
+function Test-Ps51Syntax([string]$ScriptPath) {
+    $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($ScriptPath, [ref]$null, [ref]$errors)
+    if ($errors.Count -gt 0) { return @("parse errors: $($errors.Count)") }
+    $problems = @()
+    foreach ($node in $ast.FindAll({ param($n) $true }, $true)) {
+        $type = $node.GetType().Name
+        if ($type -match 'Ternary|PipelineChain|NullConditional|NullCoalesc') { $problems += "$type at line $($node.Extent.StartLineNumber)" }
+        if ($node -is [System.Management.Automation.Language.BinaryExpressionAst] -and [string]$node.Operator -match 'QuestionQuestion') { $problems += "null-coalescing at line $($node.Extent.StartLineNumber)" }
+        if ($node -is [System.Management.Automation.Language.CommandParameterAst] -and $node.ParameterName -in @('Parallel', 'AsHashtable', 'AsByteStream', 'SkipLast', 'AsUTC', 'AdditionalChildPath', 'NoEmphasis', 'ThrottleLimit')) { $problems += "-$($node.ParameterName) at line $($node.Extent.StartLineNumber)" }
+        if ($node -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.VariablePath.UserPath -in @('IsWindows', 'IsLinux', 'IsMacOS', 'IsCoreCLR', 'PSStyle', 'PSNativeCommandUseErrorActionPreference')) { $problems += "`$$($node.VariablePath.UserPath) at line $($node.Extent.StartLineNumber)" }
+        if ($node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Join-Path') {
+            $positional = @($node.CommandElements | Select-Object -Skip 1 | Where-Object { $_ -isnot [System.Management.Automation.Language.CommandParameterAst] }).Count
+            $named = @($node.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] }).Count
+            if ($positional - $named -gt 2 -and $positional -gt 2) { $problems += "Join-Path with more than two positional arguments at line $($node.Extent.StartLineNumber)" }
+        }
+        if ($node -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -match '^(?i)utf8NoBOM$') { $problems += "UTF8NoBOM encoding at line $($node.Extent.StartLineNumber)" }
+    }
+    return $problems
+}
+foreach ($name in @('Run-Phase1.ps1', 'Test-WindowsFeasibility.ps1', 'Get-AppControlDiagnostics.ps1', 'Phase1Common.ps1', 'Test-Phase1Logic.ps1')) {
+    Assert-Equal ((Test-Ps51Syntax (Join-Path $PSScriptRoot $name)) -join '; ') '' "PowerShell 5.1 compatibility: $name uses no PowerShell 7 only syntax or parameters"
+}
+$ps7 = New-TestScript '$x = $true ? 1 : 2; $y = $null ?? 3; Get-ChildItem | ForEach-Object -Parallel { $_ }; Join-Path a b c; Get-Content f -AsByteStream; if ($IsWindows) { }; a && b'
+Assert-Equal @(Test-Ps51Syntax $ps7).Count 7 'the 5.1 lint detects ternary, null-coalescing, -Parallel, three-argument Join-Path, -AsByteStream, $IsWindows and pipeline chains'
 
 # ---- static lint of the Windows-only scripts: every command resolves and our own functions are called with a plausible number of positional arguments ------------
 # (the Windows code paths cannot run on Linux; this catches typos and signature drift between the scripts and Phase1Common.ps1)
@@ -216,3 +297,4 @@ Assert-Equal $lint.Count 4 'the lint reports an unresolved command and three cal
 
 if ($failures -gt 0) { Write-Host "$failures assertion(s) failed"; exit 1 }
 Write-Host 'all assertions passed'
+exit 0   # explicit: a script that ends without exit would leave a stale $LASTEXITCODE from the nested runs above

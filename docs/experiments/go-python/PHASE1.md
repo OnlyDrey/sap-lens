@@ -54,3 +54,9 @@ See [PHASE1_DECISION](PHASE1_DECISION.md).
 ## Runner hardening (follow-up)
 
 `windows/Run-Phase1.ps1` is the single entry point: it verifies the bundle against a separately supplied checksum, validates and extracts the archive into a fresh run folder, runs the self-test, harness and diagnostics in separate processes, and always writes `run-summary.json` and `.txt`. Result vocabulary: PASS, FAIL, BLOCKED, NOT EXECUTED, HARNESS ERROR. Changes to the existing tools: the harness records a HARNESS ERROR instead of dying without a result, works in Constrained Language Mode far enough to report it, refuses elevated sessions, and stops only processes this run created; the host redirects temp, home and application-data folders into the isolated data directory. Details and commands: [WINDOWS_VALIDATION](WINDOWS_VALIDATION.md). Still NOT EXECUTED on Windows.
+
+## First Windows run and fix (R04)
+
+The first Windows run (Windows PowerShell 5.1) passed R01 to R03 and ended with HARNESS ERROR at R04: `AuthorizationManager check failed.`, exit code 1. Cause (strongly supported by the evidence and the code, not reproduced here): the self-test was started in a `-NonInteractive` child PowerShell; the script carried a Mark-of-the-Web and the policy was `Unrestricted`, which makes PowerShell prompt, and a noninteractive child cannot answer. The unsigned `saplens-host.exe` is separately blocked by App Control (Code Integrity events 3077 and 3033), which is the finding Phase 1 was meant to produce.
+
+Fix: bundle scripts now run in the runner's own session; security refusals are classified NOT EXECUTED with the original error preserved; nothing is unblocked or bypassed. See [WINDOWS_VALIDATION](WINDOWS_VALIDATION.md#script-authorization-and-mark-of-the-web). Not yet re-run on Windows.
