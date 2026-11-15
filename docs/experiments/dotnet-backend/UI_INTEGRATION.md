@@ -35,6 +35,8 @@ and Server. The earlier simplified prototype UI was removed. Status tags as in [
 | `POST /api/configuration`, `/api/configuration/theme` | Settings document in SQLite with optimistic revision (409 on conflict), strict validation; source paths only through imports |
 | `POST /api/server/uploads/{source}/activate`, `/api/data-sources/{source}/select` | Phase 2A import workflow for roles, users and SoD: staged import, profiles, held-import confirmation, refresh report; Server accepts uploads only |
 | `GET /api/data-sources/history`, `/api/data-sources/{source}/preview`, `POST /api/data/cancel` | Import history (refresh reports), active-source preview, cancel the running import |
+| `GET /api/access/users`, `/api/access/users/{username}` | Phase 2B User Access list and user detail from the C# domain; unmigrated filters answer 501 |
+| `GET /api/user-comparison`, `/api/user-comparison/evidence` | Phase 2B Compare Users with summary, areas and evidence |
 
 Data is loaded through the UI (Settings → Data Sources: upload, or a local path on the Desktop), or through the .NET import API. See [FEATURE_PARITY.md](FEATURE_PARITY.md) for everything else.
 

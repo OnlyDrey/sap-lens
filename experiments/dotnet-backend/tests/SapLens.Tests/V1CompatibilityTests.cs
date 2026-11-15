@@ -134,7 +134,7 @@ public sealed class V1CompatibilityTests : IAsyncLifetime
 
     [Theory]
     [InlineData("GET", "/api/dashboard")]
-    [InlineData("GET", "/api/access/users")]
+    [InlineData("GET", "/api/access/exports/users")]
     [InlineData("GET", "/api/roles/naming")]
     [InlineData("POST", "/api/roles/package/preview")]
     [InlineData("POST", "/api/configuration/reset")]

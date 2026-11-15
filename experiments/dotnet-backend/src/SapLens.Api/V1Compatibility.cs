@@ -40,6 +40,7 @@ public static class V1Compatibility
         "GET /api/runtime", "GET /api/modules", "GET /api/roles", "GET /api/roles/{agr_name}",
         "POST /api/configuration", "POST /api/configuration/theme", "GET /api/data-sources/history", "GET /api/data-sources/{source}/preview", "POST /api/data/cancel",
         "POST /api/data-sources/{source}/select", "POST /api/server/uploads/{source}/activate",
+        "GET /api/access/users", "GET /api/access/users/{username}", "GET /api/user-comparison", "GET /api/user-comparison/evidence",
     ];
 
     public static void Map(WebApplication app)
@@ -108,6 +109,7 @@ public static class V1Compatibility
         });
 
         V1DataSources.Map(api);
+        V1Access.Map(api);
 
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).
         api.Map("/{**rest}", (HttpContext http, string? rest) =>
