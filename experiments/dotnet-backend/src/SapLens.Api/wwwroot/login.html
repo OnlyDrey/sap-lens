@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · SAP Lens 2 Prototype</title>
+  <link rel="stylesheet" href="/app.css">
+</head>
+<body>
+  <header><h1>SAP Lens 2 <span class="tag">prototype</span></h1></header>
+  <main class="login">
+    <h2>Sign in</h2>
+    <p>Enter the server access token (environment variable <code>SAP_LENS_V2_TOKEN</code> or the <code>api-token</code> file in the data directory).
+      The token is sent once to the server, which answers with an HttpOnly session cookie; page script never handles it.</p>
+    <form method="post" action="/auth/login">
+      <label>Access token <input type="password" name="token" autocomplete="off" required minlength="32"></label>
+      <button type="submit">Sign in</button>
+    </form>
+  </main>
+</body>
+</html>

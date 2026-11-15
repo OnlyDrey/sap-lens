@@ -38,9 +38,10 @@ normalized key. Fixed in `Sources.AssignmentKey`, covered by
 
 ## Frontend compatibility
 
-The prototype serves the existing `frontend/dist` (index, assets, client-route fallback) [T], but its API is `/api/v1` with a new contract,
-so the current React screens do not work against it unmodified. Equivalence is proven at the domain level, not through the UI. See
-[MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md).
+The existing React frontend is **not compatible** with the prototype: it calls the v1 routes (`/api/roles`, `/api/access`, ...) and keeps the
+desktop token in page script. The prototype therefore ships its own small UI for `/api/v1` (embedded in `SapLens.Api.dll`), which exercises
+import, held-import confirmation, Role Lookup, User Access, Compare Users and SoD. Equivalence is proven at the domain level, not through a
+UI. See [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) for the path to the production frontend.
 
 ## Small dataset report
 

@@ -1,6 +1,6 @@
 using SapLens.Api;
 
-// Server entry point (Windows and Linux): sap-lens-v2-server --data-dir <absolute path> [--port 18790] [--frontend <dist>] [--no-worker]
+// Server entry point (Windows and Linux): SapLens.Api --data-dir <absolute path> [--port 18790] [--no-worker]. The UI is embedded in the binary.
 var options = args.Select((value, index) => (value, index)).Where(p => p.value.StartsWith("--", StringComparison.Ordinal))
     .ToDictionary(p => p.value, p => p.index + 1 < args.Length && !args[p.index + 1].StartsWith("--", StringComparison.Ordinal) ? args[p.index + 1] : "true");
 var dataDirectory = options.GetValueOrDefault("--data-dir") ?? Environment.GetEnvironmentVariable("SAP_LENS_V2_DATA_DIR");
@@ -29,7 +29,7 @@ try
 {
     var app = SapLensHost.Build(new HostSettings
     {
-        DataDirectory = Path.GetFullPath(dataDirectory), Url = $"http://127.0.0.1:{port}", AccessToken = token, FrontendDirectory = options.GetValueOrDefault("--frontend"),
+        DataDirectory = Path.GetFullPath(dataDirectory), Url = $"http://127.0.0.1:{port}", AccessToken = token,
         WorkerEnabled = !options.ContainsKey("--no-worker"), PrincipalName = Environment.GetEnvironmentVariable("SAP_LENS_V2_PRINCIPAL") ?? "server-operator",
     }, args);
     await app.RunAsync();

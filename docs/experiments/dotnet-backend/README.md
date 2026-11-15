@@ -30,10 +30,10 @@ Everything lives in [`experiments/dotnet-backend`](../../../experiments/dotnet-b
 | `src/SapLens.Domain` | Ported v1 business rules: CSV import, normalization, catalogue, users, lookups, comparison, SoD, import checks |
 | `src/SapLens.Persistence` | EF Core SQLite: schema, migration, immutability triggers, write coordinator, integrity, online backup, retention |
 | `src/SapLens.Application` | Import pipeline, persistent job queue and worker, snapshot service, review service |
-| `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, static frontend |
+| `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded prototype UI (`wwwroot`), startup probe |
 | `src/SapLens.Desktop` | Windows shell: WinForms + WebView2, in-process core, loopback, per-run token (built on Linux, never run) |
 | `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
-| `tests/SapLens.Tests` | 47 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration |
+| `tests/SapLens.Tests` | 65 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, publish acceptance (`Category=Publish`, slow) |
 | `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses |
 
 ## Reproduce

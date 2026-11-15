@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="saplens-ui" content="prototype-ui-v1">
+  <title>SAP Lens 2 Prototype</title>
+  <link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header>
+    <h1>SAP Lens 2 <span class="tag">prototype</span></h1>
+    <div id="status" role="status" aria-live="polite">Connecting…</div>
+  </header>
+  <main id="app" hidden>
+    <nav aria-label="Sections">
+      <button type="button" data-tab="data" aria-pressed="true">Data</button>
+      <button type="button" data-tab="roles" aria-pressed="false">Role Lookup</button>
+      <button type="button" data-tab="users" aria-pressed="false">User Access</button>
+      <button type="button" data-tab="compare" aria-pressed="false">Compare Users</button>
+      <button type="button" data-tab="sod" aria-pressed="false">SoD</button>
+    </nav>
+
+    <section id="tab-data">
+      <h2>Import</h2>
+      <form id="import-form">
+        <label>Source
+          <select name="source"><option value="roles">Roles</option><option value="users">Users</option><option value="sod">SoD matrix</option></select>
+        </label>
+        <label>CSV file <input type="file" name="file" accept=".csv,text/csv" required></label>
+        <button type="submit">Import</button>
+      </form>
+      <p id="import-result" role="status"></p>
+      <h2>Datasets</h2>
+      <table><thead><tr><th>Id</th><th>Source</th><th>Revision</th><th>Status</th><th>Records</th><th>Activated</th><th></th></tr></thead><tbody id="datasets"></tbody></table>
+    </section>
+
+    <section id="tab-roles" hidden>
+      <form id="roles-form" class="row">
+        <label>Search <input name="search" placeholder="ZC:FI* or text"></label>
+        <label>T-codes <input name="tcode" placeholder="ME21N, FB01"></label>
+        <label>Mode <select name="transaction_mode"><option value="and">AND</option><option value="or">OR</option></select></label>
+        <button type="submit">Search</button>
+      </form>
+      <p class="summary" id="roles-summary"></p>
+      <table><thead><tr><th>Role</th><th>Description</th><th>Area</th><th>T-codes</th></tr></thead><tbody id="roles"></tbody></table>
+      <div class="pager" data-for="roles"></div>
+    </section>
+
+    <section id="tab-users" hidden>
+      <form id="users-form" class="row">
+        <label>Search <input name="search" placeholder="user or name"></label>
+        <label>Role <input name="role" placeholder="exact role name"></label>
+        <label>T-code <input name="tcode" placeholder="ME21N"></label>
+        <button type="submit">Search</button>
+      </form>
+      <p class="summary" id="users-summary"></p>
+      <table><thead><tr><th>User</th><th>Name</th><th>Groups</th><th>Account</th><th>Relevant roles</th></tr></thead><tbody id="users"></tbody></table>
+      <div class="pager" data-for="users"></div>
+    </section>
+
+    <section id="tab-compare" hidden>
+      <form id="compare-form" class="row">
+        <label>User A <input name="left" required></label>
+        <label>User B <input name="right" required></label>
+        <label>Validity <select name="validity"><option>active</option><option>all</option><option>expired</option><option>future</option><option>unknown</option></select></label>
+        <label>View <select name="kind"><option value="roles">Roles</option><option value="transactions">Transactions</option></select></label>
+        <button type="submit">Compare</button>
+      </form>
+      <p class="summary" id="compare-summary"></p>
+      <table><thead><tr><th>Identifier</th><th>Difference</th><th>Areas</th></tr></thead><tbody id="compare"></tbody></table>
+    </section>
+
+    <section id="tab-sod" hidden>
+      <form id="sod-form" class="row">
+        <label>Validity <select name="validity"><option>active</option><option>all</option></select></label>
+        <label>Subjects <select name="kind"><option value="users">Users</option><option value="roles">Roles</option></select></label>
+        <button type="submit">Analyse</button>
+      </form>
+      <p class="summary" id="sod-summary"></p>
+      <table><thead><tr><th>Subject</th><th>Risk</th><th>Criticality</th><th>Finding</th></tr></thead><tbody id="sod"></tbody></table>
+      <div class="pager" data-for="sod"></div>
+    </section>
+  </main>
+  <footer>Synthetic-data prototype. Not SAP Lens v1. Potential access only; never effective authorization.</footer>
+</body>
+</html>

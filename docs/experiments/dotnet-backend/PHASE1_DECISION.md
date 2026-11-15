@@ -17,7 +17,7 @@ before committing to a product rewrite. This is an architecture decision, not au
 | Representative functionality without unacceptable complexity | **Met** | Import, catalogue, users, Role Lookup, User Access, Compare Users, SoD, reviews, jobs, backups, API, Desktop shell in about 3.5 k lines of C# and 47 tests [M][T] |
 | Equivalence for all defined critical scenarios | **Met for the ported scope**; suffix handling not ported | 68/68 small, 68/68 large, byte-identical SoD identities over 281 k findings; negative control detects injected changes [M] |
 | Reliable SQLite in Desktop and Server | **Met on Linux**, Windows unverified | WAL, BEGIN IMMEDIATE, multi-process writers and workers, fenced leases, triggers, hash chain, online backup, migration backup, newer-schema refusal [T]; 0 errors under load during a large import [M] |
-| Viable Desktop packaging | **Built, not run** | 154 MB self-contained single exe, WebView2, no Python or system .NET [M build only][U run] |
+| Viable Desktop packaging | **Launched on Windows 11, UI fix not yet verified there** | Windows 11 VM: build, 47/47 tests, publish, launch, WebView2 and loopback API worked; `GET /` was 404 (missing UI assets) [W]. Fixed: UI embedded, readiness-gated navigation, publish acceptance tests; Windows re-run pending [M][T][U] |
 | Viable Windows and Linux Server | **Linux met**, Windows built only | Linux: startup, readiness, load, graceful and crash shutdown [M] |
 | No mandatory Python runtime for the core | **Met** | Server and Desktop builds contain no Python [M] |
 | Acceptable performance | **Met, with a memory caveat** | Per operation 1.4x to 4.6x faster; service throughput 8x, P50 31 ms vs 2.65 s; restart 5 s vs 9.8 s; memory 1.4x to 1.8x v1 [M] |
@@ -51,6 +51,12 @@ test-time dependency as the equivalence reference while v1 exists. See [DEPENDEN
 
 ## Desktop and Server findings
 
+- Windows 11 VM run (before the UI fix) [W]: Release build 0 warnings, 47/47 tests, Desktop and Server publish, Desktop launch, WebView2
+  processes and loopback API (401 without token) all worked. The window showed 404: the build never produced the UI folder the host
+  looked for. Fixed by embedding a `/api/v1` prototype UI in the assembly; see
+  [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md#windows-finding-desktop-window-showed-no-page-get--404). Windows acceptance
+  of the fixed build is still open.
+
 - Same core for both; only host and security boundary differ. Loopback-only, per-run token injected by WebView2 so page script never sees
   it (fixes the v1 bootstrap finding F1 by design).
 - Linux Server: verified end to end, including SIGTERM during an import (job handed back, resumed, completed once) and SIGKILL (recovered
@@ -79,7 +85,7 @@ accounts and sessions, encrypted portable backups and restore, scheduled refresh
 
 ## Blockers for GO
 
-1. No Windows run of Desktop or Server.
+1. Windows acceptance of the fixed Desktop build (checklist in DESKTOP_SERVER_DEPLOYMENT.md) and of the Server as a service.
 2. Suffix handling (organizational suffix evidence and Access Package preview) not ported or equivalence-tested.
 3. No rehearsed migration of v1 JSON stores.
 4. No authenticated remote Server design (accounts, roles, TLS).

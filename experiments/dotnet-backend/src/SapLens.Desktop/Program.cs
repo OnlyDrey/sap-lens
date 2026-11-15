@@ -1,50 +1,84 @@
-using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using SapLens.Api;
-using SapLens.Persistence;
+using WinFormsApp = System.Windows.Forms.Application;
 
 namespace SapLens.Desktop;
 
-/// <summary>Desktop lifecycle: single instance, private data directory, in-process core on an OS-assigned loopback port with a per-run token, readiness
-/// before the window navigates, graceful stop when the window closes. No Python and no system-wide .NET are needed (self-contained publish).</summary>
+/// <summary>Desktop lifecycle: single instance, private data and log directories, in-process core on an OS-assigned loopback port with a per-run token,
+/// readiness and UI probe before the window navigates, an actionable message on failure, graceful stop when the window closes.
+/// Arguments: [--data-dir ABSOLUTE_PATH] [--self-check]. --self-check starts the service, probes it, logs the result and exits without a window
+/// (exit code 0 ready, 2 start or readiness failure, 1 already running): the SSH-verifiable part of the Desktop.</summary>
 internal static class Program
 {
-    [STAThread]
-    private static int Main()
-    {
-        using var single = new Mutex(true, @"Local\SapLens2Prototype", out var first);
-        if (!first) { MessageBox.Show("SAP Lens 2 prototype is already running.", "SAP Lens 2 prototype"); return 1; }
-        ApplicationConfiguration.Initialize();
+    private const string Title = "SAP Lens 2 prototype";
+    private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(30);
 
+    [STAThread]
+    private static int Main(string[] args)
+    {
+        var selfCheck = args.Contains("--self-check", StringComparer.OrdinalIgnoreCase);
+        var index = Array.FindIndex(args, a => string.Equals(a, "--data-dir", StringComparison.OrdinalIgnoreCase));
         var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SAP Lens 2 Prototype");
-        WebApplication app;
-        try
+        var dataDirectory = index >= 0 && index + 1 < args.Length ? Path.GetFullPath(args[index + 1]) : Path.Combine(root, "data");
+        using var logs = new FileLoggerProvider(Path.Combine(root, "logs"), selfCheck ? "self-check" : "desktop");
+        using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
+        var log = factory.CreateLogger("SapLens.Desktop");
+        log.LogInformation("Desktop starting (version {Version}, self-check {SelfCheck})", typeof(Program).Assembly.GetName().Version, selfCheck);
+
+        using var single = new Mutex(true, @"Local\SapLens2Prototype", out var first);
+        if (!first)
         {
-            app = SapLensHost.Build(new HostSettings
-            {
-                DataDirectory = Path.Combine(root, "data"), Mode = HostMode.Desktop, Url = "http://127.0.0.1:0", AccessToken = HostSettings.NewToken(),
-                FrontendDirectory = Path.Combine(AppContext.BaseDirectory, "frontend"), PrincipalName = Environment.UserName, JsonConsoleLogging = false,
-            });
-            app.StartAsync().GetAwaiter().GetResult();
+            log.LogWarning("Another instance is already running");
+            if (!selfCheck) MessageBox.Show("SAP Lens 2 prototype is already running.", Title);
+            return 1;
         }
-        catch (Exception error)
+        if (!selfCheck)
         {
-            MessageBox.Show($"SAP Lens 2 prototype could not start: {error.Message}", "SAP Lens 2 prototype", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            ApplicationConfiguration.Initialize();
+            WinFormsApp.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            WinFormsApp.ThreadException += (_, e) => Fatal(log, logs, e.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => log.LogCritical("Unhandled exception: {Type}", e.ExceptionObject.GetType().Name);
+        }
+
+        var settings = new HostSettings
+        {
+            DataDirectory = dataDirectory, Mode = HostMode.Desktop, Url = "http://127.0.0.1:0", AccessToken = HostSettings.NewToken(),
+            PrincipalName = Environment.UserName, JsonConsoleLogging = false,
+        };
+        var outcome = LocalStartup.StartAsync(settings, log, StartupTimeout, b => b.Logging.AddProvider(logs)).GetAwaiter().GetResult();
+        if (!outcome.Ok)
+        {
+            if (!selfCheck)
+                MessageBox.Show($"{outcome.Error}\n\nDetails are in the log file:\n{logs.FilePath}\n\nClose other SAP Lens 2 windows, check that the data folder is on a local disk and writable, then start again.",
+                    Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 2;
         }
-        var database = app.Services.GetRequiredService<DatabaseMaintenance>();
-        if (!database.Ready)
+        var app = outcome.App!;
+        try
         {
-            MessageBox.Show($"The local database is not ready: {database.NotReadyReason}", "SAP Lens 2 prototype", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            app.StopAsync().GetAwaiter().GetResult();
-            return 3;
+            if (selfCheck)
+            {
+                log.LogInformation("Self-check passed: service ready and UI served at {Origin}", outcome.Origin);
+                return 0;
+            }
+            using var window = new MainWindow(outcome.Origin!, app.Services.GetRequiredService<HostSettings>().AccessToken,
+                Path.Combine(root, "webview2"), log, logs.FilePath);
+            WinFormsApp.Run(window);
+            return 0;
         }
-        var origin = new Uri(app.Urls.First());
-        var token = app.Services.GetRequiredService<HostSettings>().AccessToken;
-        using (var window = new MainWindow(origin, token, Path.Combine(root, "webview2"))) System.Windows.Forms.Application.Run(window);
-        // Graceful stop: the worker hands an unfinished job back (Queued) and SQLite connections close before the process exits.
-        app.StopAsync().GetAwaiter().GetResult();
-        app.DisposeAsync().AsTask().GetAwaiter().GetResult();
-        return 0;
+        finally
+        {
+            // Graceful stop: a running import is handed back (Queued) and SQLite connections close before the process exits.
+            log.LogInformation("Desktop stopping");
+            LocalStartup.StopQuietlyAsync(app).GetAwaiter().GetResult();
+            log.LogInformation("Desktop stopped");
+        }
+    }
+
+    private static void Fatal(ILogger log, FileLoggerProvider logs, Exception error)
+    {
+        log.LogCritical(error, "Unhandled UI exception");
+        MessageBox.Show($"An unexpected error occurred: {error.Message}\n\nLog: {logs.FilePath}", Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
     }
 }

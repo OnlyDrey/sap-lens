@@ -12,7 +12,6 @@ public sealed class HostSettings
     public HostMode Mode { get; init; } = HostMode.Server;
     public string Url { get; init; } = "http://127.0.0.1:18790";
     public required string AccessToken { get; init; }
-    public string? FrontendDirectory { get; init; }
     public string PrincipalName { get; init; } = "local-user";
     public bool WorkerEnabled { get; init; } = true;
     public bool JsonConsoleLogging { get; init; } = true;

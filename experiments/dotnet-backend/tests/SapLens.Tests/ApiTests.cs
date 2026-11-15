@@ -18,11 +18,9 @@ public sealed class ApiTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        var frontend = Directory.CreateDirectory(Path.Combine(_root, "dist")).FullName;
-        await File.WriteAllTextAsync(Path.Combine(frontend, "index.html"), "<!doctype html><title>SAP Lens</title>");
         _app = SapLensHost.Build(new HostSettings
         {
-            DataDirectory = Path.Combine(_root, "data"), Url = "http://127.0.0.1:0", AccessToken = _token, FrontendDirectory = frontend,
+            DataDirectory = Path.Combine(_root, "data"), Url = "http://127.0.0.1:0", AccessToken = _token,
             JsonConsoleLogging = false, PrincipalName = "tester",
         });
         await _app.StartAsync();
@@ -157,12 +155,52 @@ public sealed class ApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task OpenApi_document_and_frontend_are_served()
+    public async Task OpenApi_document_is_served_and_unknown_routes_are_404()
     {
         var doc = await Json(await _client.GetAsync("/openapi/v1.json"), HttpStatusCode.OK);
         Assert.True(doc.GetProperty("paths").TryGetProperty("/api/v1/roles", out _));
-        Assert.Contains("SAP Lens", await _client.GetStringAsync("/"));
-        Assert.Contains("SAP Lens", await _client.GetStringAsync("/some/client/route"));
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/api/v1/unknown")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/some/client/route")).StatusCode);
+    }
+
+    [Theory]
+    [InlineData("/", "text/html")]
+    [InlineData("/index.html", "text/html")]
+    [InlineData("/app.js", "text/javascript")]
+    [InlineData("/app.css", "text/css")]
+    [InlineData("/login.html", "text/html")]
+    public async Task Embedded_ui_assets_are_served_without_credentials(string path, string mediaType)
+    {
+        using var anonymous = new HttpClient { BaseAddress = _client.BaseAddress };
+        var response = await anonymous.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal(mediaType, response.Content.Headers.ContentType!.MediaType);
+        Assert.Equal(RequestBoundary.ContentSecurityPolicy, response.Headers.GetValues("Content-Security-Policy").Single());
+        Assert.Equal("same-origin", response.Headers.GetValues("Referrer-Policy").Single()); // no-referrer would make browsers send Origin: null on sign-in
+        Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
+        var body = await response.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(_token, body);
+        if (path == "/") Assert.Contains(UiAssets.Marker, body);
+    }
+
+    [Fact]
+    public async Task Ui_entry_point_references_only_local_assets_that_exist()
+    {
+        using var anonymous = new HttpClient { BaseAddress = _client.BaseAddress };
+        var html = await anonymous.GetStringAsync("/");
+        var references = System.Text.RegularExpressions.Regex.Matches(html, "(?:src|href)=\"([^\"]+)\"").Select(m => m.Groups[1].Value).ToList();
+        Assert.Contains("/app.js", references);
+        Assert.Contains("/app.css", references);
+        Assert.All(references, r => Assert.StartsWith("/", r));
+        foreach (var reference in references) Assert.Equal(HttpStatusCode.OK, (await anonymous.GetAsync(reference)).StatusCode);
+    }
+
+    [Fact]
+    public async Task Session_endpoint_reports_the_principal_and_requires_authentication()
+    {
+        var session = await Json(await _client.GetAsync("/api/v1/session"), HttpStatusCode.OK);
+        Assert.Equal("tester", session.GetProperty("principal").GetString());
+        using var anonymous = new HttpClient { BaseAddress = _client.BaseAddress };
+        Assert.Equal(HttpStatusCode.Unauthorized, (await anonymous.GetAsync("/api/v1/session")).StatusCode);
     }
 }

@@ -63,7 +63,7 @@ paged, snake_case JSON. Errors become RFC 9457 problem details with the correlat
 | Bind | `127.0.0.1:0` (OS-assigned) | `127.0.0.1:<port>` (default 18790); any non-loopback bind is refused |
 | Token | New 256-bit token per run, injected into `/api` requests by WebView2 `WebResourceRequested`; never visible to page script | `SAP_LENS_V2_TOKEN` or a generated `api-token` file (0600 on Linux) |
 | Data | `%LOCALAPPDATA%\SAP Lens 2 Prototype\data` | `--data-dir` (absolute, local; UNC and network drives refused) |
-| Frontend | `frontend/` next to the exe | `--frontend <dist>` |
+| UI | Embedded prototype UI for `/api/v1` (in `SapLens.Api.dll`), token injected by the shell | Same embedded UI; browser sign-in exchanges the token for an HttpOnly session cookie |
 | Shutdown | Window closed -> host stop; running job handed back | SIGTERM / service stop -> same |
 
 ## Deliberate non-decisions

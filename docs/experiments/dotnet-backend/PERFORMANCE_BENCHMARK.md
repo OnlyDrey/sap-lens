@@ -99,7 +99,7 @@ sorted selection per filter and snapshot would remove most of it; not done, to k
 | --- | ---: | ---: | ---: |
 | Server, linux-x64, self-contained | 114 MB | 353 | 11 s |
 | Server, win-x64, self-contained | 115 MB | 356 | 5 s |
-| Desktop, win-x64, self-contained single-file exe | 154 MB exe + 7.1 MB frontend | 1 exe + frontend | 11 s |
+| Desktop, win-x64, self-contained single-file exe | 154 MB exe (measured before the UI was embedded; the UI adds about 20 KB) | 1 exe | 11 s |
 
 Not trimmed (EF Core and WinForms are not trim-safe) and not compressed. Python v1 artifact sizes were not rebuilt here [U].
 
