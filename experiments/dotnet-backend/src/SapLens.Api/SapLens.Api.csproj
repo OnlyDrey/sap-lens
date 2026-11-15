@@ -4,9 +4,11 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <!-- The prototype UI is compiled into this assembly, so every host (Server, Desktop single-file, tests) serves the same files regardless of
-         working directory or publish layout. Nothing is copied next to the executable and nothing is read from the repository at runtime. -->
+    <!-- The production React UI (frontend/, the same sources as origin/work) and the server's sign-in page are compiled into this assembly, so every host
+         (Server, Desktop single-file, tests) serves the same files regardless of working directory or publish layout. -->
     <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+    <SapLensFrontendRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../../../frontend'))</SapLensFrontendRoot>
+    <SapLensFrontendDist>$(SapLensFrontendRoot)/dist</SapLensFrontendDist>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +21,26 @@
   <ItemGroup>
     <Content Remove="wwwroot\**" />
     <EmbeddedResource Include="wwwroot\**" />
+    <!-- Reference data exported from Python v1 by tools/export_v1_reference.py; read by the v1 compatibility API, not served as files. -->
+    <EmbeddedResource Include="V1Reference\*.json" LogicalName="V1Reference.%(Filename)%(Extension)" ExcludeFromManifest="true" />
   </ItemGroup>
+
+  <!-- Frontend: built with the repository's own npm scripts when dist is missing, or always with -p:BuildFrontend=true (release builds). Node.js is a
+       build-time requirement only; nothing of it ships. -->
+  <Target Name="SapLensBuildFrontend" BeforeTargets="AssignTargetPaths" Condition="'$(BuildFrontend)' == 'true' Or !Exists('$(SapLensFrontendDist)/index.html')">
+    <Error Condition="!Exists('$(SapLensFrontendRoot)/package.json')" Text="The React frontend was not found at $(SapLensFrontendRoot)." />
+    <Message Importance="high" Text="Building the React frontend in $(SapLensFrontendRoot)" />
+    <Exec Command="npm ci --no-audit --no-fund" WorkingDirectory="$(SapLensFrontendRoot)" Condition="'$(BuildFrontend)' == 'true' Or !Exists('$(SapLensFrontendRoot)/node_modules')" />
+    <Exec Command="npm run build" WorkingDirectory="$(SapLensFrontendRoot)" />
+  </Target>
+
+  <Target Name="SapLensEmbedFrontend" BeforeTargets="AssignTargetPaths" DependsOnTargets="SapLensBuildFrontend">
+    <Error Condition="!Exists('$(SapLensFrontendDist)/index.html')" Text="frontend/dist/index.html is missing after the frontend build." />
+    <ItemGroup>
+      <_SapLensFrontendFiles Include="$(SapLensFrontendDist)/**/*" />
+      <EmbeddedResource Include="@(_SapLensFrontendFiles)" Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+    </ItemGroup>
+  </Target>
 
   <ItemGroup>
     <ProjectReference Include="..\SapLens.Application\SapLens.Application.csproj" />

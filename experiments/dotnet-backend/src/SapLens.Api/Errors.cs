@@ -26,7 +26,7 @@ public sealed class ProblemMapper(IProblemDetailsService problems, ILogger<Probl
         return await problems.TryWriteAsync(new ProblemDetailsContext
         {
             HttpContext = context, Exception = exception,
-            ProblemDetails = new ProblemDetails { Status = status, Title = title, Extensions = { ["correlation_id"] = context.TraceIdentifier } },
+            ProblemDetails = new ProblemDetails { Status = status, Title = title, Detail = title, Extensions = { ["correlation_id"] = context.TraceIdentifier } }, // detail: what the React client shows
         });
     }
 }

@@ -38,10 +38,9 @@ normalized key. Fixed in `Sources.AssignmentKey`, covered by
 
 ## Frontend compatibility
 
-The existing React frontend is **not compatible** with the prototype: it calls the v1 routes (`/api/roles`, `/api/access`, ...) and keeps the
-desktop token in page script. The prototype therefore ships its own small UI for `/api/v1` (embedded in `SapLens.Api.dll`), which exercises
-import, held-import confirmation, Role Lookup, User Access, Compare Users and SoD. Equivalence is proven at the domain level, not through a
-UI. See [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) for the path to the production frontend.
+The production React UI (`frontend/`, unchanged) is served by the .NET host since Phase 1. It calls the v1 routes; a server-side compatibility
+layer serves those that are migrated (boot and Role Lookup today) in the v1 shapes from the equivalence-tested C# domain, and answers the rest
+with an explicit 501. See [UI_INTEGRATION.md](UI_INTEGRATION.md) and [FEATURE_PARITY.md](FEATURE_PARITY.md).
 
 ## Small dataset report
 

@@ -10,10 +10,12 @@ public sealed record ProbeResult(bool Ok, string? Problem);
 /// entry point (not a 404). A not-ready database answers 503 with a reason, which is final and reported at once.</summary>
 public static class StartupProbe
 {
-    public static async Task<ProbeResult> WaitAsync(Uri origin, TimeSpan timeout, CancellationToken cancellation = default)
+    /// <param name="token">Needed only against a Server, whose application document redirects anonymous clients to sign-in; the Desktop never redirects.</param>
+    public static async Task<ProbeResult> WaitAsync(Uri origin, TimeSpan timeout, CancellationToken cancellation = default, string? token = null)
     {
         // Loopback only, never through a configured proxy.
-        using var http = new HttpClient(new SocketsHttpHandler { UseProxy = false, ConnectTimeout = TimeSpan.FromSeconds(2) }) { BaseAddress = origin, Timeout = TimeSpan.FromSeconds(5) };
+        using var http = new HttpClient(new SocketsHttpHandler { UseProxy = false, ConnectTimeout = TimeSpan.FromSeconds(2), AllowAutoRedirect = false }) { BaseAddress = origin, Timeout = TimeSpan.FromSeconds(5) };
+        if (token is not null) http.DefaultRequestHeaders.Add(RequestBoundary.TokenHeader, token);
         var deadline = DateTime.UtcNow + timeout;
         var last = "no answer";
         while (DateTime.UtcNow < deadline)
@@ -33,7 +35,7 @@ public static class StartupProbe
                     var html = await page.Content.ReadAsStringAsync(cancellation);
                     return page.StatusCode == HttpStatusCode.OK && html.Contains(UiAssets.Marker, StringComparison.Ordinal)
                         ? new ProbeResult(true, null)
-                        : new ProbeResult(false, $"The user interface is not served (GET / answered {(int)page.StatusCode}).");
+                        : new ProbeResult(false, $"The SAP Lens user interface is not served (GET / answered {(int)page.StatusCode}: {html[..Math.Min(html.Length, 160)].ReplaceLineEndings(" ")}).");
                 }
                 last = $"/health/ready answered {(int)ready.StatusCode}";
             }

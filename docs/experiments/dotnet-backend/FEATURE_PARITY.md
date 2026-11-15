@@ -1,0 +1,45 @@
+# Feature parity matrix (Phase 0)
+
+Inventory of what the production React UI (`frontend/`, identical to `origin/work` `d7a39fb`) needs from a backend, compared with the Python v1
+implementation and this .NET branch. Measured, not assumed: the UI references **145 distinct API routes** in 32 areas (grep of
+`frontend/src`), served in v1 by about 4,600 lines of routers over about 23,000 lines of backend modules. Status as of this milestone.
+
+Legend for .NET status: **Done** = served at the v1 route with the v1 shape and covered by contract tests; **Domain** = business rules ported and
+equivalence-tested against Python, but the v1 route is not served yet; **Partial** = some routes served; **None** = nothing yet. Every route that
+is not Done answers `501 not_migrated` with a message the UI shows; none returns invented data.
+
+| # | Area (v1 routes used by the UI) | UI screens | Python v1 implementation | .NET status | Missing | Complexity | Tests required |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | Shell and boot: `auth/state`, `configuration`, `presentation`, `registry/modules`, `version`, `application-info`, `runtime`, `branding/*` (2), `diagnostics` (2) | Startup gate, header, settings shell, About | `main.py`, `configuration_routes.py`, `module_registry.py`, `branding.py`, `diagnostics.py` | **Partial**: boot routes Done (configuration read-only v1 defaults, registry exported from v1) | Settings writes, branding/logo, diagnostics | Medium | Contract tests per route; browser boot test |
+| 2 | Authentication and accounts: `auth/*` (16) | Sign-in, My Profile, Users and roles, audit, migration | `auth_store.py` (Argon2id, sessions, roles), `routers/authentication.py`, `server_access.py` | **None** at v1 routes; .NET has its own shared-token sign-in and HttpOnly sessions | Individual accounts, roles (administrator, reviewer, viewer), activation codes, password reset, audit, account migration | High | Security tests, throttling, role enforcement per endpoint, migration of v1 accounts (Argon2id hashes) |
+| 3 | Role catalogue and Role Lookup: `modules`, `roles` (list, detail, `naming`, `package/preview`, `package/export`), `compare` | Role Lookup, role details, Access Package, role comparison | `cache.py`, `routers/roles.py`, `access_package.py`, `routers/comparison.py` | **Partial**: `modules`, `roles` list and detail Done (Domain equivalence-tested) | Organizational suffixes (`naming`), Access Package preview/export, role-to-role comparison | Medium | Extend equivalence harness to suffix rules and package preview; contract tests |
+| 4 | Imports and sources: `data-sources/*` (8), `import/*` (2), `user-import/*` (2), `refresh`, `refresh-schedule` (2), `data/cancel`, `server/uploads/*`, `storage/*` (3) | Settings → Data Sources, refresh reports, storage migration | `csv_import.py`, `csv_lifecycle.py`, `source_store.py`, `data_loader.py`, `scheduler.py`, `storage_migration.py` | **Domain**: CSV parsing, validation, change checks, staged import with held confirmation (via `/api/v1/imports`) | Path-based sources, header detection, previews, profiles, browser upload contract, schedules, refresh reports, storage status | High | Equivalence (done for parsing), contract tests, interrupted-import and schedule tests |
+| 5 | User Access and Release Roles: `access/*` (users, user detail, exports, release roles), `user-comparison` (2), `saved-filters` (2) | User Access directory, user details, Release Roles, Compare Users, saved filters | `routers/access.py`, `user_access.py`, `routers/user_comparison.py`, `saved_filters.py` | **Domain**: core User Access filters and Compare Users (equivalence-tested) | v1 route shapes, username lists, missing roles, functional groups, managers, bands, exports, evidence drill-down, release-role views, saved filters | Medium to high | Equivalence for each filter; contract tests with paging; CSV export byte comparison |
+| 6 | Employee directory: `employees/*` (7) | Settings → Employee Directory, user enrichment | `employee_directory.py`, `routers/employees.py`, `employee_preview.py` | **None** | All | Medium | Equivalence of matching rules; privacy (no persistence beyond v1 rules) |
+| 7 | Functional groups: `functional-groups` | Functional Groups settings and analysis | `functional_groups.py`, `functional_group_analysis.py`, router (430 lines) | **None** | All | Medium | Equivalence of group analysis |
+| 8 | Dashboard and data health: `dashboard`, `data-health` | Dashboard, Data Health and Coverage | `routers/dashboard.py`, `routers/data_health.py` | **None** | All | Medium | Equivalence of KPIs; contract tests |
+| 9 | Account review: `account-review` (3), `reviewer-profile` | Account Review, decision history | `account_review.py`, `review_identity.py`, `review_retention.py` | **None** at v1 routes; .NET has append-only assignment decisions, invalidation on reappearance, hash chain | v1 decision model and history, reviewer identity, retention | High (audit semantics) | Decision immutability, re-review on reappearance (exists in .NET), history equivalence, migration of v1 decisions |
+| 10 | SoD: `sod/*` (53): analysis, evidence, explorer, matrix, catalogue, reference library, decisions, periods, reviews, remediation, reports, simulation | SoD Overview, Work Queue, Remediation, Matrix, Risk Configuration, Review Periods, Reports | `sod_*.py` (analysis, catalogue, decisions, governance, periods, reports, reviews, scope, metadata), routers (about 1,300 lines) | **Domain** for analysis only: finding identities byte-identical | Everything around analysis: catalogue and reference, decisions, periods, frozen snapshots, remediation, DOCX/PDF reports, explorer, simulation | Very high | Equivalence of every derivation; immutability and frozen-report integrity; report rendering acceptance |
+| 11 | Backups and retention: `backups/*` (11), `retention/*` (4) | Backup & Restore, Data Retention | `application_backups.py`, `backup_crypto.py` (AES-256-GCM), `portable_backups.py`, `data_retention.py` | **Partial (different model)**: SQLite online backup, integrity check, retention policy, migration backups | Encrypted portable backups, restore, upload, schedule, retention approval workflow | High | Round-trip backup/restore, tamper detection, retention approval tests |
+| 12 | Settings and administration: `configuration/*` (export, import, reset, theme), module overrides | All Settings pages | `config.py`, `config_models.py`, `portable_config.py` | **Partial**: read-only v1 defaults | Persisted, versioned settings with revisions; import/export | Medium | Contract tests, revision conflicts |
+
+## SQLite and persistence
+
+v1 keeps its system of record in validated JSON stores (decisions, periods, reviews, settings) and uses SQLite only as a rebuildable cache.
+The .NET branch uses SQLite as the system of record (see [DATABASE_DESIGN.md](DATABASE_DESIGN.md)). Direct database compatibility is therefore
+not possible; migration is the explicit import with verification described in [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md). No existing
+database or installation is read or changed by this branch.
+
+## The parity gate
+
+The repository already contains the browser suite that defines v1 behaviour (`frontend/tests`, Playwright). The end state of the migration is
+that suite passing against the .NET server, area by area, plus the equivalence harness for every derivation. Today only the boot sequence and
+Role Lookup are served; this matrix is the plan, not a claim of parity.
+
+## Order of migration (Phase 2), by dependency and value
+
+1. Imports and sources (area 4) through the v1 Settings → Data Sources contract, so the UI can load data without the `/api/v1` import API.
+2. User Access, Release Roles and Compare Users (area 5), reusing the ported domain.
+3. Dashboard and data health (8), employee directory (6), functional groups (7), Access Package and suffixes (3).
+4. Accounts and roles (2), then account review (9) and SoD (10), which depend on per-user identity for audit evidence.
+5. Reports, backups and restore, settings writes (10 to 12).

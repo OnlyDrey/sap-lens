@@ -1,0 +1,169 @@
+using System.Reflection;
+using System.Security.Cryptography;
+using System.Text.Json;
+using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using SapLens.Application;
+using SapLens.Domain.Analysis;
+using SapLens.Domain.Catalogue;
+using SapLens.Domain.Roles;
+using SapLens.Persistence;
+
+namespace SapLens.Api;
+
+/// <summary>The v1 HTTP contract the production React UI (frontend/, unchanged) calls, served from the C# domain. Response shapes follow the Python v1
+/// routers and models field by field. A route that is not migrated yet answers 501 with a FastAPI-style "detail" that the UI shows: never invented data.
+/// Authentication, host, origin and CSRF checks are the same RequestBoundary as /api/v1.</summary>
+public static class V1Compatibility
+{
+    /// <summary>Changes with every process start, like v1's instance id: the UI treats a new boot as newer data.</summary>
+    public static readonly string Boot = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
+    private static readonly Lazy<JsonObject> Registry = new(() => Load("registry.json"));
+    private static readonly Lazy<JsonObject> DefaultSettings = new(() => Load("default-settings.json"));
+    public static readonly string Version = typeof(V1Compatibility).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
+
+    private static JsonObject Load(string name)
+    {
+        using var stream = typeof(V1Compatibility).Assembly.GetManifestResourceStream("V1Reference." + name)
+                           ?? throw new InvalidOperationException($"Embedded v1 reference data '{name}' is missing from this build.");
+        return JsonNode.Parse(stream)!.AsObject();
+    }
+
+    /// <summary>The routes the React UI references that this server implements; everything else under /api (outside /api/v1) is "not migrated".</summary>
+    public static readonly string[] Migrated =
+    [
+        "GET /api/auth/state", "GET /api/configuration", "GET /api/presentation", "GET /api/registry/modules", "GET /api/version", "GET /api/application-info",
+        "GET /api/runtime", "GET /api/modules", "GET /api/roles", "GET /api/roles/{agr_name}",
+    ];
+
+    public static void Map(WebApplication app)
+    {
+        var api = app.MapGroup("/api").ExcludeFromDescription().AddEndpointFilter(async (context, next) =>
+        {
+            // X-Data-Revision as v1 sends it ("boot.publication.directory"): publication grows with every activated dataset in this process.
+            var factory = context.HttpContext.RequestServices.GetRequiredService<IDbContextFactory<SapLensDb>>();
+            await using (var db = await factory.CreateDbContextAsync(context.HttpContext.RequestAborted))
+            {
+                var ids = await SnapshotService.ActiveAsync(db, context.HttpContext.RequestAborted);
+                context.HttpContext.Response.Headers["X-Data-Revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.0";
+            }
+            return await next(context);
+        });
+
+        api.MapGet("/auth/state", (HostSettings settings) => new
+        {
+            // Not "local-sessions": the React sign-in form for v1 accounts is not shown. The server's shared-token sign-in happened before the page loaded.
+            provider = settings.Mode == HostMode.Desktop ? "desktop" : "shared-token", setup_required = false,
+        });
+        api.MapGet("/configuration", Configuration);
+        api.MapGet("/presentation", Configuration);
+        api.MapGet("/registry/modules", () => Results.Content(Registry.Value.ToJsonString(), "application/json"));
+        api.MapGet("/version", () => new { app = "SAP Lens", version = Version, mode = "dotnet-preview" });
+        api.MapGet("/application-info", () => new
+        {
+            version = Version, mode = "dotnet-preview", source_sha = (string?)null, file_version = (string?)null, python = (string?)null,
+            runtime = $".NET {Environment.Version}", platform = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
+        });
+        api.MapGet("/runtime", (HostSettings settings) => new
+        {
+            deployment_mode = settings.Mode == HostMode.Server ? "server" : "desktop", browser_upload = false, username = settings.PrincipalName, role = "",
+            native_dialogs = false, source_path_policy = "not_migrated",
+        });
+
+        api.MapGet("/modules", async (SnapshotService snapshots, CancellationToken ct) =>
+        {
+            var snapshot = await snapshots.GetAsync(ct);
+            return snapshot.Catalogue.Ordered.Select(r => r.FunctionKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(ModuleInfo).ToList();
+        });
+
+        api.MapGet("/roles", async (SnapshotService snapshots, [FromQuery(Name = "function_key")] string? functionKey, [FromQuery(Name = "function_keys")] string[]? functionKeys,
+            [FromQuery(Name = "transaction_mode")] string? transactionMode, [FromQuery] string? search, [FromQuery] string[]? tcodes,
+            [FromQuery(Name = "exclude_matching")] bool? excludeMatching, [FromQuery] string? tcode, [FromQuery(Name = "exclude_tcodes")] string[]? excludeTcodes,
+            [FromQuery(Name = "exclude_mode")] string? excludeMode, CancellationToken ct) =>
+        {
+            if (transactionMode is not (null or "and" or "or") || excludeMode is not (null or "any" or "all")) return Unprocessable("Unsupported transaction mode.");
+            if ((functionKeys?.Length ?? 0) > 100 || (tcodes?.Length ?? 0) > 21 || (excludeTcodes?.Length ?? 0) > 21) return Unprocessable("Too many filter values.");
+            var snapshot = await snapshots.GetAsync(ct);
+            var rows = RoleLookup.Find(snapshot.Catalogue, new RoleLookupQuery(search, functionKeys, functionKey, tcodes, transactionMode ?? "and", excludeMatching ?? false, tcode,
+                excludeTcodes, excludeMode ?? "any"));
+            return Results.Ok(rows.Select(r => RoleSummary(snapshot.Catalogue.Roles[r.AgrName], r)).ToList());
+        });
+
+        api.MapGet("/roles/{**agrName}", async (HttpContext http, string agrName, SnapshotService snapshots, CancellationToken ct) =>
+        {
+            // v1 declares these before the role path route; they are separate, not-migrated functions, not role names.
+            if (agrName == "naming" || agrName.StartsWith("package/", StringComparison.Ordinal)) return NotMigrated(http, "roles/" + agrName);
+            var snapshot = await snapshots.GetAsync(ct);
+            return snapshot.Catalogue.Roles.TryGetValue(agrName, out var role)
+                ? Results.Ok(RoleDetail(role))
+                : Results.Json(new { detail = $"Role '{agrName}' not found." }, statusCode: 404);
+        });
+
+        // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).
+        api.Map("/{**rest}", (HttpContext http, string? rest) =>
+            rest is not null && (rest == "v1" || rest.StartsWith("v1/", StringComparison.Ordinal))
+                ? Results.Json(new { detail = "Not found.", status = 404 }, statusCode: 404)
+                : NotMigrated(http, rest ?? ""));
+    }
+
+    public static IResult NotMigrated(HttpContext http, string rest) => Results.Json(new
+    {
+        detail = $"This SAP Lens function is not available in the .NET server yet ({http.Request.Method} /api/{rest}). No data was changed.",
+        code = "not_migrated", status = 501,
+    }, statusCode: 501);
+
+    private static IResult Unprocessable(string message) => Results.Json(new { detail = message }, statusCode: 422);
+
+    private static async Task<IResult> Configuration(HostSettings settings, IDbContextFactory<SapLensDb> factory, CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var ids = await SnapshotService.ActiveAsync(db, ct);
+        var body = new JsonObject
+        {
+            ["settings"] = DefaultSettings.Value.DeepClone(),
+            ["notice"] = "SAP Lens .NET server: this build shows Role Lookup from the data imported through the .NET import API. Settings are read-only "
+                         + "SAP Lens defaults; functions not migrated yet say so where they are used.",
+            ["error"] = null, ["loading"] = false, ["progress"] = null, ["analysis"] = new JsonObject(),
+            ["data_revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.0", ["instance_id"] = Boot,
+        };
+        return Results.Content(body.ToJsonString(), "application/json");
+    }
+
+    private static JsonObject? RegistryEntry(string id) =>
+        Registry.Value["modules"]!.AsArray().Select(m => m!.AsObject()).FirstOrDefault(m => (string?)m["id"] == id);
+
+    private static object ModuleInfo(string functionKey)
+    {
+        var entry = RegistryEntry(functionKey) ?? RegistryEntry("UNCLASSIFIED")!;
+        return new
+        {
+            function_key = (string?)entry["id"], module_name = (string?)entry["name"], icon = (string?)entry["icon"], color = (string?)entry["color"],
+            enabled = (bool?)entry["enabled"] ?? true, category = (string?)entry["category"],
+        };
+    }
+
+    private static Dictionary<string, object?> RoleSummary(Role role, RoleSummary? match = null) => new()
+    {
+        ["agr_name"] = role.AgrName, ["text"] = role.Text, ["function_key"] = role.FunctionKey, ["module_name"] = role.ModuleName, ["tcode_count"] = role.TcodeCount,
+        ["single_role_count"] = role.SingleRoles.Count, ["matching_tcodes"] = match?.MatchingTcodes ?? [], ["module_ambiguous"] = role.ModuleAmbiguous,
+        ["source_modules"] = role.SourceModules,
+    };
+
+    private static object Source(AssignmentSource s) => new { child_agr = s.ChildAgr, parent_agr = s.ParentAgr, effective_role = s.EffectiveRole };
+
+    private static Dictionary<string, object?> RoleDetail(Role role)
+    {
+        var detail = RoleSummary(role);
+        detail["single_roles"] = role.SingleRoles.Select(s => new
+        {
+            assignment_kind = s.AssignmentKind, child_agr = s.ChildAgr, child_agr_text = s.ChildAgrText, function_key = s.FunctionKey, module_name = s.ModuleName,
+            alternate_descriptions = s.AlternateDescriptions,
+            tcodes = s.Tcodes.Select(t => new { tcode = t.Code, ttext = t.Text, assignment_sources = t.AssignmentSources.Select(Source).ToList(), alternate_texts = t.AlternateTexts }).ToList(),
+        }).ToList();
+        detail["relationships"] = role.Relationships.Select(Source).ToList();
+        detail["alternate_descriptions"] = role.AlternateDescriptions;
+        detail["analysis"] = new { module_source = "CSV FUNCTION_KEY", import_profile_id = "default", import_profile_version = 1, configuration_revision = 0 };
+        return detail;
+    }
+}

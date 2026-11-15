@@ -19,6 +19,7 @@ The prototype API (`/api/v1`, snake_case, problem details) is not the v1 API. Tw
 | A. Compatibility facade: .NET implements the v1 routes and response shapes the React app calls today, generated from v1's OpenAPI and pinned by contract tests that replay recorded v1 responses | High (about 25 routers) | Low for users; the frontend does not change |
 | B. Move the frontend to `/api/v1` screen by screen behind a feature flag | High, spread over UI work | Medium; two APIs during transition |
 
+Decision (Phase 1): **A**, implemented as `V1Compatibility.cs`; boot and Role Lookup are served, everything else answers 501 until migrated.
 Recommendation: **A** first. The frontend stays the single UI, v1 stays the behavioural reference, and contract tests give a mechanical
 definition of "done" per router. Security headers move from `X-SAP-Lens` (v1) to the token header injected by the shell.
 

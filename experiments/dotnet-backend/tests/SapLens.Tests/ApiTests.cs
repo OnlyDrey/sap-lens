@@ -155,21 +155,20 @@ public sealed class ApiTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task OpenApi_document_is_served_and_unknown_routes_are_404()
+    public async Task OpenApi_document_is_served_and_unknown_files_and_v1_routes_are_404()
     {
         var doc = await Json(await _client.GetAsync("/openapi/v1.json"), HttpStatusCode.OK);
         Assert.True(doc.GetProperty("paths").TryGetProperty("/api/v1/roles", out _));
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/api/v1/unknown")).StatusCode);
-        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/some/client/route")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/some/unknown/file.txt")).StatusCode);
     }
 
     [Theory]
-    [InlineData("/", "text/html")]
-    [InlineData("/index.html", "text/html")]
-    [InlineData("/app.js", "text/javascript")]
-    [InlineData("/app.css", "text/css")]
+    [InlineData("/theme.js", "text/javascript")]
+    [InlineData("/sap-lens.png", "image/png")]
     [InlineData("/login.html", "text/html")]
-    public async Task Embedded_ui_assets_are_served_without_credentials(string path, string mediaType)
+    [InlineData("/login.css", "text/css")]
+    public async Task Static_ui_assets_are_served_without_credentials_and_with_security_headers(string path, string mediaType)
     {
         using var anonymous = new HttpClient { BaseAddress = _client.BaseAddress };
         var response = await anonymous.GetAsync(path);
@@ -178,20 +177,34 @@ public sealed class ApiTests : IAsyncLifetime
         Assert.Equal(RequestBoundary.ContentSecurityPolicy, response.Headers.GetValues("Content-Security-Policy").Single());
         Assert.Equal("same-origin", response.Headers.GetValues("Referrer-Policy").Single()); // no-referrer would make browsers send Origin: null on sign-in
         Assert.Equal("DENY", response.Headers.GetValues("X-Frame-Options").Single());
-        var body = await response.Content.ReadAsStringAsync();
-        Assert.DoesNotContain(_token, body);
-        if (path == "/") Assert.Contains(UiAssets.Marker, body);
+        Assert.DoesNotContain(_token, await response.Content.ReadAsStringAsync());
     }
 
     [Fact]
-    public async Task Ui_entry_point_references_only_local_assets_that_exist()
+    public async Task Server_sends_anonymous_browsers_to_sign_in_and_serves_the_react_application_when_authenticated()
     {
-        using var anonymous = new HttpClient { BaseAddress = _client.BaseAddress };
-        var html = await anonymous.GetStringAsync("/");
-        var references = System.Text.RegularExpressions.Regex.Matches(html, "(?:src|href)=\"([^\"]+)\"").Select(m => m.Groups[1].Value).ToList();
-        Assert.Contains("/app.js", references);
-        Assert.Contains("/app.css", references);
+        using var anonymous = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false }) { BaseAddress = _client.BaseAddress };
+        foreach (var path in new[] { "/", "/index.html" })
+        {
+            var redirect = await anonymous.GetAsync(path);
+            Assert.Equal(HttpStatusCode.Redirect, redirect.StatusCode);
+            Assert.Equal("/login.html", redirect.Headers.Location!.OriginalString);
+        }
+        var page = await _client.GetStringAsync("/");
+        Assert.Contains(UiAssets.Marker, page);
+        Assert.Contains("<title>SAP Lens</title>", page);
+        Assert.DoesNotContain(_token, page);
+    }
+
+    [Fact]
+    public async Task React_entry_point_references_only_local_assets_that_exist()
+    {
+        var html = await _client.GetStringAsync("/");
+        var references = System.Text.RegularExpressions.Regex.Matches(html, "(?:src|href)=\"([^\"]+)\"").Select(m => m.Groups[1].Value).Distinct().ToList();
+        Assert.Contains("/theme.js", references);
+        Assert.Contains(references, r => r.StartsWith("/assets/", StringComparison.Ordinal) && r.EndsWith(".js", StringComparison.Ordinal));
         Assert.All(references, r => Assert.StartsWith("/", r));
+        using var anonymous = new HttpClient { BaseAddress = _client.BaseAddress };
         foreach (var reference in references) Assert.Equal(HttpStatusCode.OK, (await anonymous.GetAsync(reference)).StatusCode);
     }
 

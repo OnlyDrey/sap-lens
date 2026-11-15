@@ -98,6 +98,7 @@ public sealed class SessionTests : IAsyncLifetime
     {
         using var client = Client(await StartAsync(HostMode.Desktop));
         Assert.Equal(HttpStatusCode.NotFound, (await Login(client, _token)).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/")).StatusCode); // the Desktop window never sees a sign-in redirect
         using var request = new HttpRequestMessage(HttpMethod.Get, "/api/v1/session");
         request.Headers.Add("Cookie", SessionStore.CookieName + "=anything");
         Assert.Equal(HttpStatusCode.Unauthorized, (await client.SendAsync(request)).StatusCode);

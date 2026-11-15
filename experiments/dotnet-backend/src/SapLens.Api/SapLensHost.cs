@@ -63,6 +63,7 @@ public static class SapLensHost
         app.UseStaticFiles(new StaticFileOptions { FileProvider = ui, OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = "no-cache" });
         app.MapOpenApi("/openapi/{documentName}.json");
         Endpoints.Map(app);
+        V1Compatibility.Map(app);
         MapSession(app, settings);
         return app;
     }

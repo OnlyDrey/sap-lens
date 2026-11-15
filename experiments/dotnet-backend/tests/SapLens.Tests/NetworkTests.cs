@@ -275,7 +275,7 @@ public sealed class LanHttpsTests : IAsyncDisposable
         {
             using var http = Client();
             HttpResponseMessage page;
-            try { page = await http.GetAsync("/"); }
+            try { page = await http.GetAsync("/login.html"); }
             catch (HttpRequestException error)
             {
                 throw new Xunit.Sdk.XunitException($"First HTTPS request to {_lan}:{_port} failed: {error.Message} <- {error.InnerException?.Message}\nServer log:\n{_serverLog.Text}");
@@ -284,8 +284,11 @@ public sealed class LanHttpsTests : IAsyncDisposable
             Assert.Equal("max-age=31536000", page.Headers.GetValues("Strict-Transport-Security").Single());
             Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync("/api/v1/roles")).StatusCode);
 
-            using (var named = new HttpRequestMessage(HttpMethod.Get, "/")) { named.Headers.Host = $"{HostName}:{_port}"; Assert.Equal(HttpStatusCode.OK, (await http.SendAsync(named)).StatusCode); }
-            using (var foreign = new HttpRequestMessage(HttpMethod.Get, "/")) { foreign.Headers.Host = "attacker.example"; Assert.Equal((HttpStatusCode)421, (await http.SendAsync(foreign)).StatusCode); }
+            using (var named = new HttpRequestMessage(HttpMethod.Get, "/login.html")) { named.Headers.Host = $"{HostName}:{_port}"; Assert.Equal(HttpStatusCode.OK, (await http.SendAsync(named)).StatusCode); }
+            using (var foreign = new HttpRequestMessage(HttpMethod.Get, "/login.html")) { foreign.Headers.Host = "attacker.example"; Assert.Equal((HttpStatusCode)421, (await http.SendAsync(foreign)).StatusCode); }
+            var app0 = await http.GetAsync("/"); // the application document needs a session
+            Assert.Equal(HttpStatusCode.Redirect, app0.StatusCode);
+            Assert.Equal("/login.html", app0.Headers.Location!.OriginalString);
 
             // Plain HTTP on the HTTPS port never yields a page; the loopback interface is not bound at all.
             using (var plain = new HttpClient(new SocketsHttpHandler { UseProxy = false }) { Timeout = TimeSpan.FromSeconds(5) })
@@ -318,6 +321,13 @@ public sealed class LanHttpsTests : IAsyncDisposable
                 if (requestOrigin is not null) request.Headers.Add("Origin", requestOrigin);
                 if (fetchSite is not null) request.Headers.Add("Sec-Fetch-Site", fetchSite);
                 return (await http.SendAsync(request)).StatusCode;
+            }
+            using (var withSession = new HttpRequestMessage(HttpMethod.Get, "/"))
+            {
+                withSession.Headers.Add("Cookie", pair);
+                var react = await http.SendAsync(withSession);
+                Assert.Equal(HttpStatusCode.OK, react.StatusCode);
+                Assert.Contains(UiAssets.Marker, await react.Content.ReadAsStringAsync());
             }
             Assert.Equal(HttpStatusCode.Forbidden, await CookiePost(null, null));
             Assert.Equal(HttpStatusCode.Forbidden, await CookiePost("https://evil.example", null));

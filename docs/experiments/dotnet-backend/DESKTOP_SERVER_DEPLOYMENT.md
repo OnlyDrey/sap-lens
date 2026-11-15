@@ -22,9 +22,9 @@ window received 404, while `/api` (401) and WebView2 worked. Copying the v1 Reac
 
 Fix:
 
-1. A small prototype UI for `/api/v1` (`src/SapLens.Api/wwwroot`: Data/import with held-import confirmation, Role Lookup, User Access,
-   Compare Users, SoD; plain HTML/JS/CSS, no Node.js build) is **embedded in `SapLens.Api.dll`** (`ManifestEmbeddedFileProvider`). Every host
-   serves it regardless of working directory, publish layout or single-file bundling; nothing is copied after publishing.
+1. The UI is **embedded in `SapLens.Api.dll`** (`ManifestEmbeddedFileProvider`). Every host serves it regardless of working directory,
+   publish layout or single-file bundling; nothing is copied after publishing. (First a small prototype UI; since Phase 1 the production React
+   UI from `frontend/`, see [UI_INTEGRATION.md](UI_INTEGRATION.md).)
 2. A build without the UI fails at startup with a clear message instead of serving 404.
 3. The Desktop navigates only after `StartupProbe` confirmed over the real listener that `/health/ready` is 200 **and** `/` serves the UI;
    otherwise it shows the reason and the log path and exits with code 2.

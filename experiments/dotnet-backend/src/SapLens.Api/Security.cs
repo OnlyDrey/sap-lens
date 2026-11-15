@@ -12,8 +12,10 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
 {
     public const string TokenHeader = "X-SAP-Lens-Token";
     public const string CorrelationHeader = "X-Correlation-ID";
+    /// <summary>The policy SAP Lens v1 serves this React UI with: scripts only from this origin (no inline script), inline styles allowed (React style
+    /// attributes and component libraries use them), no framing, no foreign connections.</summary>
     public const string ContentSecurityPolicy =
-        "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'";
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'";
     [GeneratedRegex("^[A-Za-z0-9-]{1,64}$")]
     private static partial Regex CorrelationPattern();
 
@@ -44,10 +46,18 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
         if (unsafeMethod && !tokenAuthenticated && !sameOrigin && !(origin.Length == 0 && request.Headers["Sec-Fetch-Site"].ToString() == "same-origin"))
         { await Reject(context, 403, "State-changing requests need a same-origin signal."); return; }
 
+        var sessionValid = settings.Mode == HostMode.Server && sessions.IsValid(request.Cookies[SessionStore.CookieNameFor(request.IsHttps)]);
+        // Server mode: the application document needs a session; without one the browser is sent to the sign-in page (assets stay public, they hold no data).
+        if (settings.Mode == HostMode.Server && HttpMethods.IsGet(request.Method) && request.Path.Value is "/" or "/index.html" && !tokenAuthenticated && !sessionValid)
+        {
+            context.Response.Redirect("/login.html");
+            return;
+        }
+
         if (request.Path.StartsWithSegments("/api"))
         {
             headers.CacheControl = "no-store";
-            if (tokenAuthenticated || (settings.Mode == HostMode.Server && sessions.IsValid(request.Cookies[SessionStore.CookieNameFor(request.IsHttps)])))
+            if (tokenAuthenticated || sessionValid)
             {
                 await next(context);
                 return;
@@ -61,7 +71,7 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
     private static Task Reject(HttpContext context, int status, string detail)
     {
         context.Response.StatusCode = status;
-        return context.Response.WriteAsJsonAsync(new { type = "about:blank", title = detail, status, correlation_id = context.TraceIdentifier }, (System.Text.Json.JsonSerializerOptions?)null, "application/problem+json");
+        return context.Response.WriteAsJsonAsync(new { type = "about:blank", title = detail, detail, status, correlation_id = context.TraceIdentifier }, (System.Text.Json.JsonSerializerOptions?)null, "application/problem+json");
     }
 }
 

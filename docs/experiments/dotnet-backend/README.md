@@ -11,6 +11,8 @@ Evidence tags used in every document: **[M]** measured on Linux x64 in this envi
 
 | Document | Content |
 | --- | --- |
+| [FEATURE_PARITY.md](FEATURE_PARITY.md) | Phase 0 inventory: every UI area, v1 implementation, .NET status, gaps, complexity, tests |
+| [UI_INTEGRATION.md](UI_INTEGRATION.md) | The production React UI served by .NET: build, adapter, authentication, Windows VM commands |
 | [PHASE1_DECISION.md](PHASE1_DECISION.md) | Recommendation (CONDITIONAL GO), evidence, blockers, open questions |
 | [ARCHITECTURE_ASSESSMENT.md](ARCHITECTURE_ASSESSMENT.md) | What v1 is, read from source and tests; what a C# backend must preserve |
 | [DEPENDENCY_MAPPING.md](DEPENDENCY_MAPPING.md) | Every Python runtime dependency classified: replace, redesign, or keep isolated |
@@ -31,11 +33,12 @@ Everything lives in [`experiments/dotnet-backend`](../../../experiments/dotnet-b
 | `src/SapLens.Domain` | Ported v1 business rules: CSV import, normalization, catalogue, users, lookups, comparison, SoD, import checks |
 | `src/SapLens.Persistence` | EF Core SQLite: schema, migration, immutability triggers, write coordinator, integrity, online backup, retention |
 | `src/SapLens.Application` | Import pipeline, persistent job queue and worker, snapshot service, review service |
-| `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded prototype UI (`wwwroot`), startup probe |
+| `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded production React UI (`frontend/dist`) and sign-in page, v1 compatibility API (`V1Compatibility.cs`), startup probe |
 | `src/SapLens.Desktop` | Windows shell: WinForms + WebView2, in-process core, loopback, per-run token (built on Linux, never run) |
 | `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
-| `tests/SapLens.Tests` | 86 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, publish acceptance (`Category=Publish`, slow) |
-| `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses |
+| `tests/SapLens.Tests` | 96 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, v1 compatibility contracts, publish acceptance (`Category=Publish`, slow) |
+| `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses, v1 reference-data export |
+| `scripts/` | `build-release.ps1` (Windows) and `build-release.sh` (Linux): UI build, .NET build and tests, self-contained packages |
 
 ## Reproduce
 

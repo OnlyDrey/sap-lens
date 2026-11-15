@@ -23,6 +23,12 @@ before committing to a product rewrite. This is an architecture decision, not au
 | Acceptable performance | **Met, with a memory caveat** | Per operation 1.4x to 4.6x faster; service throughput 8x, P50 31 ms vs 2.65 s; restart 5 s vs 9.8 s; memory 1.4x to 1.8x v1 [M] |
 | Safe migration strategy | **Designed, not executed** | Import-based migration with verification gate and protected backups; retention and re-review rules implemented [C][T] |
 
+## Update: production UI on .NET (Phase 1 of the full migration)
+
+The production React UI from `origin/work` is now built into and served by the .NET host (Desktop and Server), with a v1 compatibility layer
+for the boot sequence and Role Lookup and explicit 501 answers elsewhere; inventory and plan in [FEATURE_PARITY.md](FEATURE_PARITY.md), details
+in [UI_INTEGRATION.md](UI_INTEGRATION.md). Verified on Linux in Chromium; not yet on Windows.
+
 ## Measured performance (Linux, large synthetic set)
 
 | | Python v1 | .NET |
