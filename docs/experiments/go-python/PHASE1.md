@@ -2,6 +2,8 @@
 
 Branch `experiment/go-python`. Not a product migration. No application, installer, deployment, CI or version file was changed.
 
+> **Update:** Windows evidence now exists and the direction is assessed in [PHASE1_DECISION](PHASE1_DECISION.md) (recommendation: STOP the Go + bundled CPython migration; do not start Phase 2). The sections below are the historical Phase 1 record and are kept unchanged.
+
 ## Status: INCOMPLETE (Windows execution was not available)
 
 This session ran on Linux. No Windows host, no Windows App Control and no Windows Job Object were available, so **no Windows result exists**. Per the phase rules the phase is reported as incomplete, not successful. Everything below that is marked executed ran on Linux or is static analysis; none of it is Windows validation.
@@ -76,3 +78,7 @@ R01 to R04, W01 to W06 and R06 passed; W07 failed with `no READY line: applicati
 **What changed (instrumentation only, no speculative fix):** the host logs every startup phase with a timestamp and, on timeout, which stage stalled and the last health result; the backend entry logs its phases (`start`, `frontend_check`, `handoff_read`, `listening`, `imported_uvicorn`, `imported_main`, `app_created`, `serving`), fails fast with a clear exit code when the frontend assets or a dependency are missing, prints Python tracebacks, and dumps every thread's stack shortly before the host's deadline if it is still not serving. W07 now saves the host's stdout and stderr (sanitised) to `evidence\harness\w07\`, classifies the failure from exit codes and phases, records which runtime files exist, and, if the host start fails, runs the backend entry directly without the host (W07a) to separate "the backend does not start" from "the host path does". The stages that do not need a ready backend (W10 to W14) now run after a failed W07. The runner accepts `-HostStartTimeoutSeconds` (default 30, unchanged) to tell a slow start from a stuck one. See [WINDOWS_VALIDATION](WINDOWS_VALIDATION.md#when-w07-fails-what-is-recorded).
 
 W07 is not fixed. It stays FAIL until a Windows run of the updated bundle shows otherwise.
+
+## Fourth Windows run (`7b4464d`): W04 BLOCKED
+
+R01 to R04 and W01 to W03 passed; W04 was BLOCKED by an enforced Code Integrity event 3077 for the unsigned `saplens-host.exe` (hash `27d654ca...`, a different file from the `38b9c719...` host that had started in the previous run); W05 to W14 NOT EXECUTED. Analysis and decision: [PHASE1_DECISION](PHASE1_DECISION.md).

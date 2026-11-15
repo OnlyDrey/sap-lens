@@ -5,7 +5,7 @@ Question tested: can a small Go host supervise a bundled Python/FastAPI backend 
 
 Files: [measurements](MEASUREMENTS.md), [security](SECURITY.md), [Phase 0 decision](DECISION.md), raw data in [measurements.json](measurements.json).
 
-Phase 1 (Windows feasibility gate, INCOMPLETE: no Windows host available): [PHASE1](PHASE1.md), [Windows validation](WINDOWS_VALIDATION.md), [App Control](APP_CONTROL.md), [capability bootstrap](CAPABILITY_BOOTSTRAP.md), [packaging comparison](PACKAGING_COMPARISON.md), [signing contract](SIGNING_CONTRACT.md), [decision](PHASE1_DECISION.md).
+Assessment and decision after the Windows runs (recommendation: STOP the migration direction): [PHASE1_DECISION](PHASE1_DECISION.md). Phase 1 history (Windows feasibility gate): [PHASE1](PHASE1.md), [Windows validation](WINDOWS_VALIDATION.md), [App Control](APP_CONTROL.md), [capability bootstrap](CAPABILITY_BOOTSTRAP.md), [packaging comparison](PACKAGING_COMPARISON.md), [signing contract](SIGNING_CONTRACT.md), [decision](PHASE1_DECISION.md).
 Code: `experiments/go-python/` (`host/`, `backend/`, `runtime/`, `tests/`, `measure/`, `run_all.py`). No existing backend, frontend, deployment or build file was modified.
 
 ## Architecture

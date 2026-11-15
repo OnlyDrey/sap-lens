@@ -30,3 +30,5 @@ Compares the product's PyInstaller **one-file** build, a PyInstaller **one-dir**
 ## Verdict on criterion 5
 
 A defensible benefit over the existing architecture is **not demonstrated**. Possible benefits (auditability, reproducibility, in-place signing, explicit lifecycle ownership) are real but unproven against their cost in files and trust chain, and they are worth a Windows measurement before any decision.
+
+The comparison above predates the Windows runs. The 15-criterion comparison of the existing architecture, this experiment and improved distribution, with evidence tags, is in [PHASE1_DECISION](PHASE1_DECISION.md#4-architecture-comparison).

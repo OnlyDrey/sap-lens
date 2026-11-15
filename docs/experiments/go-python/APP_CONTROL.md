@@ -47,3 +47,7 @@ Rules: translated message text is never parsed; a missing signature is recorded 
 4. Anything that relies on exclusions, path allow rules for user-writable folders or turning enforcement to audit is not an acceptable remediation and was not tried.
 
 Open question that only Windows can answer: whether the organization's policy accepts such a signer for roughly 50 images in a user-visible install folder, and what the one-file product would do under the same policy after its EXE is signed.
+
+## Windows findings so far (operator-reported; see the assessment)
+
+Two unsigned Go hosts with different hashes behaved differently on the Windows test machine: `38b9c719...` started (and the interpreter and 21 native modules loaded) in one run and was blocked in a manual Explorer launch, `27d654ca...` was blocked with Code Integrity event 3077. The repository does not record the policy mode, whether Smart App Control or an administrator-managed policy was active, or whether the host carried a Mark-of-the-Web, so the difference is not explained. What can and cannot be concluded is set out in [PHASE1_DECISION](PHASE1_DECISION.md#3-what-the-evidence-supports-about-the-two-outcomes). A single successful start of an unsigned file is not evidence of deployment compatibility.
