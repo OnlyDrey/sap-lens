@@ -22,6 +22,7 @@ param(
     [string]$OutDir,
     [int]$ImportTimeoutSeconds = 30,
     [int]$ReadyTimeoutSeconds = 40,
+    [ValidateRange(5, 600)][int]$HostStartTimeoutSeconds = 30,
     [switch]$KeepTemp,
     [switch]$AllowElevated
 )
@@ -29,6 +30,7 @@ param(
 if (-not (Get-Command Get-OverallVerdict -ErrorAction SilentlyContinue)) { . (Join-Path $PSScriptRoot 'Phase1Common.ps1') }
 $ErrorActionPreference = 'Stop'
 
+if ($ReadyTimeoutSeconds -lt $HostStartTimeoutSeconds + 10) { $ReadyTimeoutSeconds = $HostStartTimeoutSeconds + 10 }   # the host's own start timeout must expire first so its reason is reported (operators only: this line runs before the language-mode check)
 $stages = @()   # plain arrays only: Constrained Language Mode rejects New-Object ArrayList
 function Add-Stage($Result) { $script:stages += , $Result; Write-Host ("{0,-13} {1} {2}" -f $Result.status, $Result.id, $Result.detail) }
 $stageIds = @('W01 preflight', 'W02 runtime integrity (manifest)', 'W03 signature inventory', 'W04 Go host starts', 'W05 bundled CPython initialises',
@@ -36,6 +38,8 @@ $stageIds = @('W01 preflight', 'W02 runtime integrity (manifest)', 'W03 signatur
               'W10 start-timeout cleanup', 'W11 foreign data directory refused', 'W12 no orphan processes', 'W13 Windows measurements', 'W14 Code Integrity correlation')
 $started = Get-Date
 $onWindows = ($env:OS -eq 'Windows_NT')
+$script:EvidenceTarget = $OutDir
+if (-not $script:EvidenceTarget) { $evBase = $env:TEMP; if (-not $evBase) { $evBase = [System.IO.Path]::GetTempPath() }; $script:EvidenceTarget = Join-Path $evBase ('saplens-poc-evidence-' + [guid]::NewGuid().ToString('N').Substring(0, 8)) }
 
 function Finish([int]$Code) {
     # Cmdlets only (works in Constrained Language Mode) and always writes the result file.
@@ -46,8 +50,7 @@ function Finish([int]$Code) {
     if ($onWindows) { try { $osVersion = [string](Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).Version } catch { $osVersion = 'unknown' } }
     $platformName = 'not-windows'; if ($onWindows) { $platformName = 'windows' }
     $result = [ordered]@{ schema = 1; phase = 'go-python-phase1'; recorded_utc = (Get-Date).ToUniversalTime().ToString('o'); platform = $platformName; os = $osVersion; powershell = "$($PSVersionTable.PSVersion)"; overall = $verdict; stages = $stages }
-    $target = $OutDir
-    if (-not $target) { $base = $env:TEMP; if (-not $base) { $base = [System.IO.Path]::GetTempPath() }; $target = Join-Path $base ('saplens-poc-evidence-' + [guid]::NewGuid().ToString('N').Substring(0, 8)) }
+    $target = $script:EvidenceTarget
     Write-JsonFile (Join-Path $target 'phase1-windows-result.json') $result
     Write-Host "Overall: $verdict (evidence: $target)"
     if ($verdict -eq 'PASS') { exit 0 } elseif ($verdict -eq 'FAIL') { exit 1 } elseif ($verdict -eq 'BLOCKED') { exit 2 } elseif ($verdict -eq 'HARNESS ERROR') { exit 4 } else { exit 3 }
@@ -180,7 +183,8 @@ try {
     function Start-HostRun([string]$DataDir, [string[]]$Extra) {
         $info = New-Object System.Diagnostics.ProcessStartInfo
         $info.FileName = $HostExe; $info.UseShellExecute = $false; $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true; $info.CreateNoWindow = $true
-        $info.Arguments = ((@('--runtime', $RuntimeDir, '--data', $DataDir) + $Extra) | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
+        $timeoutArgs = @(); if (@($Extra) -notcontains '--start-timeout') { $timeoutArgs = @('--start-timeout', "${HostStartTimeoutSeconds}s") }
+        $info.Arguments = ((@('--runtime', $RuntimeDir, '--data', $DataDir) + $timeoutArgs + $Extra) | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
         $p = [System.Diagnostics.Process]::Start($info); Register-Owned $p
         return @{ Process = $p; Out = $p.StandardOutput.ReadLineAsync(); Err = $p.StandardError.ReadToEndAsync(); Begun = Get-Date }
     }
@@ -191,20 +195,54 @@ try {
         return @{ Url = $m.Groups[1].Value.TrimEnd('/'); BackendPid = [int]$m.Groups[2].Value; Ms = [int]$m.Groups[3].Value }
     }
     function Test-PidGone([int]$ProcessId, [int]$Seconds) { $end = (Get-Date).AddSeconds($Seconds); while ((Get-Date) -lt $end) { if (-not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue)) { return $true }; Start-Sleep -Milliseconds 100 }; return -not (Get-Process -Id $ProcessId -ErrorAction SilentlyContinue) }
+    function Save-HostEvidence($Run, [string]$Name) {
+        # Preserves what the host and the backend printed, sanitised, even when the host exits before READY. Only the process this run started is touched.
+        $killed = $false
+        if (-not $Run.Process.HasExited) { if (-not $Run.Process.WaitForExit(3000)) { try { $Run.Process.Kill() } catch { }; $killed = $true; [void]$Run.Process.WaitForExit(5000) } }
+        $exitCode = $null; if (-not $killed) { try { $exitCode = $Run.Process.ExitCode } catch { } }
+        $stdout = ''; try { $first = ''; if ($Run.Out.Wait(2000)) { $first = [string]$Run.Out.Result }; $rest = $Run.Process.StandardOutput.ReadToEndAsync(); $restText = ''; if ($rest.Wait(3000)) { $restText = [string]$rest.Result }; $stdout = ($first + "`n" + $restText).Trim() } catch { }
+        $stderr = ''; if ($Run.Err.Wait(5000)) { $stderr = [string]$Run.Err.Result }
+        $stdout = Protect-DiagnosticText $stdout; $stderr = Protect-DiagnosticText $stderr
+        $dir = Join-Path $script:EvidenceTarget $Name
+        New-Item -ItemType Directory -Force -Path $dir | Out-Null
+        $stdout | Set-Content -LiteralPath (Join-Path $dir 'host-stdout.txt') -Encoding UTF8
+        $stderr | Set-Content -LiteralPath (Join-Path $dir 'host-stderr.txt') -Encoding UTF8
+        return @{ ExitCode = $exitCode; KilledByHarness = $killed; Stdout = $stdout; Stderr = $stderr; Phases = @(Get-DiagnosticPhases $stderr); Files = @("$Name/host-stdout.txt", "$Name/host-stderr.txt") }
+    }
     $nav = @{ 'Sec-Fetch-Mode' = 'navigate'; 'Sec-Fetch-Dest' = 'document'; 'Sec-Fetch-Site' = 'none' }
 
     # ---- W07 / W08 functional run with graceful stop via --hold ----------------------------------------------------------------------------
     $data = Join-Path $temp 'data-main'
     $run = Start-HostRun $data @('--hold', '25s')
     $ready = Wait-Ready $run $ReadyTimeoutSeconds
+    $readyMs = $null; $peakMiB = $null
     if (-not $ready) {
-        try { $run.Process.Kill() } catch { }
-        $ci = Get-RecentIntegrity $run.Begun
-        $class = Get-FailureClass 'application' $null '' $ci.Records @{}
-        $st = 'FAIL'; if ($class.Class -eq 'blocked_component_during_startup') { $st = 'BLOCKED' }
-        Add-Stage (New-StageResult 'W07 backend, frontend, capability and boundary' $st "no READY line: $($class.Class)" ([ordered]@{ classification = $class; host_exit = $run.Process.ExitCode; integrity = $ci.Records }))
-        $reason = 'skipped: the backend did not become ready'; Finish 1
+        $began = $run.Begun
+        $saved = Save-HostEvidence $run 'w07'
+        $ci = Get-RecentIntegrity $began
+        $class = Resolve-StartupFailure $saved.ExitCode $saved.Stderr $ci.Records
+        $stderrLines = @($saved.Stderr -split "`r?`n" | Where-Object { $_ })
+        Add-Stage (New-StageResult 'W07 backend, frontend, capability and boundary' $class.Status "no READY line: $($class.Class): $($class.Detail)" ([ordered]@{
+            classification = $class; host_exit = $saved.ExitCode; killed_by_harness = $saved.KilledByHarness; elapsed_ms = [int]((Get-Date) - $began).TotalMilliseconds
+            host_start_timeout_seconds = $HostStartTimeoutSeconds; phases = $saved.Phases; stderr_tail = @($stderrLines | Select-Object -Last 40); runtime_assets = (Get-RuntimeAssetState $RuntimeDir)
+            files = $saved.Files; integrity = $ci.Records }))
+        # Diagnostic split: does the backend entry start on its own, without the host? (not a pass criterion; explains where the failure is)
+        $directData = Join-Path $temp 'data-direct'
+        $probe = Invoke-DirectBackendProbe $python $directData (Get-BackendEnvironment $directData ([math]::Max(1, $HostStartTimeoutSeconds - 2))) $HostStartTimeoutSeconds ($HostStartTimeoutSeconds + 10)
+        $probeStderr = Protect-DiagnosticText $probe.Stderr
+        $probeDir = Join-Path $script:EvidenceTarget 'w07'
+        $probeStderr | Set-Content -LiteralPath (Join-Path $probeDir 'direct-backend-stderr.txt') -Encoding UTF8
+        $probeOk = ($null -ne $probe.HealthMs)
+        $probeStatus = 'FAIL'; if ($probeOk) { $probeStatus = 'PASS' }
+        $meaning = 'the backend entry also fails without the host: the problem is in the backend, the runtime or the environment, not in the host handoff'
+        if ($probeOk) { $meaning = 'the backend entry starts and answers /health on its own: the host, the handoff or the host health probe is where this fails' }
+        Add-Stage (New-StageResult 'W07a diagnostic: backend started directly (no host)' $probeStatus "$meaning (listening after $($probe.ListeningMs) ms, healthy after $($probe.HealthMs) ms, exit code $($probe.ExitCode))" ([ordered]@{
+            started = $probe.Started; error = $probe.Error; listening_ms = $probe.ListeningMs; health_ms = $probe.HealthMs; last_health_status = $probe.HealthStatus; timed_out = $probe.TimedOut; exit_code = $probe.ExitCode
+            phases = @(Get-DiagnosticPhases $probeStderr); stderr_tail = @($probeStderr -split "`r?`n" | Where-Object { $_ } | Select-Object -Last 40); files = @('w07/direct-backend-stderr.txt') }))
+        Add-Stage (New-StageResult 'W08 graceful shutdown' 'NOT EXECUTED' 'skipped: the backend did not become ready (W07)' $null)
+        Add-Stage (New-StageResult 'W09 forced host kill: Job Object cleanup' 'NOT EXECUTED' 'skipped: the backend did not become ready (W07)' $null)
     }
+    if ($ready) {
     $checks = [ordered]@{}
     $health = Invoke-LoopbackRequest "$($ready.Url)/health" @{} $null
     $checks.health_200 = ($health.Status -eq 200 -and $health.Body -match '"app"\s*:\s*"sap-lens"')
@@ -235,6 +273,7 @@ try {
     $st = 'FAIL'; if ($graceful) { $st = 'PASS' }
     Add-Stage (New-StageResult 'W08 graceful shutdown' $st "host exit code $($run.Process.ExitCode); backend gone=$(Test-PidGone $ready.BackendPid 1)" $null)
     $readyMs = $ready.Ms; $peakMiB = [math]::Round($peak / 1MB, 1)
+    [void](Save-HostEvidence $run 'w07')
 
     # ---- W09 forced host kill (Job Object; stdin-EOF watchdog is a second, indistinguishable defence on Windows) ----------------------------
     $run = Start-HostRun (Join-Path $temp 'data-kill') @()
@@ -250,6 +289,8 @@ try {
         $st = 'FAIL'; if ($children -gt 0 -and $left.Count -eq 0) { $st = 'PASS' }
         Add-Stage (New-StageResult 'W09 forced host kill: Job Object cleanup' $st "$children child process(es) of this run checked after TerminateProcess of the host; $($left.Count) still alive" ([ordered]@{ attribution = 'Job Object (KILL_ON_JOB_CLOSE) and the backend stdin-EOF watchdog both apply; they are not separable here' }))
     }
+
+    }   # end of the stages that need a ready backend (W07 checks, W08, W09)
 
     # ---- W10 start timeout, W11 foreign data dir -------------------------------------------------------------------------------------------
     $run = Start-HostRun (Join-Path $temp 'data-timeout') @('--start-timeout', '50ms')

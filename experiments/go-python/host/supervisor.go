@@ -15,6 +15,8 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"sort"
+	"strings"
 	"sync"
 	"time"
 )
@@ -42,6 +44,20 @@ type ChildExitedError struct {
 func (e *ChildExitedError) Error() string {
 	return fmt.Sprintf("backend exited with code %d: %s", e.Code, e.Tail)
 }
+
+// StartTimeoutError is ErrStartTimeout with the evidence of where the start stalled: before the listening report or before a valid health response.
+type StartTimeoutError struct {
+	Stage      string // waiting_for_listening or waiting_for_health
+	Elapsed    time.Duration
+	LastHealth string // last observed health result, empty when none was attempted
+	Tail       string // redacted tail of the child's output
+}
+
+func (e *StartTimeoutError) Error() string {
+	return fmt.Sprintf("%s: stage=%s elapsed_ms=%d last_health=%q child_output_tail=%q", ErrStartTimeout.Error(), e.Stage, e.Elapsed.Milliseconds(), e.LastHealth, e.Tail)
+}
+
+func (e *StartTimeoutError) Unwrap() error { return ErrStartTimeout }
 
 // Config describes one supervised child. Env is the COMPLETE environment of the child: nothing is inherited implicitly.
 type Config struct {
@@ -110,6 +126,7 @@ func NewSupervisor(cfg Config) *Supervisor {
 	if cfg.Log == nil {
 		cfg.Log = io.Discard
 	}
+	cfg.Log = &lockedWriter{w: cfg.Log} // the pumps and the start sequence write concurrently; one write per line stays whole
 	handoff := Handoff{Capability: randomToken(32), InstanceID: randomHex(16)}
 	return &Supervisor{cfg: cfg, handoff: handoff, redactor: NewRedactor(handoff.Capability, handoff.InstanceID), tail: &tailBuffer{max: 2048}, done: make(chan struct{})}
 }
@@ -117,12 +134,19 @@ func NewSupervisor(cfg Config) *Supervisor {
 // Start spawns the child, hands over the capability, waits for the listening report and then for a validated health response.
 // Any failure stops and reaps the child before the error is returned.
 func (s *Supervisor) Start(ctx context.Context) (err error) {
+	began := time.Now()
 	deadline, cancel := context.WithTimeout(ctx, s.cfg.StartTimeout)
 	defer cancel()
+	logf := func(format string, args ...any) {
+		fmt.Fprintf(s.cfg.Log, "host: t=%dms "+format+"\n", append([]any{time.Since(began).Milliseconds()}, args...)...)
+	}
 	cmd := exec.Command(s.cfg.Executable, s.cfg.Args...)
 	cmd.Dir = s.cfg.Dir
 	cmd.Env = s.cfg.Env
 	configureChild(cmd)
+	names := make([]string, 0, len(cfgEnvNames(s.cfg.Env)))
+	names = append(names, cfgEnvNames(s.cfg.Env)...)
+	logf("phase=spawn exe=%q dir=%q args=%q start_timeout_ms=%d env_names=%s", s.cfg.Executable, s.cfg.Dir, s.cfg.Args, s.cfg.StartTimeout.Milliseconds(), strings.Join(names, ","))
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("stdin pipe: %w", err)
@@ -136,10 +160,12 @@ func (s *Supervisor) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("stderr pipe: %w", err)
 	}
 	if err = cmd.Start(); err != nil {
+		logf("phase=spawn_failed error=%q", err.Error())
 		return fmt.Errorf("start backend: %w", err)
 	}
 	s.cmd, s.stdin, s.PID = cmd, stdin, cmd.Process.Pid
 	s.cleanup = attachToJob(cmd)
+	logf("phase=spawned pid=%d job_attached=%t", s.PID, s.cleanup != nil)
 	lines := make(chan string, 1)
 	go s.pump(stdout, lines, true)
 	go s.pump(stderr, nil, false)
@@ -155,28 +181,58 @@ func (s *Supervisor) Start(ctx context.Context) (err error) {
 	}()
 	payload, _ := json.Marshal(s.handoff)
 	if _, err = stdin.Write(append(payload, '\n')); err != nil {
+		logf("phase=handoff_failed error=%q", err.Error())
 		return fmt.Errorf("hand over capability: %w", err)
 	}
+	logf("phase=handoff_written")
 	select {
 	case line := <-lines:
 		var report listening
 		if err = json.Unmarshal([]byte(line), &report); err != nil || report.Event != "listening" || report.Port < 1 || report.Port > 65535 {
+			logf("phase=invalid_listening_report")
 			return fmt.Errorf("%w: invalid listening report", ErrBadHealth)
 		}
 		s.Port = report.Port
+		logf("phase=listening port=%d backend_pid=%d", report.Port, report.PID)
 	case <-s.done:
+		logf("phase=child_exit stage=waiting_for_listening code=%d", s.exitCode)
 		return &ChildExitedError{Code: s.exitCode, Tail: s.redactor.Redact(s.tail.String())}
 	case <-deadline.Done():
-		return ErrStartTimeout
+		logf("phase=timeout stage=waiting_for_listening")
+		return &StartTimeoutError{Stage: "waiting_for_listening", Elapsed: time.Since(began), Tail: s.redactor.Redact(s.tail.String())}
 	}
-	err = WaitHealthy(deadline, s.Port, s.handoff.InstanceID, s.done, 40*time.Millisecond)
+	last := ""
+	err = waitHealthy(deadline, s.Port, s.handoff.InstanceID, s.done, 40*time.Millisecond, func(result string) {
+		if result != last { // log changes only, not every poll
+			last = result
+			logf("phase=health result=%q", result)
+		}
+	})
 	if errors.Is(err, errChildGone) {
+		logf("phase=child_exit stage=waiting_for_health code=%d", s.exitCode)
 		return &ChildExitedError{Code: s.exitCode, Tail: s.redactor.Redact(s.tail.String())}
 	}
 	if errors.Is(err, context.DeadlineExceeded) {
-		return ErrStartTimeout
+		logf("phase=timeout stage=waiting_for_health last_health=%q", last)
+		return &StartTimeoutError{Stage: "waiting_for_health", Elapsed: time.Since(began), LastHealth: last, Tail: s.redactor.Redact(s.tail.String())}
+	}
+	if err == nil {
+		logf("phase=ready")
+	} else {
+		logf("phase=health_rejected error=%q", err.Error())
 	}
 	return err
+}
+
+// cfgEnvNames lists the NAMES (never the values) of the child's environment, sorted.
+func cfgEnvNames(env []string) []string {
+	names := make([]string, 0, len(env))
+	for _, entry := range env {
+		name, _, _ := strings.Cut(entry, "=")
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
 }
 
 // pump forwards child output through the redactor; the first stdout line is also delivered as the listening report.
@@ -303,3 +359,15 @@ func (t *tailBuffer) String() string {
 }
 
 var _ = os.Getpid
+
+// lockedWriter serialises writes so concurrent goroutines never interleave inside a line.
+type lockedWriter struct {
+	mu sync.Mutex
+	w  io.Writer
+}
+
+func (l *lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
+}

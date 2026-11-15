@@ -96,6 +96,17 @@ class Static(unittest.TestCase):
         for phrase in ('Windows PowerShell 5.1 path: every parse error is its own problem', 'Windows PowerShell 5.1 tokenization: generic ?, ??, && and || tokens'):
             self.assertIn(phrase, text)
 
+    def test_w07_failure_preserves_evidence_classifies_and_lets_the_independent_stages_run(self):
+        code = code_of(WINDOWS / 'Test-WindowsFeasibility.ps1')
+        branch = code[code.index('if (-not $ready) {\n        $began'):code.index('    if ($ready) {')]
+        for needed in ("Save-HostEvidence $run 'w07'", 'Resolve-StartupFailure', 'Get-RuntimeAssetState', 'Invoke-DirectBackendProbe', 'W07a diagnostic', "'W08 graceful shutdown' 'NOT EXECUTED'", 'stderr_tail', 'phases ='):
+            self.assertIn(needed, branch, needed)
+        self.assertNotIn('Finish', branch, 'a failed W07 must not end the run: W10 to W14 do not need a ready backend')
+        self.assertLess(branch.index("Save-HostEvidence $run 'w07'"), branch.index('Resolve-StartupFailure'), 'evidence is saved before anything can fail')
+        # the host's own start timeout expires before the harness stops waiting, so the host's reason is the one reported
+        self.assertIn('$HostStartTimeoutSeconds + 10', code)
+        self.assertIn("'--start-timeout', \"${HostStartTimeoutSeconds}s\"", code)
+
     def test_wrong_capability_check_uses_the_real_header(self):
         text = (WINDOWS / 'Test-WindowsFeasibility.ps1').read_text()
         self.assertIn("'X-SAP-Lens'", text)

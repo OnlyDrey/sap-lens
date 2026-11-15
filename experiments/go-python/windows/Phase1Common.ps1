@@ -483,3 +483,148 @@ function Resolve-ScriptStep($Run, [string]$Name) {
     if ($null -eq $Run.ExitCode) { return @{ Status = 'HARNESS ERROR'; Kind = 'noexit'; Reason = "$Name ended without an exit code" } }
     return @{ Status = $null; Kind = 'exit'; Reason = "$Name returned exit code $($Run.ExitCode)" }
 }
+
+
+# ---- startup diagnostics: preserved evidence, phases, classification ------------------------------------------------------------------------------------------
+# W07 must explain a backend that does not become ready. The host prints "host: t=<ms> phase=..." lines and forwards the backend's "poc: t=<s> phase=..." lines
+# and Python tracebacks; the harness saves them (sanitised) and classifies the failure from exit codes and phases, never from translated message text.
+
+function Protect-DiagnosticText([string]$Text, [int]$Max = 262144) {
+    # Evidence text for files and reports: user profile and home folders abbreviated, credential-looking values removed, bounded. Capabilities never reach this
+    # text (the host redacts them); this is the second line of defence.
+    if (-not $Text) { return '' }
+    $clean = $Text
+    foreach ($pair in @(@($env:USERPROFILE, '%USERPROFILE%'), @($env:HOME, '%HOME%'), @($env:LOCALAPPDATA, '%LOCALAPPDATA%'), @($env:APPDATA, '%APPDATA%'))) {
+        if ($pair[0] -and $pair[0].Length -gt 3) { $clean = $clean.Replace($pair[0], $pair[1]); $clean = $clean.Replace($pair[0].Replace('\', '\\'), $pair[1]) }
+    }
+    $clean = [regex]::Replace($clean, '(?i)\b(password|passwd|token|secret|api[-_]?key|authorization|capability)\b(\s*[=:]\s*)\S+', '$1$2<redacted>')
+    if ($clean.Length -gt $Max) { $clean = $clean.Substring(0, $Max) + "`n... truncated" }
+    return $clean
+}
+
+function Get-DiagnosticPhases([string]$Text) {
+    # Phase lines of the host ("host: t=12ms phase=listening ...") and of the backend ("poc: t=0.05s phase=imported_uvicorn"), in order, bounded.
+    $phases = @()
+    foreach ($line in @($Text -split "`r?`n")) {
+        $m = [regex]::Match($line, '^(?:backend: )?host: t=(\d+)ms phase=(\w+)(.*)$')
+        if ($m.Success) { $phases += [ordered]@{ source = 'host'; t_ms = [int]$m.Groups[1].Value; phase = $m.Groups[2].Value; detail = $m.Groups[3].Value.Trim() }; continue }
+        $m = [regex]::Match($line, '^(?:backend: )?poc: t=([\d.]+)s phase=(\w+)(.*)$')
+        if ($m.Success) { $phases += [ordered]@{ source = 'python'; t_ms = [int]([double]$m.Groups[1].Value * 1000); phase = $m.Groups[2].Value; detail = $m.Groups[3].Value.Trim() } }
+    }
+    return @($phases | Select-Object -First 80)
+}
+
+function Resolve-StartupFailure($HostExitCode, [string]$HostStderr, $IntegrityRecords) {
+    # One classification for "the backend did not become ready". BLOCKED only with an enforced Code Integrity record below the runtime tree; everything else is
+    # an application startup FAIL with the most specific class the evidence supports. Exit codes: 2 host start failure, 3 start timeout, 4 backend exited.
+    $enforced = @($IntegrityRecords | Where-Object { $_.Enforced })
+    if ($enforced.Count -gt 0) { return @{ Status = 'BLOCKED'; Class = 'blocked_component_during_startup'; Detail = (($enforced | ForEach-Object { $_.Relative }) -join ',') } }
+    $phases = @(Get-DiagnosticPhases $HostStderr)
+    $lastPython = @($phases | Where-Object { $_.source -eq 'python' } | Select-Object -Last 1)
+    $pythonSeen = if ($lastPython.Count -gt 0) { "last backend phase '$($lastPython[0].phase)' at $($lastPython[0].t_ms) ms" } else { 'the backend printed no phase output (it may not have started)' }
+    switch ($HostExitCode) {
+        $null { return @{ Status = 'FAIL'; Class = 'host_did_not_exit'; Detail = "the host was still running and was stopped by the harness; $pythonSeen" } }
+        2 { return @{ Status = 'FAIL'; Class = 'host_start_failure'; Detail = 'the host could not start the backend (exit code 2); see host stderr' } }
+        3 {
+            $stage = [regex]::Match($HostStderr, 'phase=timeout stage=(\w+)')
+            $health = [regex]::Match($HostStderr, 'phase=timeout stage=waiting_for_health last_health="([^"]*)"')
+            if ($stage.Success -and $stage.Groups[1].Value -eq 'waiting_for_listening') { return @{ Status = 'FAIL'; Class = 'startup_timeout_before_listening'; Detail = "the backend never reported its listening port; $pythonSeen" } }
+            if ($stage.Success -and $stage.Groups[1].Value -eq 'waiting_for_health') { return @{ Status = 'FAIL'; Class = 'startup_timeout_before_health'; Detail = "the backend reported a port but never answered /health validly (last health result: $($health.Groups[1].Value)); $pythonSeen" } }
+            return @{ Status = 'FAIL'; Class = 'startup_timeout'; Detail = "start timeout (exit code 3) without a stage line; $pythonSeen" }
+        }
+        4 {
+            $code = [regex]::Match($HostStderr, 'backend exited with code (-?\d+)')
+            $pythonExit = $null; if ($code.Success) { $pythonExit = [int]$code.Groups[1].Value }
+            $reasons = @{ 10 = 'refused_data_directory'; 11 = 'invalid_handoff'; 12 = 'startup_error'; 13 = 'frontend_assets_missing' }
+            $reason = 'backend_exited'; if ($null -ne $pythonExit -and $reasons.ContainsKey($pythonExit)) { $reason = $reasons[$pythonExit] }
+            $exception = [regex]::Matches($HostStderr, '(?m)^(?:backend: )?([A-Za-z_][\w.]*(?:Error|Exception)):')
+            $last = ''; if ($exception.Count -gt 0) { $last = $exception[$exception.Count - 1].Groups[1].Value }
+            return @{ Status = 'FAIL'; Class = 'backend_exited_before_ready'; Detail = "backend exit code $pythonExit ($reason)$(if ($last) { '; last exception type ' + $last }); $pythonSeen" }
+        }
+        default { return @{ Status = 'FAIL'; Class = "host_exit_unexpected_$HostExitCode"; Detail = "unexpected host exit code $HostExitCode; $pythonSeen" } }
+    }
+}
+
+function Get-RuntimeAssetState([string]$RuntimeDir) {
+    # Read-only facts about the extracted runtime that a failed start depends on. Paths are relative to the runtime folder.
+    $site = $null
+    foreach ($candidate in @('python/Lib/site-packages', 'python/lib/python3.12/site-packages')) { if (Test-Path -LiteralPath (Join-Path $RuntimeDir $candidate)) { $site = $candidate; break } }
+    $facts = [ordered]@{ site_packages = $site }
+    $paths = [ordered]@{ python_exe = 'python/python.exe'; python_bin = 'python/bin/python3'; poc_backend = 'app/backend/poc_backend.py'; main_py = 'app/backend/main.py'; frontend_index = 'app/frontend/dist/index.html'; manifest = 'manifest.json' }
+    foreach ($key in $paths.Keys) { $facts[$key] = [bool](Test-Path -LiteralPath (Join-Path $RuntimeDir $paths[$key]) -PathType Leaf) }
+    if ($site) {
+        foreach ($package in @('uvicorn', 'fastapi', 'starlette', 'pydantic', 'pydantic_core')) { $facts["pkg_$package"] = [bool](Test-Path -LiteralPath (Join-Path (Join-Path $RuntimeDir $site) $package) -PathType Container) }
+        $pth = Join-Path (Join-Path $RuntimeDir $site) 'sap_lens_poc.pth'
+        $facts['pth_file'] = [bool](Test-Path -LiteralPath $pth -PathType Leaf)
+        if ($facts['pth_file']) { $facts['pth_lines'] = @(Get-Content -LiteralPath $pth -Encoding ASCII | Select-Object -First 5) }
+    }
+    return $facts
+}
+
+function Invoke-DirectBackendProbe([string]$PythonExe, [string]$DataDir, [hashtable]$Environment, [int]$ListenTimeoutSeconds = 30, [int]$HealthTimeoutSeconds = 40) {
+    # Diagnostic only: starts the backend entry DIRECTLY (no host) with a throw-away capability and the same handoff, so a failed host start can be split into
+    # "the backend itself does not start" and "the host/handoff/health path does". The capability is generated here, never printed or returned, and redacted from
+    # captured output. The process started here is the only one stopped here.
+    $result = [ordered]@{ Started = $false; Error = $null; ListeningMs = $null; HealthMs = $null; HealthStatus = $null; ExitCode = $null; TimedOut = $false; Stdout = ''; Stderr = '' }
+    if (-not (Test-Path -LiteralPath $DataDir)) { New-Item -ItemType Directory -Force -Path $DataDir | Out-Null }
+    [System.IO.File]::WriteAllText((Join-Path $DataDir '.sap-lens-poc'), "sap-lens-poc-v1`n", (New-Object System.Text.UTF8Encoding($false)))
+    $bytes = New-Object byte[] 32; $generator = [System.Security.Cryptography.RandomNumberGenerator]::Create(); $generator.GetBytes($bytes); $generator.Dispose()
+    $capability = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    $instance = ([guid]::NewGuid().ToString('N'))
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName = $PythonExe; $info.Arguments = '-I -m poc_backend'; $info.WorkingDirectory = $DataDir; $info.UseShellExecute = $false; $info.CreateNoWindow = $true
+    $info.RedirectStandardInput = $true; $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true
+    $info.EnvironmentVariables.Clear()
+    foreach ($key in @($Environment.Keys)) { $info.EnvironmentVariables[$key] = [string]$Environment[$key] }
+    $watch = [System.Diagnostics.Stopwatch]::StartNew()
+    try { $p = [System.Diagnostics.Process]::Start($info) } catch { $result.Error = ConvertTo-SafeMessage ("$($_.Exception.GetType().Name): $($_.Exception.Message)"); return $result }
+    $result.Started = $true
+    $errTask = $p.StandardError.ReadToEndAsync(); $firstLine = $p.StandardOutput.ReadLineAsync()
+    try {
+        # A backend that exits at once (missing assets, import error) closes its stdin before the handoff is written: that is evidence, not an error here.
+        try { $p.StandardInput.WriteLine((@{ capability = $capability; instance_id = $instance } | ConvertTo-Json -Compress)); $p.StandardInput.Flush() } catch [System.IO.IOException] { $result.Error = 'the backend closed its input before the handoff was written (it had already exited)' }
+        if ($firstLine.Wait($ListenTimeoutSeconds * 1000)) {
+            $report = $null; if ($firstLine.Result) { try { $report = ConvertFrom-Json ([string]$firstLine.Result) } catch { } }
+            if ($report -and $report.event -eq 'listening') {
+                $result.ListeningMs = [int]$watch.ElapsedMilliseconds
+                $deadline = $watch.ElapsedMilliseconds + ($HealthTimeoutSeconds * 1000)
+                while ($watch.ElapsedMilliseconds -lt $deadline -and -not $p.HasExited) {
+                    $answer = Invoke-LoopbackRequest "http://127.0.0.1:$($report.port)/health" @{} $null 2000
+                    if ($answer.Status -eq 200 -and $answer.Body.Contains($instance)) { $result.HealthMs = [int]$watch.ElapsedMilliseconds; $result.HealthStatus = 200; break }
+                    $result.HealthStatus = $answer.Status
+                    Start-Sleep -Milliseconds 200
+                }
+                if ($null -eq $result.HealthMs) { $result.TimedOut = (-not $p.HasExited) }
+            }
+        } else { $result.TimedOut = $true }
+        if (-not $p.HasExited) { try { $p.StandardInput.WriteLine('stop'); $p.StandardInput.Close() } catch { } }
+        if (-not $p.WaitForExit(10000)) { try { $p.Kill() } catch { }; [void]$p.WaitForExit(5000) }
+    } finally {
+        if (-not $p.HasExited) { try { $p.Kill() } catch { }; [void]$p.WaitForExit(5000) }
+    }
+    $result.ExitCode = $p.ExitCode
+    $stdout = ''; if ($firstLine.IsCompleted) { $stdout = [string]$firstLine.Result }
+    $stderr = ''; if ($errTask.Wait(5000)) { $stderr = [string]$errTask.Result }
+    foreach ($secret in @($capability, $instance)) { $stdout = $stdout.Replace($secret, '<redacted>'); $stderr = $stderr.Replace($secret, '<redacted>') }
+    $result.Stdout = $stdout; $result.Stderr = $stderr
+    return $result
+}
+
+function Get-BackendEnvironment([string]$DataDir, [int]$DumpAfterSeconds = 0) {
+    # The COMPLETE environment the Go host gives the backend (see childEnvironment in host/main.go), as a hashtable, for the harness's direct diagnostic start.
+    # Temp, home and application-data variables point into the isolated data directory; the directories are created here. No capability, no inherited variables.
+    $names = @('tmp', 'home', 'appdata', 'localappdata', 'programdata')
+    foreach ($name in $names) { New-Item -ItemType Directory -Force -Path (Join-Path $DataDir $name) | Out-Null }
+    $under = { param($name) Join-Path $DataDir $name }
+    $environment = @{ SAP_LENS_POC_DATA = $DataDir; PYTHONUTF8 = '1'; PYTHONDONTWRITEBYTECODE = '1'; LANG = 'C.UTF-8' }
+    if ($env:OS -eq 'Windows_NT') {
+        $environment['SYSTEMROOT'] = $env:SystemRoot; $environment['PATH'] = (Join-Path $env:SystemRoot 'System32')
+        $environment['TEMP'] = (& $under 'tmp'); $environment['TMP'] = (& $under 'tmp'); $environment['USERPROFILE'] = (& $under 'home')
+        $environment['APPDATA'] = (& $under 'appdata'); $environment['LOCALAPPDATA'] = (& $under 'localappdata'); $environment['PROGRAMDATA'] = (& $under 'programdata')
+    } else {
+        $environment['PATH'] = '/usr/bin:/bin'; $environment['TMPDIR'] = (& $under 'tmp'); $environment['HOME'] = (& $under 'home')
+        $environment['XDG_CONFIG_HOME'] = (& $under 'appdata'); $environment['XDG_DATA_HOME'] = (& $under 'localappdata')
+    }
+    if ($DumpAfterSeconds -gt 0) { $environment['SAP_LENS_POC_DUMP_AFTER'] = [string]$DumpAfterSeconds }
+    return $environment
+}

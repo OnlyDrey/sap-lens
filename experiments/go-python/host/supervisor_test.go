@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -55,6 +56,8 @@ func helperBackend() {
 			fmt.Fprintf(w, `{"app":"other","instance_id":%q,"status":"ok"}`, instance)
 		case "bad_status":
 			fmt.Fprintf(w, `{"app":"sap-lens","instance_id":%q,"status":"broken"}`, instance)
+		case "unhealthy":
+			http.Error(w, "starting", http.StatusServiceUnavailable)
 		default:
 			fmt.Fprintf(w, `{"app":"sap-lens","instance_id":%q,"status":"ok"}`, instance)
 		}
@@ -86,10 +89,28 @@ func stopFor(mode string) time.Duration {
 	return 4 * time.Second
 }
 
-func fake(t *testing.T, mode string, timeout time.Duration) (*Supervisor, *strings.Builder) {
+// syncBuilder is a strings.Builder that can be read while the supervisor's goroutines are still writing.
+type syncBuilder struct {
+	mu sync.Mutex
+	b  strings.Builder
+}
+
+func (s *syncBuilder) Write(p []byte) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.Write(p)
+}
+
+func (s *syncBuilder) String() string {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return s.b.String()
+}
+
+func fake(t *testing.T, mode string, timeout time.Duration) (*Supervisor, *syncBuilder) {
 	t.Helper()
 	exe, _ := os.Executable()
-	log := &strings.Builder{}
+	log := &syncBuilder{}
 	supervisor := NewSupervisor(Config{Executable: exe, Args: []string{"-test.run=XXX"}, Env: []string{"GO_WANT_HELPER=1", "HELPER_MODE=" + mode},
 		StartTimeout: timeout, StopTimeout: stopFor(mode), Log: log})
 	return supervisor, log
@@ -280,5 +301,81 @@ func TestChildEnvironmentRedirectsEveryFallbackLocationIntoTheDataDirectory(t *t
 	}
 	if len(redirected) < 8 {
 		t.Fatalf("expected the temp/home/appdata redirects, got %v", redirected)
+	}
+}
+
+func TestStartTimeoutNamesTheStageWhereTheStartStalled(t *testing.T) {
+	cases := map[string]struct{ stage, health string }{
+		"silent":    {"waiting_for_listening", ""},
+		"unhealthy": {"waiting_for_health", "status=503"},
+	}
+	for mode, want := range cases {
+		t.Run(mode, func(t *testing.T) {
+			supervisor, log := fake(t, mode, 1200*time.Millisecond)
+			err := supervisor.Start(context.Background())
+			var timeout *StartTimeoutError
+			if !errors.As(err, &timeout) || !errors.Is(err, ErrStartTimeout) {
+				t.Fatalf("expected a StartTimeoutError that is also ErrStartTimeout, got %v", err)
+			}
+			if timeout.Stage != want.stage || timeout.LastHealth != want.health {
+				t.Fatalf("stage %q last health %q, want %q / %q", timeout.Stage, timeout.LastHealth, want.stage, want.health)
+			}
+			if timeout.Elapsed < time.Second {
+				t.Fatalf("elapsed %v is shorter than the start timeout", timeout.Elapsed)
+			}
+			if !strings.Contains(log.String(), "phase=timeout stage="+want.stage) {
+				t.Fatalf("the host log must record the timeout stage:\n%s", log.String())
+			}
+		})
+	}
+}
+
+func TestHostLogRecordsEveryStartupPhaseWithoutSecrets(t *testing.T) {
+	supervisor, log := fake(t, "ok", 10*time.Second)
+	if err := supervisor.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Stop()
+	text := log.String()
+	for _, phase := range []string{"phase=spawn ", "phase=spawned", "phase=handoff_written", "phase=listening port=", "phase=health result=\"status=200\"", "phase=ready"} {
+		if !strings.Contains(text, phase) {
+			t.Fatalf("missing %q in host log:\n%s", phase, text)
+		}
+	}
+	if !strings.Contains(text, "env_names=") || strings.Contains(text, "GO_WANT_HELPER=1") || strings.Contains(text, supervisor.handoff.Capability) || strings.Contains(text, supervisor.handoff.InstanceID) {
+		t.Fatalf("the log lists environment NAMES only and never a capability or instance id:\n%s", text)
+	}
+}
+
+func TestEarlyChildExitKeepsItsOutputAndExitCode(t *testing.T) {
+	supervisor, log := fake(t, "exit_immediately", 5*time.Second)
+	err := supervisor.Start(context.Background())
+	var exited *ChildExitedError
+	if !errors.As(err, &exited) || exited.Code != 7 || !strings.Contains(exited.Tail, "boom before ready") {
+		t.Fatalf("the exit code and the child's output must be preserved, got %v", err)
+	}
+	if !strings.Contains(log.String(), "phase=child_exit") || !strings.Contains(log.String(), "code=7") {
+		t.Fatalf("the host log must record the child exit:\n%s", log.String())
+	}
+}
+
+func TestChildOutputCarryingTheCapabilityIsRedactedInTheHostLog(t *testing.T) {
+	supervisor, log := fake(t, "leak", 10*time.Second)
+	if err := supervisor.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer supervisor.Stop()
+	time.Sleep(200 * time.Millisecond)
+	if strings.Contains(log.String(), supervisor.handoff.Capability) {
+		t.Fatal("the capability reached the host log")
+	}
+	if !strings.Contains(log.String(), "<redacted>") {
+		t.Fatalf("the leaked value should have been replaced:\n%s", log.String())
+	}
+}
+
+func TestStartFailureMeaningNamesTheExitCodes(t *testing.T) {
+	if !strings.Contains(startFailureMeaning(&StartTimeoutError{}), "3 start timeout") || !strings.Contains(startFailureMeaning(&ChildExitedError{}), "4 backend exited") || !strings.Contains(startFailureMeaning(errors.New("x")), "2 start failure") {
+		t.Fatal("exit code meanings must be named in the diagnostic output")
 	}
 }

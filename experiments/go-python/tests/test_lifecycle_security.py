@@ -204,7 +204,7 @@ class SecurityBoundary(unittest.TestCase):
 
     def test_child_environment_is_minimal_and_redirected_into_the_data_directory(self):
         environ = dict(e.split('=', 1) for e in Path(f'/proc/{self.host.backend_pid}/environ').read_bytes().decode().split('\0') if '=' in e)
-        self.assertTrue(set(environ) <= {'PATH', 'HOME', 'TMPDIR', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'LANG', 'PYTHONUTF8', 'PYTHONDONTWRITEBYTECODE', 'SAP_LENS_POC_DATA'}, set(environ))
+        self.assertTrue(set(environ) <= {'PATH', 'HOME', 'TMPDIR', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'LANG', 'PYTHONUTF8', 'PYTHONDONTWRITEBYTECODE', 'SAP_LENS_POC_DATA', 'SAP_LENS_POC_DUMP_AFTER'}, set(environ))
         data = os.path.realpath(self.host.data)
         for name in ('HOME', 'TMPDIR', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME'):
             self.assertTrue(os.path.realpath(environ[name]).startswith(data + os.sep), f'{name}={environ[name]}')

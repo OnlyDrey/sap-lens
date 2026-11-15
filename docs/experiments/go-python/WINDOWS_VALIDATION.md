@@ -102,6 +102,21 @@ Get-Content "$($run.FullName)\evidence\run-summary.txt"
 
 Review the files before sharing: they contain policy IDs and names, certificate subjects and relative file paths, not user or host names (the profile folder is abbreviated).
 
+## When W07 fails: what is recorded
+
+W07 starts the host and waits for its READY line. If that does not arrive, `evidence\harness\w07\` holds `host-stdout.txt` and `host-stderr.txt` (user folders abbreviated, credential-looking values removed; the host also redacts the capability), and, because the host start failed, `direct-backend-stderr.txt` from the diagnostic start of the backend without the host. In `phase1-windows-result.json` the W07 stage lists the classification, the host exit code, elapsed time, every startup phase with its time, the last 40 stderr lines, and which runtime files exist (interpreter, `poc_backend.py`, `main.py`, frontend `index.html`, uvicorn and other packages, the `.pth` line).
+
+| Host exit code | Meaning | Classification |
+| --- | --- | --- |
+| 2 | the host could not start the backend | `host_start_failure` |
+| 3 | start timeout: the backend was alive but did not become ready | `startup_timeout_before_listening` (no listening report) or `startup_timeout_before_health` (port reported, no valid `/health`; the last health result and the last backend phase are included) |
+| 4 | the backend exited before it was ready | `backend_exited_before_ready` with its exit code: 10 data directory refused, 11 invalid handoff, 12 startup error (traceback printed; the last exception type, for example `ModuleNotFoundError` for a missing dependency, is named), 13 frontend assets missing |
+| killed by the harness | the host was still running | `host_did_not_exit` |
+
+BLOCKED is reported only when an enforced Code Integrity record (3077, 3033) exists for a file below the runtime tree. Without one, every startup failure above is an application startup FAIL; an audit-only record (3076) does not make it BLOCKED.
+
+If the backend was merely slow (for example a cold first start on a machine that scans new files), rerun with a longer wait: `-HostStartTimeoutSeconds 120`. The recorded phase times show where the time went. A stall shows up as a stack dump in the stderr files, written about two seconds before the host's deadline.
+
 ## 6. Exit codes and results
 
 | Result | Exit | Meaning |
@@ -130,6 +145,7 @@ powershell -NoProfile -File "$($run.FullName)\bundle\scripts\Get-AppControlDiagn
 
 - **No hard timeout for the harness.** It runs in the runner's session, so it is bounded only by its own per-stage timeouts (import 30 s, backend ready 40 s, graceful stop 60 s). Close the window to stop a hung run; processes it created are stopped by the harness's own cleanup when it ends.
 - **Authorization is tested by mechanism only.** Typed detection of `PSSecurityException`, in-session execution, exit-code handling and environment restore are tested on Linux with simulated errors; the real `AuthorizationManager` prompt, `Zone.Identifier`, execution policy precedence and PowerShell 5.1 behaviour are NOT EXECUTED here. A PowerShell 5.1 syntax lint (no ternary, `??`, pipeline chains, `-Parallel`, three-argument `Join-Path` and similar) runs on every script. The two hosts report it differently: PowerShell 7 names each construct from the AST; Windows PowerShell 5.1 cannot parse PS7-only operators and reports each as a parse error with its line (the lint's tokenizer rules also catch them by text). Each construct therefore has its own test fixture, asserted on whichever host runs it. The first Windows run caught a test that assumed seven findings from one mixed file.
+- **W07 is diagnosed, not fixed.** Whether the Windows backend start is slow, stuck or blocked is not known until the instrumented bundle runs there.
 - **Nothing has run on Windows.** The runner's Windows paths (R03 to R06) and the harness stages are checked only by parsing, a static lint (every command resolves, helper functions are called with a plausible argument count), unit tests of the helpers they call (bundle verification, archive validation, outcome classification, process ownership, child-process and in-session script handling) and Linux runs of the entry points. Expect to find defects on first Windows execution; a HARNESS ERROR is a result, not a surprise.
 - Constrained Language Mode (for example under an enforcing App Control policy for unsigned scripts) stops the run with NOT EXECUTED and a report. Do not work around it.
 - W06 probes only site-packages `.pyd` files one by one; the standard-library `.pyd` and DLL files load for the first time in W07, so a block there appears as "no READY line" and is classified from Code Integrity records, not from the file name.

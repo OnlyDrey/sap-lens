@@ -18,6 +18,8 @@
 .PARAMETER WorkRoot             Parent of the run folder (default: %USERPROFILE%\saplens-phase1). A unique run folder is created below it.
 .PARAMETER AllowElevated        Permit an elevated session. Requires -ElevationJustification. Not recommended: nothing here needs elevation.
 .PARAMETER SkipDiagnostics      Do not run the App Control diagnostics step.
+.PARAMETER HostStartTimeoutSeconds  How long the Go host waits for the backend to become ready (default 30). A cold first start on a machine that scans every new file can be slow; raise it to tell
+                                    a slow start from a stuck one (the evidence records every startup phase with its time).
 .PARAMETER VerifyOnly           Verify the bundle and the archive members, then stop. Executes nothing from the bundle and is NOT a Phase 1 result.
 .EXAMPLE
   powershell -NoProfile -File .\bundle\scripts\Run-Phase1.ps1 -BundleDir .\bundle -TrustedSumsSha256 <64 hex characters>
@@ -33,7 +35,8 @@ param(
     [switch]$AllowElevated,
     [string]$ElevationJustification,
     [switch]$SkipDiagnostics,
-    [switch]$VerifyOnly
+    [switch]$VerifyOnly,
+    [ValidateRange(5, 600)][int]$HostStartTimeoutSeconds = 30
 )
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'Phase1Common.ps1')
@@ -214,7 +217,7 @@ try {
 
     # ---- R05 isolated feasibility harness (in this session; TEMP and TMP point into the run folder for its duration) --------------------------------------------
     $harnessOut = Join-Path $evidence 'harness'
-    $harnessArguments = @{ HostExe = $host0; RuntimeDir = $runtimeFull; OutDir = $harnessOut }
+    $harnessArguments = @{ HostExe = $host0; RuntimeDir = $runtimeFull; OutDir = $harnessOut; HostStartTimeoutSeconds = $HostStartTimeoutSeconds }
     if ($AllowElevated) { $harnessArguments['AllowElevated'] = $true }
     $run = Invoke-PhaseScript (Join-Path $scripts 'Test-WindowsFeasibility.ps1') $harnessArguments $childEnv (Join-Path $evidence 'harness-console.txt') (Join-Path $evidence 'harness-error.txt')
     $raw['harness'] = $run.ExitCode

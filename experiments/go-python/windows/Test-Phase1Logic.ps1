@@ -320,6 +320,75 @@ Assert-Equal @(Get-Ps51TokenProblems $alias).Count 0 'Windows PowerShell 5.1 tok
 $afterNewline = @((New-TestToken 'Variable' '$x'), (New-TestToken 'NewLine' ''), (New-TestToken 'Generic' '?'))
 Assert-Equal @(Get-Ps51TokenProblems $afterNewline).Count 0 'Windows PowerShell 5.1 tokenization: a ? that starts a new statement is the Where-Object alias'
 
+# ---- startup diagnostics: evidence is kept and redacted, failures are told apart, App Control BLOCKED is not an application startup FAIL --------------------------
+$savedProfile = $env:USERPROFILE
+$env:USERPROFILE = 'C:\Users\Someone'
+$protected = Protect-DiagnosticText "exe=C:\Users\Someone\AppData\x.exe and C:\\Users\\Someone\\y token=abcdef123 authorization: Bearer-xyz"
+$env:USERPROFILE = $savedProfile
+Assert-Equal ($protected -match 'Someone') $false 'diagnostic text: the user name does not survive (single and escaped backslashes)'
+Assert-Equal ($protected -match '%USERPROFILE%') $true 'diagnostic text: the profile folder is abbreviated'
+Assert-Equal (($protected -match 'abcdef123') -or ($protected -match 'Bearer-xyz')) $false 'diagnostic text: credential-looking values are removed'
+Assert-Equal ((Protect-DiagnosticText ('x' * 300000) 1000).Length -lt 1100) $true 'diagnostic text: bounded'
+Assert-Equal (Protect-DiagnosticText $null) '' 'diagnostic text: null is empty'
+
+$hostLog = @(
+    'host: t=0ms phase=spawn exe="C:\run\runtime\python\python.exe" dir="C:\data" args=["-I" "-m" "poc_backend"] start_timeout_ms=30000 env_names=LANG,PATH',
+    'host: t=2ms phase=spawned pid=100 job_attached=true',
+    'host: t=2ms phase=handoff_written',
+    'backend: poc: t=0.00s phase=start python=3.12.11 executable=C:\run\runtime\python\python.exe cwd=C:\data',
+    'backend: poc: t=0.02s phase=listening port=5555',
+    'host: t=40ms phase=listening port=5555 backend_pid=101',
+    'host: t=41ms phase=health result="error: dial tcp: connection refused"',
+    'backend: poc: t=0.30s phase=imported_uvicorn')
+$phases = @(Get-DiagnosticPhases ($hostLog -join "`n"))
+Assert-Equal ($phases | ForEach-Object { '{0}:{1}' -f $_.source, $_.phase } | Select-Object -Last 3) @('host:listening', 'host:health', 'python:imported_uvicorn') 'phases: host and backend phase lines are parsed in order'
+Assert-Equal (@($phases | Where-Object { $_.source -eq 'python' })[-1].t_ms) 300 'phases: backend seconds are converted to milliseconds'
+Assert-Equal @(Get-DiagnosticPhases 'nothing relevant here').Count 0 'phases: unrelated text yields none'
+
+$timeoutListening = ($hostLog[0..2] -join "`n") + "`nhost: t=30000ms phase=timeout stage=waiting_for_listening"
+$r = Resolve-StartupFailure 3 $timeoutListening @()
+Assert-Equal $r.Class 'startup_timeout_before_listening' 'exit 3 before the listening report is named as such'
+Assert-Equal ($r.Detail -match 'printed no phase output') $true 'a backend that printed nothing is stated'
+$timeoutHealth = ($hostLog -join "`n") + "`nhost: t=30000ms phase=timeout stage=waiting_for_health last_health=`"status=503`""
+$r = Resolve-StartupFailure 3 $timeoutHealth @()
+Assert-Equal $r.Class 'startup_timeout_before_health' 'exit 3 after the listening report is named as such'
+Assert-Equal (($r.Detail -match 'status=503') -and ($r.Detail -match "imported_uvicorn")) $true 'the last health result and the last backend phase are in the detail'
+Assert-Equal $r.Status 'FAIL' 'a startup timeout is an application startup FAIL'
+$exit13 = "start failed: backend exited with code 13: x`nbackend: poc: t=0.00s phase=frontend_check"
+$r = Resolve-StartupFailure 4 $exit13 @()
+Assert-Equal $r.Class 'backend_exited_before_ready' 'exit 4 is the backend exiting before ready'
+Assert-Equal ($r.Detail -match 'frontend_assets_missing') $true 'backend exit code 13 means missing frontend assets'
+$exit12 = "start failed: backend exited with code 12: x`nbackend: Traceback (most recent call last):`nbackend: ModuleNotFoundError: No module named 'uvicorn'"
+$r = Resolve-StartupFailure 4 $exit12 @()
+Assert-Equal (($r.Detail -match 'startup_error') -and ($r.Detail -match 'ModuleNotFoundError')) $true 'backend exit code 12 names the last exception type from the traceback (a missing dependency)'
+Assert-Equal (Resolve-StartupFailure 2 'start failed: x' @()).Class 'host_start_failure' 'exit 2 is a host start failure'
+Assert-Equal (Resolve-StartupFailure $null '' @()).Class 'host_did_not_exit' 'a host that had to be stopped by the harness is named'
+Assert-Equal (Resolve-StartupFailure 9 '' @()).Class 'host_exit_unexpected_9' 'an unknown exit code is kept in the class'
+$enforced = @(@{ Id = 3077; Relative = 'python/python.exe'; PolicyId = 'p'; Enforced = $true })
+$audit = @(@{ Id = 3076; Relative = 'python/python.exe'; PolicyId = 'p'; Enforced = $false })
+$blocked = Resolve-StartupFailure 3 $timeoutHealth $enforced
+Assert-Equal $blocked.Status 'BLOCKED' 'an enforced Code Integrity record below the runtime tree makes it BLOCKED (not an application failure)'
+Assert-Equal $blocked.Class 'blocked_component_during_startup' 'the blocked class names the stage'
+Assert-Equal (Resolve-StartupFailure 3 $timeoutHealth $audit).Status 'FAIL' 'an audit-only (3076) record is not a block: still an application startup FAIL'
+Assert-Equal (Resolve-StartupFailure 3 $timeoutHealth @()).Status 'FAIL' 'no integrity evidence: an application startup FAIL, never BLOCKED'
+
+$assetRoot = New-TestDir
+foreach ($f in @('python/python.exe', 'app/backend/poc_backend.py', 'app/backend/main.py', 'manifest.json', 'python/Lib/site-packages/sap_lens_poc.pth', 'python/Lib/site-packages/uvicorn/__init__.py')) {
+    $full = Join-Path $assetRoot $f; New-Item -ItemType Directory -Force (Split-Path $full -Parent) | Out-Null; Set-Content -LiteralPath $full -Value '../../../app/backend' -Encoding ASCII
+}
+$assets = Get-RuntimeAssetState $assetRoot
+Assert-Equal $assets.python_exe $true 'assets: the interpreter is reported present'
+Assert-Equal $assets.frontend_index $false 'assets: a missing frontend index is reported'
+Assert-Equal $assets.pkg_uvicorn $true 'assets: an installed package is reported'
+Assert-Equal $assets.pkg_fastapi $false 'assets: a missing package is reported'
+Assert-Equal ($assets.pth_lines -join '') '../../../app/backend' 'assets: the .pth search path line is reported'
+
+$backendEnv = Get-BackendEnvironment (Join-Path (New-TestDir) 'data') 28
+Assert-Equal $backendEnv['SAP_LENS_POC_DUMP_AFTER'] '28' 'the stall dump is armed through the environment'
+Assert-Equal ($backendEnv.Keys -contains 'HTTPS_PROXY') $false 'the backend environment inherits nothing'
+$redirected = @('TMPDIR', 'HOME', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'TEMP', 'TMP', 'USERPROFILE', 'APPDATA', 'LOCALAPPDATA', 'PROGRAMDATA') | Where-Object { $backendEnv.ContainsKey($_) }
+Assert-Equal (@($redirected | Where-Object { -not (Test-Path -LiteralPath $backendEnv[$_] -PathType Container) }).Count) 0 'every temp, home and application-data variable points to a directory that exists inside the data directory'
+
 # ---- static lint of the Windows-only scripts: every command resolves and our own functions are called with a plausible number of positional arguments ------------
 # (the Windows code paths cannot run on Linux; this catches typos and signature drift between the scripts and Phase1Common.ps1)
 function Test-ScriptCommands([string]$ScriptPath) {

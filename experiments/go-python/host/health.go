@@ -54,6 +54,14 @@ func ValidateHealth(body []byte, instanceID string) error {
 // WaitHealthy polls /health on 127.0.0.1 until the owned backend answers. A foreign or malformed answer is a hard failure (never retried into
 // "success"); connection errors are retried until the deadline or until the child exits.
 func WaitHealthy(ctx context.Context, port int, instanceID string, gone <-chan struct{}, interval time.Duration) error {
+	return waitHealthy(ctx, port, instanceID, gone, interval, nil)
+}
+
+// waitHealthy is WaitHealthy with an observer that receives a short description of every attempt's outcome (for diagnostics; never a secret).
+func waitHealthy(ctx context.Context, port int, instanceID string, gone <-chan struct{}, interval time.Duration, observe func(string)) error {
+	if observe == nil {
+		observe = func(string) {}
+	}
 	client := healthClient()
 	url := "http://" + net.JoinHostPort("127.0.0.1", strconv.Itoa(port)) + "/health"
 	for {
@@ -66,7 +74,15 @@ func WaitHealthy(ctx context.Context, port int, instanceID string, gone <-chan s
 		}
 		request, _ := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 		response, err := client.Do(request)
+		if err != nil {
+			message := err.Error()
+			if len(message) > 160 {
+				message = message[:160]
+			}
+			observe("error: " + message)
+		}
 		if err == nil {
+			observe("status=" + strconv.Itoa(response.StatusCode))
 			body, readErr := io.ReadAll(io.LimitReader(response.Body, 8193))
 			_ = response.Body.Close()
 			if response.StatusCode >= 300 && response.StatusCode < 400 {

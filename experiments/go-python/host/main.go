@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -113,8 +114,14 @@ func run(args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return ExitStartFailure
 	}
+	// The backend dumps every thread's stack to stderr this long after it starts if it is still not serving: it shows WHERE a stalled start is stuck.
+	dumpAfter := int(startTimeout.Seconds()) - 2
+	if dumpAfter < 1 {
+		dumpAfter = 1
+	}
+	environment := append(childEnvironment(*data), "SAP_LENS_POC_DUMP_AFTER="+strconv.Itoa(dumpAfter))
 	supervisor := NewSupervisor(Config{
-		Executable: python, Args: []string{"-I", "-m", "poc_backend"}, Dir: *data, Env: childEnvironment(*data),
+		Executable: python, Args: []string{"-I", "-m", "poc_backend"}, Dir: *data, Env: environment,
 		StartTimeout: *startTimeout, StopTimeout: *stopTimeout, Log: os.Stderr,
 	})
 	signals := make(chan os.Signal, 2)
@@ -125,6 +132,7 @@ func run(args []string) int {
 	started := time.Now()
 	if err := supervisor.Start(context0); err != nil {
 		fmt.Fprintln(os.Stderr, "start failed:", err)
+		fmt.Fprintf(os.Stderr, "host: exit_code_meaning=%s\n", startFailureMeaning(err))
 		var exited *ChildExitedError
 		switch {
 		case errors.Is(err, ErrStartTimeout):
@@ -151,6 +159,18 @@ func run(args []string) int {
 		return ExitBackendExited
 	}
 	return stopCode(supervisor.Stop())
+}
+
+// startFailureMeaning names the exit code in the diagnostic output so a reader of the log does not need this source.
+func startFailureMeaning(err error) string {
+	var exited *ChildExitedError
+	switch {
+	case errors.Is(err, ErrStartTimeout):
+		return "3 start timeout (the backend was still running but did not become ready)"
+	case errors.As(err, &exited):
+		return "4 backend exited before it was ready"
+	}
+	return "2 start failure"
 }
 
 func stopCode(err error) int {
