@@ -4,7 +4,8 @@ How the prototype Server can be reached from other devices on a trusted local ne
 defaults. The Desktop stays loopback-only. Tags as in [README](README.md).
 
 **Verification status:** the policy, HTTPS, cookies and CSRF checks are covered by automated tests, including a real HTTPS listener on this
-machine's non-loopback interface [T]. Access **from another device** (desktop or mobile) has **not** been verified, and nothing ran on
+machine's non-loopback interface [T] on Linux. On Windows 11 that test failed at `fe4a6e8` (in-memory TLS key, see below); the fix is
+not yet re-run on Windows [U]. Access **from another device** (desktop or mobile) has **not** been verified, and nothing ran on
 Windows [U]. Use the checklist at the end.
 
 ## 1. Secure defaults and fail-closed rules
@@ -23,6 +24,47 @@ Windows [U]. Use the checklist at the end.
 | Secrets | `--cert-password` and `--token` are refused on the command line (process lists are readable by other users) |
 
 The operator cannot widen the address policy: no option or environment variable does it (tests replace it only through an internal hook).
+
+### Windows TLS: keys must not be in-memory only
+
+Windows 11 run of the LAN HTTPS test (`fe4a6e8`) [W]: the first HTTPS request failed with "Received an unexpected EOF or 0 bytes from the
+transport stream" on every run, while Linux passed. Cause [C]: the test certificate came from `CertificateRequest.CreateSelfSigned`, whose
+private key on Windows is an ephemeral (in-memory) CNG key. Windows' TLS stack (SChannel) cannot use such a key for a server, so Kestrel
+aborted every handshake (logged only at Debug) and clients saw EOF; OpenSSL on Linux uses the in-memory key, hence "Linux passes". The
+client already bypassed system proxies (`UseProxy = false`) and the listener was up (EOF, not "connection refused"), which excluded those.
+The production CLI path converted PEM keys but the host itself did not guarantee it for any certificate object it receives.
+
+Fix [T on Linux; U on Windows until re-run]:
+
+- `CertificatePolicy.PrepareForServer`: on Windows, a certificate with an ephemeral key is re-imported through PKCS#12 into a key container
+  of the process (removed when the host stops). Linux is unchanged. PEM loading uses the same function.
+- **Startup TLS self-check**: before the host is built, the server performs a real TLS handshake with its certificate through the
+  operating system's TLS stack on a private loopback socket. An unusable certificate stops startup (exit code 3) with the server-side
+  error instead of producing EOFs for every client.
+- Kestrel's TLS handshake failures (category `Microsoft.AspNetCore.Server.Kestrel.Https`, Debug) are kept in the console and service file
+  logs: exception and connection id only, no secrets.
+- If the self-check passes but LAN clients still see EOF, the cause is outside the certificate: endpoint security or TLS inspection on the
+  port, or a firewall resetting connections. The server log shows whether the handshake reached Kestrel.
+
+Windows re-validation (CMD, one command per line):
+
+```bat
+cd /d C:\src\sap-lens && git fetch origin experiment/dotnet-backend && git checkout experiment/dotnet-backend && git pull --ff-only
+cd /d C:\src\sap-lens\experiments\dotnet-backend && dotnet build SapLens.slnx -c Release
+dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~In_memory_keys_are_prepared_for_the_windows_tls_stack" --logger "console;verbosity=detailed"
+dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~Startup_tls_self_check" --logger "console;verbosity=detailed"
+dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~LanHttpsTests" --logger "console;verbosity=detailed"
+dotnet test tests\SapLens.Tests -c Release --no-build
+dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\saplens2\server
+powershell -NoProfile -Command "New-Item -ItemType Directory -Force C:\saplens2 | Out-Null; $c = New-SelfSignedCertificate -DnsName localhost -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(30); Export-PfxCertificate -Cert $c -FilePath C:\saplens2\lab.pfx -Password (ConvertTo-SecureString 'lab-only-password' -AsPlainText -Force) | Out-Null; Remove-Item $c.PSPath"
+set "SAP_LENS_V2_CERT_PASSWORD=lab-only-password"
+C:\saplens2\server\SapLens.Api.exe --data-dir C:\saplens2\tls-data --port 18792 --cert C:\saplens2\lab.pfx
+```
+
+Expected: the first test confirms the premise (the original key is ephemeral, the prepared one is not); all tests pass; the last command logs
+`Listening on 127.0.0.1:18792 (https)` and a `TLS certificate ...` line (the startup self-check has already completed a real SChannel
+handshake; a failure would print `startup refused: The TLS certificate cannot be used by this system's TLS stack (...)` and exit 3). Stop it
+with Ctrl+C, then `set SAP_LENS_V2_CERT_PASSWORD=`. The lab PFX and password are for this check only.
 
 ## 2. Configuration
 

@@ -7,9 +7,27 @@ using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.Extensions.Logging;
 using SapLens.Api;
 
 namespace SapLens.Tests;
+
+/// <summary>Collects server log lines (including Kestrel's TLS handshake failures at Debug) to attach to a failing assertion.</summary>
+public sealed class CollectingLoggerProvider : Microsoft.Extensions.Logging.ILoggerProvider
+{
+    private readonly System.Collections.Concurrent.ConcurrentQueue<string> _lines = new();
+    public string Text => string.Join(Environment.NewLine, _lines);
+    public Microsoft.Extensions.Logging.ILogger CreateLogger(string category) => new Logger(this, category);
+    public void Dispose() { }
+
+    private sealed class Logger(CollectingLoggerProvider owner, string category) : Microsoft.Extensions.Logging.ILogger
+    {
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(Microsoft.Extensions.Logging.LogLevel logLevel) => true;
+        public void Log<TState>(Microsoft.Extensions.Logging.LogLevel logLevel, Microsoft.Extensions.Logging.EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+            owner._lines.Enqueue($"{logLevel} {category}: {formatter(state, exception)}{(exception is null ? "" : $" | {exception.GetType().Name}: {exception.Message}{(exception.InnerException is { } i ? $" <- {i.GetType().Name}: {i.Message}" : "")}")}");
+    }
+}
 
 public static class TestCertificates
 {
@@ -141,6 +159,39 @@ public sealed class NetworkPolicyTests : IDisposable
     }
 
     [Fact]
+    public async Task Startup_tls_self_check_passes_for_a_usable_certificate_and_reports_the_server_side_error_otherwise()
+    {
+        using var cert = TestCertificates.Create(["localhost"], [IPAddress.Loopback]);
+        var prepared = CertificatePolicy.PrepareForServer(cert);
+        try { Assert.Null(await CertificatePolicy.VerifyTlsHandshakeAsync(prepared, TimeSpan.FromSeconds(15))); }
+        finally { if (!ReferenceEquals(prepared, cert)) prepared.Dispose(); }
+        using var publicOnly = X509CertificateLoader.LoadCertificate(cert.Export(X509ContentType.Cert));
+        var problem = await CertificatePolicy.VerifyTlsHandshakeAsync(publicOnly, TimeSpan.FromSeconds(15));
+        Assert.NotNull(problem);
+        Assert.DoesNotContain("client side", problem);
+    }
+
+    [Fact]
+    public void In_memory_keys_are_prepared_for_the_windows_tls_stack()
+    {
+        using var cert = TestCertificates.Create(["localhost"], [IPAddress.Loopback]);
+        var prepared = CertificatePolicy.PrepareForServer(cert);
+        if (!OperatingSystem.IsWindows())
+        {
+            Assert.Same(cert, prepared); // OpenSSL uses in-memory keys directly
+            return;
+        }
+        using (prepared)
+        {
+            Assert.True(CertificatePolicy.HasEphemeralKey(cert), "premise: CreateSelfSigned yields an ephemeral CNG key on Windows");
+            Assert.NotSame(cert, prepared);
+            Assert.True(prepared.HasPrivateKey);
+            Assert.False(CertificatePolicy.HasEphemeralKey(prepared));
+            Assert.Equal(cert.Thumbprint, prepared.Thumbprint);
+        }
+    }
+
+    [Fact]
     public void Pfx_and_pem_certificates_load_and_a_wrong_password_never_appears_in_the_message()
     {
         using var cert = TestCertificates.Create(["saplens.corp.example"], [IPAddress.Parse("192.168.10.5")]);
@@ -194,13 +245,15 @@ public sealed class LanHttpsTests : IAsyncDisposable
         return ValueTask.CompletedTask;
     }
 
+    private readonly CollectingLoggerProvider _serverLog = new();
+
     private async Task<WebApplication> StartAsync()
     {
         var app = SapLensHost.Build(new HostSettings
         {
             DataDirectory = Path.Combine(_root, "data"), AccessToken = _token, ListenAddress = _lan!, Port = _port, NetworkAccess = true, Certificate = _cert,
             AllowedHosts = [HostName, _lan!.ToString()], JsonConsoleLogging = false, PermittedNetworkAddress = a => a.Equals(_lan),
-        });
+        }, null, b => b.Logging.AddProvider(_serverLog));
         await app.StartAsync();
         return app;
     }
@@ -221,7 +274,12 @@ public sealed class LanHttpsTests : IAsyncDisposable
         try
         {
             using var http = Client();
-            var page = await http.GetAsync("/");
+            HttpResponseMessage page;
+            try { page = await http.GetAsync("/"); }
+            catch (HttpRequestException error)
+            {
+                throw new Xunit.Sdk.XunitException($"First HTTPS request to {_lan}:{_port} failed: {error.Message} <- {error.InnerException?.Message}\nServer log:\n{_serverLog.Text}");
+            }
             Assert.Equal(HttpStatusCode.OK, page.StatusCode);
             Assert.Equal("max-age=31536000", page.Headers.GetValues("Strict-Transport-Security").Single());
             Assert.Equal(HttpStatusCode.Unauthorized, (await http.GetAsync("/api/v1/roles")).StatusCode);
@@ -235,6 +293,8 @@ public sealed class LanHttpsTests : IAsyncDisposable
                 var plainOk = false;
                 try { plainOk = (await plain.GetAsync($"http://{_lan}:{_port}/")).IsSuccessStatusCode; } catch (HttpRequestException) { } catch (TaskCanceledException) { }
                 Assert.False(plainOk);
+                // The refused plain-HTTP attempt is visible server-side (Kestrel TLS diagnostics are kept, at Debug).
+                Assert.Contains("Microsoft.AspNetCore.Server.Kestrel.Https", _serverLog.Text);
                 await Assert.ThrowsAsync<HttpRequestException>(() => plain.GetAsync($"http://127.0.0.1:{_port}/"));
             }
 

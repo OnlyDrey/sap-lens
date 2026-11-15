@@ -116,8 +116,10 @@ public sealed class FileLoggerProvider : ILoggerProvider
     private sealed class FileLogger(FileLoggerProvider owner, string category) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
-        public bool IsEnabled(LogLevel logLevel) => logLevel >= LogLevel.Information && (logLevel >= LogLevel.Warning || !category.StartsWith("Microsoft.", StringComparison.Ordinal)
-            || category.StartsWith("Microsoft.Hosting.Lifetime", StringComparison.Ordinal));
+        public bool IsEnabled(LogLevel logLevel) =>
+            category.StartsWith("Microsoft.AspNetCore.Server.Kestrel.Https", StringComparison.Ordinal) ? logLevel >= LogLevel.Debug // TLS handshake failures
+            : logLevel >= LogLevel.Information && (logLevel >= LogLevel.Warning || !category.StartsWith("Microsoft.", StringComparison.Ordinal)
+                || category.StartsWith("Microsoft.Hosting.Lifetime", StringComparison.Ordinal));
 
         public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
         {

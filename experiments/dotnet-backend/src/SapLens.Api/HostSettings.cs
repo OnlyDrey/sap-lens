@@ -1,5 +1,9 @@
+using System.ComponentModel;
 using System.Net;
+using System.Net.Security;
 using System.Net.Sockets;
+using System.Runtime.Versioning;
+using System.Security.Authentication;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
@@ -148,12 +152,75 @@ public static class CertificatePolicy
                 // Windows SChannel cannot use ephemeral keys; on Linux nothing is written to a key store.
                 return X509CertificateLoader.LoadPkcs12FromFile(path, password, OperatingSystem.IsWindows() ? X509KeyStorageFlags.UserKeySet : X509KeyStorageFlags.EphemeralKeySet);
             var pem = password is null ? X509Certificate2.CreateFromPemFile(path, keyPath) : X509Certificate2.CreateFromEncryptedPemFile(path, password, keyPath);
-            if (!OperatingSystem.IsWindows()) return pem;
-            using (pem) return X509CertificateLoader.LoadPkcs12(pem.Export(X509ContentType.Pkcs12), null, X509KeyStorageFlags.UserKeySet);
+            var prepared = PrepareForServer(pem);
+            if (!ReferenceEquals(prepared, pem)) pem.Dispose();
+            return prepared;
         }
         catch (CryptographicException)
         {
             throw new InvalidOperationException($"The certificate '{path}' could not be opened (wrong password, missing key or damaged file).");
         }
+    }
+
+    public static readonly SslProtocols ServerProtocols = SslProtocols.Tls12 | SslProtocols.Tls13;
+
+    /// <summary>Windows SChannel cannot use a private key that exists only in memory (an ephemeral CNG key, which CertificateRequest.CreateSelfSigned and
+    /// X509Certificate2.CreateFromPemFile produce): the server handshake is aborted and clients only see an EOF. Such certificates are re-imported through
+    /// PKCS#12 so the key lives in a key container for this process (removed when the certificate is disposed). Other platforms and certificates whose key
+    /// is already stored are returned unchanged.</summary>
+    public static X509Certificate2 PrepareForServer(X509Certificate2 certificate)
+    {
+        if (!OperatingSystem.IsWindows() || !certificate.HasPrivateKey || !HasEphemeralKey(certificate)) return certificate;
+        var transfer = Convert.ToBase64String(RandomNumberGenerator.GetBytes(18)); // protects the in-memory PKCS#12 blob only
+        return X509CertificateLoader.LoadPkcs12(certificate.Export(X509ContentType.Pkcs12, transfer), transfer, X509KeyStorageFlags.UserKeySet);
+    }
+
+    [SupportedOSPlatform("windows")]
+    public static bool HasEphemeralKey(X509Certificate2 certificate)
+    {
+        using (var rsa = certificate.GetRSAPrivateKey()) if (rsa is RSACng rsaCng) return rsaCng.Key.IsEphemeral;
+        using (var ec = certificate.GetECDsaPrivateKey()) if (ec is ECDsaCng ecCng) return ecCng.Key.IsEphemeral;
+        return false;
+    }
+
+    /// <summary>Startup self-check: a real TLS handshake with this certificate through the operating system's TLS stack over a private loopback socket.
+    /// Returns null when it works, otherwise the server-side error (never a password). The self-check client pins the certificate's own thumbprint; it
+    /// is not how LAN clients validate the server.</summary>
+    public static async Task<string?> VerifyTlsHandshakeAsync(X509Certificate2 certificate, TimeSpan timeout)
+    {
+        using var cts = new CancellationTokenSource(timeout);
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        using var client = new TcpClient();
+        var accept = listener.AcceptTcpClientAsync(cts.Token).AsTask();
+        await client.ConnectAsync(IPAddress.Loopback, ((IPEndPoint)listener.LocalEndpoint).Port, cts.Token);
+        using var serverSocket = await accept;
+        var thumbprint = certificate.GetCertHashString();
+        await using var server = new SslStream(serverSocket.GetStream(), leaveInnerStreamOpen: false);
+        await using var clientTls = new SslStream(client.GetStream(), leaveInnerStreamOpen: false);
+        var clientTask = clientTls.AuthenticateAsClientAsync(new SslClientAuthenticationOptions
+        {
+            TargetHost = "localhost", EnabledSslProtocols = ServerProtocols, RemoteCertificateValidationCallback = (_, c, _, _) => c?.GetCertHashString() == thumbprint,
+        }, cts.Token);
+        try
+        {
+            await server.AuthenticateAsServerAsync(new SslServerAuthenticationOptions { ServerCertificate = certificate, EnabledSslProtocols = ServerProtocols }, cts.Token);
+        }
+        catch (Exception error) when (error is AuthenticationException or IOException or Win32Exception or CryptographicException or NotSupportedException or OperationCanceledException)
+        {
+            serverSocket.Dispose(); // release the client side at once
+            try { await clientTask; } catch (Exception) { /* the server error is the cause */ }
+            return Describe(error);
+        }
+        try { await clientTask; }
+        catch (Exception error) when (error is AuthenticationException or IOException or OperationCanceledException) { return "client side: " + Describe(error); }
+        return null;
+    }
+
+    private static string Describe(Exception error)
+    {
+        var text = $"{error.GetType().Name}: {error.Message}";
+        for (var inner = error.InnerException; inner is not null; inner = inner.InnerException) text += $" <- {inner.GetType().Name}: {inner.Message}";
+        return text;
     }
 }

@@ -12,6 +12,7 @@ public static class SapLensHost
         settings.Validate();
         DatabaseOptions.ValidateLocal(settings.DataDirectory);
         var ui = UiAssets.Create();
+        var tls = PrepareCertificate(settings);
         // Content root is the application directory (never the current working directory); no file is read from it at runtime.
         var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { Args = args ?? [], ContentRootPath = AppContext.BaseDirectory });
         builder.WebHost.ConfigureKestrel(k =>
@@ -21,11 +22,14 @@ public static class SapLensHost
             // Exactly one endpoint, from validated settings; ASPNETCORE_URLS and similar are not used.
             k.Listen(settings.ListenAddress, settings.Port, listen =>
             {
-                if (settings.Certificate is { } certificate)
-                    listen.UseHttps(https => { https.ServerCertificate = certificate; https.SslProtocols = System.Security.Authentication.SslProtocols.Tls12 | System.Security.Authentication.SslProtocols.Tls13; });
+                if (tls is not null)
+                    listen.UseHttps(https => { https.ServerCertificate = tls; https.SslProtocols = CertificatePolicy.ServerProtocols; });
             });
         });
         builder.Logging.ClearProviders();
+        // TLS handshake failures are logged by Kestrel at Debug (exception and connection id, no secrets); keep them, they are the only server-side
+        // trace of a client that "just sees EOF".
+        builder.Logging.AddFilter("Microsoft.AspNetCore.Server.Kestrel.Https", LogLevel.Debug);
         if (settings.JsonConsoleLogging) builder.Logging.AddJsonConsole(o => { o.IncludeScopes = true; o.UseUtcTimestamp = true; o.TimestampFormat = "yyyy-MM-ddTHH:mm:ss.fffZ"; });
         builder.Services.Configure<HostOptions>(o => o.ShutdownTimeout = TimeSpan.FromSeconds(15));
         builder.Services.ConfigureHttpJsonOptions(o => o.SerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower);
@@ -44,6 +48,7 @@ public static class SapLensHost
         configure?.Invoke(builder);
 
         var app = builder.Build();
+        if (tls is not null && !ReferenceEquals(tls, settings.Certificate)) app.Lifetime.ApplicationStopped.Register(tls.Dispose);
         var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SapLens.Startup");
         startup.LogInformation("Listening on {Address}:{Port} ({Scheme}), network access {Network}, allowed hosts {Hosts}", settings.ListenAddress, settings.Port,
             settings.Https ? "https" : "http", settings.NetworkAccess ? "enabled" : "disabled", settings.AllowedHosts.Count == 0 ? "loopback only" : string.Join(",", settings.AllowedHosts));
@@ -60,6 +65,18 @@ public static class SapLensHost
         Endpoints.Map(app);
         MapSession(app, settings);
         return app;
+    }
+
+    /// <summary>The certificate Kestrel will use, prepared for this operating system's TLS stack and proven by a real handshake before the host is built:
+    /// an unusable certificate stops startup with the server-side reason instead of producing EOF failures for every client.</summary>
+    private static System.Security.Cryptography.X509Certificates.X509Certificate2? PrepareCertificate(HostSettings settings)
+    {
+        if (settings.Certificate is null) return null;
+        var prepared = CertificatePolicy.PrepareForServer(settings.Certificate);
+        var problem = CertificatePolicy.VerifyTlsHandshakeAsync(prepared, TimeSpan.FromSeconds(15)).GetAwaiter().GetResult();
+        if (problem is null) return prepared;
+        if (!ReferenceEquals(prepared, settings.Certificate)) prepared.Dispose();
+        throw new InvalidOperationException($"The TLS certificate cannot be used by this system's TLS stack ({problem}).");
     }
 
     private static void MapSession(WebApplication app, HostSettings settings)

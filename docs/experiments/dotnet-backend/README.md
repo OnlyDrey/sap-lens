@@ -34,7 +34,7 @@ Everything lives in [`experiments/dotnet-backend`](../../../experiments/dotnet-b
 | `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded prototype UI (`wwwroot`), startup probe |
 | `src/SapLens.Desktop` | Windows shell: WinForms + WebView2, in-process core, loopback, per-run token (built on Linux, never run) |
 | `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
-| `tests/SapLens.Tests` | 84 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, publish acceptance (`Category=Publish`, slow) |
+| `tests/SapLens.Tests` | 86 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, publish acceptance (`Category=Publish`, slow) |
 | `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses |
 
 ## Reproduce
