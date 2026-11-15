@@ -1,74 +1,130 @@
-# Windows validation: instructions and evidence template
+# Windows validation runbook (Phase 1)
 
-Run on a disposable or dedicated Windows 10/11 x64 test machine, as a normal (non-elevated) user, **with the machine's real App Control policy enforced**. Do not add exclusions, change policy, disable Defender or use `-ExecutionPolicy Bypass`. If PowerShell script execution is itself restricted, stop and record the stage as BLOCKED; ask IT.
+Status: **NOT EXECUTED.** Nothing here has run on Windows. The runner and harness are validated only on Linux (static checks, logic tests, real-bundle verification, non-Windows and Constrained Language Mode behaviour). A Windows result exists only after someone runs the command below on a Windows machine.
 
-Never run on a machine with SAP Lens installed in production, and never point the harness at an SAP Lens installation or data directory (it refuses paths inside `...\SAP Lens`). All data is synthetic and lives in a unique temp folder `saplens-poc-<id>`, removed afterwards.
+Run it on a disposable or dedicated Windows 10/11 x64 test machine, as a normal (non-elevated) user, **with the machine's real App Control policy enforced**. All data is synthetic. It never installs or replaces SAP Lens and never touches services, databases, the registry, Windows security policy, Defender or App Control.
 
-## 1. Build the bundle (Linux, once)
+## Prerequisites (Windows target)
 
+| Item | Requirement |
+| --- | --- |
+| OS | Windows 10 (1803 or later) or 11, x64. ARM64 is refused |
+| PowerShell | Windows PowerShell 5.1 or PowerShell 7, **FullLanguage** mode, normal (non-elevated) session |
+| Script execution | Local unsigned `.ps1` must be allowed by IT. Do not change the execution policy. Copy the bundle by share or USB: a browser download adds a Mark-of-the-Web that some policies block. Do not use `Unblock-File` or `-ExecutionPolicy Bypass` without IT approval |
+| Tools | the system `System32\tar.exe` only. No Go, Python, Node or Git is needed |
+| Disk | at least 700 MB free; keep paths short (longest archive member is 116 characters; the runner refuses a path that would exceed MAX_PATH) |
+| Not on | a OneDrive-synced folder. The default run folder is `%USERPROFILE%\saplens-phase1` |
+| Do not | add antivirus or App Control exclusions, change policy, or run two runs at once |
+
+## 1. Build the bundle on Linux
+
+Needs Go 1.24.x, Python 3.12 and network access to GitHub releases and PyPI (first build only), from a checkout of the commit you want to test:
+
+```bash
+git checkout --detach <commit>
+python experiments/go-python/windows/make_bundle.py --out /tmp/p1bundle
 ```
-python experiments/go-python/windows/make_bundle.py --out /tmp/p1bundle        # add --prune for the smaller tree
-```
 
-Output: `saplens-host.exe`, `runtime.tar.gz`, `scripts\`, `SHA256SUMS.txt`. Two builds give identical hashes (checked). The Windows tree is assembled on Linux and has never been run on Windows (experimental).
+It cross-compiles `saplens-host.exe` (`CGO_ENABLED=0`, `-trimpath`, `-buildvcs=false`), assembles the hash-locked Windows runtime on Linux and writes `SHA256SUMS.txt`. It prints `sums_sha256` and repeats it on stderr: that value is the **trusted checksum**. Two builds of the same commit produce an identical `SHA256SUMS.txt` (tested). The value changes with the commit (the archive manifest records the source commit) and with the Go toolchain version.
 
-## 2. Verify and extract (Windows PowerShell 5.1 or 7)
+The Windows tree is assembled on Linux and is experimental.
+
+## 2. Transfer safely
+
+- Copy the whole `/tmp/p1bundle` folder to the Windows machine by approved share or USB.
+- Send the trusted checksum **through a different channel** than the bundle (message, spoken, ticket). Never store it inside the bundle: a checksum delivered with the files proves nothing.
+- Keep the bundle folder read-only for others. The runner verifies it again after copying it into the run folder.
+
+## 3. Optional: verify only (executes nothing from the bundle)
 
 ```powershell
-$b = 'C:\poc'                                   # folder you copied the bundle to; use a short path (deep site-packages)
-Set-Location $b
-Get-Content .\SHA256SUMS.txt | ForEach-Object { $h,$f = $_ -split '\s+',2; if ((Get-FileHash -Algorithm SHA256 $f).Hash.ToLower() -ne $h) { "MISMATCH $f" } }
-New-Item -ItemType Directory -Force .\runtime | Out-Null
-tar.exe -xzf .\runtime.tar.gz -C .\runtime       # built-in bsdtar (Windows 10 1803+)
-powershell -NoProfile -File .\scripts\Test-Phase1Logic.ps1      # pure logic self-test, expect: all assertions passed
+$b = Join-Path $env:USERPROFILE 'saplens-bundle'          # where you copied the bundle
+powershell -NoProfile -File "$b\scripts\Run-Phase1.ps1" -BundleDir $b -TrustedSumsSha256 '<64 hex characters received separately>' -VerifyOnly
+"exit code: $LASTEXITCODE"                                 # 0 = verified; 3 = stopped. This is NOT a Phase 1 result
 ```
 
-Record whether the extraction itself triggered any policy or Defender action (the extracted `python.exe` and `.pyd` files may be blocked or quarantined: that is evidence, record it).
-
-## 3. Run the harness
+## 4. Run Phase 1 (one command)
 
 ```powershell
-powershell -NoProfile -File .\scripts\Test-WindowsFeasibility.ps1 -HostExe .\saplens-host.exe -RuntimeDir .\runtime -OutDir .\evidence
+$b = Join-Path $env:USERPROFILE 'saplens-bundle'
+powershell -NoProfile -File "$b\scripts\Run-Phase1.ps1" -BundleDir $b -TrustedSumsSha256 '<64 hex characters received separately>'
+"exit code: $LASTEXITCODE"
 ```
 
-Exit code: 0 all PASS, 1 any FAIL, 2 any BLOCKED, 3 not executed or incomplete. Result: `evidence\phase1-windows-result.json`, plus `evidence\signature-inventory.json`.
+The script must be run from the `scripts` folder of the bundle it verifies. It refuses an elevated session (`-AllowElevated` needs a written `-ElevationJustification`; nothing here needs it).
 
-## 4. App Control diagnostics (read-only; run right after any BLOCKED or FAIL)
+What it does, in order (each step is recorded even if it fails):
 
-```powershell
-powershell -NoProfile -File .\scripts\Get-AppControlDiagnostics.ps1 -RuntimeDir .\runtime -HostExe .\saplens-host.exe -SinceMinutes 30 -OutDir .\evidence
-```
-
-Reading the Code Integrity log and `CiTool.exe --list-policies` may need elevation. If not permitted, the result says so as a limitation: an empty result without log access is not proof of no block. Also state the policy name and whether it is the organization's or a Microsoft default.
-
-## 5. Stages
-
-| Stage | What it proves | A failure means |
+| Step | Action | Stops the run when |
 | --- | --- | --- |
-| W01 preflight | isolated identity, language mode, policy listing | refused unsafe paths |
-| W02 manifest integrity | extracted tree equals the assembled tree (SHA-256 of every file) | extraction or AV changed files |
-| W03 signature inventory | Authenticode state and hash of every exe, dll, pyd (recorded, not judged) | n/a |
-| W04 Go host starts | the host executes (usage exit 1) | BLOCKED if a documented policy code (1260, 4551) or an enforced event names the host |
-| W05 CPython initialises | `python.exe -I` runs, version 3.12.11, isolated, prefix inside the tree | BLOCKED if the interpreter is refused |
-| W06 native extensions | each `.pyd` imports in its own process, so a block names the file | BLOCKED only with an enforced event for that file; an ImportError alone is `native_load_failure_unclassified` |
-| W07 backend, frontend, capability, boundary | READY, `/health`, React served, capability on page, 403 without or with a wrong capability, 200 with the issued one, foreign Host and Origin 403, loopback-only listener, no secret in command lines, stderr or data files | FAIL names the failed checks |
-| W08 graceful shutdown | host exit 0 after its hold, backend gone | |
-| W09 forced host kill | `TerminateProcess` of the host leaves no child. Job Object and the backend's stdin watchdog both apply and cannot be separated here | |
-| W10 start timeout | exit 3, no leftover process | |
-| W11 foreign data directory | exit 2, foreign file untouched | |
-| W12 no orphans | no process from the runtime or host path outlived the test | |
-| W13 measurements | one-run ready time and peak working set. Windows-only numbers; do not compare with Linux | |
-| W14 Code Integrity correlation | enforced (3077, 3033) and audit-only (3076) records below the runtime root | BLOCKED if enforced; NOT EXECUTED if the log is unreadable |
+| R01 prerequisites | Windows x64, FullLanguage, not elevated, system `tar.exe`, disk space, no overlapping run, script is inside the bundle it verifies, folder is not an SAP Lens install or data path | any condition cannot be established (NOT EXECUTED) |
+| R02 bundle integrity | `SHA256SUMS.txt` must equal the trusted checksum; every listed file must match; no extra, missing or linked file; the bundle is copied to the run folder and verified again | any mismatch (NOT EXECUTED) |
+| R03 archive safety and extraction | every archive member is validated first (no `..`, absolute or drive paths, backslashes, streams, links, device names, over-long paths); extracted only into the run folder; afterwards no link, nothing outside the folder, file count equals the listing | any problem or tar failure (NOT EXECUTED) |
+| R04 logic self-test | `Test-Phase1Logic.ps1` in its own process | it does not pass: HARNESS ERROR, harness not run |
+| R05 isolated feasibility harness | `Test-WindowsFeasibility.ps1` in its own process with `TEMP`/`TMP` pointing into the run folder; stages W01 to W14 | n/a (result classified, see below) |
+| R06 App Control diagnostics | `Get-AppControlDiagnostics.ps1` read-only, where permitted | never stops the run; unreadable log means NOT EXECUTED for this step |
 
-Not checked even on Windows: process environment blocks (unreadable without debug rights) and the installer (none exists).
+Isolation by construction: each run has its own folder `%USERPROFILE%\saplens-phase1\<run id>\` (bundle copy, extracted runtime, evidence, temp). The host starts the backend with `TEMP`, `TMP`, `USERPROFILE`, `APPDATA`, `LOCALAPPDATA` and `PROGRAMDATA` redirected into the isolated data directory, so no library fallback reaches `C:\TEMP`, the real profile or `C:\ProgramData`. The backend configuration directory is set explicitly. Isolation is not "proved" by scanning system folders.
 
-## 6. Evidence report (current state)
+Process cleanup: only processes this run created are stopped (recorded PID and start time, parent chain, running from the run's runtime tree or the run's host file). Nothing is matched by name, so another run, another user or an installed SAP Lens is never touched. No secret appears in command lines, environment or logs: the capability exists only between the host, the backend and the harness's HTTP requests, and the harness searches command lines, stderr and data files for it.
 
-Environment: Linux only. Windows host: none.
+Nothing is deleted. The run folder, the extracted runtime and the evidence stay for review.
 
-| Stage | Status | Reason |
+## 5. Where the reports are
+
+`%USERPROFILE%\saplens-phase1\<run id>\evidence\`
+
+| File | Content |
+| --- | --- |
+| `run-summary.txt`, `run-summary.json` | overall result, exit code, every step, raw exit codes of tar and each tool, stop reason |
+| `harness\phase1-windows-result.json` | stages W01 to W14 with evidence |
+| `harness\signature-inventory.json` | SHA-256 and Authenticode state of every exe, dll, pyd |
+| `harness-console.txt`, `logic-selftest.txt`, `tar-extract.txt`, `diagnostics-console.txt` | captured output of each tool |
+| `diagnostics\app-control-diagnostics.json` | policies and Code Integrity records, file hashes, assigned stage |
+
+Find the latest run and read the summary:
+
+```powershell
+$run = Get-ChildItem (Join-Path $env:USERPROFILE 'saplens-phase1') -Directory | Sort-Object Name | Select-Object -Last 1
+Get-Content "$($run.FullName)\evidence\run-summary.txt"
+```
+
+Review the files before sharing: they contain policy IDs and names, certificate subjects and relative file paths, not user or host names (the profile folder is abbreviated).
+
+## 6. Exit codes and results
+
+| Result | Exit | Meaning |
 | --- | --- | --- |
-| W01 to W14 | NOT EXECUTED | no Windows host available in this session |
-| Harness parse, logic self-test, non-Windows path, forbidden-operation scan | PASSED (Linux) | not Windows validation |
+| **PASS** | 0 | every executed harness stage passed |
+| **FAIL** | 1 | the application ran and a criterion was not met |
+| **BLOCKED** | 2 | the OS refused a file: a documented native code (1260, 4551) or an enforced Code Integrity record (3077, 3033). Nothing about the application was verified. A missing signature alone is not a block |
+| **NOT EXECUTED** | 3 | a precondition or integrity check stopped the run, or a stage did not run. Never counts as a pass. Includes Constrained Language Mode, a failed checksum, a refused archive, a non-Windows host |
+| **HARNESS ERROR** | 4 | the tooling failed: result file missing, unreadable or inconsistent with the exit code, self-test failure, timeout, unexpected error, or conflicting evidence (harness PASS but enforced block records found). Neither a pass nor an application failure |
 
-Fill in after a Windows run: OS build, PowerShell version, policy names (not machine or user names), overall result, per-stage status and the evidence JSON. Report a policy block as BLOCKED, never as FAIL or as an application defect.
+Raw exit codes of tar and every tool are recorded in `run-summary.json` and never remapped. `-VerifyOnly` returns 0 when verification passed and is not a Phase 1 result. A missing `phase1-windows-result.json` is always HARNESS ERROR, never FAIL or PASS.
+
+Harness stages: W01 preflight, W02 manifest integrity, W03 signature inventory, W04 host starts, W05 CPython initialises, W06 each native extension loads, W07 backend, frontend, capability and boundary checks (including the issued capability returning 200 and a wrong one 403), W08 graceful shutdown, W09 forced host kill, W10 start-timeout cleanup, W11 foreign data directory refused, W12 no orphans, W13 measurements, W14 Code Integrity correlation. Where a block can occur: see [APP_CONTROL](APP_CONTROL.md).
+
+## 7. Optional elevated read-only diagnostics (separate from the main test)
+
+Only if the Code Integrity log or `CiTool --list-policies` was not readable and IT permits it. Run the main test first, non-elevated; then, in a separate elevated window (read-only, changes nothing):
+
+```powershell
+$run = Get-ChildItem (Join-Path $env:USERPROFILE 'saplens-phase1') -Directory | Sort-Object Name | Select-Object -Last 1
+powershell -NoProfile -File "$($run.FullName)\bundle\scripts\Get-AppControlDiagnostics.ps1" -RuntimeDir "$($run.FullName)\runtime" -HostExe "$($run.FullName)\bundle\saplens-host.exe" -SinceMinutes 120 -OutDir "$($run.FullName)\evidence\diagnostics-elevated"
+"exit code: $LASTEXITCODE"       # 0 no enforced block found, 2 enforced block(s), 3 not Windows
+```
+
+## 8. Known limitations
+
+- **Nothing has run on Windows.** The runner's Windows paths (R03 to R06) and the harness stages are checked only by parsing, a static lint (every command resolves, helper functions are called with a plausible argument count), unit tests of the helpers they call (bundle verification, archive validation, outcome classification, process ownership, child-process handling) and Linux runs of the entry points. Expect to find defects on first Windows execution; a HARNESS ERROR is a result, not a surprise.
+- Constrained Language Mode (for example under an enforcing App Control policy for unsigned scripts) stops the run with NOT EXECUTED and a report. Do not work around it.
+- W06 probes only site-packages `.pyd` files one by one; the standard-library `.pyd` and DLL files load for the first time in W07, so a block there appears as "no READY line" and is classified from Code Integrity records, not from the file name.
+- Job Object cleanup and the backend's stdin watchdog both end the backend when the host is killed and cannot be told apart here.
+- Process environment blocks are not readable without debug rights, so "no secret in the environment" is checked on Linux only.
+- Python on Windows may read `Software\Python\PythonCore` registry keys when building `sys.path` (read-only). Optional check: `& "$($run.FullName)\runtime\python\python.exe" -I -c "import sys; print('\n'.join(sys.path))"` and confirm every line is inside the run's runtime folder.
+- `Get-AuthenticodeSignature` on Microsoft-signed DLLs may make revocation lookups over the network.
+- Stopping a leftover process re-checks identity just before the call; a PID reused inside that millisecond window is theoretically possible and accepted.
+- The mutex prevents overlapping runs only within one logon session; separate sessions are kept apart by ownership checks and separate run folders.
+- The bundle cannot be built on Windows (the Windows tree is compiled with a Linux interpreter). The host hash depends on the Go version; the trusted checksum depends on the commit.
+- `govulncheck` was not run (database unreachable from the build environment).

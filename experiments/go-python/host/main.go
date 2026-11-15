@@ -45,13 +45,30 @@ func PrepareDataDir(path string) error {
 	return os.WriteFile(marker, []byte(markerText), 0o600)
 }
 
+// isolatedDirs are created below the data directory so every location a Python library might fall back to (temporary files, home, application data)
+// resolves inside the isolated experiment directory, never to the user's real profile or to a machine-wide folder such as C:\TEMP.
+var isolatedDirs = []string{"tmp", "home", "appdata", "localappdata", "programdata"}
+
+// PrepareIsolatedDirs creates the redirect targets of childEnvironment. data must already be a prepared experiment directory.
+func PrepareIsolatedDirs(data string) error {
+	for _, name := range isolatedDirs {
+		if err := os.MkdirAll(filepath.Join(data, name), 0o700); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // childEnvironment is the complete, minimal environment of the backend. The capability is deliberately NOT part of it.
+// Temporary, home and application-data variables all point into the isolated data directory (see PrepareIsolatedDirs).
 func childEnvironment(data string) []string {
+	dir := func(name string) string { return filepath.Join(data, name) }
 	env := []string{"SAP_LENS_POC_DATA=" + data, "PYTHONUTF8=1", "PYTHONDONTWRITEBYTECODE=1", "LANG=C.UTF-8"}
 	if runtime.GOOS == "windows" {
-		env = append(env, "SYSTEMROOT="+os.Getenv("SYSTEMROOT"), "PATH="+os.Getenv("SYSTEMROOT")+`\System32`)
+		env = append(env, "SYSTEMROOT="+os.Getenv("SYSTEMROOT"), "PATH="+os.Getenv("SYSTEMROOT")+`\System32`,
+			"TEMP="+dir("tmp"), "TMP="+dir("tmp"), "USERPROFILE="+dir("home"), "APPDATA="+dir("appdata"), "LOCALAPPDATA="+dir("localappdata"), "PROGRAMDATA="+dir("programdata"))
 	} else {
-		env = append(env, "PATH=/usr/bin:/bin")
+		env = append(env, "PATH=/usr/bin:/bin", "TMPDIR="+dir("tmp"), "HOME="+dir("home"), "XDG_CONFIG_HOME="+dir("appdata"), "XDG_DATA_HOME="+dir("localappdata"))
 	}
 	return env
 }
@@ -84,6 +101,10 @@ func run(args []string) int {
 		return ExitUsage
 	}
 	if err := PrepareDataDir(*data); err != nil {
+		fmt.Fprintln(os.Stderr, "data directory:", err)
+		return ExitStartFailure
+	}
+	if err := PrepareIsolatedDirs(*data); err != nil {
 		fmt.Fprintln(os.Stderr, "data directory:", err)
 		return ExitStartFailure
 	}

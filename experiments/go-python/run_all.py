@@ -50,6 +50,7 @@ def main():
     results.append(stage('python static: lock closure, integrity, reproducibility', [sys.executable, '-m', 'unittest', static], ROOT / 'tests', 900, env))
     results.append(stage('python e2e: lifecycle, health, security boundary, capability bootstrap', [sys.executable, '-m', 'unittest', 'test_lifecycle_security', 'test_capability_bootstrap'], ROOT / 'tests', 600, env))
     results.append(stage('windows harness: parse, logic self-test, non-Windows path, forbidden-operation scan (Linux only)', [sys.executable, '-m', 'unittest', 'test_windows_harness'], ROOT / 'tests', 300, env))
+    results.append(stage('bundle reproducibility, runner integrity/tamper/non-Windows/CLM behaviour (Linux only)', [sys.executable, '-m', 'unittest', 'test_bundle_and_runner'], ROOT / 'tests', 1200, env))
     print('NOT EXECUTED  native Windows smoke, installer acceptance, App Control verification (no Windows host in this environment)')
     return 0 if all(results) else 1
 

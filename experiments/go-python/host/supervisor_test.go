@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -247,5 +248,37 @@ func TestChildEnvironmentIsMinimalAndSecretFree(t *testing.T) {
 	joined := strings.Join(childEnvironment("/tmp/x"), "\n")
 	if strings.Contains(joined, "production") || strings.Contains(joined, "SOME_TOKEN") {
 		t.Fatal("the parent's environment must not be inherited")
+	}
+}
+
+func TestChildEnvironmentRedirectsEveryFallbackLocationIntoTheDataDirectory(t *testing.T) {
+	data := t.TempDir()
+	if err := PrepareDataDir(filepath.Join(data, "d")); err != nil {
+		t.Fatal(err)
+	}
+	root := filepath.Join(data, "d")
+	if err := PrepareIsolatedDirs(root); err != nil {
+		t.Fatal(err)
+	}
+	redirected := map[string]string{}
+	for _, entry := range childEnvironment(root) {
+		if name, value, ok := strings.Cut(entry, "="); ok {
+			redirected[name] = value
+		}
+	}
+	for _, name := range []string{"TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "TMPDIR", "HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME"} {
+		value, present := redirected[name]
+		if !present {
+			continue // the other operating system's variable
+		}
+		if !strings.HasPrefix(value, root+string(filepath.Separator)) {
+			t.Fatalf("%s=%q is not inside the isolated directory", name, value)
+		}
+		if info, err := os.Stat(value); err != nil || !info.IsDir() {
+			t.Fatalf("%s target %q was not created", name, value)
+		}
+	}
+	if len(redirected) < 8 {
+		t.Fatalf("expected the temp/home/appdata redirects, got %v", redirected)
 	}
 }

@@ -3,7 +3,7 @@
 # platform with PowerShell (PowerShell 5.1 compatible: no ternary, no &&, no -AsHashtable).
 $ErrorActionPreference = 'Stop'
 
-$script:ValidStatus = @('PASS', 'FAIL', 'BLOCKED', 'NOT EXECUTED')
+$script:ValidStatus = @('PASS', 'FAIL', 'BLOCKED', 'NOT EXECUTED', 'HARNESS ERROR')
 # ERROR_ACCESS_DISABLED_BY_POLICY, ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION: the only native codes treated as policy refusal (same rule as the product's evidence tooling).
 $script:PolicyCodes = @(1260, 4551)
 
@@ -13,8 +13,10 @@ function New-StageResult([string]$Id, [string]$Status, [string]$Detail, $Evidenc
 }
 
 function Get-OverallVerdict($Stages) {
-    # BLOCKED outranks FAIL: a refused file means nothing about the application was verified. Any NOT EXECUTED stage prevents an overall PASS.
+    # HARNESS ERROR outranks everything (the results cannot be trusted). BLOCKED outranks FAIL: a refused file means nothing about the application was
+    # verified. Any NOT EXECUTED stage prevents an overall PASS.
     $statuses = @($Stages | ForEach-Object { $_.status })
+    if ($statuses -contains 'HARNESS ERROR') { return 'HARNESS ERROR' }
     if ($statuses.Count -eq 0 -or @($statuses | Where-Object { $_ -ne 'NOT EXECUTED' }).Count -eq 0) { return 'NOT EXECUTED' }
     if ($statuses -contains 'BLOCKED') { return 'BLOCKED' }
     if ($statuses -contains 'FAIL') { return 'FAIL' }
@@ -209,4 +211,185 @@ function Get-Descendants($Table, [int]$RootId) {
         foreach ($child in @($Table | Where-Object { $_.ParentProcessId -eq $current })) { $ids += [int]$child.ProcessId; $queue += [int]$child.ProcessId }
     }
     return $ids
+}
+
+
+# ---- Phase 1 runner support: pure, testable on any platform --------------------------------------------------------------------------------------------
+
+$script:SumsLine = '^([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9_.\-/]*)$'
+$script:RequiredBundleFiles = @('saplens-host.exe', 'runtime.tar.gz', 'scripts/Run-Phase1.ps1', 'scripts/Test-WindowsFeasibility.ps1', 'scripts/Get-AppControlDiagnostics.ps1',
+                                'scripts/Phase1Common.ps1', 'scripts/Test-Phase1Logic.ps1')
+
+function ConvertTo-SafeMessage([string]$Text, [int]$Max = 300) {
+    # Error text for reports: user profile folder abbreviated, control characters removed, bounded. No environment values, no credentials.
+    if (-not $Text) { return '' }
+    $clean = $Text
+    foreach ($pair in @(@($env:USERPROFILE, '%USERPROFILE%'), @($env:HOME, '%HOME%'))) { if ($pair[0] -and $pair[0].Length -gt 3) { $clean = $clean.Replace($pair[0], $pair[1]) } }
+    $clean = [regex]::Replace($clean, '[\x00-\x1f]+', ' ')
+    $clean = [regex]::Replace($clean, '(?i)\b(password|passwd|token|secret|api[-_]?key|authorization|capability)\b(\s*[=:]\s*)\S+', '$1$2<redacted>')
+    if ($clean.Length -gt $Max) { $clean = $clean.Substring(0, $Max) + '...' }
+    return $clean.Trim()
+}
+
+function Write-JsonFile([string]$Path, $Object) {
+    # Cmdlets only, so it also works in Constrained Language Mode.
+    $parent = Split-Path -Parent $Path
+    if ($parent -and -not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
+    ($Object | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath $Path -Encoding UTF8
+}
+
+function Test-BundleSums([string]$Dir, [string]$TrustedSha256) {
+    # Verifies a bundle directory against a SEPARATELY SUPPLIED checksum of SHA256SUMS.txt. Returns a list of problems; an empty list means intact.
+    # The sums file is not trusted until its own hash matches; only then are its lines parsed, strictly, and every listed file hashed.
+    $problems = @()
+    $sums = Join-Path $Dir 'SHA256SUMS.txt'
+    if (-not (Test-Path -LiteralPath $sums -PathType Leaf)) { return @('SHA256SUMS.txt is missing') }
+    if ($TrustedSha256 -notmatch '^[0-9a-fA-F]{64}$') { return @('the trusted checksum is not a SHA-256 hex string') }
+    if ((Get-FileHash -LiteralPath $sums -Algorithm SHA256).Hash.ToLowerInvariant() -ne $TrustedSha256.ToLowerInvariant()) { return @('SHA256SUMS.txt does not match the trusted checksum') }
+    $listed = @{}
+    foreach ($line in @(Get-Content -LiteralPath $sums -Encoding ASCII)) {
+        if (-not $line) { continue }
+        $m = [regex]::Match($line, $script:SumsLine)
+        if (-not $m.Success -or ($m.Groups[2].Value -split '/') -contains '..' -or ($m.Groups[2].Value -split '/') -contains '' -or ($m.Groups[2].Value -split '/') -contains '.') { $problems += "malformed or unsafe SHA256SUMS line: $(ConvertTo-SafeMessage $line 80)"; continue }
+        if ($listed.ContainsKey($m.Groups[2].Value)) { $problems += "duplicate entry: $($m.Groups[2].Value)"; continue }
+        $listed[$m.Groups[2].Value] = $m.Groups[1].Value
+    }
+    foreach ($required in $script:RequiredBundleFiles) { if (-not $listed.ContainsKey($required)) { $problems += "required file not listed: $required" } }
+    $root = (Resolve-Path -LiteralPath $Dir).Path.TrimEnd('\', '/')
+    foreach ($relative in @($listed.Keys | Sort-Object)) {
+        $full = Join-Path $root ($relative -replace '/', [System.IO.Path]::DirectorySeparatorChar)
+        $item = Get-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
+        if (-not $item -or $item.PSIsContainer) { $problems += "missing: $relative"; continue }
+        if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { $problems += "link not allowed: $relative"; continue }
+        if ((Get-FileHash -LiteralPath $full -Algorithm SHA256).Hash.ToLowerInvariant() -ne $listed[$relative]) { $problems += "changed: $relative" }
+    }
+    foreach ($item in @(Get-ChildItem -LiteralPath $root -Recurse -Force)) {
+        if ($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) { $problems += "link not allowed: $($item.Name)"; continue }
+        if ($item.PSIsContainer) { continue }
+        $relative = $item.FullName.Substring($root.Length + 1).Replace('\', '/')
+        if ($relative -ne 'SHA256SUMS.txt' -and -not $listed.ContainsKey($relative)) { $problems += "unexpected file: $relative" }
+    }
+    return $problems
+}
+
+function Get-ArchiveListing([string]$TarPath, [string]$Archive) {
+    # Names from `tar -tzf`, entry types from the first character of `tar -tvzf`. Raw exit codes are returned, never masked.
+    $names = @(& $TarPath -tzf $Archive); $namesExit = $LASTEXITCODE
+    $verbose = @(& $TarPath -tvzf $Archive); $verboseExit = $LASTEXITCODE
+    $types = @($verbose | ForEach-Object { if ($_) { ([string]$_).Substring(0, 1) } })
+    return @{ Names = $names; Types = $types; NamesExit = $namesExit; VerboseExit = $verboseExit }
+}
+
+function Test-ArchiveMembers([string[]]$Names, [string[]]$Types, [string]$Destination, [int]$MaxPath = 259) {
+    # Refuses anything that could land outside the extraction directory or behave unexpectedly on Windows. Returns problems; empty means every member is safe.
+    $problems = @()
+    if ($Names.Count -eq 0) { return @('archive lists no members') }
+    if ($Names.Count -ne $Types.Count) { return @('member names and types do not line up') }
+    $longest = 0
+    for ($i = 0; $i -lt $Names.Count; $i++) {
+        $name = [string]$Names[$i]; $type = [string]$Types[$i]
+        if (@('-', 'd') -notcontains $type) { $problems += "member type '$type' not allowed (only files and directories): $(ConvertTo-SafeMessage $name 60)"; continue }
+        if ($name -match '[\x00-\x1f]') { $problems += 'control character in a member name'; continue }
+        if ($name.Contains('\')) { $problems += "backslash in member name: $(ConvertTo-SafeMessage $name 60)"; continue }
+        if ($name.Contains(':')) { $problems += "colon (drive or stream) in member name: $(ConvertTo-SafeMessage $name 60)"; continue }
+        if ($name.StartsWith('/')) { $problems += "absolute member name: $(ConvertTo-SafeMessage $name 60)"; continue }
+        foreach ($segment in ($name.TrimEnd('/') -split '/')) {
+            if ($segment -eq '..') { $problems += "path traversal: $(ConvertTo-SafeMessage $name 60)"; break }
+            if ($segment -match '^(?i:con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$') { $problems += "reserved device name: $(ConvertTo-SafeMessage $name 60)"; break }
+            if ($segment -ne '.' -and $segment -match '[. ]$') { $problems += "trailing dot or space: $(ConvertTo-SafeMessage $name 60)"; break }
+        }
+        if ($name.Length -gt $longest) { $longest = $name.Length }
+    }
+    if ($Destination -and ($Destination.TrimEnd('\', '/').Length + 1 + $longest) -gt $MaxPath) { $problems += "longest member would exceed $MaxPath characters below the destination; use a shorter work directory" }
+    return $problems
+}
+
+function Get-OwnedLeftovers($Table, $Owned, [string]$RuntimeDir, [string]$HostExe) {
+    # Processes created by THIS run that are still alive. Owned entries are @{ Pid; Start } recorded when each process was created. A process qualifies only if
+    #   (a) it is an owned process still alive with the recorded start time, or
+    #   (b) its parent is a qualifying or recorded-owned process, it started no earlier than that parent (guards PID reuse) and it runs from the runtime tree or the host file.
+    # Nothing is matched by file name alone, so another run, another user or an installed SAP Lens is never selected.
+    $rows = @($Table)
+    $selected = @{}; $frontier = @()
+    $prefix = $RuntimeDir.Replace('/', '\').TrimEnd('\') + '\'
+    $under = { param($path) $normal = $(if ($path) { ([string]$path).Replace('/', '\') } else { '' }); $normal -and ($normal.StartsWith($prefix, [System.StringComparison]::OrdinalIgnoreCase) -or [string]::Equals($normal, $HostExe.Replace('/', '\'), [System.StringComparison]::OrdinalIgnoreCase)) }
+    foreach ($owned in @($Owned)) {
+        $row = $rows | Where-Object { [int]$_.ProcessId -eq [int]$owned.Pid -and [math]::Abs(($_.CreationDate - $owned.Start).TotalSeconds) -lt 2 } | Select-Object -First 1
+        if ($row) { $selected[[int]$row.ProcessId] = $row }
+        $frontier += @{ Pid = [int]$owned.Pid; Start = $owned.Start }
+    }
+    while ($frontier.Count -gt 0) {
+        $parent = $frontier[0]; $frontier = @($frontier | Select-Object -Skip 1)
+        foreach ($child in @($rows | Where-Object { [int]$_.ParentProcessId -eq $parent.Pid -and $_.CreationDate -ge $parent.Start.AddSeconds(-1) })) {
+            if ($selected.ContainsKey([int]$child.ProcessId) -or -not (& $under $child.ExecutablePath)) { continue }
+            $selected[[int]$child.ProcessId] = $child
+            $frontier += @{ Pid = [int]$child.ProcessId; Start = $child.CreationDate }
+        }
+    }
+    return @($selected.Values)
+}
+
+function Resolve-HarnessOutcome($ExitCode, [string]$JsonPath) {
+    # Turns a harness run into ONE classification. A missing, unreadable or inconsistent result is a HARNESS ERROR, never a FAIL and never a PASS.
+    $expected = @{ 'PASS' = 0; 'FAIL' = 1; 'BLOCKED' = 2; 'INCOMPLETE' = 3; 'NOT EXECUTED' = 3; 'HARNESS ERROR' = 4 }
+    if ($null -eq $ExitCode) { return @{ Status = 'HARNESS ERROR'; Reason = 'the harness did not complete (no exit code)'; Overall = $null } }
+    if (-not (Test-Path -LiteralPath $JsonPath -PathType Leaf)) { return @{ Status = 'HARNESS ERROR'; Reason = "result file missing (exit code $ExitCode)"; Overall = $null } }
+    try { $result = Get-Content -LiteralPath $JsonPath -Raw -Encoding UTF8 | ConvertFrom-Json } catch { return @{ Status = 'HARNESS ERROR'; Reason = "result file unreadable (exit code $ExitCode)"; Overall = $null } }
+    $stages = @($result.stages)
+    if ($result.schema -ne 1 -or -not $result.overall -or $stages.Count -eq 0) { return @{ Status = 'HARNESS ERROR'; Reason = "result file has an unexpected shape (exit code $ExitCode)"; Overall = $null } }
+    foreach ($stage in $stages) { if ($script:ValidStatus -notcontains [string]$stage.status) { return @{ Status = 'HARNESS ERROR'; Reason = "unknown stage status '$($stage.status)'"; Overall = $null } } }
+    $recomputed = Get-OverallVerdict @($stages | ForEach-Object { @{ status = [string]$_.status } })
+    if ($recomputed -ne [string]$result.overall) { return @{ Status = 'HARNESS ERROR'; Reason = "recorded overall '$($result.overall)' differs from the stages ('$recomputed')"; Overall = [string]$result.overall } }
+    if (-not $expected.ContainsKey([string]$result.overall) -or [int]$ExitCode -ne $expected[[string]$result.overall]) { return @{ Status = 'HARNESS ERROR'; Reason = "exit code $ExitCode does not match overall '$($result.overall)'"; Overall = [string]$result.overall } }
+    $status = [string]$result.overall; if ($status -eq 'INCOMPLETE') { $status = 'NOT EXECUTED' }
+    return @{ Status = $status; Reason = "harness reported $($result.overall) (exit code $ExitCode)"; Overall = [string]$result.overall }
+}
+
+function Get-RunExitCode([string]$Status) {
+    switch ($Status) { 'PASS' { return 0 } 'FAIL' { return 1 } 'BLOCKED' { return 2 } 'NOT EXECUTED' { return 3 } 'HARNESS ERROR' { return 4 } default { return 4 } }
+}
+
+function Get-RunStatus([string]$StopReason, [string]$SelfTest, [string]$Harness, [int]$EnforcedBlocks) {
+    # StopReason: set when a precondition or integrity check stopped the run before the harness (nothing was verified). SelfTest and Harness are statuses or $null.
+    if ($StopReason) { return 'NOT EXECUTED' }
+    if ($SelfTest -and $SelfTest -ne 'PASS') { return 'HARNESS ERROR' }
+    if (-not $Harness) { return 'NOT EXECUTED' }
+    if ($Harness -eq 'PASS' -and $EnforcedBlocks -gt 0) { return 'HARNESS ERROR' }   # evidence conflict: a block the harness did not notice
+    return $Harness
+}
+
+
+function ConvertTo-ArgumentString([string[]]$Arguments) {
+    # Windows command-line quoting (CommandLineToArgvW rules): quotes escaped, backslashes before quotes and at the end doubled.
+    return (($Arguments | ForEach-Object { if ($_ -match '[\s"]' -or $_ -eq '') { '"' + ($_ -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"' } else { $_ } }) -join ' ')
+}
+
+function Invoke-Native([string]$File, [string[]]$Arguments, [int]$TimeoutSeconds, [hashtable]$Environment, [string]$LogPath, [string]$WorkingDirectory, [string]$RuntimeDir, [string]$HostExe) {
+    # Starts ONE child process, captures its output and returns its RAW exit code (never remapped). On timeout only this child and the processes this child
+    # created (recorded PID and start time, runtime tree or host file) are stopped.
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName = $File; $info.Arguments = ConvertTo-ArgumentString $Arguments; $info.UseShellExecute = $false; $info.CreateNoWindow = $true
+    $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true
+    if ($WorkingDirectory) { $info.WorkingDirectory = $WorkingDirectory }
+    foreach ($key in @($Environment.Keys)) { $info.EnvironmentVariables[$key] = [string]$Environment[$key] }
+    $result = [ordered]@{ Started = $false; ExitCode = $null; TimedOut = $false; Pid = $null; Error = $null; Output = '' }
+    try { $p = [System.Diagnostics.Process]::Start($info) } catch { $result.Error = ConvertTo-SafeMessage ("$($_.Exception.GetType().Name): $($_.Exception.Message)"); return $result }
+    $result.Started = $true; $result.Pid = $p.Id; $start = $p.StartTime
+    $outTask = $p.StandardOutput.ReadToEndAsync(); $errTask = $p.StandardError.ReadToEndAsync()
+    if (-not $p.WaitForExit($TimeoutSeconds * 1000)) {
+        $result.TimedOut = $true
+        try {
+            if ($RuntimeDir -and $HostExe) {
+                foreach ($row in @(Get-OwnedLeftovers (Get-ProcessTable) @(@{ Pid = $p.Id; Start = $start }) $RuntimeDir $HostExe)) { if ([int]$row.ProcessId -ne $p.Id) { try { Stop-Process -Id ([int]$row.ProcessId) -Force } catch { } } }
+            }
+        } catch { }
+        try { $p.Kill() } catch { }
+        [void]$p.WaitForExit(10000)
+    }
+    $result.ExitCode = $p.ExitCode
+    $text = [string]$outTask.Result + [string]$errTask.Result
+    foreach ($pair in @(@($env:USERPROFILE, '%USERPROFILE%'), @($env:HOME, '%HOME%'))) { if ($pair[0] -and $pair[0].Length -gt 3) { $text = $text.Replace($pair[0], $pair[1]) } }
+    if ($LogPath) { $text | Set-Content -LiteralPath $LogPath -Encoding UTF8 }
+    $result.Output = $text
+    return $result
 }

@@ -202,13 +202,15 @@ class SecurityBoundary(unittest.TestCase):
             if path.is_file():
                 self.assertNotIn(capability.encode(), path.read_bytes(), str(path))
 
-    def test_child_environment_is_minimal(self):
-        environ = Path(f'/proc/{self.host.backend_pid}/environ').read_bytes().decode().split('\0')
-        names = {e.split('=', 1)[0] for e in environ if e}
-        self.assertTrue(names <= {'PATH', 'HOME', 'TMPDIR', 'TEMP', 'TMP', 'LANG', 'LC_ALL', 'PYTHONUTF8', 'PYTHONIOENCODING', 'PYTHONDONTWRITEBYTECODE',
-                                  'SAP_LENS_POC_DATA', 'PYTHONNOUSERSITE', 'SystemRoot'}, names)
+    def test_child_environment_is_minimal_and_redirected_into_the_data_directory(self):
+        environ = dict(e.split('=', 1) for e in Path(f'/proc/{self.host.backend_pid}/environ').read_bytes().decode().split('\0') if '=' in e)
+        self.assertTrue(set(environ) <= {'PATH', 'HOME', 'TMPDIR', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME', 'LANG', 'PYTHONUTF8', 'PYTHONDONTWRITEBYTECODE', 'SAP_LENS_POC_DATA'}, set(environ))
+        data = os.path.realpath(self.host.data)
+        for name in ('HOME', 'TMPDIR', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME'):
+            self.assertTrue(os.path.realpath(environ[name]).startswith(data + os.sep), f'{name}={environ[name]}')
+            self.assertTrue(os.path.isdir(environ[name]), name)
         for forbidden in ('HTTPS_PROXY', 'HTTP_PROXY', 'GITHUB_TOKEN', 'ANTHROPIC_API_KEY', 'SSH_AUTH_SOCK'):
-            self.assertNotIn(forbidden, names)
+            self.assertNotIn(forbidden, environ)
 
     def test_data_stays_inside_the_isolated_directory(self):
         marker = Path(self.host.data, '.sap-lens-poc')

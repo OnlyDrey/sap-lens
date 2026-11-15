@@ -21,7 +21,7 @@ FORBIDDEN = [r'Set-ExecutionPolicy', r'-ExecutionPolicy\s+Bypass', r'Set-MpPrefe
 
 class Static(unittest.TestCase):
     def test_scripts_exist(self):
-        self.assertEqual({p.name for p in SCRIPTS}, {'Phase1Common.ps1', 'Test-Phase1Logic.ps1', 'Test-WindowsFeasibility.ps1', 'Get-AppControlDiagnostics.ps1'})
+        self.assertEqual({p.name for p in SCRIPTS}, {'Phase1Common.ps1', 'Test-Phase1Logic.ps1', 'Test-WindowsFeasibility.ps1', 'Get-AppControlDiagnostics.ps1', 'Run-Phase1.ps1'})
 
     def test_no_forbidden_operations(self):
         for script in SCRIPTS:
@@ -39,6 +39,26 @@ class Static(unittest.TestCase):
         text = (WINDOWS / 'Test-WindowsFeasibility.ps1').read_text()
         self.assertIn("'SAP Lens'", text)  # refuses inputs inside an SAP Lens installation or data directory
         self.assertIn("Contains('saplens-poc-')", text)  # cleanup only ever removes its own temp identity folder
+
+    def test_runner_safety_properties(self):
+        text = (WINDOWS / 'Run-Phase1.ps1').read_text()
+        code = '\n'.join(line for line in text.splitlines() if not line.lstrip().startswith('#'))
+        self.assertIn('[Parameter(Mandatory = $true)][ValidatePattern', code)  # trusted checksum is mandatory and validated
+        self.assertIn('TrustedSumsSha256', code)
+        for forbidden in ('Remove-Item', 'rmdir', 'Stop-Process', 'Set-ExecutionPolicy', 'Unblock-File', 'LanguageMode =', 'LanguageMode='):
+            self.assertNotIn(forbidden, code, forbidden)  # the runner never deletes, never stops processes itself and never changes modes or policy
+        self.assertIn("'System32\\tar.exe'", code)  # absolute system tar, never resolved through PATH or the working directory on Windows
+        self.assertIn('Local\\SAPLensPhase1Runner', code)  # no overlapping runs
+        self.assertIn('AllowElevated', code)
+        self.assertIn('Test-ArchiveMembers', code)  # archive members are validated before extraction
+        self.assertIn('Test-BundleSums', code)
+
+    def test_process_cleanup_never_matches_by_name(self):
+        text = (WINDOWS / 'Test-WindowsFeasibility.ps1').read_text() + (WINDOWS / 'Phase1Common.ps1').read_text()
+        self.assertNotIn('Get-Process -Name', text)
+        self.assertNotIn('taskkill', text.lower())
+        self.assertNotIn('Stop-Process -Name', text)
+        self.assertEqual(len(re.findall(r'Stop-Process', text)), 2)  # exactly two call sites: Stop-OwnedLeftovers (harness) and the timeout path of Invoke-Native; both select by recorded ownership
 
     def test_wrong_capability_check_uses_the_real_header(self):
         text = (WINDOWS / 'Test-WindowsFeasibility.ps1').read_text()

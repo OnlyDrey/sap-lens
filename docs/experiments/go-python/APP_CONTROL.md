@@ -37,7 +37,7 @@ Windows can refuse at process creation (host, interpreter) or later at image loa
 | `blocked_component_during_startup` | no READY and an enforced record below the runtime root | W07 |
 | `installer_failure` | not applicable: the experiment has no installer | n/a |
 
-Rules: translated message text is never parsed; a missing signature is recorded but is not proof of a block; an unreadable event log is a limitation, and it makes W14 NOT EXECUTED rather than PASS; 3076 audit records are reported as "would be blocked". All of this logic is tested with synthetic records (`Test-Phase1Logic.ps1`, 22 assertions, passes on Linux).
+Rules: translated message text is never parsed; a missing signature is recorded but is not proof of a block; an unreadable event log is a limitation, and it makes W14 NOT EXECUTED rather than PASS; 3076 audit records are reported as "would be blocked". All of this logic is tested with synthetic records (`Test-Phase1Logic.ps1`, passes on Linux).
 
 ## What a path to compatibility could look like (for IT to decide, not claimed)
 

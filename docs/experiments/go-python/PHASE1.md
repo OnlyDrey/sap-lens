@@ -9,7 +9,7 @@ This session ran on Linux. No Windows host, no Windows App Control and no Window
 | Acceptance criterion | Status | Basis |
 | --- | --- | --- |
 | 1. Windows runtime execution verified | NOT MET | Not executed. Harness, bundle and exact commands are ready ([WINDOWS_VALIDATION](WINDOWS_VALIDATION.md)) |
-| 2. Go supervision and cleanup correct on Windows | NOT MET | Linux passes (Python suite 58 tests including 1 expected failure for the unremediated bootstrap, plus 9 Go tests). Windows Job Object path never executed |
+| 2. Go supervision and cleanup correct on Windows | NOT MET | Linux passes (Python suite 70 tests including 1 expected failure for the unremediated bootstrap, plus 10 Go tests). Windows Job Object path never executed |
 | 3. Security boundaries intact | PARTLY | Linux boundary tests pass. One test from Phase 0 was vacuous and was fixed (below). Bootstrap finding F1 confirmed ([CAPABILITY_BOOTSTRAP](CAPABILITY_BOOTSTRAP.md)) |
 | 4. App Control compatibility shown, or IT-approved path identified | NOT MET | No evidence either way for the bundled tree. Existing repo evidence shows the unsigned product EXE is already blocked on a policy machine. Remediation path is a design question for IT ([APP_CONTROL](APP_CONTROL.md)) |
 | 5. Defensible benefit over existing packaging | NOT DEMONSTRATED | No size, file-count or startup advantage; benefit is auditability only ([PACKAGING_COMPARISON](PACKAGING_COMPARISON.md)) |
@@ -35,13 +35,13 @@ This session ran on Linux. No Windows host, no Windows App Control and no Window
 | --- | --- |
 | Branch and commit verified (`experiment/go-python`, `843c005`), tree clean at start | done |
 | PowerShell parse of all four scripts (pwsh 7 on Linux) | passed |
-| `Test-Phase1Logic.ps1` (22 assertions on synthetic Code Integrity records and failure classification) | passed |
+| `Test-Phase1Logic.ps1` (87 assertions: classification of synthetic Code Integrity records, bundle and archive verification, process ownership, outcome mapping, child processes, static lint) | passed |
 | Harness run on a non-Windows host reports 14 stages NOT EXECUTED, exit code 3 | passed |
 | Static scan: harness contains no policy, registry, service, Defender or installer operations; ASCII only | passed |
 | Windows bundle built twice on Linux: identical host exe hash and identical runtime archive hash | passed |
 | Static PE inventory of the Windows tree (75 images) | done, see APP_CONTROL |
 | Capability bootstrap reproduced against the unchanged backend (synthetic data) | confirmed, see CAPABILITY_BOOTSTRAP |
-| `python experiments/go-python/run_all.py` (gofmt, vet linux and windows, `go test -race`, cross-builds, 58 Python tests) | passed; govulncheck NOT EXECUTED (database unreachable) |
+| `python experiments/go-python/run_all.py` (gofmt, vet linux and windows, `go test -race`, cross-builds, 70 Python tests) | passed; govulncheck NOT EXECUTED (database unreachable) |
 
 ## Correction to Phase 0
 
@@ -50,3 +50,7 @@ The Phase 0 test "wrong capability is forbidden" sent the header `X-SAP-Lens-Ses
 ## Decision
 
 See [PHASE1_DECISION](PHASE1_DECISION.md).
+
+## Runner hardening (follow-up)
+
+`windows/Run-Phase1.ps1` is the single entry point: it verifies the bundle against a separately supplied checksum, validates and extracts the archive into a fresh run folder, runs the self-test, harness and diagnostics in separate processes, and always writes `run-summary.json` and `.txt`. Result vocabulary: PASS, FAIL, BLOCKED, NOT EXECUTED, HARNESS ERROR. Changes to the existing tools: the harness records a HARNESS ERROR instead of dying without a result, works in Constrained Language Mode far enough to report it, refuses elevated sessions, and stops only processes this run created; the host redirects temp, home and application-data folders into the isolated data directory. Details and commands: [WINDOWS_VALIDATION](WINDOWS_VALIDATION.md). Still NOT EXECUTED on Windows.

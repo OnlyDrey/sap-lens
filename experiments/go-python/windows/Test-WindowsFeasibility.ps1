@@ -12,7 +12,9 @@
 .EXAMPLE
   powershell -NoProfile -File .\Test-WindowsFeasibility.ps1 -HostExe C:\poc\saplens-host.exe -RuntimeDir C:\poc\runtime -OutDir C:\poc\evidence
 .NOTES
-  Exit codes: 0 all stages PASS, 1 at least one FAIL, 2 at least one BLOCKED (and no FAIL), 3 not executed or incomplete.
+  Exit codes: 0 all stages PASS, 1 at least one FAIL, 2 at least one BLOCKED (and no FAIL), 3 not executed or incomplete, 4 HARNESS ERROR (an unexpected error
+  inside the harness; the result file still exists and says where). A missing result file is never a PASS or a FAIL: treat it as a harness error.
+  Only processes created by this run are ever stopped (recorded PID plus start time, parent chain, path below the runtime tree or the host file).
 #>
 param(
     [Parameter(Mandatory = $true)][string]$HostExe,
@@ -20,12 +22,13 @@ param(
     [string]$OutDir,
     [int]$ImportTimeoutSeconds = 30,
     [int]$ReadyTimeoutSeconds = 40,
-    [switch]$KeepTemp
+    [switch]$KeepTemp,
+    [switch]$AllowElevated
 )
 . (Join-Path $PSScriptRoot 'Phase1Common.ps1')
 
-$stages = New-Object System.Collections.ArrayList
-function Add-Stage($Result) { [void]$stages.Add($Result); Write-Host ("{0,-13} {1} {2}" -f $Result.status, $Result.id, $Result.detail) }
+$stages = @()   # plain arrays only: Constrained Language Mode rejects New-Object ArrayList
+function Add-Stage($Result) { $script:stages += , $Result; Write-Host ("{0,-13} {1} {2}" -f $Result.status, $Result.id, $Result.detail) }
 $stageIds = @('W01 preflight', 'W02 runtime integrity (manifest)', 'W03 signature inventory', 'W04 Go host starts', 'W05 bundled CPython initialises',
               'W06 native extensions load', 'W07 backend, frontend, capability and boundary', 'W08 graceful shutdown', 'W09 forced host kill: Job Object cleanup',
               'W10 start-timeout cleanup', 'W11 foreign data directory refused', 'W12 no orphan processes', 'W13 Windows measurements', 'W14 Code Integrity correlation')
@@ -33,37 +36,53 @@ $started = Get-Date
 $onWindows = ($env:OS -eq 'Windows_NT')
 
 function Finish([int]$Code) {
+    # Cmdlets only (works in Constrained Language Mode) and always writes the result file.
     $missing = @($stageIds | Where-Object { $id = $_; -not (@($stages | Where-Object { $_.id -eq $id }).Count) })
-    foreach ($id in $missing) { [void]$stages.Add((New-StageResult $id 'NOT EXECUTED' $reason $null)) }
+    foreach ($id in $missing) { $script:stages += , (New-StageResult $id 'NOT EXECUTED' $reason $null) }
     $verdict = Get-OverallVerdict $stages
-    $result = [ordered]@{ schema = 1; phase = 'go-python-phase1'; recorded_utc = (Get-Date).ToUniversalTime().ToString('o'); platform = $(if ($onWindows) { 'windows' } else { 'not-windows' });
-                          os = $(if ($onWindows) { [System.Environment]::OSVersion.Version.ToString() } else { 'n/a' }); powershell = $PSVersionTable.PSVersion.ToString(); overall = $verdict; stages = $stages }
-    $target = $OutDir; if (-not $target) { $target = Join-Path ([System.IO.Path]::GetTempPath()) ('saplens-poc-evidence-' + [guid]::NewGuid().ToString('N').Substring(0, 8)) }
-    New-Item -ItemType Directory -Force $target | Out-Null
-    [System.IO.File]::WriteAllText((Join-Path $target 'phase1-windows-result.json'), ($result | ConvertTo-Json -Depth 8), (New-Object System.Text.UTF8Encoding($false)))
+    $osVersion = 'n/a'
+    if ($onWindows) { try { $osVersion = [string](Get-CimInstance -ClassName Win32_OperatingSystem -ErrorAction Stop).Version } catch { $osVersion = 'unknown' } }
+    $platformName = 'not-windows'; if ($onWindows) { $platformName = 'windows' }
+    $result = [ordered]@{ schema = 1; phase = 'go-python-phase1'; recorded_utc = (Get-Date).ToUniversalTime().ToString('o'); platform = $platformName; os = $osVersion; powershell = "$($PSVersionTable.PSVersion)"; overall = $verdict; stages = $stages }
+    $target = $OutDir
+    if (-not $target) { $base = $env:TEMP; if (-not $base) { $base = [System.IO.Path]::GetTempPath() }; $target = Join-Path $base ('saplens-poc-evidence-' + [guid]::NewGuid().ToString('N').Substring(0, 8)) }
+    Write-JsonFile (Join-Path $target 'phase1-windows-result.json') $result
     Write-Host "Overall: $verdict (evidence: $target)"
-    if ($verdict -eq 'PASS') { exit 0 } elseif ($verdict -eq 'FAIL') { exit 1 } elseif ($verdict -eq 'BLOCKED') { exit 2 } else { exit 3 }
+    if ($verdict -eq 'PASS') { exit 0 } elseif ($verdict -eq 'FAIL') { exit 1 } elseif ($verdict -eq 'BLOCKED') { exit 2 } elseif ($verdict -eq 'HARNESS ERROR') { exit 4 } else { exit 3 }
+}
+
+# Process ownership: only processes this run created are ever stopped.
+$script:Owned = @()
+function Register-Owned($Process) { try { $script:Owned += , @{ Pid = [int]$Process.Id; Start = $Process.StartTime } } catch { } }
+function Stop-OwnedLeftovers {
+    $left = @(Get-OwnedLeftovers (Get-ProcessTable) $script:Owned $RuntimeDir $HostExe)
+    foreach ($row in $left) { try { Stop-Process -Id ([int]$row.ProcessId) -Force -ErrorAction Stop } catch { } }
+    return $left
 }
 
 $reason = 'not executed'
 if (-not $onWindows) { $reason = 'not a Windows host: nothing was executed and no result may be reported as Windows validation'; Finish 3 }
 
-# ---- W01 preflight and isolation -------------------------------------------------------------------------------------------------------------
-$identity = 'poc-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
-$temp = Join-Path ([System.IO.Path]::GetTempPath()) ('saplens-' + $identity)
-$HostExe = (Resolve-Path -LiteralPath $HostExe).Path; $RuntimeDir = (Resolve-Path -LiteralPath $RuntimeDir).Path.TrimEnd('\')
-$forbidden = @($env:ProgramData, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA, $env:APPDATA) | Where-Object { $_ } | ForEach-Object { Join-Path $_ 'SAP Lens' }
-$unsafe = @($forbidden | Where-Object { $HostExe.StartsWith($_, 'OrdinalIgnoreCase') -or $RuntimeDir.StartsWith($_, 'OrdinalIgnoreCase') })
-if ($unsafe.Count -gt 0) { $reason = 'refused: input path is inside an SAP Lens installation or data directory'; Add-Stage (New-StageResult 'W01 preflight' 'FAIL' $reason $null); Finish 1 }
-New-Item -ItemType Directory -Force $temp | Out-Null
-$language = $ExecutionContext.SessionState.LanguageMode.ToString()
-$elevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-$policy = Get-ActivePolicyListing
-Add-Stage (New-StageResult 'W01 preflight' 'PASS' "isolated identity $identity; language mode $language; elevated=$elevated" ([ordered]@{ identity = $identity; language_mode = $language; elevated = $elevated; app_control_policies = $policy }))
-$python = Join-Path $RuntimeDir 'python\python.exe'
-$hostStage = $null
-
+$languageMode = $ExecutionContext.SessionState.LanguageMode.ToString()
+if ($languageMode -ne 'FullLanguage') { $reason = "precondition not met: PowerShell language mode is $languageMode (needs FullLanguage); nothing was executed. Do not work around this: ask IT"; Finish 3 }
+$temp = $null; $harnessFailed = $false
 try {
+    # ---- W01 preflight and isolation ---------------------------------------------------------------------------------------------------------
+    $identity = 'poc-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+    $tempBase = $env:TEMP; if (-not $tempBase) { $tempBase = [System.IO.Path]::GetTempPath() }
+    $temp = Join-Path $tempBase ('saplens-' + $identity)
+    $HostExe = (Resolve-Path -LiteralPath $HostExe).Path; $RuntimeDir = (Resolve-Path -LiteralPath $RuntimeDir).Path.TrimEnd('\')
+    $forbidden = @($env:ProgramData, $env:ProgramFiles, ${env:ProgramFiles(x86)}, $env:LOCALAPPDATA, $env:APPDATA) | Where-Object { $_ } | ForEach-Object { Join-Path $_ 'SAP Lens' }
+    $unsafe = @($forbidden | Where-Object { $HostExe.StartsWith($_, 'OrdinalIgnoreCase') -or $RuntimeDir.StartsWith($_, 'OrdinalIgnoreCase') })
+    if ($unsafe.Count -gt 0) { $reason = 'refused: input path is inside an SAP Lens installation or data directory'; Add-Stage (New-StageResult 'W01 preflight' 'NOT EXECUTED' $reason $null); Finish 3 }
+    $elevated = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+    if ($elevated -and -not $AllowElevated) { $reason = 'refused: this session is elevated. Run non-elevated (an elevated run is only for read-only diagnostics, see the documentation)'; Add-Stage (New-StageResult 'W01 preflight' 'NOT EXECUTED' $reason $null); Finish 3 }
+    New-Item -ItemType Directory -Force $temp | Out-Null
+    $policy = Get-ActivePolicyListing
+    Add-Stage (New-StageResult 'W01 preflight' 'PASS' "isolated identity $identity; language mode $languageMode; elevated=$elevated" ([ordered]@{ identity = $identity; language_mode = $languageMode; elevated = $elevated; app_control_policies = $policy }))
+    $python = Join-Path $RuntimeDir 'python\python.exe'
+    $hostStage = $null
+
     # ---- W02 / W03 --------------------------------------------------------------------------------------------------------------------------
     $problems = @(Test-ManifestIntegrity $RuntimeDir)
     $status = 'PASS'; if ($problems.Count -gt 0) { $status = 'FAIL' }
@@ -87,7 +106,7 @@ try {
             if ($e) { $result.NativeError = [int]$e.NativeErrorCode } else { $result.NativeError = -1 }
             return $result
         }
-        $result.Started = $true; $result.Process = $p
+        $result.Started = $true; $result.Process = $p; Register-Owned $p
         $outTask = $p.StandardOutput.ReadToEndAsync(); $errTask = $p.StandardError.ReadToEndAsync()
         try { $p.StandardInput.Close() } catch { }
         if (-not $p.WaitForExit($TimeoutSeconds * 1000)) { $result.TimedOut = $true; try { $p.Kill() } catch { }; [void]$p.WaitForExit(5000) }
@@ -160,7 +179,7 @@ try {
         $info = New-Object System.Diagnostics.ProcessStartInfo
         $info.FileName = $HostExe; $info.UseShellExecute = $false; $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true; $info.CreateNoWindow = $true
         $info.Arguments = ((@('--runtime', $RuntimeDir, '--data', $DataDir) + $Extra) | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' '
-        $p = [System.Diagnostics.Process]::Start($info)
+        $p = [System.Diagnostics.Process]::Start($info); Register-Owned $p
         return @{ Process = $p; Out = $p.StandardOutput.ReadLineAsync(); Err = $p.StandardError.ReadToEndAsync(); Begun = Get-Date }
     }
     function Wait-Ready($Run, [int]$Seconds) {
@@ -220,18 +239,21 @@ try {
     $ready = Wait-Ready $run $ReadyTimeoutSeconds
     if (-not $ready) { try { $run.Process.Kill() } catch { }; Add-Stage (New-StageResult 'W09 forced host kill: Job Object cleanup' 'FAIL' 'backend not ready' $null) }
     else {
-        $table = Get-ProcessTable; $tree = Get-Descendants $table $run.Process.Id
+        $table = Get-ProcessTable; $tree = @(Get-Descendants $table $run.Process.Id)
+        foreach ($row in @($table | Where-Object { $tree -contains [int]$_.ProcessId -and [int]$_.ProcessId -ne $run.Process.Id })) { $script:Owned += , @{ Pid = [int]$row.ProcessId; Start = $row.CreationDate } }
         $run.Process.Kill(); [void]$run.Process.WaitForExit(10000)
-        $gone = @($tree | Where-Object { $_ -ne $run.Process.Id } | ForEach-Object { Test-PidGone $_ 10 })
-        $st = 'FAIL'; if ($gone.Count -gt 0 -and @($gone | Where-Object { -not $_ }).Count -eq 0) { $st = 'PASS' }
-        Add-Stage (New-StageResult 'W09 forced host kill: Job Object cleanup' $st "$($gone.Count) child process(es) checked after TerminateProcess of the host" ([ordered]@{ attribution = 'Job Object (KILL_ON_JOB_CLOSE) and the backend stdin-EOF watchdog both apply; they are not separable here' }))
+        $deadline = (Get-Date).AddSeconds(10)
+        do { Start-Sleep -Milliseconds 250; $left = @(Get-OwnedLeftovers (Get-ProcessTable) $script:Owned $RuntimeDir $HostExe) } while ($left.Count -gt 0 -and (Get-Date) -lt $deadline)
+        $children = $tree.Count - 1
+        $st = 'FAIL'; if ($children -gt 0 -and $left.Count -eq 0) { $st = 'PASS' }
+        Add-Stage (New-StageResult 'W09 forced host kill: Job Object cleanup' $st "$children child process(es) of this run checked after TerminateProcess of the host; $($left.Count) still alive" ([ordered]@{ attribution = 'Job Object (KILL_ON_JOB_CLOSE) and the backend stdin-EOF watchdog both apply; they are not separable here' }))
     }
 
     # ---- W10 start timeout, W11 foreign data dir -------------------------------------------------------------------------------------------
     $run = Start-HostRun (Join-Path $temp 'data-timeout') @('--start-timeout', '50ms')
     $exited = $run.Process.WaitForExit(30000); $code = $null; if ($exited) { $code = $run.Process.ExitCode }
     Start-Sleep -Seconds 1
-    $left = @(Get-ProcessTable | Where-Object { $_.ExecutablePath -and $_.ExecutablePath.StartsWith($RuntimeDir, 'OrdinalIgnoreCase') })
+    $left = @(Get-OwnedLeftovers (Get-ProcessTable) $script:Owned $RuntimeDir $HostExe)
     $st = 'FAIL'; if ($code -eq 3 -and $left.Count -eq 0) { $st = 'PASS' }
     Add-Stage (New-StageResult 'W10 start-timeout cleanup' $st "exit code $code (expected 3); leftover processes $($left.Count)" $null)
     $foreign = Join-Path $temp 'foreign'; New-Item -ItemType Directory -Force $foreign | Out-Null; Set-Content -LiteralPath (Join-Path $foreign 'x.txt') -Value 'synthetic'
@@ -241,10 +263,9 @@ try {
 
     # ---- W12 orphans, W13 measurements, W14 correlation ------------------------------------------------------------------------------------
     Start-Sleep -Seconds 1
-    $orphans = @(Get-ProcessTable | Where-Object { $_.ExecutablePath -and ($_.ExecutablePath.StartsWith($RuntimeDir, 'OrdinalIgnoreCase') -or $_.ExecutablePath -eq $HostExe) -and $_.CreationDate -ge $started })
-    foreach ($o in $orphans) { try { Stop-Process -Id $o.ProcessId -Force } catch { } }
+    $orphans = @(Stop-OwnedLeftovers)
     $st = 'PASS'; if ($orphans.Count -gt 0) { $st = 'FAIL' }
-    Add-Stage (New-StageResult 'W12 no orphan processes' $st "$($orphans.Count) process(es) from the isolated runtime outlived the test (stopped by the harness)" $null)
+    Add-Stage (New-StageResult 'W12 no orphan processes' $st "$($orphans.Count) process(es) created by this run outlived the test (stopped by the harness; no other process is ever touched)" $null)
     $fileCount = @(Get-ChildItem -LiteralPath $RuntimeDir -Recurse -File -Force).Count
     $bytes = (Get-ChildItem -LiteralPath $RuntimeDir -Recurse -File -Force | Measure-Object Length -Sum).Sum
     Add-Stage (New-StageResult 'W13 Windows measurements' 'PASS' 'single run, one machine; not comparable with Linux numbers' ([ordered]@{ host_reported_ready_ms = $readyMs; peak_working_set_mib_process_tree = $peakMiB; runtime_files = $fileCount; runtime_bytes = $bytes; runs = 1 }))
@@ -257,7 +278,13 @@ try {
         Add-Stage (New-StageResult 'W14 Code Integrity correlation' $st "$($enforcedHits.Count) enforced and $($mine.Count - $enforcedHits.Count) audit-only record(s) below the runtime root" ([ordered]@{ records = $mine; limitations = $q.Limitations }))
     }
     $reason = 'completed'
+} catch {
+    $harnessFailed = $true
+    $failure = ConvertTo-SafeMessage ("$($_.Exception.GetType().Name): $($_.Exception.Message)")
+    $reason = 'stopped by a harness error'
+    Add-Stage (New-StageResult 'HARNESS ERROR' 'HARNESS ERROR' "unexpected terminating error at script line $($_.InvocationInfo.ScriptLineNumber): $failure" $null)
 } finally {
+    try { [void](Stop-OwnedLeftovers) } catch { }
     if (-not $KeepTemp -and $temp -and (Test-Path -LiteralPath $temp) -and $temp.Contains('saplens-poc-')) { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
 }
 Finish 0
