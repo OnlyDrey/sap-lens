@@ -86,6 +86,16 @@ class Static(unittest.TestCase):
             if script.name == 'Run-Phase1.ps1':
                 self.assertNotIn('Remove-Item', code)
 
+    def test_ps51_lint_regression_is_covered_per_construct_not_by_one_count(self):
+        """Windows PowerShell 5.1 cannot parse ternary, ?? and && at all, so a mixed fixture yields ONE parse-error entry there and seven constructs on PowerShell 7.
+        The lint test must therefore use one fixture per construct and never assert a single count for a mixed file."""
+        text = (WINDOWS / 'Test-Phase1Logic.ps1').read_text()
+        self.assertNotIn("Count 7 'the 5.1 lint detects", text)
+        for construct in ('ternary operator', 'null-coalescing operator', 'pipeline chain operator', 'ForEach-Object -Parallel', 'three-argument Join-Path', 'Get-Content -AsByteStream', 'IsWindows automatic variable'):
+            self.assertIn(f"'{construct}'", text)
+        for phrase in ('Windows PowerShell 5.1 path: every parse error is its own problem', 'Windows PowerShell 5.1 tokenization: generic ?, ??, && and || tokens'):
+            self.assertIn(phrase, text)
+
     def test_wrong_capability_check_uses_the_real_header(self):
         text = (WINDOWS / 'Test-WindowsFeasibility.ps1').read_text()
         self.assertIn("'X-SAP-Lens'", text)

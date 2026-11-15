@@ -227,17 +227,48 @@ $zone = Get-ZoneIdentifierState (New-TestScript 'x')
 Assert-Equal ($zone.Present -ne $true) $true 'a freshly created local script has no Mark-of-the-Web'
 
 # ---- Windows PowerShell 5.1 compatibility (syntax and features that exist only in PowerShell 7) --------------------------------------------------------------
+# The two hosts behave differently on the SAME source, and the lint must hold on both:
+#   * PowerShell 7 parses PS7-only syntax (ternary, ??, &&, ?.) into AST nodes, so the AST names every construct.
+#   * Windows PowerShell 5.1 cannot parse that syntax at all: Parser.ParseFile returns parse errors (and a partial AST), so an AST-only lint reports
+#     "one problem" for a file with many. Those parse errors ARE the 5.1 detection of PS7-only syntax; they are reported one by one with their line.
+#   * Cmdlet parameters and variables that merely do not exist in 5.1 (-Parallel, -AsByteStream, a third Join-Path argument, $IsWindows) parse fine
+#     in BOTH hosts, so the AST finds them in both.
+# A fixture that mixes both kinds therefore cannot give the same COUNT on both hosts. Each construct has its own fixture and must be detected (at least one
+# problem) on whichever host runs the test; on PowerShell 7 the exact construct is asserted as well.
+function Get-Ps51ParseProblems($Errors) {
+    # Pure: one entry per parse error, with its line. Used for the Windows PowerShell 5.1 path, where PS7-only syntax is a parse error.
+    $items = @()
+    foreach ($e in @($Errors)) { if ($null -ne $e) { $items += "parse error at line $($e.Extent.StartLineNumber): $(ConvertTo-SafeMessage ([string]$e.Message) 120)" } }
+    return $items
+}
+function Get-Ps51TokenProblems($Tokens) {
+    # Pure over a token list (objects with Kind, Text, Extent.StartLineNumber), so the Windows PowerShell 5.1 tokenization can be tested without that host.
+    # Strings and comments never match: their token text includes the quotes or the leading hash.
+    $problems = @(); $previous = ''
+    foreach ($token in @($Tokens)) {
+        $kind = [string]$token.Kind; $text = [string]$token.Text; $line = $token.Extent.StartLineNumber
+        if (@('QuestionMark', 'QuestionQuestion', 'QuestionQuestionEquals', 'QuestionDot', 'QuestionLBracket', 'AndAnd', 'OrOr') -contains $kind) { $problems += "PowerShell 7 operator '$text' at line $line" }
+        elseif (@('&&', '||', '??', '??=', '?.', '?[') -contains $text) { $problems += "PowerShell 7 operator '$text' at line $line" }
+        elseif ($text -eq '?' -and @('Variable', 'Number', 'StringLiteral', 'StringExpandable', 'RParen', 'RBracket') -contains $previous) { $problems += "PowerShell 7 ternary operator '?' at line $line" }
+        if ($kind -ne 'Comment') { $previous = $kind }
+    }
+    return $problems
+}
 function Test-Ps51Syntax([string]$ScriptPath) {
-    $errors = $null
-    $ast = [System.Management.Automation.Language.Parser]::ParseFile($ScriptPath, [ref]$null, [ref]$errors)
-    if ($errors.Count -gt 0) { return @("parse errors: $($errors.Count)") }
-    $problems = @()
+    $tokens = $null; $errors = $null
+    $ast = [System.Management.Automation.Language.Parser]::ParseFile($ScriptPath, [ref]$tokens, [ref]$errors)
+    $problems = @(Get-Ps51ParseProblems $errors)
+    # Token scan: independent of whether the whole file parsed (PowerShell 7 names these token kinds; 5.1 produces generic tokens with the same text).
+    $problems += @(Get-Ps51TokenProblems $tokens)
+    if ($null -eq $ast) { return $problems }
     foreach ($node in $ast.FindAll({ param($n) $true }, $true)) {
         $type = $node.GetType().Name
         if ($type -match 'Ternary|PipelineChain|NullConditional|NullCoalesc') { $problems += "$type at line $($node.Extent.StartLineNumber)" }
         if ($node -is [System.Management.Automation.Language.BinaryExpressionAst] -and [string]$node.Operator -match 'QuestionQuestion') { $problems += "null-coalescing at line $($node.Extent.StartLineNumber)" }
         if ($node -is [System.Management.Automation.Language.CommandParameterAst] -and $node.ParameterName -in @('Parallel', 'AsHashtable', 'AsByteStream', 'SkipLast', 'AsUTC', 'AdditionalChildPath', 'NoEmphasis', 'ThrottleLimit')) { $problems += "-$($node.ParameterName) at line $($node.Extent.StartLineNumber)" }
         if ($node -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.VariablePath.UserPath -in @('IsWindows', 'IsLinux', 'IsMacOS', 'IsCoreCLR', 'PSStyle', 'PSNativeCommandUseErrorActionPreference')) { $problems += "`$$($node.VariablePath.UserPath) at line $($node.Extent.StartLineNumber)" }
+        # Windows PowerShell 5.1 reads a null-conditional access as the variable named with a trailing ? followed by .member: valid syntax with a different meaning.
+        if ($node -is [System.Management.Automation.Language.VariableExpressionAst] -and $node.VariablePath.UserPath -match '\?$') { $problems += "variable name ending in '?' (null-conditional access in PowerShell 7) at line $($node.Extent.StartLineNumber)" }
         if ($node -is [System.Management.Automation.Language.CommandAst] -and $node.GetCommandName() -eq 'Join-Path') {
             $positional = @($node.CommandElements | Select-Object -Skip 1 | Where-Object { $_ -isnot [System.Management.Automation.Language.CommandParameterAst] }).Count
             $named = @($node.CommandElements | Where-Object { $_ -is [System.Management.Automation.Language.CommandParameterAst] }).Count
@@ -245,13 +276,49 @@ function Test-Ps51Syntax([string]$ScriptPath) {
         }
         if ($node -is [System.Management.Automation.Language.StringConstantExpressionAst] -and $node.Value -match '^(?i)utf8NoBOM$') { $problems += "UTF8NoBOM encoding at line $($node.Extent.StartLineNumber)" }
     }
-    return $problems
+    return @($problems | Select-Object -Unique)
 }
 foreach ($name in @('Run-Phase1.ps1', 'Test-WindowsFeasibility.ps1', 'Get-AppControlDiagnostics.ps1', 'Phase1Common.ps1', 'Test-Phase1Logic.ps1')) {
-    Assert-Equal ((Test-Ps51Syntax (Join-Path $PSScriptRoot $name)) -join '; ') '' "PowerShell 5.1 compatibility: $name uses no PowerShell 7 only syntax or parameters"
+    Assert-Equal ((Test-Ps51Syntax (Join-Path $PSScriptRoot $name)) -join '; ') '' "PowerShell 5.1 compatibility: $name uses no PowerShell 7 only syntax or parameters (and parses without errors)"
 }
-$ps7 = New-TestScript '$x = $true ? 1 : 2; $y = $null ?? 3; Get-ChildItem | ForEach-Object -Parallel { $_ }; Join-Path a b c; Get-Content f -AsByteStream; if ($IsWindows) { }; a && b'
-Assert-Equal @(Test-Ps51Syntax $ps7).Count 7 'the 5.1 lint detects ternary, null-coalescing, -Parallel, three-argument Join-Path, -AsByteStream, $IsWindows and pipeline chains'
+$isSeven = ($PSVersionTable.PSVersion.Major -ge 6)
+$fixtures = [ordered]@{
+    'ternary operator'              = @{ Code = '$x = $true ? 1 : 2'; Seven = "operator '\?'|Ternary" }
+    'null-coalescing operator'      = @{ Code = '$y = $null ?? 3'; Seven = "operator '\?\?'|null-coalescing|NullCoalesc" }
+    'pipeline chain operator'       = @{ Code = 'Get-Item . && Get-Item .'; Seven = "operator '&&'|PipelineChain" }
+    'ForEach-Object -Parallel'      = @{ Code = '1..3 | ForEach-Object -Parallel { $_ }'; Seven = '-Parallel' }
+    'three-argument Join-Path'      = @{ Code = 'Join-Path a b c'; Seven = 'Join-Path with more than two' }
+    'Get-Content -AsByteStream'     = @{ Code = 'Get-Content f -AsByteStream'; Seven = '-AsByteStream' }
+    'IsWindows automatic variable'  = @{ Code = 'if ($IsWindows) { }'; Seven = 'IsWindows' }
+}
+foreach ($key in $fixtures.Keys) {
+    $found = @(Test-Ps51Syntax (New-TestScript $fixtures[$key].Code))
+    Assert-Equal ($found.Count -ge 1) $true "the lint detects: $key (host: PowerShell $($PSVersionTable.PSVersion.Major))"
+    if ($isSeven) { Assert-Equal (@($found | Where-Object { $_ -match $fixtures[$key].Seven }).Count -ge 1) $true "on PowerShell 7 the lint names the construct: $key" }
+}
+$combined = @(Test-Ps51Syntax (New-TestScript (($fixtures.Values | ForEach-Object { $_.Code }) -join "`n")))
+Assert-Equal ($combined.Count -ge 1) $true 'a file mixing every unsupported construct is reported (the count differs by host: parse errors on 5.1, named constructs on 7)'
+$benignCode = '1..3 | ? { $_ -gt 1 } | Where-Object { $_ -ne "a ?? b && c || d" }; $t = "x ? y : z"; Join-Path (Join-Path a b) c; Join-Path -Path a -ChildPath b'
+$benign = @(Test-Ps51Syntax (New-TestScript $benignCode))
+Assert-Equal ($benign -join '; ') '' 'no false positives: the ? alias, operators inside strings and nested two-argument Join-Path are accepted'
+$parseFail = @(Test-Ps51Syntax (New-TestScript 'if ($true) { '))
+Assert-Equal ($parseFail.Count -ge 1 -and $parseFail[0] -like 'parse error at line*') $true 'a genuine parse error is reported with its line (the Windows PowerShell 5.1 path for PS7-only syntax)'
+# The 5.1 path, deterministically: what the lint reports when the host returns parse errors for a file it cannot read.
+$synthetic = @(
+    [pscustomobject]@{ Message = 'Unexpected token in expression or statement.'; Extent = [pscustomobject]@{ StartLineNumber = 4 } },
+    [pscustomobject]@{ Message = 'The token is not a valid statement separator in this version.'; Extent = [pscustomobject]@{ StartLineNumber = 9 } })
+$simulated = @(Get-Ps51ParseProblems $synthetic)
+Assert-Equal $simulated.Count 2 'Windows PowerShell 5.1 path: every parse error is its own problem (not collapsed into one)'
+Assert-Equal ($simulated[1] -like 'parse error at line 9:*') $true 'Windows PowerShell 5.1 path: the line number of each parse error is kept'
+Assert-Equal @(Get-Ps51ParseProblems $null).Count 0 'Windows PowerShell 5.1 path: no errors, no problems'
+function New-TestToken($Kind, $Text, $Line = 1) { return [pscustomobject]@{ Kind = $Kind; Text = $Text; Extent = [pscustomobject]@{ StartLineNumber = $Line } } }
+# Windows PowerShell 5.1 hands the lint generic tokens (no QuestionMark/AndAnd kinds). Same text, different kind:
+$generic = @((New-TestToken 'Variable' '$x'), (New-TestToken 'Generic' '?' 1), (New-TestToken 'Number' '1'), (New-TestToken 'Generic' '??' 2), (New-TestToken 'Generic' '&&' 3), (New-TestToken 'Generic' '||' 4))
+Assert-Equal @(Get-Ps51TokenProblems $generic).Count 4 'Windows PowerShell 5.1 tokenization: generic ?, ??, && and || tokens are all detected by their text'
+$alias = @((New-TestToken 'Number' '1'), (New-TestToken 'Pipe' '|'), (New-TestToken 'Generic' '?'), (New-TestToken 'LCurly' '{'), (New-TestToken 'StringExpandable' '"a ?? b && c"'), (New-TestToken 'Comment' '# a ?? b'))
+Assert-Equal @(Get-Ps51TokenProblems $alias).Count 0 'Windows PowerShell 5.1 tokenization: the ? alias after a pipe, strings and comments are not flagged'
+$afterNewline = @((New-TestToken 'Variable' '$x'), (New-TestToken 'NewLine' ''), (New-TestToken 'Generic' '?'))
+Assert-Equal @(Get-Ps51TokenProblems $afterNewline).Count 0 'Windows PowerShell 5.1 tokenization: a ? that starts a new statement is the Where-Object alias'
 
 # ---- static lint of the Windows-only scripts: every command resolves and our own functions are called with a plausible number of positional arguments ------------
 # (the Windows code paths cannot run on Linux; this catches typos and signature drift between the scripts and Phase1Common.ps1)
