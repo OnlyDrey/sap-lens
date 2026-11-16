@@ -9,12 +9,13 @@ return args.FirstOrDefault() switch
     "db-claim" => await DbCommands.ClaimAllAsync(options["data"], options["owner"]),
     "bench" => await Bench.RunAsync(options),
     "sod-fingerprints" => SodFingerprints.Run(options["csv"], options["out"]),
+    "import-v1-sod" => await ImportV1Sod.RunAsync(options["data"], options["catalogue"], options.GetValueOrDefault("reference")),
     "accounts-code" => await AccountsCommand.IssueAsync(options["data"], options.GetValueOrDefault("recover-administrator")),
     _ => Usage(),
 };
 
 static int Usage()
 {
-    Console.Error.WriteLine("usage: SapLens.Cli equivalence --data DIR --scenarios FILE --malformed DIR --out FILE | db-enqueue --data DIR --count N --tag T | db-claim --data DIR --owner O | bench ... | accounts-code --data DIR [--recover-administrator USERNAME]");
+    Console.Error.WriteLine("usage: SapLens.Cli equivalence --data DIR --scenarios FILE --malformed DIR --out FILE | db-enqueue --data DIR --count N --tag T | db-claim --data DIR --owner O | bench ... | import-v1-sod --data DIR --catalogue FILE [--reference FILE] | accounts-code --data DIR [--recover-administrator USERNAME]");
     return 1;
 }

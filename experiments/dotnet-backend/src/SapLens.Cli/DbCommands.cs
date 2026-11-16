@@ -8,7 +8,7 @@ namespace SapLens.Cli;
 /// <summary>Cross-process probes for the SQLite tests: several OS processes write to and claim from the same database at the same time.</summary>
 public static class DbCommands
 {
-    private static (WriteCoordinator Writer, IDbContextFactory<SapLensDb> Factory) Open(string data)
+    internal static (WriteCoordinator Writer, IDbContextFactory<SapLensDb> Factory) Open(string data)
     {
         var options = new DatabaseOptions { DataDirectory = data };
         var builder = new DbContextOptionsBuilder<SapLensDb>();

@@ -44,14 +44,8 @@ public sealed class SodCatalogueTests : IAsyncLifetime
         for (var i = 0; i < 200 && (string)JsonNode.Parse(await _client.GetStringAsync($"/api/v1/jobs/{(long)job["id"]!}"))!["status"]! != "Completed"; i++) await Task.Delay(50);
     }
 
-    /// <summary>Installs a v1 sod-catalogue.json as the catalogue document, as a migration of v1 private data does.</summary>
-    private async Task SeedV1Storage()
-    {
-        var json = JsonNode.Parse(File.ReadAllText(Fixture("catalogue-storage.v1.json")))!.AsObject();
-        await using var db = await _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync();
-        db.SodDocuments.Add(new SodDocument { Name = "catalogue", Revision = (int)json["revision"]!, Json = json.ToJsonString(), UpdatedUtc = DateTime.UtcNow, UpdatedBy = "migration" });
-        await db.SaveChangesAsync();
-    }
+    /// <summary>Migrates the v1 sod-catalogue.json fixture with the real import command (SapLens.Cli import-v1-sod).</summary>
+    private Task<int> SeedV1Storage() => SapLens.Cli.ImportV1Sod.RunAsync(Path.Combine(_root, "data"), Fixture("catalogue-storage.v1.json"), null);
 
     private async Task<JsonNode> Get(string path) => JsonNode.Parse(await _client.GetStringAsync(path))!;
     private static string Canonical(JsonNode? node) => CanonicalJson.Serialize(JsonDocumentToObject(node));
@@ -70,7 +64,8 @@ public sealed class SodCatalogueTests : IAsyncLifetime
     public async Task Catalogue_activities_lookup_and_appearance_equal_python_v1_for_migrated_annotations()
     {
         await Import(File.ReadAllText(Fixture("catalogue.sod.txt")));
-        await SeedV1Storage();
+        Assert.Equal(0, await SeedV1Storage());
+        Assert.Equal(1, await SeedV1Storage()); // existing annotations are never overwritten
         var expected = JsonNode.Parse(File.ReadAllText(Fixture("catalogue.python.json")))!;
         var catalogue = await Get("/api/sod/catalogue?limit=100");
         Assert.Equal(Canonical(expected["catalogue"]!["items"]), Canonical(catalogue["items"]));
@@ -152,6 +147,23 @@ public sealed class SodCatalogueTests : IAsyncLifetime
         var bytes = await template.Content.ReadAsByteArrayAsync();
         Assert.Equal((byte)'P', bytes[0]); // ZIP container
         Assert.Equal(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", "src", "SapLens.Api", "V1Reference", "sod-reference-template.xlsx")), bytes);
+    }
+
+    [Theory]
+    [InlineData("observed_definition", "\"not-a-fingerprint\"")]
+    [InlineData("reviewed_definition", "\"ABC\"")]
+    [InlineData("unexpected", "1")]
+    public async Task The_v1_import_refuses_invalid_files_and_changes_nothing(string field, string value)
+    {
+        var json = JsonNode.Parse(File.ReadAllText(Fixture("catalogue-storage.v1.json")))!.AsObject();
+        json["entries"]!["F019"]![field] = JsonNode.Parse(value);
+        var path = Path.Combine(_root, "bad.json");
+        File.WriteAllText(path, json.ToJsonString());
+        Assert.Equal(1, await SapLens.Cli.ImportV1Sod.RunAsync(Path.Combine(_root, "data"), path, null));
+        Assert.Equal(0, (int)(await Get("/api/sod/catalogue"))["revision"]!);
+        var badColor = JsonNode.Parse(File.ReadAllText(Fixture("catalogue-storage.v1.json")))!.AsObject();
+        badColor["entries"]!["F019"]!["metadata"]!["color"] = "red";
+        Assert.Throws<InvalidDataException>(() => SapLens.Cli.ImportV1Sod.ValidateCatalogue(badColor));
     }
 
     [Fact]
