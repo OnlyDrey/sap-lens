@@ -1,0 +1,301 @@
+{
+ "bad_color": {
+  "library": {
+   "activities": {
+    "AP01": {
+     "business_category": "Finance",
+     "display_name": "Activity name",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    },
+    "AP_02:x": {
+     "business_category": "Finance",
+     "display_name": "Second activity",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    }
+   },
+   "digest": "95320156422b1408bf619717aee09ff5e46ec44bb6e0036688112dff8ec1e45a",
+   "library_version": "",
+   "origin": "custom",
+   "risks": {
+    "F001": {
+     "business_category": "Finance",
+     "consequence_en": "Consequence",
+     "display_name": "x",
+     "explanation_en": "Explanation",
+     "mitigating_controls_en": "Controls",
+     "notes": "red",
+     "review_guidance_en": "Guidance"
+    }
+   },
+   "source": "",
+   "terms": {},
+   "version": 1
+  },
+  "ok": true
+ },
+ "bad_definitions_header": {
+  "error": "Definitions headers must be Term and Definition.",
+  "ok": false,
+  "pydantic": false
+ },
+ "bad_header": {
+  "error": "Risks headers do not match the supported reference workbook.",
+  "ok": false,
+  "pydantic": false
+ },
+ "control_character": {
+  "error": "The file is not a supported reference XLSX workbook.",
+  "ok": false,
+  "pydantic": false
+ },
+ "doctype": {
+  "error": "XML declarations are not supported.",
+  "ok": false,
+  "pydantic": false
+ },
+ "duplicate_id": {
+  "error": "Risks contains a missing, invalid or duplicate exact identifier.",
+  "ok": false,
+  "pydantic": false
+ },
+ "duplicate_term": {
+  "error": "Definitions contain missing or duplicate terms.",
+  "ok": false,
+  "pydantic": false
+ },
+ "empty": {
+  "error": "Choose a non-empty XLSX workbook up to 2 MB.",
+  "ok": false,
+  "pydantic": false
+ },
+ "external_link": {
+  "error": "External links and macros are not supported.",
+  "ok": false,
+  "pydantic": false
+ },
+ "formula": {
+  "error": "Formula cells are not supported in reference definitions.",
+  "ok": false,
+  "pydantic": false
+ },
+ "header_order_and_blank_rows": {
+  "library": {
+   "activities": {
+    "AP01": {
+     "business_category": "Finance",
+     "display_name": "Activity name",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    },
+    "AP_02:x": {
+     "business_category": "Finance",
+     "display_name": "Second activity",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    }
+   },
+   "digest": "5352133b7358995ed64f5415bb9761bb0e16b5c44f5876679dab2e227f0cc4df",
+   "library_version": "",
+   "origin": "custom",
+   "risks": {
+    "F001": {
+     "business_category": "Expl",
+     "consequence_en": "Ctl",
+     "display_name": "Area",
+     "explanation_en": "Cons",
+     "mitigating_controls_en": "Guide",
+     "review_guidance_en": "Notes"
+    }
+   },
+   "source": "",
+   "terms": {},
+   "version": 1
+  },
+  "ok": true
+ },
+ "inline_valid": {
+  "library": {
+   "activities": {
+    "AP01": {
+     "business_category": "Finance",
+     "display_name": "Activity name",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    },
+    "AP_02:x": {
+     "business_category": "Finance",
+     "display_name": "Second activity",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    }
+   },
+   "digest": "7669e5fc742667465766202877d804f88e9ffde5b2c89485d377f13940cdef1f",
+   "library_version": "",
+   "origin": "custom",
+   "risks": {
+    "F001": {
+     "business_category": "Finance",
+     "consequence_en": "Consequence",
+     "display_name": "Payment fraud",
+     "explanation_en": "Explanation",
+     "mitigating_controls_en": "Controls",
+     "notes": "#AABBCC",
+     "review_guidance_en": "Guidance"
+    },
+    "F002": {
+     "business_category": "Finance",
+     "consequence_en": "Consequence",
+     "display_name": "Second",
+     "explanation_en": "Explanation",
+     "mitigating_controls_en": "Controls",
+     "review_guidance_en": "Guidance"
+    },
+    "F003": {}
+   },
+   "source": "",
+   "terms": {},
+   "version": 1
+  },
+  "ok": true
+ },
+ "invalid_cell_reference": {
+  "error": "Invalid cell reference.",
+  "ok": false,
+  "pydantic": false
+ },
+ "invalid_id": {
+  "error": "Risks contains a missing, invalid or duplicate exact identifier.",
+  "ok": false,
+  "pydantic": false
+ },
+ "long_name": {
+  "error": "1 validation error for LocalMetadata",
+  "ok": false,
+  "pydantic": true
+ },
+ "macro": {
+  "error": "External links and macros are not supported.",
+  "ok": false,
+  "pydantic": false
+ },
+ "missing_activities": {
+  "error": "Activities must contain a header and definitions.",
+  "ok": false,
+  "pydantic": false
+ },
+ "not_a_zip": {
+  "error": "The file is not a supported reference XLSX workbook.",
+  "ok": false,
+  "pydantic": false
+ },
+ "oversized_field": {
+  "error": "A reference field exceeds its size limit.",
+  "ok": false,
+  "pydantic": false
+ },
+ "path_traversal": {
+  "error": "Invalid workbook reference.",
+  "ok": false,
+  "pydantic": false
+ },
+ "rich_text_shared": {
+  "library": {
+   "activities": {
+    "AP01": {
+     "business_category": "Finance",
+     "display_name": "Activity name",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    },
+    "AP_02:x": {
+     "business_category": "Finance",
+     "display_name": "Second activity",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    }
+   },
+   "digest": "392c98175252b03f3c2299866ca5207896ece68c5a230bfc42a5501ea9e3d66d",
+   "library_version": "",
+   "origin": "custom",
+   "risks": {
+    "F001": {
+     "business_category": "Finance",
+     "consequence_en": "Consequence",
+     "display_name": "Payment fraud",
+     "explanation_en": "Explanation",
+     "mitigating_controls_en": "Controls",
+     "notes": "#AABBCC",
+     "review_guidance_en": "Guidance"
+    },
+    "F002": {
+     "business_category": "Finance",
+     "consequence_en": "Consequence",
+     "display_name": "Second",
+     "explanation_en": "Explanation",
+     "mitigating_controls_en": "Controls",
+     "review_guidance_en": "Guidance"
+    },
+    "F003": {}
+   },
+   "source": "",
+   "terms": {},
+   "version": 1
+  },
+  "ok": true
+ },
+ "shared_strings_definitions": {
+  "library": {
+   "activities": {
+    "AP01": {
+     "business_category": "Finance",
+     "display_name": "Activity name",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    },
+    "AP_02:x": {
+     "business_category": "Finance",
+     "display_name": "Second activity",
+     "explanation_en": "Explanation",
+     "review_guidance_en": "Guidance"
+    }
+   },
+   "digest": "2b808f4ea0a255fedbf12b31c5511bc77be62ccf7d5006bc2fe7fae2b3218b83",
+   "library_version": "",
+   "origin": "custom",
+   "risks": {
+    "F001": {
+     "business_category": "Finance",
+     "consequence_en": "Consequence",
+     "display_name": "Payment fraud",
+     "explanation_en": "Explanation",
+     "mitigating_controls_en": "Controls",
+     "notes": "#AABBCC",
+     "review_guidance_en": "Guidance"
+    },
+    "F002": {
+     "business_category": "Finance",
+     "consequence_en": "Consequence",
+     "display_name": "Second",
+     "explanation_en": "Explanation",
+     "mitigating_controls_en": "Controls",
+     "review_guidance_en": "Guidance"
+    },
+    "F003": {}
+   },
+   "source": "",
+   "terms": {
+    "Risk": "A pair of activities",
+    "SoD": "Segregation of duties"
+   },
+   "version": 1
+  },
+  "ok": true
+ },
+ "unheaded_column": {
+  "error": "Reference row contains an unheaded column.",
+  "ok": false,
+  "pydantic": false
+ }
+}

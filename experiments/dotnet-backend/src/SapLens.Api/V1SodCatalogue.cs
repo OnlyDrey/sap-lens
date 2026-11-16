@@ -464,7 +464,7 @@ public static class V1SodCatalogue
             return Json(Appearance((await ReadAsync(db, ct)).Storage));
         });
 
-        // sod_reference: status, reset to the bundled library, template download. (Workbook upload: next slice.)
+        // sod_reference: status, reset to the bundled library, workbook upload, template download.
         api.MapGet("/sod/reference", async (IServiceProvider services, CancellationToken ct) => Json(ReferenceStatus(await ContextAsync(services, ct))));
 
         api.MapPost("/sod/reference/reset", async (HttpContext http, IServiceProvider services, CancellationToken ct) =>
@@ -494,6 +494,81 @@ public static class V1SodCatalogue
             }
             catch (Refusal refusal) { return Detail(refusal.Status, refusal.Message); }
             return Json(ReferenceStatus(await ContextAsync(services, ct)));
+        });
+
+        // sod_reference.install: refuse a stale revision, keep an identical library unchanged, otherwise store the new one with revision + 1.
+        // Local catalogue annotations live in their own document and are never touched by a reference replacement.
+        async Task<IResult> Install(HttpContext http, IServiceProvider services, byte[] raw, int expected, CancellationToken ct)
+        {
+            ReferenceLibrary candidate;
+            try { candidate = SodReferenceWorkbook.Parse(raw); }
+            catch (ReferenceWorkbookException error) { return Detail(422, error.Message); }
+            try
+            {
+                await services.GetRequiredService<WriteCoordinator>().WriteAsync(async (db, token) =>
+                {
+                    var row = await db.SodDocuments.FirstOrDefaultAsync(d => d.Name == "reference", token);
+                    var previous = row is null ? BundledReference.Value.Library.DeepClone().AsObject() : JsonNode.Parse(row.Json)!.AsObject();
+                    var revision = (int?)previous["revision"] ?? 0;
+                    if (revision != expected) throw new Refusal(409, "Reference library changed. Reload before replacing it.");
+                    if ((string?)previous["digest"] == candidate.Digest) return true;
+                    static JsonObject Records(SortedDictionary<string, SortedDictionary<string, string>> map) =>
+                        new(map.Select(p => KeyValuePair.Create(p.Key, (JsonNode?)new JsonObject(p.Value.Select(v => KeyValuePair.Create(v.Key, (JsonNode?)v.Value))))));
+                    var library = new JsonObject
+                    {
+                        ["origin"] = "custom", ["library_version"] = "", ["source"] = "", ["version"] = 1, ["revision"] = revision + 1, ["digest"] = candidate.Digest,
+                        ["imported_at"] = Stamp(services.GetRequiredService<TimeProvider>()), ["risks"] = Records(candidate.Risks), ["activities"] = Records(candidate.Activities),
+                        ["terms"] = new JsonObject(candidate.Terms.Select(t => KeyValuePair.Create(t.Key, (JsonNode?)t.Value))),
+                    };
+                    var encoded = library.ToJsonString();
+                    if (Encoding.UTF8.GetByteCount(encoded) > SodReferenceWorkbook.MaxExpanded) throw new Refusal(422, "Reference library exceeds its storage limit.");
+                    if (row is null) db.SodDocuments.Add(row = new SodDocument { Name = "reference", Json = "{}" });
+                    (row.Revision, row.Json, row.UpdatedUtc, row.UpdatedBy) = (revision + 1, encoded, DateTime.UtcNow, Actors.Name(http));
+                    return true;
+                }, ct);
+            }
+            catch (Refusal refusal) { return Detail(refusal.Status, refusal.Message); }
+            return Json(ReferenceStatus(await ContextAsync(services, ct)));
+        }
+
+        api.MapPost("/sod/reference/upload", async (HttpContext http, IServiceProvider services, CancellationToken ct) =>
+        {
+            var limit = http.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+            if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = SodReferenceWorkbook.MaxBytes + 64 * 1024;
+            if (!http.Request.HasFormContentType) return Detail(422, "Choose one reference workbook and its current revision.");
+            IFormCollection form;
+            try { form = await http.Request.ReadFormAsync(ct); }
+            catch (Exception error) when (error is InvalidDataException or IOException or BadHttpRequestException) { return Detail(422, "Choose one reference workbook and its current revision."); }
+            var keys = form.Keys.Concat(form.Files.Select(f => f.Name)).ToList();
+            if (!keys.ToHashSet().SetEquals(["file", "revision"]) || keys.Count != 2 || form.Files.Count != 1 || form["revision"].Count != 1) return Detail(422, "Choose one reference workbook and its current revision.");
+            var file = form.Files[0];
+            if (file.Name != "file") return Detail(422, "Choose an XLSX reference workbook.");
+            var name = file.FileName ?? "";
+            if (!name.EndsWith(".xlsx", StringComparison.OrdinalIgnoreCase) || Encoding.UTF8.GetByteCount(name) > 200 || name.Contains("..", StringComparison.Ordinal)
+                || name.IndexOfAny(['/', '\\', '\0', '<', '>', ':', '"', '|', '?', '*']) >= 0 || name.Any(c => c < 32))
+                return Detail(422, "Choose an XLSX filename without path components.");
+            if (file.Length == 0 || file.Length > SodReferenceWorkbook.MaxBytes) return Detail(file.Length == 0 ? 422 : 413, "Choose a non-empty reference workbook up to 2 MB.");
+            if (!int.TryParse(form["revision"].ToString(), out var revision)) return Detail(422, "Choose the current reference revision.");
+            using var memory = new MemoryStream();
+            await file.CopyToAsync(memory, ct);
+            return await Install(http, services, memory.ToArray(), revision, ct);
+        });
+
+        api.MapPut("/sod/reference", async (HttpContext http, IServiceProvider services, CancellationToken ct) =>
+        {
+            var limit = http.Features.Get<Microsoft.AspNetCore.Http.Features.IHttpMaxRequestBodySizeFeature>();
+            if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = 2_800_000 + 64 * 1024;
+            var (body, invalid) = await V1Validation.ReadBody(http, ct);
+            if (invalid is not null) return invalid;
+            var errors = new List<object>();
+            V1Validation.Extra(body!, ["expected_revision", "workbook_base64"], errors);
+            var expected = Revision(body!, errors);
+            var encoded = V1Validation.Text(body!, "workbook_base64", 0, 2_800_000, true, errors);
+            if (errors.Count > 0) return Results.Json(new { detail = errors }, statusCode: 422);
+            byte[] raw;
+            try { raw = Convert.FromBase64String(encoded!); }
+            catch (FormatException) { return Detail(422, "Workbook must be valid base64."); }
+            return await Install(http, services, raw, expected!.Value, ct);
         });
 
         api.MapGet("/sod/reference/template", (HttpContext http) =>

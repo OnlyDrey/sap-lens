@@ -166,6 +166,47 @@ public sealed class SodCatalogueTests : IAsyncLifetime
         Assert.Throws<InvalidDataException>(() => SapLens.Cli.ImportV1Sod.ValidateCatalogue(badColor));
     }
 
+    private async Task<(HttpStatusCode Status, JsonNode? Body)> Upload(byte[] workbook, int revision, string name = "reference.xlsx")
+    {
+        var form = new MultipartFormDataContent { { new ByteArrayContent(workbook), "file", name }, { new StringContent(revision.ToString()), "revision" } };
+        var response = await _client.PostAsync("/api/sod/reference/upload", form);
+        return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync()));
+    }
+
+    [Fact]
+    public async Task Reference_upload_installs_atomically_keeps_annotations_and_reset_restores_the_bundled_library()
+    {
+        await Import(File.ReadAllText(Fixture("catalogue.sod.txt")));
+        Assert.Equal(0, await SeedV1Storage());
+        var annotations = Canonical((await Get("/api/sod/catalogue?limit=100"))["items"]!.AsArray().Select(i => i!["local"]).ToList() is var l ? new JsonArray([.. l.Select(x => x!.DeepClone())]) : null);
+        var workbook = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sod", "reference", "inline_valid.xlsx.bin"));
+        var expectedDigest = (string)JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sod", "reference", "expected.python.json")))!["inline_valid"]!["library"]!["digest"]!;
+
+        var (status, body) = await Upload(File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sod", "reference", "formula.xlsx.bin")), 0);
+        Assert.Equal((HttpStatusCode.UnprocessableEntity, "Formula cells are not supported in reference definitions."), (status, (string?)body!["detail"]));
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload(workbook, 0, "reference.csv")).Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await Upload(workbook, 7)).Status);
+        Assert.Equal("bundled", (string)(await Get("/api/sod/reference"))["origin"]!); // nothing changed by the refusals
+
+        (status, body) = await Upload(workbook, 0);
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(("custom", 1, expectedDigest, 3, 2), ((string)body!["origin"]!, (int)body["revision"]!, (string)body["digest"]!, (int)body["risks"]!, (int)body["activities"]!));
+        Assert.Equal(1, (int)(await Upload(workbook, 1)).Body!["revision"]!); // the identical workbook is not installed again
+        // The local annotations are untouched; X900 has no local name, so the uploaded library does not supply one (exact identifiers only).
+        Assert.Equal(annotations, Canonical(new JsonArray([.. (await Get("/api/sod/catalogue?limit=100"))["items"]!.AsArray().Select(i => i!["local"]!.DeepClone())])));
+        Assert.Equal("Local F019", (string)(await Get("/api/sod/metadata"))["risks"]!["F019"]!["name"]!);
+
+        var reset = JsonNode.Parse(await (await Post("/api/sod/reference/reset", new { expected_revision = 1 })).Content.ReadAsStringAsync())!;
+        Assert.Equal(("bundled", 2), ((string)reset["origin"]!, (int)reset["revision"]!));
+        Assert.Equal("Payment Processing vs. Period Control", (string)(await Get("/api/sod/metadata"))["risks"]!["F019"]!["reference"]!["name"]!);
+
+        // v1 PUT with base64: same rules.
+        using var put = new HttpRequestMessage(HttpMethod.Put, "/api/sod/reference") { Content = JsonContent.Create(new { expected_revision = 2, workbook_base64 = "%%%" }) };
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await _client.SendAsync(put)).StatusCode);
+        using var put2 = new HttpRequestMessage(HttpMethod.Put, "/api/sod/reference") { Content = JsonContent.Create(new { expected_revision = 2, workbook_base64 = Convert.ToBase64String(workbook) }) };
+        Assert.Equal(3, (int)JsonNode.Parse(await (await _client.SendAsync(put2)).Content.ReadAsStringAsync())!["revision"]!);
+    }
+
     [Fact]
     public void Catalogue_writes_need_administrator_permission()
     {
@@ -173,5 +214,7 @@ public sealed class SodCatalogueTests : IAsyncLifetime
         Assert.Equal("admin", V1Auth.Permission("POST", "/api/sod/catalogue/bulk"));
         Assert.Equal("admin", V1Auth.Permission("POST", "/api/sod/catalogue-activities/AP01"));
         Assert.Equal("read", V1Auth.Permission("GET", "/api/sod/catalogue"));
+        Assert.Equal("admin", V1Auth.Permission("POST", "/api/sod/reference/upload"));
+        Assert.Equal("unknown", V1Auth.Permission("PUT", "/api/sod/reference")); // v1 maps every PUT to no permission: sessions cannot use it
     }
 }
