@@ -1,0 +1,552 @@
+{
+ "user": "USER00035",
+ "roles": [
+  "ZC:GEN:ROLE_00023",
+  "ZC:GEN:ROLE_00191",
+  "ZC:QM:ROLE_00188",
+  "ZO:MM:M2:PR_REL_ST_E2_01:ALL",
+  "ZO:PM:ROLE_00105"
+ ],
+ "steps": [
+  {
+   "name": "keep_two",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:GEN:ROLE_00023"
+    ],
+    [
+     "USER00035",
+     "ZC:GEN:ROLE_00191"
+    ]
+   ],
+   "action": "Keep",
+   "outcome": {
+    "status": 200,
+    "action": "Keep",
+    "recorded": [
+     "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c",
+     "547842d62be09a8318a287d3c808fe32234b906cd5919a4518e4faaf4a516c99"
+    ],
+    "skipped": [],
+    "failed": [],
+    "tracked_actions": [],
+    "revision": 1
+   }
+  },
+  {
+   "name": "mixed",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:GEN:ROLE_00023"
+    ],
+    [
+     "USER00035",
+     "ZC:QM:ROLE_00188"
+    ],
+    [
+     "USER00035",
+     "ZO:MM:M2:PR_REL_ST_E2_01:ALL",
+     "stale_version"
+    ],
+    [
+     "USER00035",
+     "ZO:PM:ROLE_00105",
+     "unknown_key"
+    ]
+   ],
+   "action": "Keep",
+   "outcome": {
+    "status": 200,
+    "action": "Keep",
+    "recorded": [
+     "80bd8158f5ceffd6dad8b758c381f055431412af53fff1c0b12e8914bcd7fd65"
+    ],
+    "skipped": [
+     {
+      "key": "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c",
+      "user": "USER00035",
+      "ref": "ZC:GEN:ROLE_00023",
+      "reason": "Already reviewed (Keep); replacing needs explicit confirmation."
+     }
+    ],
+    "failed": [
+     {
+      "key": "d839def3f7352ab9637391a641c61f71cf4ecb1e4b7edacfd15a61e7777f33bd",
+      "user": "USER00035",
+      "ref": "ZO:MM:M2:PR_REL_ST_E2_01:ALL",
+      "reason": "Evidence changed since the selection was made."
+     },
+     {
+      "key": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "user": "USER00035",
+      "ref": "ZO:PM:ROLE_00105",
+      "reason": "No longer supported by current evidence."
+     }
+    ],
+    "tracked_actions": [],
+    "revision": 2
+   }
+  },
+  {
+   "name": "replace_protected",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:GEN:ROLE_00023"
+    ]
+   ],
+   "action": "Remove",
+   "replace_existing": true,
+   "outcome": {
+    "status": 200,
+    "action": "Remove",
+    "recorded": [
+     "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c"
+    ],
+    "skipped": [],
+    "failed": [],
+    "tracked_actions": [],
+    "revision": 3
+   }
+  },
+  {
+   "name": "investigate_tracked",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:GEN:ROLE_00191"
+    ],
+    [
+     "USER00035",
+     "ZO:PM:ROLE_00105"
+    ]
+   ],
+   "action": "Investigate",
+   "track_action": true,
+   "outcome": {
+    "status": 200,
+    "action": "Investigate",
+    "recorded": [
+     "38b324d1bee6c4144edbeae60c296605ea8fa8b19bd26c6597a2be635f17bfb6"
+    ],
+    "skipped": [
+     {
+      "key": "547842d62be09a8318a287d3c808fe32234b906cd5919a4518e4faaf4a516c99",
+      "user": "USER00035",
+      "ref": "ZC:GEN:ROLE_00191",
+      "reason": "Already reviewed (Keep); replacing needs explicit confirmation."
+     }
+    ],
+    "failed": [],
+    "tracked_actions": [
+     "38b324d1bee6c4144edbeae60c296605ea8fa8b19bd26c6597a2be635f17bfb6"
+    ],
+    "revision": 5
+   }
+  },
+  {
+   "name": "investigate_again",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZO:PM:ROLE_00105"
+    ],
+    [
+     "USER00035",
+     "ZO:MM:M2:PR_REL_ST_E2_01:ALL"
+    ]
+   ],
+   "action": "Investigate",
+   "track_action": true,
+   "outcome": {
+    "status": 200,
+    "action": "Investigate",
+    "recorded": [
+     "d839def3f7352ab9637391a641c61f71cf4ecb1e4b7edacfd15a61e7777f33bd"
+    ],
+    "skipped": [
+     {
+      "key": "38b324d1bee6c4144edbeae60c296605ea8fa8b19bd26c6597a2be635f17bfb6",
+      "user": "USER00035",
+      "ref": "ZO:PM:ROLE_00105",
+      "reason": "Already under investigation."
+     }
+    ],
+    "failed": [],
+    "tracked_actions": [
+     "d839def3f7352ab9637391a641c61f71cf4ecb1e4b7edacfd15a61e7777f33bd"
+    ],
+    "revision": 7
+   }
+  },
+  {
+   "name": "atomic_refused",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:GEN:ROLE_00191"
+    ],
+    [
+     "USER00035",
+     "ZC:QM:ROLE_00188"
+    ]
+   ],
+   "action": "Keep",
+   "atomic": true,
+   "outcome": {
+    "status": 409,
+    "detail": "The preview selection changed or includes protected decisions. Reload before reviewing; nothing was saved."
+   }
+  },
+  {
+   "name": "atomic_replace",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:GEN:ROLE_00191"
+    ],
+    [
+     "USER00035",
+     "ZO:PM:ROLE_00105"
+    ]
+   ],
+   "action": "Keep",
+   "atomic": true,
+   "replace_existing": true,
+   "outcome": {
+    "status": 200,
+    "action": "Keep",
+    "recorded": [
+     "547842d62be09a8318a287d3c808fe32234b906cd5919a4518e4faaf4a516c99",
+     "38b324d1bee6c4144edbeae60c296605ea8fa8b19bd26c6597a2be635f17bfb6"
+    ],
+    "skipped": [],
+    "failed": [],
+    "tracked_actions": [],
+    "revision": 8
+   }
+  },
+  {
+   "name": "stale_revision",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:QM:ROLE_00188"
+    ]
+   ],
+   "action": "Remove",
+   "revision_offset": -1,
+   "outcome": {
+    "status": 200,
+    "action": "Remove",
+    "recorded": [],
+    "skipped": [
+     {
+      "key": "80bd8158f5ceffd6dad8b758c381f055431412af53fff1c0b12e8914bcd7fd65",
+      "user": "USER00035",
+      "ref": "ZC:QM:ROLE_00188",
+      "reason": "Already reviewed (Keep); replacing needs explicit confirmation."
+     }
+    ],
+    "failed": [],
+    "tracked_actions": [],
+    "revision": 7
+   }
+  },
+  {
+   "name": "duplicates",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:QM:ROLE_00188"
+    ],
+    [
+     "USER00035",
+     "ZC:QM:ROLE_00188"
+    ]
+   ],
+   "action": "Keep",
+   "outcome": {
+    "status": 422,
+    "detail": "Each assignment may be listed once."
+   }
+  },
+  {
+   "name": "atomic_with_tracking",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:QM:ROLE_00188"
+    ]
+   ],
+   "action": "Investigate",
+   "atomic": true,
+   "track_action": true,
+   "outcome": {
+    "status": 422,
+    "detail": "Atomic assignment review does not support separate action mutations."
+   }
+  },
+  {
+   "name": "stale_generation",
+   "call": "bulk",
+   "items": [
+    [
+     "USER00035",
+     "ZC:QM:ROLE_00188"
+    ]
+   ],
+   "action": "Keep",
+   "generation": "0000000000000000000000000000000000000000000000000000000000000000",
+   "outcome": {
+    "status": 409,
+    "detail": "SoD evidence changed. Reload before reviewing."
+   }
+  },
+  {
+   "name": "action_create",
+   "call": "action",
+   "user": "USER00035",
+   "assignment": "ZC:GEN:ROLE_00023",
+   "recommended": "Remove assignment",
+   "reason": "  Separate duties  ",
+   "owner": "Owner One",
+   "due_date": "2099-01-31",
+   "outcome": {
+    "status": 200,
+    "revision": 9,
+    "action": {
+     "context": "current",
+     "user": "USER00035",
+     "activity": "",
+     "risk_id": "",
+     "assignment_id": "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c",
+     "role": "ZC:GEN:ROLE_00023",
+     "recommended": "Remove assignment",
+     "reason": "Separate duties",
+     "owner": "Owner One",
+     "due_date": "2099-01-31",
+     "status": "Open",
+     "completion_evidence": "",
+     "created_by": "Synthetic actor",
+     "history": [
+      {
+       "actor": "Synthetic actor",
+       "note": "Created"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "action_complete_without_evidence",
+   "call": "action",
+   "user": "USER00035",
+   "assignment": "ZC:GEN:ROLE_00023",
+   "recommended": "Remove assignment",
+   "reason": "Separate duties",
+   "status": "Completed",
+   "update": "last",
+   "outcome": {
+    "status": 422,
+    "detail": "1 validation error for Action\n  Value error, Completion evidence is required to complete an action. [type=value_error, input_value={'id': '6e7130d71ce742b78...: Open → Completed'}]}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.14/v/value_error"
+   }
+  },
+  {
+   "name": "action_complete",
+   "call": "action",
+   "user": "USER00035",
+   "assignment": "ZC:GEN:ROLE_00023",
+   "recommended": "Remove assignment",
+   "reason": "Separate duties",
+   "status": "Completed",
+   "completion_evidence": "Ticket 42",
+   "owner": "Owner Two",
+   "update": "last",
+   "outcome": {
+    "status": 200,
+    "revision": 10,
+    "action": {
+     "context": "current",
+     "user": "USER00035",
+     "activity": "",
+     "risk_id": "",
+     "assignment_id": "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c",
+     "role": "ZC:GEN:ROLE_00023",
+     "recommended": "Remove assignment",
+     "reason": "Separate duties",
+     "owner": "Owner Two",
+     "due_date": null,
+     "status": "Completed",
+     "completion_evidence": "Ticket 42",
+     "created_by": "Synthetic actor",
+     "history": [
+      {
+       "actor": "Synthetic actor",
+       "note": "Created"
+      },
+      {
+       "actor": "Synthetic actor",
+       "note": "owner: Owner One → Owner Two; due_date: 2099-01-31 → -; status: Open → Completed; completion_evidence: - → Ticket 42"
+      }
+     ]
+    }
+   }
+  },
+  {
+   "name": "action_unknown_id",
+   "call": "action",
+   "user": "USER00035",
+   "assignment": "ZC:GEN:ROLE_00023",
+   "recommended": "Remove assignment",
+   "reason": "x",
+   "update": "ffffffffffffffffffffffffffffffff",
+   "outcome": {
+    "status": 404,
+    "detail": "Remediation action not found."
+   }
+  },
+  {
+   "name": "action_foreign_user",
+   "call": "action",
+   "user": "NOBODY",
+   "recommended": "No action required",
+   "reason": "x",
+   "outcome": {
+    "status": 409,
+    "detail": "The action refers to evidence that is not present in this context."
+   }
+  },
+  {
+   "name": "action_stale_revision",
+   "call": "action",
+   "user": "USER00035",
+   "recommended": "Maintain access",
+   "reason": "x",
+   "revision_offset": -1,
+   "outcome": {
+    "status": 409,
+    "detail": "SoD decisions changed. Reload before saving."
+   }
+  }
+ ],
+ "histories": {
+  "ZC:GEN:ROLE_00023": [
+   "Remove",
+   "Keep"
+  ],
+  "ZC:GEN:ROLE_00191": [
+   "Keep",
+   "Keep"
+  ],
+  "ZC:QM:ROLE_00188": [
+   "Keep"
+  ],
+  "ZO:MM:M2:PR_REL_ST_E2_01:ALL": [
+   "Investigate"
+  ],
+  "ZO:PM:ROLE_00105": [
+   "Keep",
+   "Investigate"
+  ]
+ },
+ "bulk_tagged": {
+  "ZC:GEN:ROLE_00023": [
+   true
+  ],
+  "ZC:GEN:ROLE_00191": [
+   true
+  ],
+  "ZC:QM:ROLE_00188": [
+   true
+  ],
+  "ZO:MM:M2:PR_REL_ST_E2_01:ALL": [
+   true
+  ],
+  "ZO:PM:ROLE_00105": [
+   true
+  ]
+ },
+ "actions": [
+  {
+   "context": "current",
+   "user": "USER00035",
+   "activity": "",
+   "risk_id": "",
+   "assignment_id": "38b324d1bee6c4144edbeae60c296605ea8fa8b19bd26c6597a2be635f17bfb6",
+   "role": "ZO:PM:ROLE_00105",
+   "recommended": "Investigate assignment",
+   "reason": "Synthetic justification",
+   "owner": "",
+   "due_date": null,
+   "status": "Open",
+   "completion_evidence": "",
+   "created_by": "Synthetic actor",
+   "history": [
+    {
+     "actor": "Synthetic actor",
+     "note": "Created"
+    }
+   ]
+  },
+  {
+   "context": "current",
+   "user": "USER00035",
+   "activity": "",
+   "risk_id": "",
+   "assignment_id": "d839def3f7352ab9637391a641c61f71cf4ecb1e4b7edacfd15a61e7777f33bd",
+   "role": "ZO:MM:M2:PR_REL_ST_E2_01:ALL",
+   "recommended": "Investigate assignment",
+   "reason": "Synthetic justification",
+   "owner": "",
+   "due_date": null,
+   "status": "Open",
+   "completion_evidence": "",
+   "created_by": "Synthetic actor",
+   "history": [
+    {
+     "actor": "Synthetic actor",
+     "note": "Created"
+    }
+   ]
+  },
+  {
+   "context": "current",
+   "user": "USER00035",
+   "activity": "",
+   "risk_id": "",
+   "assignment_id": "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c",
+   "role": "ZC:GEN:ROLE_00023",
+   "recommended": "Remove assignment",
+   "reason": "Separate duties",
+   "owner": "Owner Two",
+   "due_date": null,
+   "status": "Completed",
+   "completion_evidence": "Ticket 42",
+   "created_by": "Synthetic actor",
+   "history": [
+    {
+     "actor": "Synthetic actor",
+     "note": "Created"
+    },
+    {
+     "actor": "Synthetic actor",
+     "note": "owner: Owner One → Owner Two; due_date: 2099-01-31 → -; status: Open → Completed; completion_evidence: - → Ticket 42"
+    }
+   ]
+  }
+ ],
+ "revision": 10
+}

@@ -318,6 +318,205 @@ public static partial class V1SodDecisions
         return Json(result);
     }
 
+    private static readonly string[] ActionFields = ["context", "expected_revision", "actor", "action_id", "user", "activity", "risk_id", "assignment_id", "role", "recommended", "reason",
+        "owner", "due_date", "status", "completion_evidence"];
+    private static readonly string[] BulkFields = ["context", "expected_revision", "expected_generation", "items", "action", "reviewer", "justification", "replace_existing", "atomic", "track_action"];
+    public const int BulkMax = 1000;
+    /// <summary>Current, completed assignment decisions: replacing one needs explicit confirmation; Pending, Investigate and Outdated reviews do not.</summary>
+    private static readonly string[] Protected = ["Keep", "Removal required"];
+
+    private static bool? Bool(JsonObject body, string field, List<object> errors)
+    {
+        if (!body.TryGetPropertyValue(field, out var node) || node is null) return false;
+        if (node.GetValueKind() is JsonValueKind.True or JsonValueKind.False) return (bool)node;
+        errors.Add(V1Validation.Error("bool_type", field, "Input should be a valid boolean"));
+        return null;
+    }
+
+    private static void Revision(JsonObject body, List<object> errors)
+    {
+        if (body["expected_revision"] is not JsonValue revision || revision.GetValueKind() != JsonValueKind.Number || !revision.TryGetValue<int>(out var number) || number < 0)
+            errors.Add(V1Validation.Error(body.ContainsKey("expected_revision") ? "greater_than_equal" : "missing", "expected_revision", body.ContainsKey("expected_revision") ? "Input should be a valid integer greater than or equal to 0" : "Field required"));
+    }
+
+    /// <summary>POST /api/sod/remediation/actions (routers.sod_governance.save_action): tracks a remediation action; completion is a manual claim.</summary>
+    private static async Task<IResult> SaveActionAsync(HttpContext http, SodDecisionStore store, CancellationToken ct)
+    {
+        var (raw, readError) = await V1Validation.ReadBody(http, ct);
+        if (readError is not null) return readError;
+        var body = raw!;
+        var errors = new List<object>();
+        V1Validation.Extra(body, ActionFields, errors);
+        Revision(body, errors);
+        if (body["context"] is not null && (body["context"]!.GetValueKind() != JsonValueKind.String || !SodDecisionStore.ContextPattern().IsMatch((string)body["context"]!)))
+            errors.Add(V1Validation.Error("string_pattern_mismatch", "context", "String should match pattern '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'"));
+        V1Validation.Text(body, "actor", 1, 120, true, errors);
+        V1Validation.Text(body, "action_id", 0, 32, false, errors);
+        V1Validation.Text(body, "user", 1, 512, true, errors);
+        foreach (var (field, max) in new[] { ("activity", 512), ("risk_id", 512), ("assignment_id", 64), ("role", 512), ("owner", 120), ("completion_evidence", 4000) })
+            V1Validation.Text(body, field, 0, max, false, errors);
+        V1Validation.Text(body, "reason", 1, 4000, true, errors);
+        if (V1Validation.Text(body, "recommended", 0, 40, true, errors) is { } recommended && !SodDecisionStore.Recommended.Contains(recommended))
+            errors.Add(V1Validation.Error("literal_error", "recommended", "Input should be " + string.Join(", ", SodDecisionStore.Recommended.Select(r => $"'{r}'"))));
+        if (body.ContainsKey("status") && (V1Validation.Text(body, "status", 0, 20, true, errors) is not { } status || !SodDecisionStore.ActionStatuses.Contains(status)))
+            errors.Add(V1Validation.Error("literal_error", "status", "Input should be 'Open', 'In progress', 'Completed' or 'Cancelled'"));
+        if (body["due_date"] is { } due && (due.GetValueKind() != JsonValueKind.String || !DateOnly.TryParseExact((string)due!, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)))
+            errors.Add(V1Validation.Error("date_from_datetime_parsing", "due_date", "Input should be a valid date"));
+        if (errors.Count > 0) return Errors(errors);
+        var context = (string?)body["context"] ?? "current";
+        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/remediation/actions for review period '{context}' (review periods are not migrated)");
+        var (name, identity, refused) = await AttributionAsync(http, ct);
+        if (refused is not null) return refused;
+        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct);
+        if (loadError is not null) return loadError;
+        var user = (string)body["user"]!;
+        var assignment = (string?)body["assignment_id"] ?? "";
+        if (!bundle!.Review.TryGetValue(user, out var entry) || (assignment.Length > 0 && !entry.Assignments.ContainsKey(assignment)))
+            return Detail(409, "The action refers to evidence that is not present in this context.");
+        var values = new JsonObject();
+        foreach (var field in new[] { "user", "activity", "risk_id", "assignment_id", "role", "recommended", "reason", "owner", "completion_evidence" }) values[field] = (string?)body[field] ?? "";
+        values["due_date"] = body["due_date"]?.DeepClone();
+        values["status"] = (string?)body["status"] ?? "Open";
+        try
+        {
+            var (action, revision) = await store.SaveActionAsync(context, values, name!, identity, (int)body["expected_revision"]!, (string?)body["action_id"] ?? "", null, ct);
+            return Json(new JsonObject { ["action"] = action, ["revision"] = revision });
+        }
+        catch (SodDecisionException error) { return Detail(error.Status, error.Message); }
+    }
+
+    /// <summary>POST /api/sod/decisions/assignment/bulk (_bulk_assignment_review): one event per assignment with the individual decision checks, completed
+    /// decisions protected unless replace_existing, each outcome reported per assignment. Non-atomic runs commit in chunks of 100: a chunk that fails is
+    /// reported as failed (never as skipped) and earlier chunks stay recorded, as v1. Atomic runs refuse everything when anything is skipped or failed.</summary>
+    private static async Task<IResult> BulkAsync(HttpContext http, SodDecisionStore store, CancellationToken ct)
+    {
+        var (raw, readError) = await V1Validation.ReadBody(http, ct);
+        if (readError is not null) return readError;
+        var body = raw!;
+        var errors = new List<object>();
+        V1Validation.Extra(body, BulkFields, errors);
+        Revision(body, errors);
+        if (body["context"] is not null && (body["context"]!.GetValueKind() != JsonValueKind.String || !SodDecisionStore.ContextPattern().IsMatch((string)body["context"]!)))
+            errors.Add(V1Validation.Error("string_pattern_mismatch", "context", "String should match pattern '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'"));
+        if (V1Validation.Text(body, "expected_generation", 64, 64, true, errors) is { } generationText && !Hex64().IsMatch(generationText))
+            errors.Add(V1Validation.Error("string_pattern_mismatch", "expected_generation", "String should match pattern '^[a-f0-9]{64}$'"));
+        if (V1Validation.Text(body, "action", 0, 20, true, errors) is { } actionText && actionText is not ("Keep" or "Remove" or "Investigate"))
+            errors.Add(V1Validation.Error("literal_error", "action", "Input should be 'Keep', 'Remove' or 'Investigate'"));
+        V1Validation.Text(body, "reviewer", 0, 120, false, errors);
+        V1Validation.Text(body, "justification", 1, 4000, true, errors);
+        var replace = Bool(body, "replace_existing", errors);
+        var atomic = Bool(body, "atomic", errors);
+        var track = Bool(body, "track_action", errors);
+        if (body["items"] is not JsonArray list) errors.Add(V1Validation.Error(body.ContainsKey("items") ? "list_type" : "missing", "items", body.ContainsKey("items") ? "Input should be a valid list" : "Field required"));
+        else if (list.Count is < 1 or > BulkMax)
+            errors.Add(V1Validation.Error(list.Count < 1 ? "too_short" : "too_long", "items", list.Count < 1 ? "List should have at least 1 item after validation, not 0" : $"List should have at most {BulkMax} items after validation, not {list.Count}"));
+        else
+            for (var i = 0; i < list.Count; i++)
+            {
+                object[] path = ["items", i];
+                if (list[i] is not JsonObject item) { errors.Add(V1Validation.Error("model_type", "", "Input should be a valid dictionary", path)); continue; }
+                V1Validation.Extra(item, ItemFields, errors, path);
+                foreach (var field in new[] { "key", "evidence_version" })
+                    if (V1Validation.Text(item, field, 64, 64, true, errors, path) is { } hex && !Hex64().IsMatch(hex))
+                        errors.Add(V1Validation.Error("string_pattern_mismatch", field, "String should match pattern '^[a-f0-9]{64}$'", path));
+                V1Validation.Text(item, "user", 1, 512, true, errors, path);
+                V1Validation.Text(item, "ref", 1, 512, true, errors, path);
+            }
+        if (errors.Count > 0) return Errors(errors);
+        var context = (string?)body["context"] ?? "current";
+        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/decisions/assignment/bulk for review period '{context}' (review periods are not migrated)");
+        var (name, identity, refused) = await AttributionAsync(http, ct);
+        if (refused is not null) return refused;
+        var services = http.RequestServices;
+        var (bundle, loadError) = await LoadAsync(services, ct);
+        if (loadError is not null) return loadError;
+        var expectedGeneration = (string)body["expected_generation"]!;
+        if (bundle!.Generation != expectedGeneration) return Detail(409, "SoD evidence changed. Reload before reviewing.");
+        var items = body["items"]!.AsArray().Select(i => i!.AsObject()).ToList();
+        if (items.Select(i => (string)i["key"]!).Distinct(StringComparer.Ordinal).Count() != items.Count) return Detail(422, "Each assignment may be listed once.");
+        if (atomic == true && track == true) return Detail(422, "Atomic assignment review does not support separate action mutations.");
+        var action = (string)body["action"]!;
+        var operationId = Guid.NewGuid().ToString("N");
+        var model = bundle.Review;
+        var state = await StatesAsync(services, bundle, model, ct);
+        var tracked = (await store.ActionsAsync(context, ct)).Where(a => (string?)a["assignment_id"] is { Length: > 0 } && (string?)a["status"] != "Cancelled" && (string?)a["recommended"] == "Investigate assignment")
+            .Select(a => (string)a["assignment_id"]!).ToHashSet(StringComparer.Ordinal);
+        JsonObject Outcome(string key, string user, string reference, string reason) => new() { ["key"] = key, ["user"] = user, ["ref"] = reference, ["reason"] = reason };
+        var ready = new List<SodDecisionItem>();
+        var skipped = new JsonArray();
+        var failed = new JsonArray();
+        foreach (var item in items)
+        {
+            var (key, user, reference, version) = ((string)item["key"]!, (string)item["user"]!, (string)item["ref"]!, (string)item["evidence_version"]!);
+            var located = SodGovernance.Locate(model, "assignment", user, key, reference);
+            if (located is not { } found || found.Key != key) { failed.Add(Outcome(key, user, reference, "No longer supported by current evidence.")); continue; }
+            if (found.EvidenceVersion != version) { failed.Add(Outcome(key, user, reference, "Evidence changed since the selection was made.")); continue; }
+            var current = state.Items["assignment"][key];
+            if (action == "Investigate" && current.Lifecycle == "Investigate") { skipped.Add(Outcome(key, user, reference, "Already under investigation.")); continue; }
+            var isProtected = Protected.Contains(current.Lifecycle) || (atomic == true && current.Event is not null && current.Event.Decision != "Pending");
+            if (isProtected && replace != true) { skipped.Add(Outcome(key, user, reference, $"Already reviewed ({current.Lifecycle}); replacing needs explicit confirmation.")); continue; }
+            ready.Add(new SodDecisionItem(key, user, reference, found.EvidenceVersion, found.Evidence));
+        }
+        var recorded = new JsonArray();
+        var newActions = new JsonArray();
+        var revision = (int)body["expected_revision"]!;
+        var justification = (string)body["justification"]!;
+        async Task Guard(CancellationToken token)
+        {
+            var (now, _) = await V1SodAnalysis.CaptureAsync(services, LiveQuery(), token);
+            if (now?.Generation != expectedGeneration) throw new SodDecisionException(409, "SoD source evidence changed. Reload before saving.");
+        }
+        async Task Apply(List<SodDecisionItem> chunk)
+        {
+            revision = (await store.RecordAsync(new SodRecordRequest("assignment", context, chunk, action, name!, justification, revision, SourceVersions: bundle.Versions,
+                BulkOperationId: operationId, ActorIdentity: identity), Guard, ct)).Revision;
+            if (action == "Investigate" && track == true)
+                foreach (var item in chunk)
+                {
+                    if (tracked.Contains(item.Key)) continue;
+                    var values = new JsonObject
+                    {
+                        ["user"] = item.User, ["assignment_id"] = item.Key, ["role"] = item.Ref, ["recommended"] = "Investigate assignment", ["reason"] = justification, ["owner"] = "",
+                        ["due_date"] = null, ["status"] = "Open", ["completion_evidence"] = "", ["activity"] = "", ["risk_id"] = "",
+                    };
+                    revision = (await store.SaveActionAsync(context, values, name!, identity, revision, "", null, ct)).Revision;
+                    newActions.Add(item.Key);
+                    tracked.Add(item.Key);
+                }
+        }
+        try
+        {
+            if (atomic == true)
+            {
+                if (failed.Count > 0 || skipped.Count > 0 || ready.Count == 0)
+                    return Detail(409, "The preview selection changed or includes protected decisions. Reload before reviewing; nothing was saved.");
+                await Apply(ready);
+                foreach (var item in ready) recorded.Add(item.Key);
+            }
+            else
+                for (var start = 0; start < ready.Count; start += SodDecisionStore.MaxBatch)
+                {
+                    var chunk = ready.Skip(start).Take(SodDecisionStore.MaxBatch).ToList();
+                    try
+                    {
+                        await Apply(chunk);
+                        foreach (var item in chunk) recorded.Add(item.Key);
+                    }
+                    catch (SodDecisionException error)
+                    {
+                        if (error.Status == 409 && recorded.Count == 0 && start == 0 && error.Message.Contains("decisions changed", StringComparison.Ordinal)) throw;
+                        foreach (var item in chunk) failed.Add(Outcome(item.Key, item.User, item.Ref, error.Message));
+                    }
+                }
+        }
+        catch (SodDecisionException error) { return Detail(error.Status, error.Message); }
+        return Json(new JsonObject
+        {
+            ["operation_id"] = operationId, ["action"] = action, ["recorded"] = recorded, ["skipped"] = skipped, ["failed"] = failed, ["tracked_actions"] = newActions,
+            ["revision"] = revision, ["reviewer_identity"] = IdentityNotice,
+        });
+    }
+
     public static void Map(RouteGroupBuilder api)
     {
         api.MapPost("/sod/decisions/{kind}", async (string kind, HttpContext http, SodDecisionStore store, CancellationToken ct) =>
@@ -377,6 +576,8 @@ public static partial class V1SodDecisions
         });
 
         api.MapGet("/sod/subject", SubjectAsync);
+        api.MapPost("/sod/remediation/actions", SaveActionAsync);
+        api.MapPost("/sod/decisions/assignment/bulk", BulkAsync);
 
         api.MapGet("/sod/decisions/{kind}/history", async (string kind, HttpContext http, SodDecisionStore store, CancellationToken ct) =>
         {

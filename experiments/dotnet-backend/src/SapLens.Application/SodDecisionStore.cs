@@ -146,6 +146,100 @@ public sealed partial class SodDecisionStore(WriteCoordinator writer, IDbContext
         }, cancellation);
     }
 
+    public const int MaxActions = 20_000;
+    private const string ActionsDocument = "sod-remediation-actions";
+    public static readonly string[] Recommended = ["Remove assignment", "Investigate assignment", "Maintain access", "Apply compensating control", "No action required"];
+    public static readonly string[] ActionStatuses = ["Open", "In progress", "Completed", "Cancelled"];
+    private static readonly string[] ActionValueFields = ["user", "activity", "risk_id", "assignment_id", "role", "recommended", "reason", "owner", "due_date", "status", "completion_evidence"];
+    private static readonly string[] TrackedChanges = ["recommended", "reason", "owner", "due_date", "status", "completion_evidence"];
+
+    private static async Task<(SodDocument? Row, JsonObject Actions)> ActionsRowAsync(SapLensDb db, bool tracked, CancellationToken ct)
+    {
+        var query = db.SodDocuments.Where(d => d.Name == ActionsDocument);
+        var row = tracked ? await query.FirstOrDefaultAsync(ct) : await query.AsNoTracking().FirstOrDefaultAsync(ct);
+        return (row, row is null ? new JsonObject() : JsonNode.Parse(row.Json)!.AsObject());
+    }
+
+    /// <summary>actions_for(): the remediation actions of one context, in creation order.</summary>
+    public async Task<List<JsonObject>> ActionsAsync(string context, CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var (_, actions) = await ActionsRowAsync(db, false, ct);
+        return actions.Select(p => p.Value!.AsObject()).Where(a => (string?)a["context"] == context).ToList();
+    }
+
+    /// <summary>The Action model's validators on a candidate action (values already cleaned).</summary>
+    private static void ValidateAction(JsonObject a)
+    {
+        void Check(bool ok, string message) { if (!ok) throw new SodDecisionException(422, message); }
+        string Text(string name) => (string?)a[name] ?? "";
+        Check(Text("user").Length is >= 1 and <= 512 && Text("activity").Length <= 512 && Text("risk_id").Length <= 512 && Text("role").Length <= 512 && Text("owner").Length <= 120
+            && Text("reason").Length <= 4000 && Text("completion_evidence").Length <= 4000 && Text("assignment_id").Length <= 64 && Text("created_by").Length is >= 1 and <= 120, "Text is too long or missing.");
+        Check(Recommended.Contains(Text("recommended")) && ActionStatuses.Contains(Text("status")), "Unsupported recommendation or status.");
+        Check(!(Text("status") == "Completed" && Text("completion_evidence").Length == 0), "Completion evidence is required to complete an action.");
+        Check(Text("reason").Length > 0, "A reason is required.");
+        Check(Text("assignment_id").Length == 0 || Hex64().IsMatch(Text("assignment_id")), "Invalid assignment identity.");
+    }
+
+    /// <summary>save_action(): creates or updates a remediation action; every change is appended to its history. Shares the decision revision.</summary>
+    public Task<(JsonObject Action, int Revision)> SaveActionAsync(string context, JsonObject values, string actor, JsonObject? identity, int expectedRevision, string actionId,
+        Func<SapLensDb, CancellationToken, Task>? alsoInTransaction, CancellationToken cancellation)
+    {
+        CheckContext(context);
+        var cleaned = new JsonObject();
+        foreach (var field in ActionValueFields)
+            cleaned[field] = field == "due_date" ? values[field]?.DeepClone() : Clean((string?)values[field] ?? "", field);
+        var by = Clean(actor, "actor");
+        return writer.WriteAsync(async (db, ct) =>
+        {
+            var revisionRow = await db.SodDocuments.FirstOrDefaultAsync(d => d.Name == RevisionDocument, ct);
+            if ((revisionRow?.Revision ?? 0) != expectedRevision) throw new SodDecisionException(409, "SoD decisions changed. Reload before saving.");
+            var now = clock.GetUtcNow();
+            var stamp = Stamp(now);
+            var (row, actions) = await ActionsRowAsync(db, true, ct);
+            var previous = actionId.Length > 0 ? actions[actionId] as JsonObject : null;
+            if (actionId.Length > 0 && previous is null) throw new SodDecisionException(404, "Remediation action not found.");
+            if (previous is not null && (string?)previous["context"] != context) throw new SodDecisionException(422, "An action cannot move to another review context.");
+            if (previous is null && actions.Count >= MaxActions) throw new SodDecisionException(409, "Remediation action capacity is reached. Existing actions are retained.");
+            JsonObject Event(string note)
+            {
+                var e = new JsonObject();
+                if (identity is not null) e["actor_identity"] = identity.DeepClone();
+                (e["timestamp"], e["actor"], e["note"]) = (stamp, by, note);
+                return e;
+            }
+            JsonObject entry;
+            if (previous is not null)
+            {
+                string Old(string name) => previous[name] is JsonValue v ? v.ToString() : "";
+                string New(string name) => cleaned[name] is JsonValue v ? v.ToString() : "";
+                var changes = TrackedChanges.Where(n => Old(n) != New(n)).Select(n => $"{n}: {(Old(n).Length > 0 ? Old(n) : "-")} → {(New(n).Length > 0 ? New(n) : "-")}").ToList();
+                entry = previous.DeepClone().AsObject();
+                foreach (var (k, v) in cleaned) entry[k] = v?.DeepClone();
+                entry["modified"] = stamp;
+                var history = entry["history"]!.AsArray();
+                if (history.Count >= 500) throw new SodDecisionException(422, "Action history capacity is reached.");
+                history.Add(Event(changes.Count > 0 ? string.Join("; ", changes) : "Reviewed"));
+            }
+            else
+            {
+                entry = new JsonObject { ["id"] = Guid.NewGuid().ToString("N"), ["context"] = context };
+                foreach (var (k, v) in cleaned) entry[k] = v?.DeepClone();
+                (entry["created"], entry["modified"], entry["created_by"]) = (stamp, stamp, by);
+                entry["history"] = new JsonArray(Event("Created"));
+            }
+            ValidateAction(entry);
+            actions[(string)entry["id"]!] = entry;
+            if (row is null) db.SodDocuments.Add(row = new SodDocument { Name = ActionsDocument, Json = "{}" });
+            (row.Json, row.Revision, row.UpdatedUtc, row.UpdatedBy) = (actions.ToJsonString(), row.Revision + 1, now.UtcDateTime, by);
+            if (alsoInTransaction is not null) await alsoInTransaction(db, ct);
+            if (revisionRow is null) db.SodDocuments.Add(revisionRow = new SodDocument { Name = RevisionDocument, Json = "{}" });
+            revisionRow.Revision = expectedRevision + 1;
+            (revisionRow.UpdatedUtc, revisionRow.UpdatedBy) = (now.UtcDateTime, by);
+            return (entry.DeepClone().AsObject(), revisionRow.Revision);
+        }, cancellation);
+    }
+
     /// <summary>latest(): kind -> key -> most recent event of one context.</summary>
     public async Task<Dictionary<string, IReadOnlyDictionary<string, SodDecisionEvent>>> LatestAsync(string context, CancellationToken ct)
     {

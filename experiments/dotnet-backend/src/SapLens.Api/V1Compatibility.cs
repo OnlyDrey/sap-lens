@@ -55,7 +55,7 @@ public static class V1Compatibility
         "GET /api/sod/reference", "POST /api/sod/reference/reset", "POST /api/sod/reference/upload", "PUT /api/sod/reference", "GET /api/sod/reference/template",
         "GET /api/sod/analysis", "GET /api/sod/analysis/evidence", "GET /api/sod/analysis/export",
         "POST /api/configuration/export", "POST /api/configuration/import", "POST /api/configuration/reset", "GET /api/reviewer-profile", "POST /api/reviewer-profile", "GET /api/diagnostics", "GET /api/diagnostics/export", "POST /api/compare",
-        "POST /api/sod/decisions/{kind}", "GET /api/sod/decisions/{kind}/history", "GET /api/sod/decisions/{kind}/evidence", "GET /api/sod/subject",
+        "POST /api/sod/decisions/{kind}", "GET /api/sod/decisions/{kind}/history", "GET /api/sod/decisions/{kind}/evidence", "GET /api/sod/subject", "POST /api/sod/remediation/actions", "POST /api/sod/decisions/assignment/bulk",
         "GET /api/account-review", "POST /api/account-review/decision/{username}", "GET /api/account-review/history/{username}",
         // Accounts mode (the Server default); in shared-token mode these answer 501.
         "POST /api/auth/activate", "POST /api/auth/recover", "POST /api/auth/login", "POST /api/auth/reset", "GET /api/auth/me", "GET /api/auth/sessions",

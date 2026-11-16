@@ -56,6 +56,20 @@ the behavior the .NET port must keep; [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.m
 - Messages: where v1 raises its own text (revision, items, expiry, context, capacity, evidence) .NET returns the same text; pydantic validation
   failures are 422 in both, with .NET's own wording.
 
+## Remediation actions and bulk review (.NET)
+
+- Actions live in the `sod-remediation-actions` SoD document and share the decision store revision: every create or update needs the current
+  revision and increases it, in one transaction with the action. Each change appends a history entry with v1's change note
+  (`field: old → new`, "-" for empty); completing requires completion evidence; the actor is the attributed individual (Desktop profile or
+  account), as v1 `actor()`.
+- Bulk review follows v1 exactly, including its partial-success shape: items are checked one by one (not located, changed evidence → failed;
+  already under investigation, or a current Keep/Removal required without `replace_existing` → skipped); non-atomic runs commit chunks of 100,
+  a failing chunk is reported as failed (never skipped) while earlier chunks stay recorded; a stale revision on the first chunk refuses the call
+  (409). Atomic runs refuse everything (409, nothing saved) when any item is skipped or failed. With `track_action`, an Investigate run tracks one
+  open "Investigate assignment" action per assignment, never a duplicate.
+- v1 behavior kept as is: when an action fails after its chunk's decisions committed (`track_action`), v1 reports the chunk as failed although its
+  decisions are recorded; .NET does the same.
+
 ## Reappearance memory (.NET)
 
 - `AssignmentLifecycle` (Application) is the port of `assignment_lifecycle.py`: per decided assignment key the state (present/absent), when it
@@ -84,4 +98,5 @@ refused (403), because it identifies no reviewer.
 | 3a. Decision targets: review model (every imported assignment), assignment and activity evidence, item location | Done | `SodGovernanceTests`: 83 v1 items of all four kinds located with the same key and evidence version; assignment and activity evidence have v1's content address; the review population (234 users) equals v1 |
 | 3b. Routes: `POST /api/sod/decisions/{kind}`, `GET .../history` (removal verification), `GET .../evidence`, live context | Done | `SodDecisionRoutesTests`: decisions of all four kinds store evidence with v1's content address; Desktop attribution as v1 `actor()`; history newest first with previous decisions after a restart; removal verification; stale generation, revision, evidence and items, every validator, periods (501) refused with nothing written; shared token refused (403). Permission map equals v1 `session_boundary` |
 | 3c. Reappearance memory (`assignment_lifecycle`) and `GET /api/sod/subject` | Done | `SodLifecycleTests`: v1's multi-import sequence (review, removal, reappearance, new review, second cycle, identity change, validity change) gives the same subject overview (assignment, activity and risk lifecycle, derived status, coverage) at every step; a restart, a failed import and a held import change nothing; history and evidence stay complete; a tampered memory makes every assignment decision Outdated (reason "unavailable") until re-baseline. Mutation check: without the memory the sequence test fails |
-| 3d. Bulk assignment review, remediation actions, review subjects, simulate, legacy risk decisions, v1 data migration | Pending | |
+| 3d. Remediation actions (`POST /api/sod/remediation/actions`) and bulk assignment review (`POST /api/sod/decisions/assignment/bulk`) | Done | `SodBulkReviewTests`: a 17-call v1 sequence (mixed recorded/skipped/failed, protected decisions, replace, investigation with tracked actions and no duplicates, atomic refusal and replacement, stale revision and generation, validation, action create/update/complete, unknown action, foreign user, stale revision) gives v1's outcome for every call; after a restart the histories, bulk tags, actions, revision and chain equal v1; a shared token is refused |
+| 3e. Review subjects, simulate, legacy risk decisions, lifecycle re-baseline route and Data Health findings, v1 data migration | Pending | |
