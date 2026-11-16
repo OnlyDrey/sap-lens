@@ -44,7 +44,9 @@ public static class V1Compatibility
         "POST /api/configuration", "POST /api/configuration/theme", "GET /api/data-sources/history", "GET /api/data-sources/{source}/preview", "POST /api/data/cancel",
         "POST /api/data-sources/{source}/select", "POST /api/server/uploads/{source}/activate",
         "GET /api/access/users", "GET /api/access/users/{username}", "GET /api/user-comparison", "GET /api/user-comparison/evidence",
-        "GET /api/data-health",
+        "GET /api/data-health", "GET /api/dashboard",
+        "GET /api/roles/naming", "POST /api/roles/package/preview", "POST /api/roles/package/export",
+        "GET /api/saved-filters", "POST /api/saved-filters", "POST /api/saved-filters/delete",
     ];
 
     public static void Map(WebApplication app)
@@ -104,8 +106,6 @@ public static class V1Compatibility
 
         api.MapGet("/roles/{**agrName}", async (HttpContext http, string agrName, SnapshotService snapshots, CancellationToken ct) =>
         {
-            // v1 declares these before the role path route; they are separate, not-migrated functions, not role names.
-            if (agrName == "naming" || agrName.StartsWith("package/", StringComparison.Ordinal)) return NotMigrated(http, "roles/" + agrName);
             var snapshot = await snapshots.GetAsync(ct);
             return snapshot.Catalogue.Roles.TryGetValue(agrName, out var role)
                 ? Results.Ok(RoleDetail(role))
@@ -115,6 +115,9 @@ public static class V1Compatibility
         V1DataSources.Map(api);
         V1Access.Map(api);
         V1DataHealth.Map(api);
+        V1Dashboard.Map(api);
+        V1SavedFilters.Map(api);
+        V1AccessPackage.Map(api);
 
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).
         api.Map("/{**rest}", (HttpContext http, string? rest) =>
@@ -149,6 +152,8 @@ public static class V1Compatibility
 
     private static JsonObject? RegistryEntry(string id) =>
         Registry.Value["modules"]!.AsArray().Select(m => m!.AsObject()).FirstOrDefault(m => (string?)m["id"] == id);
+
+    internal static bool ModuleEnabled(string functionKey) => (bool?)(RegistryEntry(functionKey) ?? RegistryEntry("UNCLASSIFIED")!)["enabled"] ?? true;
 
     private static object ModuleInfo(string functionKey)
     {

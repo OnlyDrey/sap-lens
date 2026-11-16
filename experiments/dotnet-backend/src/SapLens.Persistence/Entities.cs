@@ -127,3 +127,21 @@ public sealed class RefreshReport
     public required string Status { get; set; }
     public required string Json { get; set; }
 }
+
+/// <summary>A saved investigation (v1 saved-filters.json item). Only bounded filter definitions are stored, never result datasets.
+/// <see cref="Sequence"/> keeps v1's list order: a saved or renamed entry moves to the end.</summary>
+public sealed class SavedFilter
+{
+    public required string Id { get; set; }
+    public required string Name { get; set; }
+    /// <summary>Case-folded name; unique per view (v1 compares names with casefold).</summary>
+    public required string NameKey { get; set; }
+    public required string View { get; set; }
+    public required string FiltersJson { get; set; }
+    public int FilterSchema { get; set; } = 1;
+    public required string Created { get; set; }
+    public required string Modified { get; set; }
+    public long Sequence { get; set; }
+    public string CreatedBy { get; set; } = "";
+    public string ModifiedBy { get; set; } = "";
+}
