@@ -46,10 +46,10 @@ SAP_LENS_V2_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-
   directory ACL, which an installer must restrict to the service account [U]). Every `/api` request needs `X-SAP-Lens-Token`.
 - **Binding**: `127.0.0.1` by default. Access from other devices only with `--network`, one private LAN address, HTTPS with a validated
   certificate and explicit `--allowed-hosts`; everything else is refused at startup. See [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md).
-- **UI**: `http://127.0.0.1:<port>/` serves the embedded prototype UI. In a browser it signs in through `/login.html`: the token is posted
-  once in a plain HTML form to `/auth/login`, which answers with an HttpOnly, SameSite=Strict session cookie (8 h, in memory, not the token).
-  Cookie-authenticated state changes also need a same-origin signal; 5 failed sign-ins per minute are throttled. API clients keep using the
-  header.
+- **UI**: `http://127.0.0.1:<port>/` serves the React UI. By default (`--auth accounts`) people sign in with individual v1-compatible
+  accounts and roles; the first administrator is activated with a one-time code from `SapLens.Cli accounts-code --data <data-dir>`
+  ([details](SERVER_NETWORK_ACCESS.md#accounts-mode-default)). API clients keep using the access-token header. `--auth shared-token`
+  keeps the earlier single-secret sign-in through `/login.html` for isolated tests.
 - **Health**: `/health/live` (process up), `/health/ready` (database initialized, migrated, integrity-checked); `503` with the reason
   otherwise. **OpenAPI**: `/openapi/v1.json`.
 - **Logging**: JSON lines on stdout with UTC timestamps, scopes (correlation id, job id, attempt). systemd/journald or the Windows service

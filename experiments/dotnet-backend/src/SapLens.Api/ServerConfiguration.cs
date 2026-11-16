@@ -8,7 +8,7 @@ namespace SapLens.Api;
 /// Unknown options are errors, so a typo never silently falls back to a default.</summary>
 public static class ServerConfiguration
 {
-    public static readonly string[] ValueOptions = ["--data-dir", "--listen", "--port", "--allowed-hosts", "--cert", "--cert-key", "--cert-password-file"];
+    public static readonly string[] ValueOptions = ["--data-dir", "--listen", "--port", "--allowed-hosts", "--cert", "--cert-key", "--cert-password-file", "--auth"];
     public static readonly string[] FlagOptions = ["--network", "--no-worker"];
 
     public static HostSettings Parse(string[] args, Func<string, string?> environment)
@@ -37,11 +37,17 @@ public static class ServerConfiguration
 
         var certificatePath = Get("--cert", "SAP_LENS_V2_CERT");
         var certificate = certificatePath is null ? null : CertificatePolicy.Load(Path.GetFullPath(certificatePath), Get("--cert-key", "SAP_LENS_V2_CERT_KEY"), Password(Get("--cert-password-file", "SAP_LENS_V2_CERT_PASSWORD_FILE"), environment));
+        var auth = (Get("--auth", "SAP_LENS_V2_AUTH") ?? "accounts") switch
+        {
+            "accounts" => AuthenticationMode.Accounts,
+            "shared-token" => AuthenticationMode.SharedToken,
+            var other => throw new InvalidOperationException($"--auth must be 'accounts' or 'shared-token', not '{other}'."),
+        };
         Directory.CreateDirectory(dataDirectory);
         return new HostSettings
         {
             DataDirectory = Path.GetFullPath(dataDirectory), ListenAddress = listen, Port = port, NetworkAccess = network, AllowedHosts = hosts, Certificate = certificate,
-            AccessToken = Token(dataDirectory, environment), WorkerEnabled = !options.ContainsKey("--no-worker"),
+            AccessToken = Token(dataDirectory, environment), WorkerEnabled = !options.ContainsKey("--no-worker"), Authentication = auth,
             PrincipalName = environment("SAP_LENS_V2_PRINCIPAL") ?? "server-operator",
         };
     }

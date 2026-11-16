@@ -66,7 +66,7 @@ public static class V1SavedFilters
                 return Results.Json(new { detail = "Unsupported filter fields; result datasets cannot be saved." }, statusCode: 422);
             try
             {
-                var saved = await writer.WriteAsync((db, token) => SaveAsync(db, request, host.PrincipalName, Stamp(clock), token), ct);
+                var saved = await writer.WriteAsync((db, token) => SaveAsync(db, request, Actors.Name(http), Stamp(clock), token), ct);
                 return Json(saved);
             }
             catch (Refusal refusal) { return Results.Json(new { detail = refusal.Message }, statusCode: refusal.Status); }

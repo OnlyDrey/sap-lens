@@ -8,7 +8,7 @@ namespace SapLens.Api;
 /// <summary>Request boundary: correlation id, security headers, loopback Host header (DNS-rebinding defence), same-origin check for state-changing
 /// requests, and authentication of every /api request by either the access-token header (Desktop shell, API clients) or, in Server mode only, an
 /// HttpOnly session cookie obtained by submitting the token to /auth/login. Health endpoints and the static prototype UI are open and contain no data.</summary>
-public sealed partial class RequestBoundary(RequestDelegate next, HostSettings settings, SessionStore sessions, RequestBoundaryTokenCheck token, ILogger<RequestBoundary> logger)
+public sealed partial class RequestBoundary(RequestDelegate next, HostSettings settings, SessionStore sessions, RequestBoundaryTokenCheck token, ILogger<RequestBoundary> logger, IServiceProvider services)
 {
     public const string TokenHeader = "X-SAP-Lens-Token";
     public const string CorrelationHeader = "X-Correlation-ID";
@@ -46,6 +46,18 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
         if (unsafeMethod && !tokenAuthenticated && !sameOrigin && !(origin.Length == 0 && request.Headers["Sec-Fetch-Site"].ToString() == "same-origin"))
         { await Reject(context, 403, "State-changing requests need a same-origin signal."); return; }
 
+        if (settings.Authentication == AuthenticationMode.Accounts)
+        {
+            // v1 session boundary: public auth routes, then session cookie, route permission and per-session CSRF. The React UI renders sign-in.
+            if (request.Path.StartsWithSegments("/api")) headers.CacheControl = "no-store";
+            if (await V1Auth.AuthorizeAsync(context, services.GetRequiredService<SapLens.Application.Accounts.AccountStore>(), tokenAuthenticated) is { } refusal)
+            {
+                await refusal.ExecuteAsync(context);
+                return;
+            }
+            await next(context);
+            return;
+        }
         var sessionValid = settings.Mode == HostMode.Server && sessions.IsValid(request.Cookies[SessionStore.CookieNameFor(request.IsHttps)]);
         // Server mode: the application document needs a session; without one the browser is sent to the sign-in page (assets stay public, they hold no data).
         if (settings.Mode == HostMode.Server && HttpMethods.IsGet(request.Method) && request.Path.Value is "/" or "/index.html" && !tokenAuthenticated && !sessionValid)

@@ -8,11 +8,12 @@ return args.FirstOrDefault() switch
     "db-enqueue" => await DbCommands.EnqueueAsync(options["data"], int.Parse(options["count"]), options["tag"]),
     "db-claim" => await DbCommands.ClaimAllAsync(options["data"], options["owner"]),
     "bench" => await Bench.RunAsync(options),
+    "accounts-code" => await AccountsCommand.IssueAsync(options["data"], options.GetValueOrDefault("recover-administrator")),
     _ => Usage(),
 };
 
 static int Usage()
 {
-    Console.Error.WriteLine("usage: SapLens.Cli equivalence --data DIR --scenarios FILE --malformed DIR --out FILE | db-enqueue --data DIR --count N --tag T | db-claim --data DIR --owner O | bench ...");
+    Console.Error.WriteLine("usage: SapLens.Cli equivalence --data DIR --scenarios FILE --malformed DIR --out FILE | db-enqueue --data DIR --count N --tag T | db-claim --data DIR --owner O | bench ... | accounts-code --data DIR [--recover-administrator USERNAME]");
     return 1;
 }

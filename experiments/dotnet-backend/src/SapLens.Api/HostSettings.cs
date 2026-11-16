@@ -28,6 +28,9 @@ public sealed class HostSettings
     public IReadOnlyList<string> AllowedHosts { get; init; } = [];
     public required string AccessToken { get; init; }
     public string PrincipalName { get; init; } = "local-user";
+    /// <summary>Server only. Accounts: v1 local accounts with server sessions and roles (the default for a deployed Server). SharedToken: one
+    /// operator identity for everyone holding the access token (Desktop, tests, API clients).</summary>
+    public AuthenticationMode Authentication { get; init; } = AuthenticationMode.SharedToken;
     public bool WorkerEnabled { get; init; } = true;
     public bool JsonConsoleLogging { get; init; } = true;
 
@@ -44,6 +47,8 @@ public sealed class HostSettings
     {
         if (AccessToken.Length < MinimumTokenLength) throw new InvalidOperationException($"The API access token must have at least {MinimumTokenLength} characters.");
         if (Port is < 0 or > 65535) throw new InvalidOperationException("The port must be between 1 and 65535.");
+        if (Mode == HostMode.Desktop && Authentication != AuthenticationMode.SharedToken)
+            throw new InvalidOperationException("The Desktop has one local user; account sign-in is a Server feature.");
         if (Mode == HostMode.Desktop)
         {
             if (NetworkAccess || !IPAddress.IsLoopback(ListenAddress) || Certificate is not null || AllowedHosts.Count > 0)

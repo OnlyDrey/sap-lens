@@ -47,6 +47,11 @@ public static class V1Compatibility
         "GET /api/data-health", "GET /api/dashboard",
         "GET /api/roles/naming", "POST /api/roles/package/preview", "POST /api/roles/package/export",
         "GET /api/saved-filters", "POST /api/saved-filters", "POST /api/saved-filters/delete",
+        // Accounts mode (the Server default); in shared-token mode these answer 501.
+        "POST /api/auth/activate", "POST /api/auth/recover", "POST /api/auth/login", "POST /api/auth/reset", "GET /api/auth/me", "GET /api/auth/sessions",
+        "POST /api/auth/logout", "POST /api/auth/logout-all", "POST /api/auth/logout-others", "POST /api/auth/password", "POST /api/auth/profile",
+        "GET /api/auth/users", "POST /api/auth/users", "POST /api/auth/users/{identity}", "POST /api/auth/users/{identity}/revoke", "POST /api/auth/users/{identity}/reset",
+        "GET /api/auth/audit", "GET /api/auth/policy", "POST /api/auth/policy", "GET /api/auth/migration", "POST /api/auth/migration/{identifier}/{action}",
     ];
 
     public static void Map(WebApplication app)
@@ -63,11 +68,13 @@ public static class V1Compatibility
             return await next(context);
         });
 
-        api.MapGet("/auth/state", (HostSettings settings) => new
+        api.MapGet("/auth/state", async (HttpContext http, HostSettings settings) => settings.Authentication == AuthenticationMode.Accounts
+            ? Results.Json(await http.RequestServices.GetRequiredService<SapLens.Application.Accounts.AccountStore>().StateAsync())
+            : Results.Json(new
         {
             // Not "local-sessions": the React sign-in form for v1 accounts is not shown. The server's shared-token sign-in happened before the page loaded.
             provider = settings.Mode == HostMode.Desktop ? "desktop" : "shared-token", setup_required = false,
-        });
+        }));
         api.MapGet("/configuration", Configuration);
         api.MapGet("/presentation", Configuration);
         api.MapGet("/registry/modules", () => Results.Content(Registry.Value.ToJsonString(), "application/json"));
@@ -77,11 +84,12 @@ public static class V1Compatibility
             version = Version, mode = "dotnet-preview", source_sha = SourceSha, file_version = (string?)null, python = (string?)null,
             runtime = $".NET {Environment.Version}", platform = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
         });
-        api.MapGet("/runtime", (HostSettings settings) => new
+        api.MapGet("/runtime", (HttpContext http, HostSettings settings) => new
         {
             // Browser uploads are migrated (Phase 2A). The .NET Desktop has no native file dialogs; WebView2 uses the browser file picker. A Server never
             // accepts server file paths from a browser (selection answers 400), so its policy is the restrictive one.
-            deployment_mode = settings.Mode == HostMode.Server ? "server" : "desktop", browser_upload = true, username = settings.PrincipalName, role = "",
+            deployment_mode = settings.Mode == HostMode.Server ? "server" : "desktop", browser_upload = true, username = Actors.Name(http),
+            role = settings.Authentication == AuthenticationMode.Accounts ? Actors.Current(http).Role : "",
             native_dialogs = false, source_path_policy = settings.Mode == HostMode.Server ? "configured_root" : "desktop_filesystem",
         });
 
@@ -118,6 +126,7 @@ public static class V1Compatibility
         V1Dashboard.Map(api);
         V1SavedFilters.Map(api);
         V1AccessPackage.Map(api);
+        V1Auth.Map(api, app.Services.GetRequiredService<HostSettings>());
 
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).
         api.Map("/{**rest}", (HttpContext http, string? rest) =>

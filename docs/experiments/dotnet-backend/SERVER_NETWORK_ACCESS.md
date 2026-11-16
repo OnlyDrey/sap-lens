@@ -79,13 +79,37 @@ with Ctrl+C, then `set SAP_LENS_V2_CERT_PASSWORD=`. The lab PFX and password are
 | PEM private key | `--cert-key` | `SAP_LENS_V2_CERT_KEY` | none |
 | Certificate password | `--cert-password-file` (preferred) | `SAP_LENS_V2_CERT_PASSWORD_FILE`, or `SAP_LENS_V2_CERT_PASSWORD` | none |
 | Access token | (never an option) | `SAP_LENS_V2_TOKEN` | generated once into `<data-dir>/api-token` |
-| Reviewer name recorded for this server | | `SAP_LENS_V2_PRINCIPAL` | `server-operator` |
+| Browser authentication | `--auth accounts\|shared-token` | `SAP_LENS_V2_AUTH` | `accounts` |
+| Name recorded for API clients that use the access token | | `SAP_LENS_V2_PRINCIPAL` | `server-operator` |
 | Background worker off | `--no-worker` | | on |
 
 Nothing secret is stored in committed files. The startup log states the address, port, scheme, network mode, allowed hosts and the
 certificate subject, thumbprint and expiry, never a password or token.
 
 ## 3. Authentication and authorization review
+
+### Accounts mode (default)
+
+The Server uses the SAP Lens v1 account model, ported to .NET on the same SQLite schema (`<data-dir>/security/accounts.sqlite3`, directory
+`0700`, file `0600`), so an existing v1 account store can be adopted by copying it there while the server is stopped.
+
+| Aspect | Implementation |
+| --- | --- |
+| First administrator | The server creates an empty store at its first start (`/api/auth/state` reports `setup_required`). A local operator runs `SapLens.Cli accounts-code --data <data-dir>`; it prints a single-use code (15 minutes, 5 attempts, stored only as a SHA-256). The React sign-in page completes activation with the code; setup then closes for good |
+| Recovery | `SapLens.Cli accounts-code --data <data-dir> --recover-administrator <username>`: a local recovery code for an existing administrator; sign-in with the old password is blocked until it is used. The API can consume codes but never issue them |
+| Passwords | Argon2id (`m=65536, t=3, p=2`, 16-byte salt, 32-byte hash, PHC string format compatible with Python argon2-cffi); 12 to 1024 characters; v1 PBKDF2 verifiers are accepted and replaced with Argon2id at the next sign-in; unknown users take the same hashing path |
+| Sessions | Random token in an `HttpOnly`, `SameSite=Strict` cookie (`Secure` over HTTPS); only its SHA-256 is stored. Idle (default 30 min) and absolute (default 12 h) lifetimes are an administrator policy. Password, role or status changes and password resets end every session of the account |
+| CSRF | A per-session secret in a readable `sap-lens-csrf` cookie that the React client echoes in `X-SAP-Lens-CSRF` on every write (only its digest is stored), in addition to the same-origin check below |
+| Roles | `administrator`, `reviewer`, `viewer`, enforced per route by the v1 permission map (deny by default; unknown writes are refused for everyone). Viewers read and export; reviewers additionally record review decisions; administrators manage settings, data sources, saved filters and accounts. The Access Package preview and export are open to every signed-in role (v1 maps them to no permission at all, which refuses them for everyone in session mode; they never change data) |
+| Brute force | Per client digest: the fifth failure locks for 30 s, each further failure doubles the lock up to 15 min; separate counters for password-reset codes |
+| Audit | Account, role, password, session and policy events in the store's `audit` table with the actor's public identity; never verifiers, tokens or codes. Unauthenticated denial events are capped at the newest 10 000 |
+| Transport | Plain HTTP only from a loopback peer; on the network the server is HTTPS-only (`secure_transport_required`) |
+| Attribution | Every write (imports, confirmations, settings, saved filters, review decisions) records the signed-in username |
+| API clients | The protected access token (`X-SAP-Lens-Token`) still authenticates automation as the operator principal (`SAP_LENS_V2_PRINCIPAL`, provenance `access-token`). It cannot administer accounts, because account operations need a real session |
+
+`--auth shared-token` restores the earlier single-secret browser sign-in described next (for isolated tests only).
+
+### Shared-token mode (`--auth shared-token`)
 
 | Aspect | Implementation |
 | --- | --- |

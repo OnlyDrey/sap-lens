@@ -41,14 +41,14 @@ public static partial class V1DataSources
             {
                 foreach (var (key, value) in body)
                     if (!V1Settings.ServerManaged.Contains(key)) settings[key] = value?.DeepClone();
-            }, host.PrincipalName, ct);
+            }, Actors.Name(http), ct);
             return Results.Content((await V1Compatibility.ConfigurationResponse(store, factory, ct)).ToJsonString(), "application/json");
         });
         api.MapPost("/configuration/theme", async (HttpContext http, V1Settings store, IDbContextFactory<SapLensDb> factory, HostSettings host, CancellationToken ct) =>
         {
             var theme = (await JsonNode.ParseAsync(http.Request.Body, cancellationToken: ct))?["theme"]?.GetValue<string>();
             if (theme is not ("system" or "dark" or "light")) return Detail(400, "Choose a supported theme.");
-            await store.UpdateAsync(null, settings => settings["theme"] = theme, host.PrincipalName, ct);
+            await store.UpdateAsync(null, settings => settings["theme"] = theme, Actors.Name(http), ct);
             return Results.Content((await V1Compatibility.ConfigurationResponse(store, factory, ct)).ToJsonString(), "application/json");
         });
 
@@ -208,10 +208,10 @@ public static partial class V1DataSources
                         ["message"] = "The new file differs sharply from the active data and needs explicit confirmation. Previous data is retained.",
                         ["anomalies"] = Anomalies(evaluation), ["old"] = evaluation["old"]?.DeepClone(), ["new"] = evaluation["new"]?.DeepClone(),
                     });
-                await imports.ConfirmAsync(datasetId, host.PrincipalName, ct);
+                await imports.ConfirmAsync(datasetId, Actors.Name(http), ct);
                 confirmation = new JsonObject
                 {
-                    ["source"] = source, ["confirmed_at"] = Stamp(clock), ["actor"] = host.PrincipalName,
+                    ["source"] = source, ["confirmed_at"] = Stamp(clock), ["actor"] = Actors.Name(http),
                     ["anomalies"] = new JsonArray([.. Anomalies(evaluation).Select(a => (JsonNode?)JsonValue.Create((string?)a!["message"]))]),
                     ["old_records"] = (int?)evaluation["old"]?["records"] ?? 0, ["new_records"] = (int?)evaluation["new"]?["records"] ?? dataset.RecordCount,
                 };
@@ -274,7 +274,7 @@ public static partial class V1DataSources
                     confirmations.Add(confirmation);
                     while (confirmations.Count > 100) confirmations.RemoveAt(0);
                 }
-            }, host.PrincipalName, ct);
+            }, Actors.Name(http), ct);
             // Only a previous private upload copy of this source is removed, never a file the user chose on disk.
             try
             {

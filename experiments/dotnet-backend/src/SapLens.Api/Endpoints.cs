@@ -150,15 +150,15 @@ public static class Endpoints
             return rows.Select(d => new { d.Id, d.Source, d.Revision, d.Status, d.ContentHash, d.RecordCount, d.FileName, d.CreatedUtc, d.ActivatedUtc, d.ConfirmedBy, d.ConfirmedUtc,
                 Evaluation = d.EvaluationJson is null ? (JsonElement?)null : JsonDocument.Parse(d.EvaluationJson).RootElement });
         }).WithName("ListDatasets");
-        api.MapPost("/datasets/{id:long}/confirm", async (long id, ImportService imports, HostSettings settings, CancellationToken ct) =>
+        api.MapPost("/datasets/{id:long}/confirm", async (HttpContext http, long id, ImportService imports, CancellationToken ct) =>
         {
-            var dataset = await imports.ConfirmAsync(id, settings.PrincipalName, ct);
+            var dataset = await imports.ConfirmAsync(id, Actors.Name(http), ct);
             return new { dataset.Id, dataset.Source, dataset.Status, dataset.ConfirmedBy, dataset.ConfirmedUtc };
         }).WithName("ConfirmDataset");
 
-        api.MapPost("/reviews", async (ReviewRequest request, ReviewService reviews, HostSettings settings, CancellationToken ct) =>
+        api.MapPost("/reviews", async (HttpContext http, ReviewRequest request, ReviewService reviews, CancellationToken ct) =>
         {
-            var d = await reviews.RecordAsync(request.SubjectType, request.SubjectKey, request.EvidenceVersion, request.Decision, settings.PrincipalName, request.Comment, ct);
+            var d = await reviews.RecordAsync(request.SubjectType, request.SubjectKey, request.EvidenceVersion, request.Decision, Actors.Name(http), request.Comment, ct);
             return Results.Created($"/api/v1/reviews/{d.Id}", d);
         }).WithName("RecordReview");
         api.MapGet("/reviews/assignment", async ([FromQuery] string user, [FromQuery] string role, ReviewService reviews, CancellationToken ct) =>

@@ -14,9 +14,10 @@ and Server. The earlier simplified prototype UI was removed. Status tags as in [
 - **Authentication** (unchanged rules):
   - Desktop: the WebView2 shell adds the per-run token to `/api` requests outside page script. The React client's own `X-SAP-Lens` header
     carries no authority.
-  - Server: a browser without a session is redirected from `/` to `/login.html`, signs in with the access token (HttpOnly, SameSite=Strict,
-    `__Host-` Secure cookie over HTTPS) and then loads the React app. `/api/auth/state` reports `shared-token`, so the React account sign-in for
-    v1 local accounts is not shown (accounts are not migrated).
+  - Server (Accounts mode, the default): the React app loads, `/api/auth/state` reports `local-sessions`, and the React sign-in page handles
+    activation (code from `SapLens.Cli accounts-code`), sign-in, password reset and recovery against the v1 account API. Roles hide and
+    refuse what the account may not do. See [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md#accounts-mode-default).
+  - Server with `--auth shared-token`: a browser without a session is redirected to `/login.html` and signs in with the access token.
   - Host allow-list, origin/CSRF checks, TLS and the private-LAN policy apply to every request, including the v1 routes.
 - **API adapter**: a server-side compatibility layer (`V1Compatibility.cs`) serves the v1 routes the UI calls, in the v1 response shapes, from
   the C# domain. The UI code is not changed and no backend-specific logic is added to it. Every route not migrated answers
@@ -27,7 +28,7 @@ and Server. The earlier simplified prototype UI was removed. Status tags as in [
 
 | Route | Source |
 | --- | --- |
-| `GET /api/auth/state` | Host mode (desktop or shared-token) |
+| `GET /api/auth/state` | Host mode: `desktop`, `local-sessions` (Server, Accounts mode, with `setup_required`) or `shared-token` |
 | `GET /api/configuration`, `/api/presentation` | v1 default settings (read-only), exported from Python v1 by `tools/export_v1_reference.py`, plus a notice explaining the .NET state |
 | `GET /api/registry/modules` | v1 SAP area registry (49 areas, icons, colours), exported from Python v1 |
 | `GET /api/version`, `/api/application-info`, `/api/runtime` | .NET host |

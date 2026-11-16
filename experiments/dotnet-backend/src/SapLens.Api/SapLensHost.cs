@@ -1,5 +1,6 @@
 using System.Text.Json;
 using SapLens.Application;
+using SapLens.Application.Accounts;
 using SapLens.Persistence;
 
 namespace SapLens.Api;
@@ -38,6 +39,13 @@ public static class SapLensHost
         builder.Services.AddSingleton<SessionStore>();
         builder.Services.AddSingleton<V1Settings>();
         builder.Services.AddSingleton<RequestBoundaryTokenCheck>();
+        if (settings.Authentication == AuthenticationMode.Accounts)
+        {
+            // Created empty for a fresh installation (setup required), validated otherwise; an unusable store stops startup.
+            var accounts = new AccountStore(AccountStore.For(settings.DataDirectory), TimeProvider.System);
+            accounts.Prepare();
+            builder.Services.AddSingleton(accounts);
+        }
         builder.Services.AddProblemDetails();
         builder.Services.AddExceptionHandler<ProblemMapper>();
         builder.Services.AddOpenApi("v1", o => o.AddDocumentTransformer((doc, _, _) =>
@@ -85,10 +93,11 @@ public static class SapLensHost
     {
         app.MapGet("/api/v1/session", (HttpContext http) => new
         {
-            principal = settings.PrincipalName, mode = settings.Mode.ToString().ToLowerInvariant(),
+            principal = Actors.Name(http), mode = settings.Mode.ToString().ToLowerInvariant(),
             authentication = http.Request.Headers.ContainsKey(RequestBoundary.TokenHeader) ? "token" : "session",
         }).WithName("GetSession");
-        if (settings.Mode != HostMode.Server) return; // Desktop never needs a sign-in: the shell supplies the token.
+        // Desktop never needs a sign-in (the shell supplies the token); Accounts mode signs in through the React UI and /api/auth/login.
+        if (settings.Mode != HostMode.Server || settings.Authentication == AuthenticationMode.Accounts) return;
         app.MapPost("/auth/login", async (HttpContext http, SessionStore sessions, ILogger<SessionStore> log) =>
         {
             var client = http.Connection.RemoteIpAddress?.ToString() ?? "unknown";
