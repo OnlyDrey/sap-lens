@@ -23,14 +23,23 @@ Statuses: TODO, BLOCKED, READY, IN PROGRESS, RESOLVED, VERIFIED. "Independent" m
 | MIG-017 | SoD remediation | Remediation list, actions, export | `/api/sod/remediation*` | TODO | MIG-014 | Port from `sod_governance.py` | High | No |
 | MIG-018 | SoD reports | Preview, PDF, DOCX, remediation CSV/PDF, branding | `/api/sod/reports/*` | TODO | MIG-016, MIG-017; PDF/DOCX generation without Python (no PDF/DOCX library in the base library) | Decide report libraries (dependency decision as MIG-001) | Medium | No |
 
-## Recommended order
+## Recommended order (2026-11-16: functional parity outside SoD first)
 
-1. MIG-014 SoD decisions (unblocks MIG-013, MIG-015, MIG-016, MIG-017, then MIG-018).
-2. MIG-004 Functional Groups (unblocks the remaining User Access and SoD analysis filters).
-3. MIG-005 Backup and restore (v1 contract on the existing SQLite backups first).
-4. MIG-003 Account Review position and manager changes.
-5. MIG-009 import previews, MIG-010 refresh report changes, MIG-008 scheduled refresh.
-6. Dependency decisions for MIG-001 (image codec) and MIG-018 (PDF/DOCX).
+Existing SoD functionality and its tests stay as they are; remaining SoD work is collected in the last functional milestone.
+
+1. **MIG-009** import previews: CSV header inspection and data preview for the ordinary import and the user import, column mapping in the
+   React flow, Desktop paths and the Server's configured root.
+2. **MIG-010** Data Sources refresh report detail and per-record change export (the SoD source inspection part moves to step 9).
+3. **MIG-008** manual and scheduled refresh, then MIG-019 (scheduler state in diagnostics).
+4. MIG-004 Functional Groups (definitions, membership, Account Review filters; the SoD analysis filters follow in step 9).
+5. MIG-005 Backup and restore (v1 contract on the existing SQLite backups).
+6. MIG-003 Account Review position and manager changes.
+7. MIG-002 re-import after import-profile or module changes; MIG-007 data retention for the non-SoD datasets.
+8. Dependency decision for MIG-001 (image codec).
+9. **Last functional milestone, SoD:** MIG-014 remainder (legacy risk decisions `/sod/reviews/{x}`), MIG-013 (context, filter options and
+   the Dashboard's SoD overview), MIG-015 explorer and matrix, MIG-016 periods, MIG-017 remediation, MIG-018 reports (with the PDF/DOCX
+   dependency decision), SoD source inspection (from MIG-010), migration of v1 SoD data (decisions, lifecycle memory, evidence snapshots) and
+   retention of SoD review data (from MIG-007), plus the SoD filters of MIG-004.
 
 ## Resolved
 
