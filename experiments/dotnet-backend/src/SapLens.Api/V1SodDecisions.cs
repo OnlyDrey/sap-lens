@@ -570,6 +570,29 @@ public static partial class V1SodDecisions
         return Json(result);
     }
 
+    /// <summary>POST /api/storage/lifecycle/rebaseline (routers/storage.rebaseline): an administrator acknowledges the current imported data as the continuity
+    /// baseline after the lifecycle memory was damaged, lost or rolled back; earlier assignment decisions then apply again (their history is untouched).
+    /// Administrator permission comes from the session boundary (v1 admin()); the acknowledgement is attributed to an individual, never a shared token.</summary>
+    private static async Task<IResult> RebaselineAsync(HttpContext http, CancellationToken ct)
+    {
+        var (raw, readError) = await V1Validation.ReadBody(http, ct);
+        if (readError is not null) return readError;
+        var errors = new List<object>();
+        V1Validation.Extra(raw!, ["confirm"], errors);
+        if (raw!["confirm"] is not JsonValue confirm || confirm.GetValueKind() is not (JsonValueKind.True or JsonValueKind.False))
+            errors.Add(V1Validation.Error(raw.ContainsKey("confirm") ? "bool_type" : "missing", "confirm", raw.ContainsKey("confirm") ? "Input should be a valid boolean" : "Field required"));
+        if (errors.Count > 0) return Errors(errors);
+        if (!(bool)raw["confirm"]!) return Detail(422, "Confirm that the current imported data may serve as the continuity baseline.");
+        var (name, _, refused) = await AttributionAsync(http, ct);
+        if (refused is not null) return refused;
+        var lifecycle = http.RequestServices.GetRequiredService<AssignmentLifecycle>();
+        await lifecycle.RebaselineAsync(name!, ct);
+        var factory = http.RequestServices.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<SapLensDb>>();
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var (_, state, detail) = await AssignmentLifecycle.LoadAsync(db, ct);
+        return Json(new JsonObject { ["review_continuity"] = new JsonObject { ["state"] = state, ["detail"] = detail } });
+    }
+
     public static void Map(RouteGroupBuilder api)
     {
         api.MapPost("/sod/decisions/{kind}", async (string kind, HttpContext http, SodDecisionStore store, CancellationToken ct) =>
@@ -632,6 +655,7 @@ public static partial class V1SodDecisions
         api.MapPost("/sod/remediation/actions", SaveActionAsync);
         api.MapGet("/sod/review-subjects", ReviewSubjectsAsync);
         api.MapPost("/sod/simulate", SimulateAsync);
+        api.MapPost("/storage/lifecycle/rebaseline", RebaselineAsync);
         api.MapPost("/sod/decisions/assignment/bulk", BulkAsync);
 
         api.MapGet("/sod/decisions/{kind}/history", async (string kind, HttpContext http, SodDecisionStore store, CancellationToken ct) =>

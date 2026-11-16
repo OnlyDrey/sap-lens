@@ -6,7 +6,7 @@ touched; CI runs only on pushes to `main` (`validate.yml`), so experiment pushes
 ## Release decision: NO-GO (not a Release Candidate)
 
 SAP Lens 2 on .NET is **not** a Release Candidate. The architecture, security boundary, packaging and the migrated areas are sound and tested, but
-functional parity is far from complete: **76 of 144** API routes the React UI references are served ([ROUTE_AUDIT.md](ROUTE_AUDIT.md)); account
+functional parity is far from complete: **80 of 144** API routes the React UI references are served ([ROUTE_AUDIT.md](ROUTE_AUDIT.md)); account
 review, SoD governance, accounts and roles, Employee Directory, backups and reports are not migrated. A release without them would remove audit
 functionality users rely on. Windows runtime acceptance has not been performed for the current build.
 

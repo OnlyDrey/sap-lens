@@ -80,8 +80,15 @@ the behavior the .NET port must keep; [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.m
   idempotent per users+catalogue content hash (v1 uses the same snapshot identities). Absence is recorded only when verifiable: the user is fully
   mapped and the catalogue has no invalid patterns, or the user is gone. Failed, held or unconfirmed imports never change the active data, so
   they change nothing here.
-- `RebaselineAsync` (administrator acknowledgement) keeps the previous document aside. Its route (`/api/storage/lifecycle/rebaseline`) and the
-  Data Health findings (`lifecycle_integrity`, `reappeared_assignments`) are not migrated yet.
+- `POST /api/storage/lifecycle/rebaseline` (v1 `routers/storage.rebaseline`) is the only way to trust the current imports again. v1 contract:
+  administrator permission (`session_boundary` maps `/api/storage` writes to `admin`), `confirm` must be true (422 "Confirm that the current imported
+  data may serve as the continuity baseline." otherwise, nothing written), response `{review_continuity: {state, detail}}`. The .NET route also
+  refuses a shared access token (403), so the acknowledgement is always attributed to an individual. The damaged document is kept aside
+  (`assignment-lifecycle-before-*`); decision history is never rewritten. The React UI does not call it.
+- Data Health `continuity` (v1 `assignment_lifecycle.problems`): `lifecycle_integrity` lists every decided assignment (user, role, reason = state)
+  while the memory is corrupt, missing or stale, with the state detail in the explanation; `reappeared_assignments` lists assignments that
+  reappeared after their latest decision until a new decision is recorded. Diagnostics `review_continuity` reports the lifecycle state. .NET adds
+  one integrity row per broken decision hash chain (Account Review and SoD stores); v1 has no hash chain.
 
 ## Attribution
 
@@ -100,4 +107,5 @@ refused (403), because it identifies no reviewer.
 | 3c. Reappearance memory (`assignment_lifecycle`) and `GET /api/sod/subject` | Done | `SodLifecycleTests`: v1's multi-import sequence (review, removal, reappearance, new review, second cycle, identity change, validity change) gives the same subject overview (assignment, activity and risk lifecycle, derived status, coverage) at every step; a restart, a failed import and a held import change nothing; history and evidence stay complete; a tampered memory makes every assignment decision Outdated (reason "unavailable") until re-baseline. Mutation check: without the memory the sequence test fails |
 | 3d. Remediation actions (`POST /api/sod/remediation/actions`) and bulk assignment review (`POST /api/sod/decisions/assignment/bulk`) | Done | `SodBulkReviewTests`: a 17-call v1 sequence (mixed recorded/skipped/failed, protected decisions, replace, investigation with tracked actions and no duplicates, atomic refusal and replacement, stale revision and generation, validation, action create/update/complete, unknown action, foreign user, stale revision) gives v1's outcome for every call; after a restart the histories, bulk tags, actions, revision and chain equal v1; a shared token is refused |
 | 3e. `GET /api/sod/review-subjects`, `POST /api/sod/simulate` | Done | `SodSimulateTests`: after the same activity approval, 11 simulations (each assignment, a pair, all, none, unknown assignment 422, unknown user 404) and review subjects (exact, de-duplicated, sorted) equal v1; nothing is written |
-| 3f. Legacy risk decisions (`/sod/reviews/{x}`), lifecycle re-baseline route and Data Health findings, v1 data migration | Pending | |
+| 3f. Lifecycle Data Health findings, diagnostics continuity and `POST /api/storage/lifecycle/rebaseline` | Done | `SodLifecycleTests`: reappeared assignments listed (user, role, "reappeared") until a new Keep, as v1 `test_reappeared...`; a corrupted memory gives one warning finding per decided assignment (reason "corrupt", explanation names the failed integrity check) and diagnostics "corrupt", as v1 `test_problems_surface`; the hook observes imports without a review read; re-baseline refuses `confirm` false or missing (422, decisions stay Outdated), succeeds with confirmation (state ok, damaged copy kept, attributed to the Desktop profile) and is refused for a shared token (403, nothing written); permission map equals v1 `session_boundary` (`admin`) |
+| 3g. Legacy risk decisions (`/sod/reviews/{x}`), v1 data migration | Pending | Needs the `sod_reviews` store; migration of v1 JSON stores is a separate import step |

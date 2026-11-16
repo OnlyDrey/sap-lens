@@ -71,25 +71,26 @@ public sealed class DataHealthTests : IAsyncLifetime
         Assert.Equal(1, (int)rows["total"]!);
     }
 
+    /// <summary>Reappeared assignments follow v1's SoD assignment lifecycle memory (covered in SodLifecycleTests against v1); a decision history that fails
+    /// its hash chain is reported as a continuity problem in addition to v1's lifecycle states.</summary>
     [Fact]
-    public async Task Reappeared_reviewed_assignments_and_a_broken_review_chain_are_reported()
+    public async Task A_broken_review_chain_is_reported_as_a_continuity_problem()
     {
         await Import("roles", Csv.Roles(30));
         var all = Csv.Assignments(30, 1, 30).ToList();
         await Import("users", Csv.Users(all));
         var review = await _client.PostAsJsonAsync("/api/v1/reviews", new { subject_type = "assignment", subject_key = "USER0001\u001fZC:FI:ROLE_0001", decision = "approved" });
         Assert.Equal(HttpStatusCode.Created, review.StatusCode);
-        await Import("users", Csv.Users(all.Where(a => a.Item1 != "USER0001")));
-        await Import("users", Csv.Users(all));
-        var health = await Health("?finding=reappeared_assignments");
-        Assert.Equal(1, Count(health, "reappeared_assignments"));
-        Assert.Equal("USER0001", (string)health["items"]![0]!["username"]!);
+        Assert.Equal(0, Count(await Health(), "lifecycle_integrity"));
+        Assert.Equal(0, Count(await Health(), "reappeared_assignments"));
 
         await using (var scope = _app.Services.CreateAsyncScope())
         {
             await using var db = await scope.ServiceProvider.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync();
             await db.Database.ExecuteSqlRawAsync("DROP TRIGGER ReviewDecisions_NoUpdate; UPDATE ReviewDecisions SET Decision = 'rejected';");
         }
-        Assert.Equal(1, Count(await Health(), "lifecycle_integrity"));
+        var health = await Health("?finding=lifecycle_integrity");
+        Assert.Equal(1, Count(health, "lifecycle_integrity"));
+        Assert.Contains("hash chain broken", (string)health["items"]![0]!["reason"]!);
     }
 }

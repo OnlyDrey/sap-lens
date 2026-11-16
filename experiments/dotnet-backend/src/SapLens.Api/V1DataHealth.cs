@@ -75,30 +75,38 @@ public static class V1DataHealth
             var catalogue = state.Ids.Roles is not null;
             var users = mapping && state.Ids.Users is not null;
 
-            // Review continuity from the .NET review store.
+            // Review continuity (routers/data_health._continuity): the assignment lifecycle memory, plus, beyond v1, the hash chains of the decision stores.
             await using var db = await factory.CreateDbContextAsync(ct);
+            // The memory follows the committed revision first (v1 observes inside the load; here the import hook may still be running).
+            var memory = http.RequestServices.GetRequiredService<AssignmentLifecycle>();
+            await memory.ObserveAsync(ct);
+            var lifecycle = await memory.ProblemsAsync(ct);
+            static Dictionary<string, object?> Item((string Key, string User, string Role, string Reason) x) =>
+                new() { ["identifier"] = x.Role, ["username"] = x.User, ["source"] = "review decisions", ["destination"] = "user", ["reason"] = x.Reason };
+            var integrity = lifecycle.Affected.Select(Item).ToList();
+            if (integrity.Count == 0 && lifecycle.State != "ok")
+                integrity.Add(new() { ["identifier"] = "Review continuity", ["source"] = "review decisions", ["destination"] = "user", ["reason"] = lifecycle.State });
+            var detail = lifecycle.Detail;
             var chain = await reviews.VerifyChainAsync(ct);
+            var sodChain = await http.RequestServices.GetRequiredService<SodDecisionStore>().VerifyChainAsync(ct);
+            foreach (var (ok, at, history) in new[] { (chain.Ok, chain.BrokenAt, "Account Review decisions"), (sodChain.Ok, sodChain.BrokenAt, "SoD decisions") })
+                if (!ok)
+                {
+                    integrity.Add(new() { ["identifier"] = "Review continuity", ["source"] = "review decisions", ["destination"] = "user", ["reason"] = $"{history}: hash chain broken at decision {at}" });
+                    detail = (detail + $" The {history} history failed its hash-chain verification.").Trim();
+                }
             var continuity = new Dictionary<string, List<Dictionary<string, object?>>>
             {
-                ["lifecycle_integrity"] = chain.Ok ? [] : [new() { ["identifier"] = "Review continuity", ["source"] = "review decisions", ["destination"] = "user", ["reason"] = $"hash chain broken at decision {chain.BrokenAt}" }],
-                ["reappeared_assignments"] = [],
+                ["lifecycle_integrity"] = integrity, ["reappeared_assignments"] = lifecycle.Pending.Select(Item).ToList(),
             };
-            var decided = await db.ReviewDecisions.AsNoTracking().Where(d => d.SubjectType == "assignment").GroupBy(d => d.SubjectKey)
-                .Select(g => new { Key = g.Key, Dataset = g.Max(d => d.DatasetId) }).ToListAsync(ct);
-            var invalidated = await db.ReviewInvalidations.AsNoTracking().GroupBy(i => i.AssignmentKey).Select(g => new { Key = g.Key, Dataset = g.Max(i => i.DatasetId) }).ToListAsync(ct);
-            var lastInvalidation = invalidated.ToDictionary(i => i.Key, i => i.Dataset);
-            foreach (var d in decided.Where(d => state.AssignmentKeys.Contains(d.Key) && lastInvalidation.TryGetValue(d.Key, out var inv) && inv > d.Dataset))
-            {
-                var parts = d.Key.Split('\u001f');
-                continuity["reappeared_assignments"].Add(new() { ["identifier"] = parts[1], ["username"] = parts[0], ["source"] = "review decisions", ["destination"] = "user", ["reason"] = "reappeared" });
-            }
 
             var findings = Labels.Select(label =>
             {
                 var usable = label.Id is "no_transactions" or "missing_description" or "unknown_module" ? catalogue
                     : users && (label.Id is "unmapped" or "ambiguous" ? catalogue : true);
                 int? count = continuity.TryGetValue(label.Id, out var c) ? c.Count : usable ? data[label.Id].Count : null;
-                return new Dictionary<string, object?> { ["id"] = label.Id, ["title"] = label.Title, ["severity"] = label.Severity, ["count"] = count, ["explanation"] = label.Explanation };
+                var explanation = label.Id == "lifecycle_integrity" && continuity["lifecycle_integrity"].Count > 0 ? label.Explanation + " " + detail : label.Explanation;
+                return new Dictionary<string, object?> { ["id"] = label.Id, ["title"] = label.Title, ["severity"] = label.Severity, ["count"] = count, ["explanation"] = explanation };
             }).ToList();
             var eligible = users ? state.Users.Assignments.Where(a => a.Scope != "other").ToList() : [];
             var matched = eligible.Count(a => a.MatchStatus is "exact" or "wildcard");

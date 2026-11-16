@@ -86,6 +86,28 @@ public sealed class AssignmentLifecycle(WriteCoordinator writer, IDbContextFacto
         return new(map, reasons, "ok", "");
     }
 
+    /// <summary>problems(): for Data Health, the integrity state, the decided assignments affected by an untrusted memory, and the assignments awaiting a
+    /// new review because they came back or changed identity (until a newer decision is recorded).</summary>
+    public async Task<(string State, string Detail, List<(string Key, string User, string Role, string Reason)> Affected, List<(string Key, string User, string Role, string Reason)> Pending)> ProblemsAsync(CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var (data, state, detail) = await LoadAsync(db, ct);
+        var rows = await db.SodDecisionEvents.AsNoTracking().Where(e => e.Kind == "assignment").OrderBy(e => e.Seq).Select(e => new { e.Key, e.Json }).ToListAsync(ct);
+        var events = new Dictionary<string, (string Timestamp, string User, string Role)>(StringComparer.Ordinal);
+        foreach (var row in rows)
+        {
+            var json = JsonNode.Parse(row.Json)!;
+            var value = ((string)json["timestamp"]!, (string)json["user"]!, (string)json["ref"]!);
+            if (!events.TryGetValue(row.Key, out var known) || string.CompareOrdinal(value.Item1, known.Timestamp) > 0) events[row.Key] = value;
+        }
+        if (state != "ok") return (state, detail, events.Select(p => (p.Key, p.Value.User, p.Value.Role, state)).ToList(), []);
+        var pending = new List<(string, string, string, string)>();
+        foreach (var (key, item) in data["items"]!.AsObject())
+            if ((string?)item!["reappeared_at"] is { Length: > 0 } at && events.TryGetValue(key, out var e) && string.CompareOrdinal(e.Timestamp, at) < 0)
+                pending.Add((key, e.User, e.Role, (string?)item["reason"] is { Length: > 0 } reason ? reason : "reappeared"));
+        return ("ok", "", [], pending);
+    }
+
     private static void Write(SapLensDb db, SodDocument? row, SodDocument? metaRow, JsonObject data, DateTime now, string actor)
     {
         data["digest"] = "";

@@ -25,6 +25,8 @@ public static class V1Diagnostics
         var active = await db.Datasets.AsNoTracking().Where(d => d.Status == DatasetStatus.Active).ToListAsync(ct);
         var busy = await db.Jobs.AsNoTracking().AnyAsync(j => j.Status == JobStatus.Queued || j.Status == JobStatus.Running, ct);
         var chain = await services.GetRequiredService<ReviewService>().VerifyChainAsync(ct);
+        var sodChain = await services.GetRequiredService<SodDecisionStore>().VerifyChainAsync(ct);
+        var lifecycleState = (await AssignmentLifecycle.LoadAsync(db, ct)).State;
         var lifecycle = settings["data_lifecycle"] as JsonObject ?? [];
         var references = lifecycle["sources"] as JsonObject ?? [];
         var features = settings["features"] as JsonObject ?? [];
@@ -45,7 +47,8 @@ public static class V1Diagnostics
             ["last_successful_load"] = lastLoad == default ? null : Iso(lastLoad),
             ["last_successful_refresh"] = lifecycle["last_successful_refresh"]?.DeepClone(),
             // Account Review continuity rests on the hash-chained decision store here: "ok" only while the chain verifies.
-            ["review_continuity"] = chain.Ok ? "ok" : "corrupt",
+            // v1: the assignment lifecycle memory state (ok, corrupt, missing, stale); a broken decision hash chain also reads corrupt.
+            ["review_continuity"] = lifecycleState != "ok" ? lifecycleState : chain.Ok && sodChain.Ok ? "ok" : "corrupt",
             ["deployment_mode"] = host.Mode == HostMode.Server ? "server" : "desktop",
             // The refresh scheduler is not migrated: the configured schedule is reported, and no attempt has been made by this build.
             ["scheduled_refresh"] = new JsonObject

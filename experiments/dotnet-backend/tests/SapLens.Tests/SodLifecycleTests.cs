@@ -214,9 +214,88 @@ public sealed class SodLifecycleTests : IAsyncLifetime
         Assert.All(rows, a => Assert.Equal("Outdated", (string)a!["decision"]!));
         Assert.All(rows, a => Assert.Equal(AssignmentLifecycle.Unavailable, (string)a!["decision_summary"]!["basis"]!));
         Assert.Equal("blocked", await _app.Services.GetRequiredService<AssignmentLifecycle>().ObserveAsync(CancellationToken.None));   // never repaired silently
-        await _app.Services.GetRequiredService<AssignmentLifecycle>().RebaselineAsync("Admin One", CancellationToken.None);
+        Assert.Equal((HttpStatusCode)422, (await Post("/api/storage/lifecycle/rebaseline", new JsonObject { ["confirm"] = false })).Status);
+        Assert.Equal((HttpStatusCode)422, (await Post("/api/storage/lifecycle/rebaseline", new JsonObject())).Status);
+        Assert.All((await Subject(user))["overview"]!["assignments"]!.AsArray(), a => Assert.Equal("Outdated", (string)a!["decision"]!));   // unchanged until confirmed
+        var (status, result) = await Post("/api/storage/lifecycle/rebaseline", new JsonObject { ["confirm"] = true });
+        Assert.True(status == HttpStatusCode.OK, result?.ToJsonString());
+        Assert.Equal("ok", (string)result!["review_continuity"]!["state"]!);
+        await using (var db = await _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync())
+        {
+            Assert.True(await db.SodDocuments.AnyAsync(d => d.Name.StartsWith("assignment-lifecycle-before-")));                     // the damaged copy is kept aside
+            var (data, _, _) = await AssignmentLifecycle.LoadAsync(db, CancellationToken.None);
+            Assert.Equal("Local reviewer", (string)data["baseline"]!["by"]!);                                                      // attributed to the Desktop profile
+        }
         Assert.All((await Subject(user))["overview"]!["assignments"]!.AsArray(), a => Assert.Equal("Keep", (string)a!["decision"]!));
         Assert.Equal(2, await AssignmentEvents());
+    }
+
+    private async Task<JsonObject> Health(string query = "") => JsonNode.Parse(await _client.GetStringAsync("/api/data-health" + query))!.AsObject();
+    private static JsonObject Finding(JsonObject health, string id) => health["findings"]!.AsArray().Single(f => (string)f!["id"]! == id)!.AsObject();
+
+    /// <summary>v1 test_reappeared_assignments_awaiting_review_are_listed_until_a_new_decision and test_problems_surface_in_data_health_diagnostics.</summary>
+    [Fact]
+    public async Task Data_health_lists_reappeared_assignments_until_a_new_decision_and_surfaces_untrusted_memory()
+    {
+        var user = (string)Reference["user"]!;
+        var role = (string)Reference["roles"]![0]!;
+        Assert.Equal("Completed", await Import("users", BaseUsers));
+        await Keep(user, role);
+        var health = await Health();
+        Assert.Equal((0, 0), ((int)Finding(health, "lifecycle_integrity")["count"]!, (int)Finding(health, "reappeared_assignments")["count"]!));
+        Assert.Equal("Completed", await Import("users", Transform(new JsonObject { ["drop"] = new JsonArray(new JsonArray(user, role)) })));
+        Assert.Equal("Completed", await Import("users", BaseUsers));
+        var listed = await Health("?finding=reappeared_assignments");
+        Assert.Equal([(user, role, "reappeared")], listed["items"]!.AsArray().Select(i => ((string)i!["username"]!, (string)i["identifier"]!, (string)i["reason"]!)));
+        Assert.Equal("information", (string)Finding(listed, "reappeared_assignments")["severity"]!);
+        await Keep(user, role);
+        Assert.Empty((await Health("?finding=reappeared_assignments"))["items"]!.AsArray());
+
+        await using (var db = await _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync())
+            await db.Database.ExecuteSqlRawAsync("UPDATE SodDocuments SET Json = 'garbage' WHERE Name = 'assignment-lifecycle'");
+        health = await Health("?finding=lifecycle_integrity");
+        var integrity = Finding(health, "lifecycle_integrity");
+        Assert.Equal((1, "warning"), ((int)integrity["count"]!, (string)integrity["severity"]!));
+        Assert.Contains("failed its integrity check", (string)integrity["explanation"]!);
+        Assert.Equal((user, role, "corrupt"), ((string)health["items"]![0]!["username"]!, (string)health["items"]![0]!["identifier"]!, (string)health["items"]![0]!["reason"]!));
+        Assert.Equal(0, (int)Finding(health, "reappeared_assignments")["count"]!);
+        Assert.Equal("corrupt", (string)JsonNode.Parse(await _client.GetStringAsync("/api/diagnostics/export"))!["review_continuity"]!);
+    }
+
+    /// <summary>The import itself observes (v1 csv_lifecycle calls observe() after the commit): with no review read in between, the memory records the
+    /// removal of a decided assignment.</summary>
+    [Fact]
+    public async Task A_committed_import_observes_the_memory_without_any_review_read()
+    {
+        var user = (string)Reference["user"]!;
+        var role = (string)Reference["roles"]![0]!;
+        Assert.Equal("Completed", await Import("users", BaseUsers));
+        await Keep(user, role);
+        Assert.Equal("Completed", await Import("users", Transform(new JsonObject { ["drop"] = new JsonArray(new JsonArray(user, role)) })));
+        string? state = null;
+        for (var i = 0; i < 100 && state != "absent"; i++)
+        {
+            await using var db = await _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync();
+            var (data, _, _) = await AssignmentLifecycle.LoadAsync(db, CancellationToken.None);
+            state = data["items"]!.AsObject().Select(p => (string?)p.Value!["state"]).FirstOrDefault(s => s == "absent");
+            if (state != "absent") await Task.Delay(50);
+        }
+        Assert.Equal("absent", state);
+    }
+
+    [Fact]
+    public async Task Rebaseline_is_refused_for_a_shared_access_token()
+    {
+        _client.Dispose();
+        await _app.StopAsync();
+        await _app.DisposeAsync();
+        _app = SapLensHost.Build(new HostSettings { DataDirectory = Path.Combine(_root, "data"), Port = 0, AccessToken = _token, JsonConsoleLogging = false, Mode = HostMode.Server });
+        await _app.StartAsync();
+        _client = new HttpClient { BaseAddress = new Uri(_app.Urls.First()) };
+        _client.DefaultRequestHeaders.Add(RequestBoundary.TokenHeader, _token);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Post("/api/storage/lifecycle/rebaseline", new JsonObject { ["confirm"] = true })).Status);
+        await using var db = await _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync();
+        Assert.False(await db.SodDocuments.AnyAsync(d => d.Name.StartsWith("assignment-lifecycle-before-")));
     }
 
     [Fact]
