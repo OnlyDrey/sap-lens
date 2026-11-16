@@ -34,6 +34,27 @@ functionality users rely on. Windows runtime acceptance has not been performed f
 A test-isolation defect was found and fixed in this round: the Data Sources "one load at a time" gate was process-wide static state, so two hosts in
 one test process refused each other's imports (409). It is now a per-host singleton; three repeated parallel runs passed after the fix, all three failed before.
 
+## Checkpoint: SoD governance (next task)
+
+SoD is 62 v1 routes over about 5 300 lines of Python (`sod_*.py`, `routers/sod*.py`); nothing of it is served yet beyond the analyzer the
+equivalence harness covers. Exact order, each a validated commit:
+
+1. **Source fidelity first.** `Sources.Read("sod")` keeps only the 10 core headers; v1 also stores the optional columns (`RISK_NAME`,
+   `RISK_DESCRIPTION`, `RISK_IMPACT`, `BUSINESS_PROCESS` and the activity columns, see `RISK_METADATA` in `sod_import.py`) that feed
+   `sod_metadata.lookup`. Keep them in the dataset records without changing the core content hash (verify against v1 `build_sod`).
+2. **Catalogue store** (`sod_catalogue.py`): local risk and activity metadata with a revision, `observed_definition`/`reviewed_definition`
+   fingerprints (`definition_version` = SHA-256 of `json.dumps(definition, sort_keys=True, ensure_ascii=False, separators=(',', ':'))`;
+   must stay byte-identical so a migrated `sod-catalogue.json` keeps its review status), retained historical definitions from earlier SoD
+   datasets (the .NET dataset history replaces v1's content-addressed snapshots). Routes: `catalogue`, `catalogue/{id}`, `catalogue/{id}` POST,
+   `catalogue/bulk`, `catalogue/export`, `catalogue-activities` (list, detail, POST), `appearance`.
+3. **Reference library** (`sod_reference.py`) and `metadata` (`sod_metadata.py` lookup and coverage indicators).
+4. **Scope and analysis** (`sod_scope.py`, `routers/sod_analysis.py`): filters, evidence, export, on the existing `SodAnalyzer`.
+5. **Decisions and reviews** (`sod_decisions.py`, `sod_reviews.py`) on the hash-chained review store (subject types per v1; never rewrite).
+6. **Periods** (`sod_periods.py`): frozen snapshots, transitions, approval gates; then **governance** (`sod_governance.py`, 21 routes:
+   acceptance, remediation, explorer, matrices) and **reports** (`sod_reports.py`, PDF/DOCX/CSV from the frozen model).
+
+Data compatibility to keep in view: v1 `sod-catalogue.json`, SoD decision and period files must import with fingerprints preserved.
+
 ## Remaining work, in dependency order
 
 1. Diagnostics and functional groups (read paths the shell calls). Dashboard, saved filters and Access Packages are done.
