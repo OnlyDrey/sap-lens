@@ -1,0 +1,378 @@
+using System.Globalization;
+using System.Text.Json.Nodes;
+using SapLens.Domain.Json;
+
+namespace SapLens.Domain.Sod;
+
+/// <summary>One SoD 2.0 decision event (sod_decisions.Event): immutable, attributed, bound to the evidence version it was made against.</summary>
+public sealed record SodDecisionEvent(
+    string EventId, string Kind, string Context, string Timestamp, string Key, string User, string Ref, string Decision, string Reviewer, string Justification,
+    string EvidenceVersion, string EvidenceSnapshot, string BulkOperationId = "", string PreviousDecision = "", string Approver = "", string Controls = "",
+    string? Expires = null, IReadOnlyDictionary<string, string>? SourceVersions = null, JsonObject? ActorIdentity = null)
+{
+    /// <summary>model_dump(mode='json'): actor_identity is omitted when absent (IdentityRecorded.preserve_legacy).</summary>
+    public JsonObject ToJson()
+    {
+        var json = new JsonObject();
+        if (ActorIdentity is not null) json["actor_identity"] = ActorIdentity.DeepClone();
+        json["event_id"] = EventId; json["bulk_operation_id"] = BulkOperationId; json["previous_decision"] = PreviousDecision; json["kind"] = Kind;
+        json["context"] = Context; json["timestamp"] = Timestamp; json["key"] = Key; json["user"] = User; json["ref"] = Ref; json["decision"] = Decision;
+        json["reviewer"] = Reviewer; json["approver"] = Approver; json["justification"] = Justification; json["controls"] = Controls; json["expires"] = Expires;
+        json["evidence_version"] = EvidenceVersion; json["evidence_snapshot"] = EvidenceSnapshot;
+        var versions = new JsonObject();
+        foreach (var (k, v) in SourceVersions ?? new Dictionary<string, string>()) versions[k] = v;
+        json["source_versions"] = versions;
+        return json;
+    }
+
+    public static SodDecisionEvent FromJson(JsonObject json) => new(
+        (string)json["event_id"]!, (string)json["kind"]!, (string)json["context"]!, (string)json["timestamp"]!, (string)json["key"]!, (string)json["user"]!,
+        (string)json["ref"]!, (string)json["decision"]!, (string)json["reviewer"]!, (string)json["justification"]!, (string)json["evidence_version"]!,
+        (string)json["evidence_snapshot"]!, (string?)json["bulk_operation_id"] ?? "", (string?)json["previous_decision"] ?? "", (string?)json["approver"] ?? "",
+        (string?)json["controls"] ?? "", (string?)json["expires"],
+        (json["source_versions"] as JsonObject)?.ToDictionary(p => p.Key, p => (string)p.Value!, StringComparer.Ordinal), json["actor_identity"]?.DeepClone() as JsonObject);
+}
+
+public sealed class SodActivity
+{
+    public required string Name { get; init; }
+    public required string Key { get; init; }
+    public SortedSet<string> Risks { get; } = new(StringComparer.Ordinal);
+    public SortedSet<string> Slots { get; } = new(StringComparer.Ordinal);
+    public SortedSet<string> Tcodes { get; } = new(StringComparer.Ordinal);
+    public SortedSet<string> Assignments { get; } = new(StringComparer.Ordinal);
+    public string EvidenceVersion { get; set; } = "";
+}
+
+public sealed class SodAssignment
+{
+    public required string Id { get; init; }
+    public required string User { get; init; }
+    public required string Role { get; init; }
+    public string? ValidFrom { get; init; }
+    public string? ValidTo { get; init; }
+    public string UserGroup { get; init; } = "";
+    public string? IntervalStatus { get; init; }
+    public string? MatchingStatus { get; init; }
+    public SortedSet<string> CatalogueRoles { get; } = new(StringComparer.Ordinal);
+    public SortedSet<string> SingleRoles { get; } = new(StringComparer.Ordinal);
+    public SortedDictionary<string, SortedSet<string>> Supplies { get; } = new(StringComparer.Ordinal);
+    public SortedSet<string> Risks { get; } = new(StringComparer.Ordinal);
+    public string EvidenceVersion { get; set; } = "";
+}
+
+public sealed class SodUserEntry
+{
+    public required string User { get; init; }
+    /// <summary>risk_id -> the user finding (v1 shape); insertion order as in the findings list.</summary>
+    public Dictionary<string, JsonObject> Findings { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, SodActivity> Activities { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, SodAssignment> Assignments { get; } = new(StringComparer.Ordinal);
+    public SortedSet<string> Groups { get; } = new(StringComparer.Ordinal);
+    public JsonNode? Account { get; set; }
+}
+
+/// <summary>Lifecycle state of one review item and the latest event it rests on.</summary>
+public sealed record SodItemState(string Lifecycle, SodDecisionEvent? Event);
+
+/// <summary>Result of <see cref="SodGovernance.States"/>: per kind and key, the lifecycle, the coverage and the reappearance reasons.</summary>
+public sealed class SodStates
+{
+    public Dictionary<string, Dictionary<string, SodItemState>> Items { get; } = new(StringComparer.Ordinal)
+    {
+        ["activity"] = new(StringComparer.Ordinal), ["assignment"] = new(StringComparer.Ordinal), ["acceptance"] = new(StringComparer.Ordinal), ["risk"] = new(StringComparer.Ordinal),
+    };
+    public Dictionary<string, string> Reappeared { get; } = new(StringComparer.Ordinal);
+    public Dictionary<string, Dictionary<string, JsonObject>> Coverage { get; } = new(StringComparer.Ordinal)
+    {
+        ["activity"] = new(StringComparer.Ordinal), ["assignment"] = new(StringComparer.Ordinal), ["acceptance"] = new(StringComparer.Ordinal),
+    };
+}
+
+/// <summary>Port of sod_governance.py (derive, simulate, states, review_coverage, effective_decision, decision_summary) and sod_decisions.lifecycle.
+/// Pure: nothing here reads or writes storage, and the technical conflict evidence is never changed by a decision.</summary>
+public static class SodGovernance
+{
+    public static readonly IReadOnlyDictionary<string, string[]> Decisions = new Dictionary<string, string[]>(StringComparer.Ordinal)
+    {
+        ["activity"] = ["Pending", "Approved", "Conditional", "Remove", "Investigate"],
+        ["assignment"] = ["Pending", "Keep", "Remove", "Investigate"],
+        ["acceptance"] = ["Pending", "Accepted", "Rejected"],
+        ["risk"] = ["Pending", "Approved", "Remove", "Investigate"],
+    };
+
+    public const string Reappeared = "Assignment reappeared after it was removed from the SAP import; review it again. The earlier decision stays in history.";
+
+    private static string? Text(JsonObject path, string name) => path[name] is JsonValue v ? (string?)v : null;
+
+    /// <summary>Stable identity of one actual assignment: user, assigned role, validity and group.</summary>
+    public static string AssignmentId(string user, JsonObject path) => CanonicalJson.Sha256(new object?[]
+        { "sod-assignment", 1, user, Text(path, "actual_assigned_role") ?? "", Text(path, "role_valid_from") ?? "", Text(path, "role_valid_to") ?? "", Text(path, "user_group") ?? "" });
+
+    public static string AssignmentId(string user, string role, string? validFrom, string? validTo, string userGroup) =>
+        CanonicalJson.Sha256(new object?[] { "sod-assignment", 1, user, role, validFrom ?? "", validTo ?? "", userGroup });
+
+    public static string ActivityKey(string user, string activity) => CanonicalJson.Sha256(new object?[] { "sod-activity", 1, user, activity });
+
+    /// <summary>A finding in v1's JSON shape (the analysis response and the input of <see cref="Derive"/>).</summary>
+    public static JsonObject FindingJson(SodFinding finding) => JsonNode.Parse(CanonicalJson.Serialize(new Dictionary<string, object?>
+    {
+        ["finding_id"] = finding.FindingId, ["subject"] = finding.Subject, ["kind"] = finding.Kind, ["risk_id"] = finding.RiskId, ["criticality"] = finding.Criticality,
+        ["evaluation_policy"] = SodSource.EvaluationPolicy, ["evidence"] = finding.Evidence, ["current_potential"] = finding.CurrentPotential, ["account"] = finding.Account,
+        ["evidence_version"] = finding.EvidenceVersion,
+    }))!.AsObject();
+
+    /// <summary>derive: index user findings into activities, assignments and per-risk side providers (current potential findings only by default).</summary>
+    public static Dictionary<string, SodUserEntry> Derive(IEnumerable<JsonObject> findings, bool onlyCurrent = true)
+    {
+        var users = new Dictionary<string, SodUserEntry>(StringComparer.Ordinal);
+        foreach (var finding in findings)
+        {
+            if ((string?)finding["kind"] != "user" || (onlyCurrent && !((bool?)finding["current_potential"] ?? false))) continue;
+            var user = (string)finding["subject"]!;
+            if (!users.TryGetValue(user, out var entry)) users[user] = entry = new SodUserEntry { User = user, Account = finding["account"]?.DeepClone() };
+            var riskId = (string)finding["risk_id"]!;
+            entry.Findings[riskId] = finding;
+            foreach (var (slot, paths) in finding["evidence"]!.AsObject())
+                foreach (var path in paths!.AsArray().Select(p => p!.AsObject()))
+                {
+                    var aid = AssignmentId(user, path);
+                    if (!entry.Assignments.TryGetValue(aid, out var assignment))
+                        entry.Assignments[aid] = assignment = new SodAssignment
+                        {
+                            Id = aid, User = user, Role = Text(path, "actual_assigned_role") ?? "", ValidFrom = Text(path, "role_valid_from"), ValidTo = Text(path, "role_valid_to"),
+                            UserGroup = Text(path, "user_group") ?? "", IntervalStatus = Text(path, "interval_status"), MatchingStatus = Text(path, "matching_status"),
+                        };
+                    var activityName = (string)path["activity"]!;
+                    var transaction = (string)path["matrix_transaction"]!;
+                    assignment.CatalogueRoles.Add((string)path["matched_catalogue_pattern"]!);
+                    assignment.SingleRoles.Add((string)path["single_role"]!);
+                    if (!assignment.Supplies.TryGetValue(activityName, out var codes)) assignment.Supplies[activityName] = codes = new(StringComparer.Ordinal);
+                    codes.Add(transaction);
+                    assignment.Risks.Add(riskId);
+                    if (!entry.Activities.TryGetValue(activityName, out var activity))
+                        entry.Activities[activityName] = activity = new SodActivity { Name = activityName, Key = ActivityKey(user, activityName) };
+                    activity.Risks.Add(riskId);
+                    activity.Slots.Add(slot);
+                    activity.Tcodes.Add(transaction);
+                    activity.Assignments.Add(aid);
+                    if (Text(path, "user_group") is { Length: > 0 } group) entry.Groups.Add(group);
+                }
+        }
+        foreach (var entry in users.Values)
+        {
+            foreach (var activity in entry.Activities.Values)
+                activity.EvidenceVersion = CanonicalJson.Sha256(new object?[] { "sod-activity-evidence", 1, entry.User, activity.Name, activity.Tcodes.ToList() });
+            foreach (var assignment in entry.Assignments.Values)
+                assignment.EvidenceVersion = AssignmentEvidenceVersion(assignment.Id, assignment.Supplies.SelectMany(p => p.Value.Select(code => (p.Key, code))));
+        }
+        return users;
+    }
+
+    /// <summary>sorted((activity, transaction) pairs) as v1 hashes them; an assignment without supplies hashes an empty list.</summary>
+    public static string AssignmentEvidenceVersion(string id, IEnumerable<(string Activity, string Code)> supplies) =>
+        CanonicalJson.Sha256(new object?[] { "sod-assignment-evidence", 1, id,
+            supplies.OrderBy(p => p.Activity, StringComparer.Ordinal).ThenBy(p => p.Code, StringComparer.Ordinal).Select(p => new object?[] { p.Activity, p.Code }).ToList() });
+
+    /// <summary>listify(entry) without findings and account: the derived review population in v1's JSON shape.</summary>
+    public static JsonObject ToJson(SodUserEntry entry)
+    {
+        JsonArray List(IEnumerable<string> values) => new([.. values.Select(v => (JsonNode?)JsonValue.Create(v))]);
+        var activities = new JsonObject();
+        foreach (var (name, a) in entry.Activities)
+            activities[name] = new JsonObject
+            {
+                ["activity"] = a.Name, ["key"] = a.Key, ["risks"] = List(a.Risks), ["slots"] = List(a.Slots), ["tcodes"] = List(a.Tcodes), ["assignments"] = List(a.Assignments),
+                ["evidence_version"] = a.EvidenceVersion,
+            };
+        var assignments = new JsonObject();
+        foreach (var (id, a) in entry.Assignments)
+        {
+            var supplies = new JsonObject();
+            foreach (var (name, codes) in a.Supplies) supplies[name] = List(codes);
+            assignments[id] = new JsonObject
+            {
+                ["id"] = a.Id, ["user"] = a.User, ["role"] = a.Role, ["valid_from"] = a.ValidFrom, ["valid_to"] = a.ValidTo, ["user_group"] = a.UserGroup,
+                ["interval_status"] = a.IntervalStatus, ["matching_status"] = a.MatchingStatus, ["catalogue_roles"] = List(a.CatalogueRoles), ["single_roles"] = List(a.SingleRoles),
+                ["supplies"] = supplies, ["risks"] = List(a.Risks), ["evidence_version"] = a.EvidenceVersion,
+            };
+        }
+        return new JsonObject { ["user"] = entry.User, ["activities"] = activities, ["assignments"] = assignments, ["groups"] = List(entry.Groups) };
+    }
+
+    /// <summary>sod_decisions.lifecycle. currentVersion is null when evidence no longer supports the item. Timestamps are compared as v1 compares
+    /// them (ISO strings in UTC); acceptance expiry is inclusive of its day.</summary>
+    public static string Lifecycle(string kind, SodDecisionEvent? e, string? currentVersion, DateOnly today, string? reappeared = null)
+    {
+        if (e is null) return "Pending";
+        if (currentVersion is null) return "Historical";
+        if (e.EvidenceVersion != currentVersion) return "Outdated";
+        if (kind == "acceptance" && e.Expires is { Length: > 0 } expires && DateOnly.ParseExact(expires, "yyyy-MM-dd", CultureInfo.InvariantCulture) < today) return "Outdated";
+        if (reappeared is { Length: > 0 } && string.CompareOrdinal(e.Timestamp, reappeared) < 0) return "Outdated";
+        return e.Decision == "Remove" ? "Removal required" : e.Decision;
+    }
+
+    /// <summary>simulate: the risks a removal of these assignments resolves, with the same two-sided rule; evidence is not changed.</summary>
+    public static (List<string> Before, List<string> After, List<string> Resolved, List<string> LostActivities) Simulate(SodUserEntry entry, IReadOnlySet<string> removed)
+    {
+        if (removed.Any(id => !entry.Assignments.ContainsKey(id))) throw new ArgumentException("Select assignments that contribute to this user's detected evidence.");
+        List<string> before = [], after = [], resolved = [], lost = [];
+        foreach (var (riskId, finding) in entry.Findings.OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            before.Add(riskId);
+            var remaining = finding["evidence"]!.AsObject().Select(p => p.Value!.AsArray().Select(x => x!.AsObject()).Where(path => !removed.Contains(AssignmentId(entry.User, path))).ToList()).ToList();
+            var still = (bool?)finding["current_potential"] ?? false
+                ? remaining.All(paths => paths.Any(path => Text(path, "interval_status") == "active"))
+                : remaining.All(paths => paths.Count > 0);
+            (still ? after : resolved).Add(riskId);
+        }
+        foreach (var (name, activity) in entry.Activities.OrderBy(p => p.Key, StringComparer.Ordinal))
+            if (activity.Assignments.Count > 0 && activity.Assignments.IsSubsetOf(removed)) lost.Add(name);
+        return (before, after, resolved, lost);
+    }
+
+    /// <summary>states: lifecycle per review item. latest maps kind -> key -> latest event; reappeared maps assignment key -> the moment it came back.</summary>
+    public static SodStates States(IReadOnlyDictionary<string, SodUserEntry> model, IReadOnlyDictionary<string, IReadOnlyDictionary<string, SodDecisionEvent>> latest, DateOnly today,
+        IReadOnlyDictionary<string, string>? reappeared = null, IReadOnlyDictionary<string, string>? reasons = null)
+    {
+        var result = new SodStates();
+        SodDecisionEvent? Latest(string kind, string key) => latest.TryGetValue(kind, out var map) && map.TryGetValue(key, out var e) ? e : null;
+        foreach (var entry in model.Values)
+        {
+            foreach (var activity in entry.Activities.Values)
+            {
+                var e = Latest("activity", activity.Key);
+                result.Items["activity"][activity.Key] = new(Lifecycle("activity", e, activity.EvidenceVersion, today), e);
+            }
+            foreach (var assignment in entry.Assignments.Values)
+            {
+                var e = Latest("assignment", assignment.Id);
+                var back = reappeared?.GetValueOrDefault(assignment.Id);
+                result.Items["assignment"][assignment.Id] = new(Lifecycle("assignment", e, assignment.EvidenceVersion, today, back), e);
+                if (e is not null && back is { Length: > 0 } && string.CompareOrdinal(e.Timestamp, back) < 0)
+                    result.Reappeared[assignment.Id] = reasons?.GetValueOrDefault(assignment.Id) ?? Reappeared;
+            }
+            foreach (var finding in entry.Findings.Values)
+            {
+                var id = (string)finding["finding_id"]!;
+                var version = (string)finding["evidence_version"]!;
+                var risk = Latest("risk", id);
+                result.Items["risk"][id] = new(Lifecycle("risk", risk, version, today), risk);
+                var acceptance = Latest("acceptance", id);
+                result.Items["acceptance"][id] = new(Lifecycle("acceptance", acceptance, version, today), acceptance);
+            }
+        }
+        ReviewCoverage(model, result);
+        return result;
+    }
+
+    /// <summary>review_coverage: assignment decisions -> base activities -> risk assessment; explicit risk reviews cover activities only afterwards, so
+    /// coverage never travels back through a shared activity into another risk. Never writes events.</summary>
+    private static void ReviewCoverage(IReadOnlyDictionary<string, SodUserEntry> model, SodStates state)
+    {
+        var covered = state.Coverage;
+        foreach (var entry in model.Values)
+        {
+            foreach (var aid in entry.Assignments.Keys)
+            {
+                var life = state.Items["assignment"][aid].Lifecycle;
+                var reviewed = life is "Keep" or "Removal required";
+                covered["assignment"][aid] = new JsonObject { ["reviewed"] = reviewed, ["provenance"] = reviewed ? "Explicit assignment review" : "", ["removal_planned"] = life == "Removal required" };
+            }
+            var baseline = new Dictionary<string, (bool Reviewed, string Provenance)>(StringComparer.Ordinal);
+            foreach (var (name, activity) in entry.Activities)
+            {
+                var life = state.Items["activity"][activity.Key].Lifecycle;
+                var manual = life is "Approved" or "Conditional" or "Removal required";
+                var throughRoles = activity.Assignments.Count > 0 && activity.Assignments.All(aid => (bool)covered["assignment"][aid]["reviewed"]!);
+                baseline[name] = (manual || throughRoles, manual ? "Explicit activity review" : throughRoles ? "Reviewed through roles" : "");
+            }
+            var removed = entry.Assignments.Keys.Where(aid => state.Items["assignment"][aid].Lifecycle == "Removal required").ToHashSet(StringComparer.Ordinal);
+            var planned = removed.Count > 0 ? Simulate(entry, removed).Resolved.ToHashSet(StringComparer.Ordinal) : [];
+            var explicitRisks = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var (rid, finding) in entry.Findings)
+            {
+                var id = (string)finding["finding_id"]!;
+                var life = state.Items["acceptance"][id].Lifecycle;
+                var formal = life is "Accepted" or "Rejected";
+                var manual = formal || state.Items["risk"].GetValueOrDefault(id)?.Lifecycle is "Approved" or "Removal required";
+                if (formal) explicitRisks.Add(rid);
+                var names = finding["evidence"]!.AsObject().SelectMany(p => p.Value!.AsArray().Select(path => (string)path!["activity"]!)).ToHashSet(StringComparer.Ordinal);
+                var derived = names.Count > 0 && names.All(n => baseline[n].Reviewed);
+                var reviewed = manual || derived;
+                covered["acceptance"][id] = new JsonObject
+                {
+                    ["reviewed"] = reviewed, ["provenance"] = manual ? "Explicit risk review" : derived ? "Reviewed through access evidence" : "",
+                    ["removal_planned"] = planned.Contains(rid), ["risk_accepted"] = life == "Accepted", ["remediation_verified"] = false,
+                    ["label"] = reviewed && planned.Contains(rid) ? "Reviewed — removal planned" : reviewed ? "Reviewed" : "Needs review",
+                };
+            }
+            foreach (var (name, activity) in entry.Activities)
+            {
+                var (reviewed, provenance) = baseline[name];
+                if (!reviewed && activity.Risks.Overlaps(explicitRisks)) (reviewed, provenance) = (true, "Reviewed through risk review");
+                covered["activity"][activity.Key] = new JsonObject { ["reviewed"] = reviewed, ["provenance"] = provenance, ["removal_planned"] = false };
+            }
+        }
+    }
+
+    private static readonly Dictionary<string, string> Names = new(StringComparer.Ordinal)
+    {
+        ["Keep"] = "Approved", ["Approved"] = "Approved", ["Removal required"] = "Remove", ["Remove"] = "Remove", ["Investigate"] = "Investigate", ["Conditional"] = "Approved",
+    };
+    private static readonly Dictionary<string, string> Tones = new(StringComparer.Ordinal) { ["Approved"] = "success", ["Remove"] = "error", ["Investigate"] = "warning", ["Pending"] = "neutral" };
+
+    private static string StaleBasis(SodStates state, string kind, string key, string life) =>
+        kind == "assignment" && state.Reappeared.TryGetValue(key, out var reason) && life == "Outdated" ? reason : "Previous decision; evidence needs review";
+
+    /// <summary>effective_decision: current explicit decisions win; role-derived activity approval never writes events. Stale approval grants nothing;
+    /// a retained Remove stays visible.</summary>
+    public static JsonObject EffectiveDecision(SodUserEntry entry, SodStates state, string kind, string key)
+    {
+        var (life, e) = (state.Items[kind][key].Lifecycle, state.Items[kind][key].Event);
+        var coverage = state.Coverage[kind == "risk" ? "acceptance" : kind][key];
+        var distribution = new SortedDictionary<string, int>(StringComparer.Ordinal);
+        var derived = "Pending";
+        if (kind == "activity")
+        {
+            var activity = entry.Activities.Values.First(a => a.Key == key);
+            foreach (var aid in activity.Assignments) { var l = state.Items["assignment"][aid].Lifecycle; distribution[l] = distribution.GetValueOrDefault(l) + 1; }
+            if (distribution.GetValueOrDefault("Keep") > 0) derived = "Approved";
+            else if (distribution.Count > 0 && distribution.Keys.All(k => k == "Removal required")) derived = "Remove";
+            else if (distribution.GetValueOrDefault("Investigate") > 0) derived = "Investigate";
+        }
+        var isExplicit = e is not null && Names.ContainsKey(life);
+        var stale = life is "Outdated" or "Historical";
+        var explicitLabel = Names.GetValueOrDefault(life, "Pending");
+        var label = isExplicit ? explicitLabel : derived;
+        if (stale && e is { Decision: "Remove" }) label = "Remove";
+        var assignmentDecisions = new JsonObject();
+        foreach (var (k, v) in distribution) assignmentDecisions[k] = v;
+        return new JsonObject
+        {
+            ["label"] = label, ["tone"] = Tones[label], ["explicit"] = isExplicit, ["stale"] = stale,
+            ["basis"] = isExplicit ? "Explicit decision" : stale ? StaleBasis(state, kind, key, life)
+                : kind == "activity" && derived != "Pending" ? "Derived from current assignment decisions" : (string?)coverage["provenance"] is { Length: > 0 } p ? p : "No current decision",
+            ["assignment_decisions"] = assignmentDecisions, ["derived_label"] = derived, ["explicit_label"] = explicitLabel,
+            ["disagreement"] = kind == "activity" && isExplicit && derived != "Pending" && explicitLabel != derived,
+        };
+    }
+
+    /// <summary>decision_summary: formal acceptance is presented separately from the four primary access decisions.</summary>
+    public static JsonObject DecisionSummary(SodUserEntry entry, SodStates state, string kind, string key)
+    {
+        if (kind != "acceptance") return EffectiveDecision(entry, state, kind, key);
+        var (life, e) = (state.Items[kind][key].Lifecycle, state.Items[kind][key].Event);
+        var stale = life is "Outdated" or "Historical";
+        var isExplicit = e is not null && !stale && life is "Accepted" or "Rejected";
+        var (label, tone) = stale ? (life == "Outdated" ? ("Needs review", "warning") : ("Historical", "neutral"))
+            : isExplicit ? (life, life == "Accepted" ? "success" : "error") : ("Acceptance pending", "warning");
+        return new JsonObject
+        {
+            ["label"] = label, ["tone"] = tone, ["explicit"] = isExplicit, ["stale"] = stale,
+            ["basis"] = isExplicit ? "Explicit decision" : stale ? StaleBasis(state, kind, key, life)
+                : (string?)state.Coverage[kind][key]["provenance"] is { Length: > 0 } p ? p : "No current decision",
+            ["assignment_decisions"] = new JsonObject(),
+        };
+    }
+}

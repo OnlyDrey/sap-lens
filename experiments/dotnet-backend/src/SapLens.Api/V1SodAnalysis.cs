@@ -78,12 +78,7 @@ public static class V1SodAnalysis
         var definitions = (sod?.Risks ?? []).ToDictionary(r => (string)r["risk_id"]!, StringComparer.Ordinal);
         JsonObject Enrich(SodFinding finding)
         {
-            var node = JsonNode.Parse(CanonicalJson.Serialize(new Dictionary<string, object?>
-            {
-                ["finding_id"] = finding.FindingId, ["subject"] = finding.Subject, ["kind"] = finding.Kind, ["risk_id"] = finding.RiskId, ["criticality"] = finding.Criticality,
-                ["evaluation_policy"] = SodSource.EvaluationPolicy, ["evidence"] = finding.Evidence, ["current_potential"] = finding.CurrentPotential, ["account"] = finding.Account,
-                ["evidence_version"] = finding.EvidenceVersion,
-            }))!.AsObject();
+            var node = SodGovernance.FindingJson(finding);
             if (node["account"] is JsonObject account)
             {
                 var accounts = account["accounts"]!.AsArray();
