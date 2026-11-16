@@ -340,8 +340,10 @@ public static class SodGovernance
 
     /// <summary>states: lifecycle per review item. latest maps kind -> key -> latest event; reappeared maps assignment key -> the moment it came back.</summary>
     public static SodStates States(IReadOnlyDictionary<string, SodUserEntry> model, IReadOnlyDictionary<string, IReadOnlyDictionary<string, SodDecisionEvent>> latest, DateOnly today,
-        IReadOnlyDictionary<string, string>? reappeared = null, IReadOnlyDictionary<string, string>? reasons = null)
+        IReadOnlyDictionary<string, string>? reappeared = null, IReadOnlyDictionary<string, string>? reasons = null, string? unavailable = null)
     {
+        // assignment_lifecycle.applicability() when its memory cannot be trusted: every assignment decision stops applying (v1 _Everything/_Always).
+        if (unavailable is not null) (reappeared, reasons) = (new Everything("9999-12-31T00:00:00+00:00"), new Everything(unavailable));
         var result = new SodStates();
         SodDecisionEvent? Latest(string kind, string key) => latest.TryGetValue(kind, out var map) && map.TryGetValue(key, out var e) ? e : null;
         foreach (var entry in model.Values)
@@ -371,6 +373,67 @@ public static class SodGovernance
         }
         ReviewCoverage(model, result);
         return result;
+    }
+
+    /// <summary>A mapping that answers every key with the same value.</summary>
+    private sealed class Everything(string value) : IReadOnlyDictionary<string, string>
+    {
+        public string this[string key] => value;
+        public IEnumerable<string> Keys => [];
+        public IEnumerable<string> Values => [];
+        public int Count => 0;
+        public bool ContainsKey(string key) => true;
+        public bool TryGetValue(string key, out string result) { result = value; return true; }
+        public IEnumerator<KeyValuePair<string, string>> GetEnumerator() => Enumerable.Empty<KeyValuePair<string, string>>().GetEnumerator();
+        System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() => GetEnumerator();
+    }
+
+    /// <summary>simulate() in v1's JSON shape; decisions maps activity name -> its lifecycle (only to warn about approved access that would disappear).</summary>
+    public static JsonObject SimulateJson(SodUserEntry entry, IReadOnlySet<string> removed, IReadOnlyDictionary<string, string>? decisions = null)
+    {
+        var (before, after, resolved, lost) = Simulate(entry, removed);
+        var affected = lost.Where(n => decisions?.GetValueOrDefault(n) is "Approved" or "Conditional").Order(StringComparer.Ordinal).ToList();
+        JsonArray List(IEnumerable<string> values) => new([.. values.Select(v => (JsonNode?)JsonValue.Create(v))]);
+        return new JsonObject
+        {
+            ["removed"] = List(removed.Order(StringComparer.Ordinal)), ["before"] = List(before), ["after"] = List(after), ["resolved"] = List(resolved), ["lost_activities"] = List(lost),
+            ["affected_approved_activities"] = List(affected), ["warnings"] = List(affected.Select(n => $"Removal would end approved access to activity {n}.")),
+            ["eliminates_all"] = before.Count > 0 && after.Count == 0,
+        };
+    }
+
+    /// <summary>removal_options: for one risk, removing all providers of either activity side.</summary>
+    public static JsonArray RemovalOptions(SodUserEntry entry, string riskId, IReadOnlyDictionary<string, string>? decisions = null)
+    {
+        var options = new JsonArray();
+        if (!entry.Findings.TryGetValue(riskId, out var finding)) return options;
+        JsonArray List(IEnumerable<string> values) => new([.. values.Select(v => (JsonNode?)JsonValue.Create(v))]);
+        foreach (var (slot, paths) in finding["evidence"]!.AsObject().OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            var list = paths!.AsArray().Select(p => p!.AsObject()).ToList();
+            var providers = list.Select(p => AssignmentId(entry.User, p)).Distinct().Order(StringComparer.Ordinal).ToList();
+            var result = SimulateJson(entry, providers.ToHashSet(StringComparer.Ordinal), decisions);
+            var resolved = result["resolved"]!.AsArray().Select(v => (string)v!).ToList();
+            options.Add(new JsonObject
+            {
+                ["slot"] = slot, ["activities"] = List(list.Select(p => (string)p["activity"]!).Distinct().Order(StringComparer.Ordinal)), ["assignments"] = List(providers),
+                ["roles"] = List(providers.Select(a => entry.Assignments[a].Role).Distinct().Order(StringComparer.Ordinal)), ["resolves_risk"] = resolved.Contains(riskId),
+                ["also_resolves"] = List(resolved.Where(r => r != riskId)), ["affected_approved_activities"] = result["affected_approved_activities"]!.DeepClone(),
+                ["warnings"] = result["warnings"]!.DeepClone(),
+            });
+        }
+        return options;
+    }
+
+    /// <summary>single_assignment_impact.</summary>
+    public static JsonObject SingleAssignmentImpact(SodUserEntry entry, string aid, IReadOnlyDictionary<string, string>? decisions = null)
+    {
+        var result = SimulateJson(entry, new HashSet<string>(StringComparer.Ordinal) { aid }, decisions);
+        return new JsonObject
+        {
+            ["assignment_id"] = aid, ["resolves"] = result["resolved"]!.DeepClone(), ["remaining"] = result["after"]!.DeepClone(), ["lost_activities"] = result["lost_activities"]!.DeepClone(),
+            ["affected_approved_activities"] = result["affected_approved_activities"]!.DeepClone(), ["warnings"] = result["warnings"]!.DeepClone(), ["eliminates_all"] = result["eliminates_all"]!.DeepClone(),
+        };
     }
 
     /// <summary>review_coverage: assignment decisions -> base activities -> risk assessment; explicit risk reviews cover activities only afterwards, so

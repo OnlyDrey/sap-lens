@@ -47,7 +47,8 @@ public interface IJobHandler
 /// interleave), validate it by building the domain model, evaluate the change against the active revision, then either hold it for explicit confirmation
 /// (suspicious change) or activate it in the same transaction that completes the job. Activation retires the previous revision, keeps it as evidence, and
 /// records review invalidations for every assignment that disappeared.</summary>
-public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<SapLensDb> factory, SnapshotService snapshots, TimeProvider clock) : IJobHandler
+public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<SapLensDb> factory, SnapshotService snapshots, TimeProvider clock,
+    IEnumerable<IImportCommitted>? committed = null, Microsoft.Extensions.Logging.ILogger<ImportService>? logger = null) : IJobHandler
 {
     public const string JobKind = "import";
     public const int BatchSize = 5000;
@@ -155,12 +156,26 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
             var keys = Sources.ReviewKeys(UserDirectoryBuilder.Build(await SnapshotService.RecordsAsync(read, held.Id, cancellation), current.Catalogue));
             removed = Sources.ReviewKeys(current.Users).Where(k => !keys.Contains(k)).Order(StringComparer.Ordinal).ToList();
         }
-        return await writer.WriteAsync(async (db, ct) =>
+        var confirmed = await writer.WriteAsync(async (db, ct) =>
         {
             var target = await db.Datasets.FirstAsync(d => d.Id == datasetId && d.Status == DatasetStatus.Held, ct);
             (target.ConfirmedBy, target.ConfirmedUtc) = (confirmedBy, clock.GetUtcNow().UtcDateTime);
             await ActivateAsync(db, target, evaluatedAgainst, removed, ct);
             return target;
         }, cancellation);
+        await NotifyCommittedAsync(committed ?? [], logger);
+        return confirmed;
+    }
+
+    /// <summary>After a committed activation: observers (the assignment lifecycle memory) run best effort; a failure never fails the import, and the next
+    /// review read observes again.</summary>
+    public static async Task NotifyCommittedAsync(IEnumerable<IImportCommitted> observers, Microsoft.Extensions.Logging.ILogger? logger)
+    {
+        foreach (var observer in observers)
+            try { await observer.CommittedAsync(CancellationToken.None); }
+            catch (Exception error) when (error is not OperationCanceledException)
+            {
+                if (logger is not null) Microsoft.Extensions.Logging.LoggerExtensions.LogWarning(logger, error, "Assignment lifecycle observation failed and will be retried at the next read.");
+            }
     }
 }

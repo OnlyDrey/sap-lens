@@ -56,6 +56,19 @@ the behavior the .NET port must keep; [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.m
 - Messages: where v1 raises its own text (revision, items, expiry, context, capacity, evidence) .NET returns the same text; pydantic validation
   failures are 422 in both, with .NET's own wording.
 
+## Reappearance memory (.NET)
+
+- `AssignmentLifecycle` (Application) is the port of `assignment_lifecycle.py`: per decided assignment key the state (present/absent), when it
+  became absent, when it reappeared and why (reappeared, identity) and hashed identity evidence (unshared e-mail, full names). It is the
+  `assignment-lifecycle` SoD document, sealed with a SHA-256 digest; the newest written revision is kept separately (`assignment-lifecycle-meta`)
+  so a missing or older document is detected (fail-safe: every assignment decision reads Outdated with the "unavailable" reason).
+- `ObserveAsync` runs after every committed import (job worker, held-import confirmation; best effort, like v1) and before review reads. It is
+  idempotent per users+catalogue content hash (v1 uses the same snapshot identities). Absence is recorded only when verifiable: the user is fully
+  mapped and the catalogue has no invalid patterns, or the user is gone. Failed, held or unconfirmed imports never change the active data, so
+  they change nothing here.
+- `RebaselineAsync` (administrator acknowledgement) keeps the previous document aside. Its route (`/api/storage/lifecycle/rebaseline`) and the
+  Data Health findings (`lifecycle_integrity`, `reappeared_assignments`) are not migrated yet.
+
 ## Attribution
 
 v1 records `reviewer` (and `approver`) as given on Desktop and the signed-in username on a Server, plus `actor_identity`. The .NET port keeps the
@@ -70,4 +83,5 @@ refused (403), because it identifies no reviewer.
 | 2. Persistent store: events, revision, evidence snapshots, hash chain | Done (no routes yet) | `SodDecisionStoreTests`: a 20-call v1 sequence (successes, stale revision, every validator, limits, expiry, control characters, contexts, bulk tag) gives the same status, revision, previous decisions and evidence addresses; histories and evidence equal v1 after a restart; concurrent writers commit once; a failing item writes nothing; triggers refuse edits; tampering breaks the chain |
 | 3a. Decision targets: review model (every imported assignment), assignment and activity evidence, item location | Done | `SodGovernanceTests`: 83 v1 items of all four kinds located with the same key and evidence version; assignment and activity evidence have v1's content address; the review population (234 users) equals v1 |
 | 3b. Routes: `POST /api/sod/decisions/{kind}`, `GET .../history` (removal verification), `GET .../evidence`, live context | Done | `SodDecisionRoutesTests`: decisions of all four kinds store evidence with v1's content address; Desktop attribution as v1 `actor()`; history newest first with previous decisions after a restart; removal verification; stale generation, revision, evidence and items, every validator, periods (501) refused with nothing written; shared token refused (403). Permission map equals v1 `session_boundary` |
-| 3c. Bulk assignment review (`/decisions/assignment/bulk`), reappearance memory (`assignment_lifecycle`), remediation actions, review periods | Pending | Without reappearance memory an assignment that leaves the import and returns reads its earlier decision as current if its evidence version is unchanged (v1 marks it Outdated); tracked in MIGRATION_BACKLOG.md |
+| 3c. Reappearance memory (`assignment_lifecycle`) and `GET /api/sod/subject` | Done | `SodLifecycleTests`: v1's multi-import sequence (review, removal, reappearance, new review, second cycle, identity change, validity change) gives the same subject overview (assignment, activity and risk lifecycle, derived status, coverage) at every step; a restart, a failed import and a held import change nothing; history and evidence stay complete; a tampered memory makes every assignment decision Outdated (reason "unavailable") until re-baseline. Mutation check: without the memory the sequence test fails |
+| 3d. Bulk assignment review, remediation actions, review subjects, simulate, legacy risk decisions, v1 data migration | Pending | |

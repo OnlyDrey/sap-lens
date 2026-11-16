@@ -16,7 +16,8 @@ public sealed class WorkerOptions
 
 /// <summary>One job at a time per process. Recovery of expired leases runs before every claim; a lease heartbeat runs beside the handler; shutdown hands an
 /// unfinished job back (Queued) instead of marking it failed.</summary>
-public sealed class JobWorker(JobQueue queue, IEnumerable<IJobHandler> handlers, DatabaseMaintenance database, WorkerOptions options, ILogger<JobWorker> logger) : BackgroundService
+public sealed class JobWorker(JobQueue queue, IEnumerable<IJobHandler> handlers, DatabaseMaintenance database, WorkerOptions options, ILogger<JobWorker> logger,
+    IEnumerable<IImportCommitted> committed) : BackgroundService
 {
     private readonly string _owner = $"{Environment.MachineName}:{Environment.ProcessId}:{Guid.NewGuid():N}";
     private readonly Dictionary<string, IJobHandler> _handlers = handlers.ToDictionary(h => h.Kind, StringComparer.Ordinal);
@@ -59,6 +60,7 @@ public sealed class JobWorker(JobQueue queue, IEnumerable<IJobHandler> handlers,
             var outcome = await handler.RunAsync(new JobContext(job, _owner, queue, work.Token));
             await queue.CompleteAsync(job.Id, _owner, outcome.ResultJson, outcome.Atomic, CancellationToken.None);
             logger.LogInformation("Job completed");
+            if (handler is ImportService) await ImportService.NotifyCommittedAsync(committed, logger);
         }
         catch (LeaseLostException) { terminal = false; logger.LogWarning("Job lease lost; stopped without writing"); }
         catch (OperationCanceledException) when (stopping.IsCancellationRequested)

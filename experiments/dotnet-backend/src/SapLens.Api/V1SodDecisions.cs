@@ -26,21 +26,24 @@ public static partial class V1SodDecisions
     private static IResult Errors(List<object> errors) => Results.Json(new { detail = errors }, statusCode: 422);
 
     /// <summary>The live analysis query of sod_scope.live_query (active validity, today).</summary>
-    private static V1SodAnalysis.Query LiveQuery() =>
-        new("users", "active", DateOnly.FromDateTime(DateTime.Now), [], "", "", "", "", "", "", "", "", "", "", "", [], [], [], [], [], [], "subject", false);
+    private static V1SodAnalysis.Query LiveQuery(string validity = "active", DateOnly? asOf = null) =>
+        new("users", validity, asOf ?? DateOnly.FromDateTime(DateTime.Now), [], "", "", "", "", "", "", "", "", "", "", "", [], [], [], [], [], [], "subject", false);
 
     /// <summary>The live review bundle: evidence generation, conflict model and the review model with every imported assignment.</summary>
-    private sealed record Bundle(string Generation, DateOnly AsOf, Dictionary<string, SodUserEntry> Model, Dictionary<string, SodUserEntry> Review, Dictionary<string, string> Versions);
+    private sealed record Bundle(string Generation, DateOnly AsOf, string Validity, Dictionary<string, SodUserEntry> Model, Dictionary<string, SodUserEntry> Review,
+        Dictionary<string, string> Versions, JsonObject Coverage);
 
-    private static async Task<(Bundle? Bundle, IResult? Error)> LoadAsync(IServiceProvider services, CancellationToken ct)
+    private static async Task<(Bundle? Bundle, IResult? Error)> LoadAsync(IServiceProvider services, CancellationToken ct, string validity = "active", DateOnly? asOf = null)
     {
-        var query = LiveQuery();
+        // The lifecycle memory follows the committed revision before any review state is derived (idempotent; imports also notify it).
+        await services.GetRequiredService<AssignmentLifecycle>().ObserveAsync(ct);
+        var query = LiveQuery(validity, asOf);
         var (captured, error) = await V1SodAnalysis.CaptureAsync(services, query, ct);
         if (error is not null) return (null, error);
         var snapshot = await services.GetRequiredService<SnapshotService>().GetAsync(ct);
         var settings = await services.GetRequiredService<V1Settings>().GetAsync(ct);
         var features = settings["features"];
-        var model = SodGovernance.Derive(captured!.Users);
+        var model = SodGovernance.Derive(captured!.Users, onlyCurrent: validity == "active");
         // _assignment_source is the user directory only while SoD and User-Role Mapping are both enabled.
         var sourceEnabled = ((bool?)features?["sod"] ?? false) && ((bool?)features?["user_role_mapping"] ?? true);
         var source = sourceEnabled
@@ -52,7 +55,7 @@ public static partial class V1SodDecisions
         if (settings["data_lifecycle"]?["sources"] is JsonObject references)
             foreach (var (name, reference) in references) if ((string?)reference?["snapshot"] is { } version) versions[name] = version;
         if ((string?)settings["employee_snapshot_id"] is { Length: > 0 } employees) versions["employees"] = employees;
-        return (new Bundle(captured.Generation, query.AsOf, model, review, versions), null);
+        return (new Bundle(captured.Generation, query.AsOf, validity, model, review, versions, captured.Coverage), null);
     }
 
     /// <summary>v1 actor(): the reviewer name and identity snapshot of this request, or the refusal when nobody individual is signed in.</summary>
@@ -160,6 +163,161 @@ public static partial class V1SodDecisions
         };
     }
 
+    /// <summary>scope.states_for for the live context: today's lifecycle with the reappearance memory (or its fail-safe when untrusted).</summary>
+    private static async Task<SodStates> StatesAsync(IServiceProvider services, Bundle bundle, IReadOnlyDictionary<string, SodUserEntry> model, CancellationToken ct)
+    {
+        var latest = await services.GetRequiredService<SodDecisionStore>().LatestAsync("current", ct);
+        var applies = await services.GetRequiredService<AssignmentLifecycle>().ApplicabilityAsync(ct);
+        var readOnly = latest.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
+        return SodGovernance.States(model, readOnly, DateOnly.FromDateTime(DateTime.Now), applies.Reappeared, applies.Reasons, applies.Unavailable);
+    }
+
+    /// <summary>context_info for the live context.</summary>
+    private static async Task<JsonObject> InfoAsync(IServiceProvider services, Bundle bundle, CancellationToken ct) => new()
+    {
+        ["context"] = "current", ["generation"] = bundle.Generation, ["as_of"] = bundle.AsOf.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), ["coverage"] = bundle.Coverage.DeepClone(),
+        ["frozen"] = false, ["reviewable"] = bundle.Validity == "active", ["revision"] = await services.GetRequiredService<SodDecisionStore>().RevisionAsync(ct), ["legacy"] = false, ["period"] = null,
+    };
+
+    private static JsonNode? EventJson(SodItemState item) => item.Event?.ToJson();
+    private static JsonArray List(IEnumerable<string> values) => new([.. values.Select(v => (JsonNode?)JsonValue.Create(v))]);
+
+    /// <summary>routers.sod_governance.subject: the investigation workspace of one user (evidence path, decisions, history pointers, removal impact).</summary>
+    private static async Task<IResult> SubjectAsync(HttpContext http, CancellationToken ct)
+    {
+        var q = http.Request.Query;
+        var context = q["context"].FirstOrDefault() ?? "current";
+        var validity = q["validity"].FirstOrDefault() ?? "active";
+        var user = q["user"].FirstOrDefault();
+        var risk = q["risk"].FirstOrDefault() ?? "";
+        var activity = q["activity"].FirstOrDefault() ?? "";
+        DateOnly? asOf = null;
+        if (q["as_of"].FirstOrDefault() is { Length: > 0 } text)
+        {
+            if (!DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var parsed)) return Errors([V1Validation.At("date_from_datetime_parsing", "Input should be a valid date", "query", "as_of")]);
+            asOf = parsed;
+        }
+        if (user is null) return Errors([V1Validation.At("missing", "Field required", "query", "user")]);
+        if (user.Length > 512 || risk.Length > 512 || activity.Length > 512 || !SodDecisionStore.ContextPattern().IsMatch(context) || validity is not ("active" or "expired" or "future" or "unknown" or "all"))
+            return Errors([V1Validation.At("value_error", "Invalid subject query.", "query")]);
+        if (q.ContainsKey("functional_groups") || q.ContainsKey("managers")) return V1Compatibility.NotMigrated(http, "sod/subject?functional_groups|managers (Functional Groups is not migrated)");
+        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/subject for review period '{context}' (review periods are not migrated)");
+        var services = http.RequestServices;
+        var (bundle, loadError) = await LoadAsync(services, ct, validity, asOf);
+        if (loadError is not null) return loadError;
+        var model = bundle!.Review;
+        if (!model.TryGetValue(user, out var entry)) return Detail(404, "The SAP user has no detected conflict evidence in this context.");
+        var state = await StatesAsync(services, bundle, model, ct);
+        if (risk.Length > 0 && !entry.Findings.ContainsKey(risk)) return Detail(404, "The risk is not detected for this user in this context.");
+        if (activity.Length > 0 && !entry.Activities.ContainsKey(activity)) return Detail(404, "The activity is not evidenced for this user in this context.");
+        var names = entry.Activities.Where(p => (risk.Length == 0 || p.Value.Risks.Contains(risk)) && (activity.Length == 0 || p.Key == activity)).Select(p => p.Key).Order(StringComparer.Ordinal).ToList();
+
+        var rows = new JsonArray();
+        foreach (var name in names)
+        {
+            var detail = SodGovernance.ActivityDetail(entry, name)!;
+            var item = state.Items["activity"][(string)detail["key"]!];
+            foreach (var assignment in detail["assignments"]!.AsArray().Select(a => a!.AsObject()))
+            {
+                var a = state.Items["assignment"][(string)assignment["id"]!];
+                assignment["decision"] = a.Lifecycle;
+                assignment["event"] = EventJson(a);
+            }
+            detail["decision"] = item.Lifecycle;
+            detail["event"] = EventJson(item);
+            rows.Add(detail);
+        }
+        var finding = risk.Length > 0 ? entry.Findings[risk] : null;
+        JsonNode? riskInfo = null;
+        if (finding is not null)
+        {
+            var id = (string)finding["finding_id"]!;
+            var definition = finding["risk"] as JsonObject;
+            var sides = new JsonObject();
+            foreach (var (side, paths) in finding["evidence"]!.AsObject()) sides[side] = List(paths!.AsArray().Select(p => (string)p!["activity"]!).Distinct().Order(StringComparer.Ordinal));
+            // Legacy risk decisions (sod_reviews) are not migrated: none exist in this store.
+            riskInfo = new JsonObject
+            {
+                ["risk_id"] = risk, ["criticality"] = finding["criticality"]?.DeepClone(), ["display_name"] = (string?)definition?["display_name"] ?? "", ["source_text"] = (string?)definition?["source_text"] ?? "",
+                ["category"] = (string?)definition?["business_category"] ?? "", ["risk_type"] = (string?)definition?["risk_type"] ?? "", ["finding_id"] = id,
+                ["evidence_version"] = finding["evidence_version"]?.DeepClone(), ["sides"] = sides, ["acceptance"] = state.Items["acceptance"][id].Lifecycle,
+                ["event"] = EventJson(state.Items["acceptance"][id]), ["legacy_decisions"] = new JsonArray(),
+            };
+        }
+        var related = names.Count > 0 ? List(names.SelectMany(n => entry.Activities[n].Risks).Where(r => r != risk).Distinct().Order(StringComparer.Ordinal)) : new JsonArray();
+        JsonNode? impact = null;
+        if (finding is not null)
+        {
+            var mapping = entry.Activities.Values.ToDictionary(a => a.Name, a => state.Items["activity"][a.Key].Lifecycle, StringComparer.Ordinal);
+            var perAssignment = new JsonObject();
+            foreach (var aid in names.SelectMany(n => entry.Activities[n].Assignments)) perAssignment[aid] = SodGovernance.SingleAssignmentImpact(entry, aid, mapping);
+            impact = new JsonObject { ["options"] = SodGovernance.RemovalOptions(entry, risk, mapping), ["per_assignment"] = perAssignment };
+        }
+
+        var activities = new JsonArray();
+        foreach (var (name, a) in entry.Activities.OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            var item = state.Items["activity"][a.Key];
+            var row = new JsonObject
+            {
+                ["activity"] = name, ["key"] = a.Key, ["decision"] = item.Lifecycle, ["event"] = EventJson(item), ["evidence_version"] = a.EvidenceVersion, ["risks"] = List(a.Risks),
+                ["tcodes"] = List(a.Tcodes), ["roles"] = a.Assignments.Count, ["duplicate_coverage"] = a.Assignments.Count > 1,
+                ["review_coverage"] = state.Coverage["activity"][a.Key].DeepClone(), ["decision_summary"] = SodGovernance.DecisionSummary(entry, state, "activity", a.Key),
+            };
+            activities.Add(row);
+        }
+        var assignments = new JsonArray();
+        var anyRemove = false;
+        foreach (var a in entry.Assignments.Values.OrderBy(x => x.Role.ToUpperInvariant().ToLowerInvariant(), StringComparer.Ordinal).ThenBy(x => x.Id, StringComparer.Ordinal))
+        {
+            var item = state.Items["assignment"][a.Id];
+            anyRemove |= item.Event?.Decision == "Remove";
+            assignments.Add(new JsonObject
+            {
+                ["id"] = a.Id, ["role"] = a.Role, ["decision"] = item.Lifecycle, ["event"] = EventJson(item), ["evidence_version"] = a.EvidenceVersion, ["risks"] = List(a.Risks),
+                ["activities"] = List(a.Supplies.Keys), ["valid_from"] = a.ValidFrom, ["valid_to"] = a.ValidTo, ["interval_status"] = a.IntervalStatus, ["user_group"] = a.UserGroup,
+                ["catalogue_roles"] = List(a.CatalogueRoles), ["review_coverage"] = state.Coverage["assignment"][a.Id].DeepClone(),
+                ["decision_summary"] = SodGovernance.DecisionSummary(entry, state, "assignment", a.Id),
+            });
+        }
+        if (anyRemove)
+            foreach (var row in assignments.Select(r => r!.AsObject()).Where(r => (string?)r["event"]?["decision"] == "Remove"))
+            {
+                var verification = await VerifyRemovalAsync(services, row["event"]!.AsObject(), ct);
+                if ((string?)verification["source_version"] != bundle.Versions.GetValueOrDefault("users"))
+                {
+                    verification["status"] = "Not verified";
+                    verification["reason"] = "Source changed while reading; reload before assessing verification.";
+                }
+                row["remediation_verification"] = verification;
+            }
+        var risks = new JsonArray();
+        foreach (var (riskId, f) in entry.Findings.OrderBy(p => p.Key, StringComparer.Ordinal))
+        {
+            var id = (string)f["finding_id"]!;
+            var definition = f["risk"] as JsonObject;
+            var acceptance = state.Items["acceptance"][id];
+            var review = state.Items["risk"][id];
+            risks.Add(new JsonObject
+            {
+                ["risk_id"] = riskId, ["criticality"] = f["criticality"]?.DeepClone(), ["display_name"] = (string?)definition?["display_name"] ?? "", ["source_text"] = (string?)definition?["source_text"] ?? "",
+                ["finding_id"] = id, ["evidence_version"] = f["evidence_version"]?.DeepClone(), ["acceptance"] = acceptance.Lifecycle, ["event"] = EventJson(acceptance),
+                ["review_coverage"] = state.Coverage["acceptance"][id].DeepClone(), ["decision_summary"] = SodGovernance.DecisionSummary(entry, state, "acceptance", id),
+                ["risk_review_summary"] = SodGovernance.EffectiveDecision(entry, state, "risk", id), ["risk_review"] = review.Lifecycle, ["risk_review_event"] = EventJson(review),
+            });
+        }
+        var result = await InfoAsync(services, bundle, ct);
+        result["user"] = user;
+        result["groups"] = List(entry.Groups);
+        result["account"] = entry.Account?.DeepClone();
+        result["risk"] = riskInfo;
+        result["activities"] = rows;
+        result["related_risks"] = related;
+        result["impact"] = impact;
+        result["overview"] = new JsonObject { ["activities"] = activities, ["assignments"] = assignments, ["risks"] = risks };
+        return Json(result);
+    }
+
     public static void Map(RouteGroupBuilder api)
     {
         api.MapPost("/sod/decisions/{kind}", async (string kind, HttpContext http, SodDecisionStore store, CancellationToken ct) =>
@@ -217,6 +375,8 @@ public static partial class V1SodDecisions
             }
             return Json(response);
         });
+
+        api.MapGet("/sod/subject", SubjectAsync);
 
         api.MapGet("/sod/decisions/{kind}/history", async (string kind, HttpContext http, SodDecisionStore store, CancellationToken ct) =>
         {

@@ -1,0 +1,1572 @@
+{
+ "user": "USER00007",
+ "roles": [
+  "ZC:MM:ROLE_00194",
+  "ZC:MM:ROLE_00182"
+ ],
+ "steps": [
+  {
+   "name": "reviewed",
+   "users": {},
+   "keep": [
+    "ZC:MM:ROLE_00194",
+    "ZC:MM:ROLE_00182"
+   ],
+   "observed": 0,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Keep",
+      "evidence_version": "7b96756af3d3130abaef253d4432f4fae77c1a46ec21d98ae964cb992768ccfd",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_B"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Explicit assignment review",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": true,
+       "stale": false,
+       "basis": "Explicit decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Approved",
+       "disagreement": false
+      }
+     },
+     {
+      "id": "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62",
+      "role": "ZC:MM:ROLE_00194",
+      "decision": "Keep",
+      "evidence_version": "74d491a11dc442fc63bad0e0b747354a1152c8169a028b559b699e890d7ea944",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_A"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00194"
+      ],
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Explicit assignment review",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": true,
+       "stale": false,
+       "basis": "Explicit decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Approved",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [
+     {
+      "activity": "ACT_38_A",
+      "key": "970b48a9f3dc4a40233ea6749763dec0b1a506ea9f2a4da7a0e90e7dedc4dd5b",
+      "decision": "Pending",
+      "evidence_version": "a06e4c7892232402295a1ec750317a6020e1280afeda63cb34f8a1e6e311e822",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0116"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through roles",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": false,
+       "stale": false,
+       "basis": "Derived from current assignment decisions",
+       "assignment_decisions": {
+        "Keep": 1
+       },
+       "derived_label": "Approved",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "activity": "ACT_38_B",
+      "key": "34591ca981047708f5a25ec46aa08313a0fe493fa45b032102a7713e32f933db",
+      "decision": "Pending",
+      "evidence_version": "91a96915dc06db379df636a53d765f11671c3f7fd85a7c9e6be3f54168e876f0",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0394"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through roles",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": false,
+       "stale": false,
+       "basis": "Derived from current assignment decisions",
+       "assignment_decisions": {
+        "Keep": 1
+       },
+       "derived_label": "Approved",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "risks": [
+     {
+      "risk_id": "R038",
+      "criticality": "Low",
+      "display_name": "",
+      "source_text": "Risk 38",
+      "finding_id": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+      "evidence_version": "854ffc8309be1a09df3ff24024a85ddee92a86edf06074a6a49b0fd5f31f5fd5",
+      "acceptance": "Pending",
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through access evidence",
+       "removal_planned": false,
+       "risk_accepted": false,
+       "remediation_verified": false,
+       "label": "Reviewed"
+      },
+      "decision_summary": {
+       "label": "Acceptance pending",
+       "tone": "warning",
+       "explicit": false,
+       "stale": false,
+       "basis": "Reviewed through access evidence",
+       "assignment_decisions": {}
+      },
+      "risk_review_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "Reviewed through access evidence",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      },
+      "risk_review": "Pending"
+     }
+    ]
+   },
+   "lifecycle": {},
+   "events": 2
+  },
+  {
+   "name": "removed",
+   "users": {
+    "drop": [
+     [
+      "USER00007",
+      "ZC:MM:ROLE_00194"
+     ]
+    ]
+   },
+   "keep": [],
+   "observed": 1,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Outdated",
+      "evidence_version": "d7a42a68cb5f8d02a068c3ac91f5ec472a818b25d7c7b160005fdc4a77f21973",
+      "risks": [],
+      "activities": [],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": true,
+       "basis": "Previous decision; evidence needs review",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [],
+    "risks": []
+   },
+   "lifecycle": {
+    "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62": {
+     "state": "absent",
+     "reason": "",
+     "reappeared": false
+    },
+    "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d": {
+     "state": "present",
+     "reason": "",
+     "reappeared": false
+    }
+   },
+   "events": 2
+  },
+  {
+   "name": "reappeared",
+   "users": {},
+   "keep": [],
+   "observed": 1,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Keep",
+      "evidence_version": "7b96756af3d3130abaef253d4432f4fae77c1a46ec21d98ae964cb992768ccfd",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_B"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Explicit assignment review",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": true,
+       "stale": false,
+       "basis": "Explicit decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Approved",
+       "disagreement": false
+      }
+     },
+     {
+      "id": "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62",
+      "role": "ZC:MM:ROLE_00194",
+      "decision": "Outdated",
+      "evidence_version": "74d491a11dc442fc63bad0e0b747354a1152c8169a028b559b699e890d7ea944",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_A"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00194"
+      ],
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": true,
+       "basis": "Assignment reappeared after it was removed from the SAP import; review it again. The earlier decision stays in history.",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [
+     {
+      "activity": "ACT_38_A",
+      "key": "970b48a9f3dc4a40233ea6749763dec0b1a506ea9f2a4da7a0e90e7dedc4dd5b",
+      "decision": "Pending",
+      "evidence_version": "a06e4c7892232402295a1ec750317a6020e1280afeda63cb34f8a1e6e311e822",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0116"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {
+        "Outdated": 1
+       },
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "activity": "ACT_38_B",
+      "key": "34591ca981047708f5a25ec46aa08313a0fe493fa45b032102a7713e32f933db",
+      "decision": "Pending",
+      "evidence_version": "91a96915dc06db379df636a53d765f11671c3f7fd85a7c9e6be3f54168e876f0",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0394"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through roles",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": false,
+       "stale": false,
+       "basis": "Derived from current assignment decisions",
+       "assignment_decisions": {
+        "Keep": 1
+       },
+       "derived_label": "Approved",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "risks": [
+     {
+      "risk_id": "R038",
+      "criticality": "Low",
+      "display_name": "",
+      "source_text": "Risk 38",
+      "finding_id": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+      "evidence_version": "854ffc8309be1a09df3ff24024a85ddee92a86edf06074a6a49b0fd5f31f5fd5",
+      "acceptance": "Pending",
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false,
+       "risk_accepted": false,
+       "remediation_verified": false,
+       "label": "Needs review"
+      },
+      "decision_summary": {
+       "label": "Acceptance pending",
+       "tone": "warning",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {}
+      },
+      "risk_review_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      },
+      "risk_review": "Pending"
+     }
+    ]
+   },
+   "lifecycle": {
+    "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62": {
+     "state": "present",
+     "reason": "reappeared",
+     "reappeared": true
+    },
+    "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d": {
+     "state": "present",
+     "reason": "",
+     "reappeared": false
+    }
+   },
+   "events": 2
+  },
+  {
+   "name": "reviewed_again",
+   "users": null,
+   "keep": [
+    "ZC:MM:ROLE_00194"
+   ],
+   "observed": null,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Keep",
+      "evidence_version": "7b96756af3d3130abaef253d4432f4fae77c1a46ec21d98ae964cb992768ccfd",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_B"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Explicit assignment review",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": true,
+       "stale": false,
+       "basis": "Explicit decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Approved",
+       "disagreement": false
+      }
+     },
+     {
+      "id": "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62",
+      "role": "ZC:MM:ROLE_00194",
+      "decision": "Keep",
+      "evidence_version": "74d491a11dc442fc63bad0e0b747354a1152c8169a028b559b699e890d7ea944",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_A"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00194"
+      ],
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Explicit assignment review",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": true,
+       "stale": false,
+       "basis": "Explicit decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Approved",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [
+     {
+      "activity": "ACT_38_A",
+      "key": "970b48a9f3dc4a40233ea6749763dec0b1a506ea9f2a4da7a0e90e7dedc4dd5b",
+      "decision": "Pending",
+      "evidence_version": "a06e4c7892232402295a1ec750317a6020e1280afeda63cb34f8a1e6e311e822",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0116"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through roles",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": false,
+       "stale": false,
+       "basis": "Derived from current assignment decisions",
+       "assignment_decisions": {
+        "Keep": 1
+       },
+       "derived_label": "Approved",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "activity": "ACT_38_B",
+      "key": "34591ca981047708f5a25ec46aa08313a0fe493fa45b032102a7713e32f933db",
+      "decision": "Pending",
+      "evidence_version": "91a96915dc06db379df636a53d765f11671c3f7fd85a7c9e6be3f54168e876f0",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0394"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through roles",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": false,
+       "stale": false,
+       "basis": "Derived from current assignment decisions",
+       "assignment_decisions": {
+        "Keep": 1
+       },
+       "derived_label": "Approved",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "risks": [
+     {
+      "risk_id": "R038",
+      "criticality": "Low",
+      "display_name": "",
+      "source_text": "Risk 38",
+      "finding_id": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+      "evidence_version": "854ffc8309be1a09df3ff24024a85ddee92a86edf06074a6a49b0fd5f31f5fd5",
+      "acceptance": "Pending",
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through access evidence",
+       "removal_planned": false,
+       "risk_accepted": false,
+       "remediation_verified": false,
+       "label": "Reviewed"
+      },
+      "decision_summary": {
+       "label": "Acceptance pending",
+       "tone": "warning",
+       "explicit": false,
+       "stale": false,
+       "basis": "Reviewed through access evidence",
+       "assignment_decisions": {}
+      },
+      "risk_review_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "Reviewed through access evidence",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      },
+      "risk_review": "Pending"
+     }
+    ]
+   },
+   "lifecycle": {
+    "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62": {
+     "state": "present",
+     "reason": "reappeared",
+     "reappeared": true
+    },
+    "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d": {
+     "state": "present",
+     "reason": "",
+     "reappeared": false
+    }
+   },
+   "events": 3
+  },
+  {
+   "name": "removed_again",
+   "users": {
+    "drop": [
+     [
+      "USER00007",
+      "ZC:MM:ROLE_00194"
+     ]
+    ]
+   },
+   "keep": [],
+   "observed": 1,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Outdated",
+      "evidence_version": "d7a42a68cb5f8d02a068c3ac91f5ec472a818b25d7c7b160005fdc4a77f21973",
+      "risks": [],
+      "activities": [],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": true,
+       "basis": "Previous decision; evidence needs review",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [],
+    "risks": []
+   },
+   "lifecycle": {
+    "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62": {
+     "state": "absent",
+     "reason": "reappeared",
+     "reappeared": true
+    },
+    "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d": {
+     "state": "present",
+     "reason": "",
+     "reappeared": false
+    }
+   },
+   "events": 3
+  },
+  {
+   "name": "reappeared_again",
+   "users": {},
+   "keep": [],
+   "observed": 1,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Keep",
+      "evidence_version": "7b96756af3d3130abaef253d4432f4fae77c1a46ec21d98ae964cb992768ccfd",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_B"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Explicit assignment review",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": true,
+       "stale": false,
+       "basis": "Explicit decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Approved",
+       "disagreement": false
+      }
+     },
+     {
+      "id": "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62",
+      "role": "ZC:MM:ROLE_00194",
+      "decision": "Outdated",
+      "evidence_version": "74d491a11dc442fc63bad0e0b747354a1152c8169a028b559b699e890d7ea944",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_A"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00194"
+      ],
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": true,
+       "basis": "Assignment reappeared after it was removed from the SAP import; review it again. The earlier decision stays in history.",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [
+     {
+      "activity": "ACT_38_A",
+      "key": "970b48a9f3dc4a40233ea6749763dec0b1a506ea9f2a4da7a0e90e7dedc4dd5b",
+      "decision": "Pending",
+      "evidence_version": "a06e4c7892232402295a1ec750317a6020e1280afeda63cb34f8a1e6e311e822",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0116"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {
+        "Outdated": 1
+       },
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "activity": "ACT_38_B",
+      "key": "34591ca981047708f5a25ec46aa08313a0fe493fa45b032102a7713e32f933db",
+      "decision": "Pending",
+      "evidence_version": "91a96915dc06db379df636a53d765f11671c3f7fd85a7c9e6be3f54168e876f0",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0394"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through roles",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": false,
+       "stale": false,
+       "basis": "Derived from current assignment decisions",
+       "assignment_decisions": {
+        "Keep": 1
+       },
+       "derived_label": "Approved",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "risks": [
+     {
+      "risk_id": "R038",
+      "criticality": "Low",
+      "display_name": "",
+      "source_text": "Risk 38",
+      "finding_id": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+      "evidence_version": "854ffc8309be1a09df3ff24024a85ddee92a86edf06074a6a49b0fd5f31f5fd5",
+      "acceptance": "Pending",
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false,
+       "risk_accepted": false,
+       "remediation_verified": false,
+       "label": "Needs review"
+      },
+      "decision_summary": {
+       "label": "Acceptance pending",
+       "tone": "warning",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {}
+      },
+      "risk_review_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      },
+      "risk_review": "Pending"
+     }
+    ]
+   },
+   "lifecycle": {
+    "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62": {
+     "state": "present",
+     "reason": "reappeared",
+     "reappeared": true
+    },
+    "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d": {
+     "state": "present",
+     "reason": "",
+     "reappeared": false
+    }
+   },
+   "events": 3
+  },
+  {
+   "name": "reviewed_third",
+   "users": null,
+   "keep": [
+    "ZC:MM:ROLE_00194"
+   ],
+   "observed": null,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Keep",
+      "evidence_version": "7b96756af3d3130abaef253d4432f4fae77c1a46ec21d98ae964cb992768ccfd",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_B"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Explicit assignment review",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": true,
+       "stale": false,
+       "basis": "Explicit decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Approved",
+       "disagreement": false
+      }
+     },
+     {
+      "id": "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62",
+      "role": "ZC:MM:ROLE_00194",
+      "decision": "Keep",
+      "evidence_version": "74d491a11dc442fc63bad0e0b747354a1152c8169a028b559b699e890d7ea944",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_A"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00194"
+      ],
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Explicit assignment review",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": true,
+       "stale": false,
+       "basis": "Explicit decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Approved",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [
+     {
+      "activity": "ACT_38_A",
+      "key": "970b48a9f3dc4a40233ea6749763dec0b1a506ea9f2a4da7a0e90e7dedc4dd5b",
+      "decision": "Pending",
+      "evidence_version": "a06e4c7892232402295a1ec750317a6020e1280afeda63cb34f8a1e6e311e822",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0116"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through roles",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": false,
+       "stale": false,
+       "basis": "Derived from current assignment decisions",
+       "assignment_decisions": {
+        "Keep": 1
+       },
+       "derived_label": "Approved",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "activity": "ACT_38_B",
+      "key": "34591ca981047708f5a25ec46aa08313a0fe493fa45b032102a7713e32f933db",
+      "decision": "Pending",
+      "evidence_version": "91a96915dc06db379df636a53d765f11671c3f7fd85a7c9e6be3f54168e876f0",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0394"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through roles",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Approved",
+       "tone": "success",
+       "explicit": false,
+       "stale": false,
+       "basis": "Derived from current assignment decisions",
+       "assignment_decisions": {
+        "Keep": 1
+       },
+       "derived_label": "Approved",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "risks": [
+     {
+      "risk_id": "R038",
+      "criticality": "Low",
+      "display_name": "",
+      "source_text": "Risk 38",
+      "finding_id": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+      "evidence_version": "854ffc8309be1a09df3ff24024a85ddee92a86edf06074a6a49b0fd5f31f5fd5",
+      "acceptance": "Pending",
+      "review_coverage": {
+       "reviewed": true,
+       "provenance": "Reviewed through access evidence",
+       "removal_planned": false,
+       "risk_accepted": false,
+       "remediation_verified": false,
+       "label": "Reviewed"
+      },
+      "decision_summary": {
+       "label": "Acceptance pending",
+       "tone": "warning",
+       "explicit": false,
+       "stale": false,
+       "basis": "Reviewed through access evidence",
+       "assignment_decisions": {}
+      },
+      "risk_review_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "Reviewed through access evidence",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      },
+      "risk_review": "Pending"
+     }
+    ]
+   },
+   "lifecycle": {
+    "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62": {
+     "state": "present",
+     "reason": "reappeared",
+     "reappeared": true
+    },
+    "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d": {
+     "state": "present",
+     "reason": "",
+     "reappeared": false
+    }
+   },
+   "events": 4
+  },
+  {
+   "name": "identity_changed",
+   "users": {
+    "identity": {
+     "USER00007": [
+      "Other",
+      "Person",
+      "other.person@example.invalid"
+     ]
+    }
+   },
+   "keep": [],
+   "observed": 2,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Outdated",
+      "evidence_version": "7b96756af3d3130abaef253d4432f4fae77c1a46ec21d98ae964cb992768ccfd",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_B"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": true,
+       "basis": "SAP user identity evidence (e-mail and name) changed since this assignment was reviewed; review it again. The earlier decision stays in history.",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "id": "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62",
+      "role": "ZC:MM:ROLE_00194",
+      "decision": "Outdated",
+      "evidence_version": "74d491a11dc442fc63bad0e0b747354a1152c8169a028b559b699e890d7ea944",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_A"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00194"
+      ],
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": true,
+       "basis": "SAP user identity evidence (e-mail and name) changed since this assignment was reviewed; review it again. The earlier decision stays in history.",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [
+     {
+      "activity": "ACT_38_A",
+      "key": "970b48a9f3dc4a40233ea6749763dec0b1a506ea9f2a4da7a0e90e7dedc4dd5b",
+      "decision": "Pending",
+      "evidence_version": "a06e4c7892232402295a1ec750317a6020e1280afeda63cb34f8a1e6e311e822",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0116"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {
+        "Outdated": 1
+       },
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "activity": "ACT_38_B",
+      "key": "34591ca981047708f5a25ec46aa08313a0fe493fa45b032102a7713e32f933db",
+      "decision": "Pending",
+      "evidence_version": "91a96915dc06db379df636a53d765f11671c3f7fd85a7c9e6be3f54168e876f0",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0394"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {
+        "Outdated": 1
+       },
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "risks": [
+     {
+      "risk_id": "R038",
+      "criticality": "Low",
+      "display_name": "",
+      "source_text": "Risk 38",
+      "finding_id": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+      "evidence_version": "854ffc8309be1a09df3ff24024a85ddee92a86edf06074a6a49b0fd5f31f5fd5",
+      "acceptance": "Pending",
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false,
+       "risk_accepted": false,
+       "remediation_verified": false,
+       "label": "Needs review"
+      },
+      "decision_summary": {
+       "label": "Acceptance pending",
+       "tone": "warning",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {}
+      },
+      "risk_review_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      },
+      "risk_review": "Pending"
+     }
+    ]
+   },
+   "lifecycle": {
+    "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62": {
+     "state": "present",
+     "reason": "identity",
+     "reappeared": true
+    },
+    "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d": {
+     "state": "present",
+     "reason": "identity",
+     "reappeared": true
+    }
+   },
+   "events": 4
+  },
+  {
+   "name": "validity_changed",
+   "users": {
+    "identity": {
+     "USER00007": [
+      "Other",
+      "Person",
+      "other.person@example.invalid"
+     ]
+    },
+    "valid_to": {
+     "USER00007|ZC:MM:ROLE_00182": "2097-12-31"
+    }
+   },
+   "keep": [],
+   "observed": 1,
+   "subject": {
+    "user": "USER00007",
+    "groups": [
+     "GRP_LOG"
+    ],
+    "assignments": [
+     {
+      "id": "71c33ac7d4ea831c5f17b121bd4d8ecfb17d81f88c690ef377d0e97c3ed77ce5",
+      "role": "ZC:MM:ROLE_00182",
+      "decision": "Pending",
+      "evidence_version": "f1ebdef448c172ca2813686165d9b3e89703253e9af140cd7852d180b47717df",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_B"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2097-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00182"
+      ],
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "id": "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62",
+      "role": "ZC:MM:ROLE_00194",
+      "decision": "Outdated",
+      "evidence_version": "74d491a11dc442fc63bad0e0b747354a1152c8169a028b559b699e890d7ea944",
+      "risks": [
+       "R038"
+      ],
+      "activities": [
+       "ACT_38_A"
+      ],
+      "valid_from": "2000-01-01",
+      "valid_to": "2098-12-31",
+      "interval_status": "active",
+      "user_group": "GRP_LOG",
+      "catalogue_roles": [
+       "ZC:MM:ROLE_00194"
+      ],
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": true,
+       "basis": "SAP user identity evidence (e-mail and name) changed since this assignment was reviewed; review it again. The earlier decision stays in history.",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "activities": [
+     {
+      "activity": "ACT_38_A",
+      "key": "970b48a9f3dc4a40233ea6749763dec0b1a506ea9f2a4da7a0e90e7dedc4dd5b",
+      "decision": "Pending",
+      "evidence_version": "a06e4c7892232402295a1ec750317a6020e1280afeda63cb34f8a1e6e311e822",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0116"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {
+        "Outdated": 1
+       },
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     },
+     {
+      "activity": "ACT_38_B",
+      "key": "34591ca981047708f5a25ec46aa08313a0fe493fa45b032102a7713e32f933db",
+      "decision": "Pending",
+      "evidence_version": "91a96915dc06db379df636a53d765f11671c3f7fd85a7c9e6be3f54168e876f0",
+      "risks": [
+       "R038"
+      ],
+      "tcodes": [
+       "T0394"
+      ],
+      "roles": 1,
+      "duplicate_coverage": false,
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false
+      },
+      "decision_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {
+        "Pending": 1
+       },
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      }
+     }
+    ],
+    "risks": [
+     {
+      "risk_id": "R038",
+      "criticality": "Low",
+      "display_name": "",
+      "source_text": "Risk 38",
+      "finding_id": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+      "evidence_version": "235a204eadbb9b280ec62830d7f14045fa0266c6467e9b6be9ea3369b938315a",
+      "acceptance": "Pending",
+      "review_coverage": {
+       "reviewed": false,
+       "provenance": "",
+       "removal_planned": false,
+       "risk_accepted": false,
+       "remediation_verified": false,
+       "label": "Needs review"
+      },
+      "decision_summary": {
+       "label": "Acceptance pending",
+       "tone": "warning",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {}
+      },
+      "risk_review_summary": {
+       "label": "Pending",
+       "tone": "neutral",
+       "explicit": false,
+       "stale": false,
+       "basis": "No current decision",
+       "assignment_decisions": {},
+       "derived_label": "Pending",
+       "explicit_label": "Pending",
+       "disagreement": false
+      },
+      "risk_review": "Pending"
+     }
+    ]
+   },
+   "lifecycle": {
+    "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62": {
+     "state": "present",
+     "reason": "identity",
+     "reappeared": true
+    },
+    "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d": {
+     "state": "absent",
+     "reason": "identity",
+     "reappeared": true
+    }
+   },
+   "events": 4
+  }
+ ]
+}
