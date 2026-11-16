@@ -36,7 +36,8 @@ public sealed class SodResult
 public static class SodAnalyzer
 {
     public static SodResult Analyze(RoleCatalogue catalogue, UserDirectory users, SodDataset? sod, DateOnly asOf, string validity = "active",
-        IReadOnlyCollection<string>? selectedRoles = null, IReadOnlyDictionary<string, bool>? riskEnabled = null)
+        IReadOnlyCollection<string>? selectedRoles = null, IReadOnlyDictionary<string, bool>? riskEnabled = null,
+        Directory.EmployeeDirectory? directory = null, bool directoryEnabled = false)
     {
         if (validity is not ("active" or "expired" or "future" or "unknown" or "all")) throw new ArgumentException("Unsupported assignment validity filter.");
         var risks = new Dictionary<string, Dictionary<string, object?>>(StringComparer.Ordinal);
@@ -99,11 +100,15 @@ public static class SodAnalyzer
         var available = users.Users.Count > 0 && catalogue.Roles.Count > 0 && sod is not null;
         var userResults = new List<SodFinding>();
         int eligible = 0, mapped = 0;
+        // v1: the directory is used only when the Employee Directory feature is on; an enabled feature without a directory reads as unavailable.
+        var owners = directoryEnabled && directory is not null ? Directory.EmployeeDirectory.SapEmailOwners(users.Users.Values) : null;
         if (available)
         {
             foreach (var key in users.Users.Keys.Order(StringComparer.Ordinal))
             {
                 var user = users.Users[key];
+                var match = owners is not null ? directory!.MatchSapIdentity(user, owners)
+                    : (Status: directoryEnabled ? "directory_unavailable" : "directory_disabled", Employee: (Dictionary<string, object?>?)null);
                 var paths = new List<Dictionary<string, object?>>();
                 foreach (var assignment in user.Assignments)
                 {
@@ -126,7 +131,7 @@ public static class SodAnalyzer
                     {
                         ["valid_from"] = a.ValidFrom, ["valid_to"] = a.ValidTo, ["locked"] = a.Locked, ["user_type"] = a.UserType, ["user_group"] = a.UserGroup,
                     })),
-                    ["directory_match"] = "directory_disabled", ["ad_status"] = "Unknown",
+                    ["directory_match"] = match.Status, ["ad_status"] = match.Employee is { } employee ? employee["account_status"] : "Unknown",
                 };
                 userResults.AddRange(Findings(RoleNames.NormalizeUsername(key), "user", paths, account));
             }

@@ -52,6 +52,7 @@ public static class V1Compatibility
         "GET /api/sod/catalogue", "GET /api/sod/catalogue/{risk_id}", "POST /api/sod/catalogue/{risk_id}", "POST /api/sod/catalogue/bulk", "GET /api/sod/catalogue/export",
         "GET /api/sod/catalogue-activities", "GET /api/sod/catalogue-activities/{activity}", "POST /api/sod/catalogue-activities/{activity}", "GET /api/sod/appearance", "GET /api/sod/metadata",
         "GET /api/sod/reference", "POST /api/sod/reference/reset", "POST /api/sod/reference/upload", "PUT /api/sod/reference", "GET /api/sod/reference/template",
+        "GET /api/sod/analysis", "GET /api/sod/analysis/evidence", "GET /api/sod/analysis/export",
         "GET /api/account-review", "POST /api/account-review/decision/{username}", "GET /api/account-review/history/{username}",
         // Accounts mode (the Server default); in shared-token mode these answer 501.
         "POST /api/auth/activate", "POST /api/auth/recover", "POST /api/auth/login", "POST /api/auth/reset", "GET /api/auth/me", "GET /api/auth/sessions",
@@ -135,6 +136,7 @@ public static class V1Compatibility
         V1Employees.Map(api);
         V1AccountReview.Map(api);
         V1SodCatalogue.Map(api);
+        V1SodAnalysis.Map(api);
         V1Auth.Map(api, app.Services.GetRequiredService<HostSettings>());
 
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).

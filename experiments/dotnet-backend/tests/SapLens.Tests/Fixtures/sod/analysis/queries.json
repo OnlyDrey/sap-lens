@@ -1,0 +1,74 @@
+[
+ {
+  "name": "default",
+  "as_of": "2026-06-01"
+ },
+ {
+  "name": "all_validity_sorted_by_evidence_desc",
+  "as_of": "2026-06-01",
+  "validity": "all",
+  "sort": "evidence_count",
+  "descending": true
+ },
+ {
+  "name": "expired_with_selected_roles_roles_kind",
+  "as_of": "2026-06-01",
+  "validity": "expired",
+  "kind": "roles",
+  "selected_roles": [
+   "ZC:CONFLICT:AREA",
+   "ZC:FI:ROLE_00001"
+  ]
+ },
+ {
+  "name": "search_and_criticality",
+  "as_of": "2026-06-01",
+  "validity": "all",
+  "search": "user0001",
+  "criticalities": [
+   "High",
+   "Critical"
+  ]
+ },
+ {
+  "name": "risk_group_tcode_filters",
+  "as_of": "2026-06-01",
+  "validity": "all",
+  "risks": [
+   "R001",
+   "R002",
+   "R010"
+  ],
+  "groups": [
+   "GRP_FIN"
+  ],
+  "tcode": "T00*"
+ },
+ {
+  "name": "account_unlocked_sort_risk",
+  "as_of": "2026-06-01",
+  "account_status": "unlocked",
+  "sort": "risk_id"
+ },
+ {
+  "name": "username_pattern_and_composite_role",
+  "as_of": "2026-06-01",
+  "validity": "all",
+  "username": "USER000*",
+  "composite_role": "ZC:FI*"
+ },
+ {
+  "name": "future_criticality_sort",
+  "as_of": "2000-01-01",
+  "validity": "future",
+  "sort": "criticality",
+  "descending": true
+ },
+ {
+  "name": "roles_kind_search",
+  "as_of": "2026-06-01",
+  "kind": "roles",
+  "search": "conflict",
+  "sort": "evidence_count"
+ }
+]
