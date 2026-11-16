@@ -14,7 +14,7 @@ Statuses: TODO, BLOCKED, READY, IN PROGRESS, RESOLVED, VERIFIED. "Independent" m
 | MIG-007 | Data retention | Retention policy, preview, approval | `/api/retention/*` (4) | TODO | Depends on SoD periods/decisions storage for review data | Port `data_retention.py` for the datasets that exist | Medium | Partly |
 | MIG-008 | Scheduled refresh | Refresh schedule, preview, manual refresh | `/api/refresh`, `/api/refresh-schedule`, `/api/refresh-schedule/preview` | TODO | Path-backed sources only | Port `cron_schedule.py` and the schedule store; refresh re-imports path sources | Medium | Yes |
 | MIG-009 | Import previews | CSV header inspection and previews before a source is chosen | `/api/import/headers`, `/api/import/preview`, `/api/user-import/headers`, `/api/user-import/preview` | TODO | None (CsvImport exists) | Wire the existing CSV readers to the v1 shapes; Desktop paths and Server configured root | High | Yes |
-| MIG-010 | Data Sources | Refresh reports and SoD source inspection | `/api/data-sources/reports/{id}`, `/export`, `/api/data-sources/sod/inspect`, `/inspection` | TODO | None | Port from `routers/data_sources.py` | Medium | Yes |
+| MIG-010 | Data Sources | Refresh report detail and change export; SoD source inspection | `/api/data-sources/reports/{id}`, `/reports/{id}/export`, `/api/data-sources/sod/inspect`, `/inspection` | TODO | The report routes page and export per-record changes (`type`, `identifier`, `fields`, `before`, `after`). `ImportChecks.Diff` (`src/SapLens.Domain/Imports/ImportChecks.cs`) returns counts only, and the stored refresh report (`V1DataSources.cs`, around line 222) has no `changes` | Extend `Diff` to emit v1 `csv_lifecycle.diff_records` changes (groups sorted by record key, display identifier per source, field-level modifications), store them in the refresh report, then port `details`/`export` (`routers/data_sources.py` lines 26-69). Acceptance: report items and CSV equal v1 for a re-import with added, removed and modified rows | Medium | Yes |
 | MIG-013 | SoD scope | Context, filter options, overview (the Dashboard calls `/api/sod/overview`) | `/api/sod/context`, `/api/sod/filter-options`, `/api/sod/overview` | BLOCKED | `sod_scope.load`/`model_for` need `sod_governance.derive`, the SoD review store (`sod_reviews.review_data`) and periods (`sod_periods`); the overview counts reviewed/pending/outdated from that store (MIG-014, MIG-016). Functional Groups for some filters (MIG-004) | After MIG-014: port `governance.derive` and `sod_scope.load` for the `current` context first (periods later); acceptance: overview counts equal v1 on the analysis fixture | High | No |
 | MIG-019 | Diagnostics | Scheduler state in diagnostics (`scheduled_refresh.last_*`) is reported as never attempted because the scheduler is not migrated | `/api/diagnostics` | TODO | MIG-008 | Report the real scheduler state once MIG-008 exists | Low | Yes |
 | MIG-014 | SoD decisions | Assignment, bulk, risk/activity decisions, history, subject, review subjects, legacy reviews, simulate | `/api/sod/decisions/*`, `/api/sod/subject`, `/api/sod/review-subjects`, `/api/sod/reviews/{x}`, `/api/sod/simulate` | TODO | Hash-chained decision store exists for Account Review; SoD needs its own chain (`sod_decisions.py`) | Port with immutable history and per-user attribution | High | Yes |
@@ -22,6 +22,15 @@ Statuses: TODO, BLOCKED, READY, IN PROGRESS, RESOLVED, VERIFIED. "Independent" m
 | MIG-016 | SoD periods | Periods lifecycle, transitions, recapture, compare, deletion impact, frozen snapshots | `/api/sod/periods*` (8) | TODO | MIG-014 | Port `sod_periods.py` | High | No |
 | MIG-017 | SoD remediation | Remediation list, actions, export | `/api/sod/remediation*` | TODO | MIG-014 | Port from `sod_governance.py` | High | No |
 | MIG-018 | SoD reports | Preview, PDF, DOCX, remediation CSV/PDF, branding | `/api/sod/reports/*` | TODO | MIG-016, MIG-017; PDF/DOCX generation without Python (no PDF/DOCX library in the base library) | Decide report libraries (dependency decision as MIG-001) | Medium | No |
+
+## Recommended order
+
+1. MIG-014 SoD decisions (unblocks MIG-013, MIG-015, MIG-016, MIG-017, then MIG-018).
+2. MIG-004 Functional Groups (unblocks the remaining User Access and SoD analysis filters).
+3. MIG-005 Backup and restore (v1 contract on the existing SQLite backups first).
+4. MIG-003 Account Review position and manager changes.
+5. MIG-009 import previews, MIG-010 refresh report changes, MIG-008 scheduled refresh.
+6. Dependency decisions for MIG-001 (image codec) and MIG-018 (PDF/DOCX).
 
 ## Resolved
 
