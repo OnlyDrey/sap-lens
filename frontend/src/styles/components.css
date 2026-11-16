@@ -1514,3 +1514,45 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .results-toolbar-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
 /* A tooltip, menu or focus ring opened inside a pinned cell must rise above the neighbouring pinned cells of the rows below. */
 .user-directory-table td.ud-sticky-1:has([data-open="true"]),.user-directory-table td.ud-sticky-2:has([data-open="true"]),.user-directory-table td.ud-sticky-1:focus-within,.user-directory-table td.ud-sticky-2:focus-within { z-index:5; }
+
+/* Dialog sizes: wide (default) for tables and evidence, medium for forms and account settings, narrow for confirmations. */
+.ui-dialog[data-size="medium"] { width:min(720px,100%); }
+.ui-dialog[data-size="narrow"] { width:min(520px,100%); }
+.ui-dialog-heading { display:grid; gap:2px; min-width:0; }
+.ui-dialog-heading h2 { overflow-wrap:anywhere; }
+/* Password field: the visibility toggle sits inside the control's right edge. */
+.ui-password { position:relative; display:block; }
+.ui-password > .ui-control { width:100%; padding-right:2.5rem; }
+.ui-password > .ui-button { position:absolute; top:50%; right:2px; transform:translateY(-50%); z-index:1; }
+/* Row action menu (ActionMenu). */
+.action-menu-list { display:grid; gap:2px; padding:var(--space-1); }
+.action-menu-item { display:flex; align-items:flex-start; gap:var(--space-2); width:100%; padding:var(--space-2); border:1px solid transparent; border-radius:var(--radius-control); background:transparent; color:var(--text); text-align:left; cursor:pointer; font-size:var(--font-label); }
+.action-menu-item:hover:not(:disabled) { background:var(--hover); }
+.action-menu-item:disabled { color:var(--muted); cursor:not-allowed; }
+.action-menu-item[data-tone="destructive"]:not(:disabled) { color:var(--error); }
+.action-menu-item svg { flex:none; margin-top:2px; }
+.action-menu-item > span { display:grid; gap:2px; min-width:0; }
+.action-menu-item > span > span { color:var(--muted); font-size:var(--font-meta); font-weight:400; }
+/* Account settings (My Profile) and user administration. */
+.account-section { display:grid; gap:var(--space-3); }
+.account-section + .account-section { border-top:1px solid var(--border); padding-top:var(--space-4); }
+.account-section > header { display:grid; gap:2px; }
+.account-section > header h3 { font-size:var(--font-label); font-weight:600; }
+.account-form-grid { display:grid; gap:var(--space-3); grid-template-columns:repeat(2,minmax(0,1fr)); }
+.account-form-grid > .account-form-wide { grid-column:1 / -1; }
+.account-actions { display:flex; flex-wrap:wrap; align-items:center; gap:var(--space-2); }
+.account-actions > .account-feedback { margin-right:auto; }
+.account-feedback { font-size:var(--font-meta); }
+.account-feedback[role="alert"] { color:var(--error); }
+.account-feedback[role="status"] { color:var(--success); }
+.password-rules { display:grid; gap:2px; margin:0; padding:0; list-style:none; font-size:var(--font-meta); color:var(--muted); }
+.password-rules li[data-met="true"] { color:var(--success); }
+.password-rules li { display:flex; align-items:center; gap:var(--space-1); }
+.user-admin-toolbar { display:flex; flex-wrap:wrap; align-items:flex-end; gap:var(--space-3); }
+.user-admin-toolbar > .ui-search { flex:1 1 16rem; min-width:12rem; }
+.user-admin-toolbar > .ui-field { flex:0 1 11rem; min-width:9rem; }
+.user-admin-count { font-size:var(--font-meta); color:var(--muted); }
+.user-admin-table td.user-admin-name { max-width:18rem; overflow-wrap:anywhere; }
+.user-admin-table td.col-actions, .user-admin-table th.col-actions { width:1%; white-space:nowrap; text-align:right; }
+.security-audit .access-table { max-height:22rem; }
+@media(max-width:640px){ .account-form-grid { grid-template-columns:minmax(0,1fr); } .user-admin-toolbar > .ui-field { flex:1 1 100%; } }

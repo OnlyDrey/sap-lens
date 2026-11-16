@@ -29,13 +29,20 @@ export function Dialog({
   children,
   onClose,
   footer,
+  size = 'wide',
+  description,
 }: {
   title: string
   children: ReactNode
   onClose: () => void
   footer?: ReactNode
+  /** `wide` (default) for tables and evidence; `medium` (about 720px) for forms and account settings; `narrow` (about 520px) for confirmations. */
+  size?: 'wide' | 'medium' | 'narrow'
+  /** One line under the title, linked as the dialog's description. */
+  description?: string
 }) {
   const id = useId(),
+    descriptionId = `${id}-description`,
     dialog = useRef<HTMLDivElement>(null),
     close = useRef(onClose)
   close.current = onClose
@@ -102,12 +109,14 @@ export function Dialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby={id}
+        aria-describedby={description ? descriptionId : undefined}
         tabIndex={-1}
         ref={dialog}
         className="ui-dialog"
+        data-size={size}
       >
         <header>
-          <h2 id={id}>{title}</h2>
+          <div className="ui-dialog-heading"><h2 id={id}>{title}</h2>{description && <p id={descriptionId} className="ui-description">{description}</p>}</div>
           <IconButton label="Close dialog" onClick={onClose}>
             <X size={16} />
           </IconButton>

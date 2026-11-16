@@ -13,7 +13,7 @@ import {
   type InputHTMLAttributes,
   type ReactNode,
 } from 'react'
-import { Search, X } from 'lucide-react'
+import { Eye, EyeOff, Search, X } from 'lucide-react'
 export const controlClass = 'ui-control'
 export const Input = forwardRef<
   HTMLInputElement,
@@ -25,6 +25,12 @@ export const Input = forwardRef<
 })
 export const SearchInput = forwardRef<HTMLInputElement,InputHTMLAttributes<HTMLInputElement> & {onClear?:()=>void}>(function SearchInput({onClear,...props},ref) {
  return <span className="ui-search" data-clearable={!!onClear}><Search size={16} aria-hidden="true"/><Input {...props} ref={ref} type={props.type || 'search'}/>{onClear&&!!props.value&&<Button variant="ghost" size="icon" aria-label={`Clear ${props['aria-label'] || 'search'}`} onClick={event=>{const input=event.currentTarget.previousElementSibling;onClear();if(input instanceof HTMLInputElement)input.focus()}}><X size={14} aria-hidden="true"/></Button>}</span>
+})
+/** Password field with a visibility toggle. The toggle is a real button (aria-pressed) after the input, so it is reachable by keyboard and
+ *  announced; the value never leaves the input. Use inside FormField so the label targets the input. */
+export const PasswordInput = forwardRef<HTMLInputElement, Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>>(function PasswordInput({ className = '', ...props }, ref) {
+ const [visible, setVisible] = useState(false)
+ return <span className="ui-password"><Input {...props} ref={ref} className={className} type={visible ? 'text' : 'password'} spellCheck={false} autoCapitalize="off"/><Button variant="ghost" size="icon" aria-label={visible ? 'Hide password' : 'Show password'} aria-pressed={visible} disabled={props.disabled} onClick={() => setVisible(value => !value)}>{visible ? <EyeOff size={16} aria-hidden="true"/> : <Eye size={16} aria-hidden="true"/>}</Button></span>
 })
 /** Slot at the right of a field's label row; controls (for example the multi-select Clear action) render into it through a portal. */
 const FieldActionSlot = createContext<HTMLElement | null>(null)
