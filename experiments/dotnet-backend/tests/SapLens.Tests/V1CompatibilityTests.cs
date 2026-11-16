@@ -134,10 +134,10 @@ public sealed class V1CompatibilityTests : IAsyncLifetime
 
     [Theory]
     [InlineData("GET", "/api/functional-groups")]
-    [InlineData("GET", "/api/access/exports/users")]
+    [InlineData("GET", "/api/retention")]
     [InlineData("POST", "/api/refresh")]
-    [InlineData("GET", "/api/diagnostics")]
-    [InlineData("POST", "/api/configuration/reset")]
+    [InlineData("GET", "/api/storage/status")]
+    [InlineData("POST", "/api/retention/approve")]
     [InlineData("GET", "/api/sod/overview")]
     [InlineData("POST", "/api/backups/create")]
     public async Task Routes_not_migrated_answer_501_with_a_detail_and_change_nothing(string method, string path)

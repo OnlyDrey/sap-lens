@@ -1,0 +1,1665 @@
+{
+ "two": {
+  "roles": [
+   {
+    "agr_name": "ZC:FI:ROLE_00012",
+    "text": "Synthetic role 12",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 4,
+    "single_role_count": 1,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:FI:ROLE_00012_C0",
+      "child_agr_text": "Child 0 of 12",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0084",
+      "ttext": "Transaction T0084",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0168",
+      "ttext": "Transaction T0168",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0190",
+      "ttext": "Transaction T0190",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0270",
+      "ttext": "Transaction T0270",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZC:FI:ROLE_00024",
+    "text": "Synthetic role 24",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 4,
+    "single_role_count": 1,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:FI:ROLE_00024_C0",
+      "child_agr_text": "Child 0 of 24",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0045",
+      "ttext": "Transaction T0045",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00024_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0142",
+      "ttext": "Transaction T0142",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00024_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0181",
+      "ttext": "Transaction T0181",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00024_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0356",
+      "ttext": "Transaction T0356",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00024_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   }
+  ],
+  "shared_single_roles": [],
+  "pairwise_single_overlaps": [
+   {
+    "role_a": "ZC:FI:ROLE_00012",
+    "role_b": "ZC:FI:ROLE_00024",
+    "shared_count": 0
+   }
+  ],
+  "shared_tcodes": [],
+  "pairwise_overlaps": [
+   {
+    "role_a": "ZC:FI:ROLE_00012",
+    "role_b": "ZC:FI:ROLE_00024",
+    "shared_count": 0
+   }
+  ]
+ },
+ "three": {
+  "roles": [
+   {
+    "agr_name": "ZC:FI:ROLE_00036",
+    "text": "Synthetic role 36",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 4,
+    "single_role_count": 1,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:FI:ROLE_00036_C0",
+      "child_agr_text": "Child 0 of 36",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0077",
+      "ttext": "Transaction T0077",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00036_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0198",
+      "ttext": "Transaction T0198",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00036_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0205",
+      "ttext": "Transaction T0205",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00036_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0386",
+      "ttext": "Transaction T0386",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00036_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZC:FI:ROLE_00012",
+    "text": "Synthetic role 12",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 4,
+    "single_role_count": 1,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:FI:ROLE_00012_C0",
+      "child_agr_text": "Child 0 of 12",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0084",
+      "ttext": "Transaction T0084",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0168",
+      "ttext": "Transaction T0168",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0190",
+      "ttext": "Transaction T0190",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0270",
+      "ttext": "Transaction T0270",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "text": "Synthetic role 0",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 6,
+    "single_role_count": 3,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+      "child_agr_text": null,
+      "tcode_count": 1
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+      "child_agr_text": "Child 0 of 0",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_EFF",
+      "child_agr_text": null,
+      "tcode_count": 1
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0012",
+      "ttext": "Transaction T0012",
+      "assignment_sources": [
+       {
+        "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0154",
+      "ttext": "Transaction T0154",
+      "assignment_sources": [
+       {
+        "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0243",
+      "ttext": "Transaction T0243",
+      "assignment_sources": [
+       {
+        "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0359",
+      "ttext": "Transaction T0359",
+      "assignment_sources": [
+       {
+        "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0367",
+      "ttext": "Effective path",
+      "assignment_sources": [
+       {
+        "child_agr": null,
+        "parent_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+        "effective_role": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_EFF"
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0392",
+      "ttext": null,
+      "assignment_sources": [
+       {
+        "child_agr": null,
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   }
+  ],
+  "shared_single_roles": [],
+  "pairwise_single_overlaps": [
+   {
+    "role_a": "ZC:FI:ROLE_00036",
+    "role_b": "ZC:FI:ROLE_00012",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00036",
+    "role_b": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00012",
+    "role_b": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "shared_count": 0
+   }
+  ],
+  "shared_tcodes": [],
+  "pairwise_overlaps": [
+   {
+    "role_a": "ZC:FI:ROLE_00036",
+    "role_b": "ZC:FI:ROLE_00012",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00036",
+    "role_b": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00012",
+    "role_b": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "shared_count": 0
+   }
+  ]
+ },
+ "same_children": {
+  "roles": [
+   {
+    "agr_name": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "text": "Synthetic role 0",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 6,
+    "single_role_count": 3,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+      "child_agr_text": null,
+      "tcode_count": 1
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+      "child_agr_text": "Child 0 of 0",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_EFF",
+      "child_agr_text": null,
+      "tcode_count": 1
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0012",
+      "ttext": "Transaction T0012",
+      "assignment_sources": [
+       {
+        "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0154",
+      "ttext": "Transaction T0154",
+      "assignment_sources": [
+       {
+        "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0243",
+      "ttext": "Transaction T0243",
+      "assignment_sources": [
+       {
+        "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0359",
+      "ttext": "Transaction T0359",
+      "assignment_sources": [
+       {
+        "child_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0367",
+      "ttext": "Effective path",
+      "assignment_sources": [
+       {
+        "child_agr": null,
+        "parent_agr": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+        "effective_role": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_EFF"
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0392",
+      "ttext": null,
+      "assignment_sources": [
+       {
+        "child_agr": null,
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZC:FI:ROLE_00024",
+    "text": "Synthetic role 24",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 4,
+    "single_role_count": 1,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:FI:ROLE_00024_C0",
+      "child_agr_text": "Child 0 of 24",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0045",
+      "ttext": "Transaction T0045",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00024_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0142",
+      "ttext": "Transaction T0142",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00024_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0181",
+      "ttext": "Transaction T0181",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00024_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0356",
+      "ttext": "Transaction T0356",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00024_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZC:FI:ROLE_00012",
+    "text": "Synthetic role 12",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 4,
+    "single_role_count": 1,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:FI:ROLE_00012_C0",
+      "child_agr_text": "Child 0 of 12",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0084",
+      "ttext": "Transaction T0084",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0168",
+      "ttext": "Transaction T0168",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0190",
+      "ttext": "Transaction T0190",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0270",
+      "ttext": "Transaction T0270",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00012_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZC:FI:ROLE_00036",
+    "text": "Synthetic role 36",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 4,
+    "single_role_count": 1,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:FI:ROLE_00036_C0",
+      "child_agr_text": "Child 0 of 36",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0077",
+      "ttext": "Transaction T0077",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00036_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0198",
+      "ttext": "Transaction T0198",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00036_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0205",
+      "ttext": "Transaction T0205",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00036_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0386",
+      "ttext": "Transaction T0386",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:FI:ROLE_00036_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   }
+  ],
+  "shared_single_roles": [],
+  "pairwise_single_overlaps": [
+   {
+    "role_a": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "role_b": "ZC:FI:ROLE_00024",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "role_b": "ZC:FI:ROLE_00012",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "role_b": "ZC:FI:ROLE_00036",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00024",
+    "role_b": "ZC:FI:ROLE_00012",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00024",
+    "role_b": "ZC:FI:ROLE_00036",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00012",
+    "role_b": "ZC:FI:ROLE_00036",
+    "shared_count": 0
+   }
+  ],
+  "shared_tcodes": [],
+  "pairwise_overlaps": [
+   {
+    "role_a": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "role_b": "ZC:FI:ROLE_00024",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "role_b": "ZC:FI:ROLE_00012",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+    "role_b": "ZC:FI:ROLE_00036",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00024",
+    "role_b": "ZC:FI:ROLE_00012",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00024",
+    "role_b": "ZC:FI:ROLE_00036",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:FI:ROLE_00012",
+    "role_b": "ZC:FI:ROLE_00036",
+    "shared_count": 0
+   }
+  ]
+ },
+ "overlap": {
+  "roles": [
+   {
+    "agr_name": "ZC:Finance:ROLE_00209",
+    "text": "Synthetic role 209",
+    "function_key": "FI",
+    "module_name": "Financial Accounting",
+    "tcode_count": 13,
+    "single_role_count": 4,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:Finance:ROLE_00209_C0",
+      "child_agr_text": "Child 0 of 209",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:Finance:ROLE_00209_C1",
+      "child_agr_text": "Child 1 of 209",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:Finance:ROLE_00209_C2",
+      "child_agr_text": "Child 2 of 209",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:Finance:ROLE_00209_EFF",
+      "child_agr_text": null,
+      "tcode_count": 1
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0050",
+      "ttext": "Transaction T0050",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0119",
+      "ttext": "Transaction T0119",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C1",
+        "parent_agr": "ZC:Finance:ROLE_00209",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0134",
+      "ttext": "Transaction T0134",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0156",
+      "ttext": "Transaction T0156",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C1",
+        "parent_agr": "ZC:Finance:ROLE_00209",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0170",
+      "ttext": "Transaction T0170",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0270",
+      "ttext": "Effective path",
+      "assignment_sources": [
+       {
+        "child_agr": null,
+        "parent_agr": "ZC:Finance:ROLE_00209",
+        "effective_role": "ZC:Finance:ROLE_00209_EFF"
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0300",
+      "ttext": "Transaction T0300",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0336",
+      "ttext": "Transaction T0336",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0371",
+      "ttext": "Transaction T0371",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C1",
+        "parent_agr": "ZC:Finance:ROLE_00209",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0380",
+      "ttext": "Transaction T0380",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:Finance:ROLE_00209_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZC:MM:ROLE_00182",
+    "text": "Synthetic role 182",
+    "function_key": "MM",
+    "module_name": "Materials Management",
+    "tcode_count": 13,
+    "single_role_count": 4,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00182",
+      "child_agr_text": null,
+      "tcode_count": 1
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00182_C0",
+      "child_agr_text": "Child 0 of 182",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00182_C1",
+      "child_agr_text": "Child 1 of 182",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00182_C2",
+      "child_agr_text": "Child 2 of 182",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0052",
+      "ttext": "Transaction T0052",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0066",
+      "ttext": "Transaction T0066",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0095",
+      "ttext": "Transaction T0095",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C1",
+        "parent_agr": "ZC:MM:ROLE_00182",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0157",
+      "ttext": "Transaction T0157",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0182",
+      "ttext": "Transaction T0182",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0256",
+      "ttext": "Transaction T0256",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0265",
+      "ttext": "Transaction T0265",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C1",
+        "parent_agr": "ZC:MM:ROLE_00182",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0292",
+      "ttext": "Transaction T0292",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0364",
+      "ttext": "Transaction T0364",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00182_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0394",
+      "ttext": null,
+      "assignment_sources": [
+       {
+        "child_agr": null,
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   }
+  ],
+  "shared_single_roles": [],
+  "pairwise_single_overlaps": [
+   {
+    "role_a": "ZC:Finance:ROLE_00209",
+    "role_b": "ZC:MM:ROLE_00182",
+    "shared_count": 0
+   }
+  ],
+  "shared_tcodes": [
+   {
+    "tcode": "T0114",
+    "ttext": "Transaction T0114",
+    "assignment_sources": [
+     {
+      "child_agr": "ZC:Finance:ROLE_00209_C0",
+      "parent_agr": null,
+      "effective_role": null
+     }
+    ],
+    "alternate_texts": []
+   },
+   {
+    "tcode": "T0224",
+    "ttext": "Transaction T0224",
+    "assignment_sources": [
+     {
+      "child_agr": "ZC:Finance:ROLE_00209_C1",
+      "parent_agr": "ZC:Finance:ROLE_00209",
+      "effective_role": null
+     }
+    ],
+    "alternate_texts": []
+   },
+   {
+    "tcode": "T0295",
+    "ttext": "Transaction T0295",
+    "assignment_sources": [
+     {
+      "child_agr": "ZC:Finance:ROLE_00209_C0",
+      "parent_agr": null,
+      "effective_role": null
+     }
+    ],
+    "alternate_texts": []
+   }
+  ],
+  "pairwise_overlaps": [
+   {
+    "role_a": "ZC:Finance:ROLE_00209",
+    "role_b": "ZC:MM:ROLE_00182",
+    "shared_count": 3
+   }
+  ]
+ },
+ "overlap_three": {
+  "roles": [
+   {
+    "agr_name": "ZC:MM:ROLE_00098",
+    "text": "Synthetic role 98",
+    "function_key": "MM",
+    "module_name": "Materials Management",
+    "tcode_count": 13,
+    "single_role_count": 4,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00098",
+      "child_agr_text": null,
+      "tcode_count": 1
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00098_C0",
+      "child_agr_text": "Child 0 of 98",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00098_C1",
+      "child_agr_text": "Child 1 of 98",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00098_C2",
+      "child_agr_text": "Child 2 of 98",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0005",
+      "ttext": "Transaction T0005",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C1",
+        "parent_agr": "ZC:MM:ROLE_00098",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0124",
+      "ttext": "Transaction T0124",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C1",
+        "parent_agr": "ZC:MM:ROLE_00098",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0141",
+      "ttext": null,
+      "assignment_sources": [
+       {
+        "child_agr": null,
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0176",
+      "ttext": "Transaction T0176",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0215",
+      "ttext": "Transaction T0215",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C1",
+        "parent_agr": "ZC:MM:ROLE_00098",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0324",
+      "ttext": "Transaction T0324",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0360",
+      "ttext": "Transaction T0360",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0361",
+      "ttext": "Transaction T0361",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0375",
+      "ttext": "Transaction T0375",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0386",
+      "ttext": "Transaction T0386",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C1",
+        "parent_agr": "ZC:MM:ROLE_00098",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0388",
+      "ttext": "Transaction T0388",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00098_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZC:PP:ROLE_00028",
+    "text": "Synthetic role 28",
+    "function_key": "PP",
+    "module_name": "Production Planning and Control",
+    "tcode_count": 9,
+    "single_role_count": 3,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:PP:ROLE_00028",
+      "child_agr_text": null,
+      "tcode_count": 1
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:PP:ROLE_00028_C0",
+      "child_agr_text": "Child 0 of 28",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:PP:ROLE_00028_C1",
+      "child_agr_text": "Child 1 of 28",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0026",
+      "ttext": "Transaction T0026",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:PP:ROLE_00028_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0293",
+      "ttext": "Transaction T0293",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:PP:ROLE_00028_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0373",
+      "ttext": "Transaction T0373",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:PP:ROLE_00028_C1",
+        "parent_agr": "ZC:PP:ROLE_00028",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0384",
+      "ttext": "Transaction T0384",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:PP:ROLE_00028_C1",
+        "parent_agr": "ZC:PP:ROLE_00028",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0387",
+      "ttext": "Transaction T0387",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:PP:ROLE_00028_C1",
+        "parent_agr": "ZC:PP:ROLE_00028",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   },
+   {
+    "agr_name": "ZC:MM:ROLE_00014",
+    "text": "Synthetic role 14",
+    "function_key": "MM",
+    "module_name": "Materials Management",
+    "tcode_count": 13,
+    "single_role_count": 4,
+    "exclusive_single_roles": [
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00014",
+      "child_agr_text": null,
+      "tcode_count": 1
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00014_C0",
+      "child_agr_text": "Child 0 of 14",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00014_C1",
+      "child_agr_text": "Child 1 of 14",
+      "tcode_count": 4
+     },
+     {
+      "function_key": "UNCLASSIFIED",
+      "module_name": "Unclassified",
+      "child_agr": "ZC:MM:ROLE_00014_C2",
+      "child_agr_text": "Child 2 of 14",
+      "tcode_count": 4
+     }
+    ],
+    "unique_tcodes": [
+     {
+      "tcode": "T0028",
+      "ttext": "Transaction T0028",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C1",
+        "parent_agr": "ZC:MM:ROLE_00014",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0056",
+      "ttext": "Transaction T0056",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0060",
+      "ttext": "Transaction T0060",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C1",
+        "parent_agr": "ZC:MM:ROLE_00014",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0074",
+      "ttext": "Transaction T0074",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0094",
+      "ttext": "Transaction T0094",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0109",
+      "ttext": null,
+      "assignment_sources": [
+       {
+        "child_agr": null,
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0197",
+      "ttext": "Transaction T0197",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C1",
+        "parent_agr": "ZC:MM:ROLE_00014",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0211",
+      "ttext": "Transaction T0211",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C2",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0308",
+      "ttext": "Transaction T0308",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C1",
+        "parent_agr": "ZC:MM:ROLE_00014",
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0341",
+      "ttext": "Transaction T0341",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     },
+     {
+      "tcode": "T0366",
+      "ttext": "Transaction T0366",
+      "assignment_sources": [
+       {
+        "child_agr": "ZC:MM:ROLE_00014_C0",
+        "parent_agr": null,
+        "effective_role": null
+       }
+      ],
+      "alternate_texts": []
+     }
+    ]
+   }
+  ],
+  "shared_single_roles": [],
+  "pairwise_single_overlaps": [
+   {
+    "role_a": "ZC:MM:ROLE_00098",
+    "role_b": "ZC:PP:ROLE_00028",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:MM:ROLE_00098",
+    "role_b": "ZC:MM:ROLE_00014",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:PP:ROLE_00028",
+    "role_b": "ZC:MM:ROLE_00014",
+    "shared_count": 0
+   }
+  ],
+  "shared_tcodes": [],
+  "pairwise_overlaps": [
+   {
+    "role_a": "ZC:MM:ROLE_00098",
+    "role_b": "ZC:PP:ROLE_00028",
+    "shared_count": 2
+   },
+   {
+    "role_a": "ZC:MM:ROLE_00098",
+    "role_b": "ZC:MM:ROLE_00014",
+    "shared_count": 0
+   },
+   {
+    "role_a": "ZC:PP:ROLE_00028",
+    "role_b": "ZC:MM:ROLE_00014",
+    "shared_count": 2
+   }
+  ]
+ }
+}

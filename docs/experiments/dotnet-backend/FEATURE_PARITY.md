@@ -5,7 +5,13 @@ implementation and this .NET branch. Measured, not assumed: the UI references **
 `frontend/src`), served in v1 by about 4,600 lines of routers over about 23,000 lines of backend modules. Status as of this milestone.
 
 Route-level status is generated from code in [ROUTE_AUDIT.md](ROUTE_AUDIT.md) (`tools/route_audit.py`); release status in
-[RELEASE_STATUS.md](RELEASE_STATUS.md).
+[RELEASE_STATUS.md](RELEASE_STATUS.md); the actionable, dependency-ordered list of what remains (with blockers and acceptance criteria) is
+[MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.md), which supersedes the "Missing" column below where they differ. Note: the route audit counts a
+template route such as `/api/access/{x}` once, so it can understate missing sub-routes; the backlog lists them.
+
+Since this matrix was written, these are **Done** (equivalence-tested against Python v1 where data-dependent): configuration export/import/reset
+and the Desktop reviewer profile; User Access selection and assignment CSV export; all Release Roles routes and exports; assignment-date filters;
+diagnostics; the legacy role comparison (`POST /api/compare`).
 
 Legend for .NET status: **Done** = served at the v1 route with the v1 shape and covered by contract tests; **Domain** = business rules ported and
 equivalence-tested against Python, but the v1 route is not served yet; **Partial** = some routes served; **None** = nothing yet. Every route that

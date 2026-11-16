@@ -1,0 +1,41 @@
+[
+ {
+  "name": "two",
+  "roles": [
+   "ZC:FI:ROLE_00012",
+   "ZC:FI:ROLE_00024"
+  ]
+ },
+ {
+  "name": "three",
+  "roles": [
+   "ZC:FI:ROLE_00036",
+   "ZC:FI:ROLE_00012",
+   "ZO:MM:M0:PO_REL_ST_E0_00:ALL"
+  ]
+ },
+ {
+  "name": "same_children",
+  "roles": [
+   "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+   "ZC:FI:ROLE_00024",
+   "ZC:FI:ROLE_00012",
+   "ZC:FI:ROLE_00036"
+  ]
+ },
+ {
+  "name": "overlap",
+  "roles": [
+   "ZC:Finance:ROLE_00209",
+   "ZC:MM:ROLE_00182"
+  ]
+ },
+ {
+  "name": "overlap_three",
+  "roles": [
+   "ZC:MM:ROLE_00098",
+   "ZC:PP:ROLE_00028",
+   "ZC:MM:ROLE_00014"
+  ]
+ }
+]

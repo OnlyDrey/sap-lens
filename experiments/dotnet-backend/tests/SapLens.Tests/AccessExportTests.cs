@@ -104,6 +104,33 @@ public sealed class AccessExportTests : IAsyncLifetime
         Assert.True(failures.Count == 0, string.Join("\n", failures));
     }
 
+    [Fact]
+    public async Task Legacy_role_comparison_equals_python_v1_and_validates_like_v1()
+    {
+        var expected = JsonNode.Parse(File.ReadAllText(Fixture("access", "compare-expected.python.json")))!.AsObject();
+        foreach (var spec in JsonNode.Parse(File.ReadAllText(Fixture("access", "compare-queries.json")))!.AsArray())
+        {
+            var response = await Post("/api/compare", new JsonObject { ["roles"] = spec!["roles"]!.DeepClone() });
+            Assert.Equal(HttpStatusCode.OK, response.Status);
+            var actual = response.Body!.AsObject();
+            Assert.NotNull(actual["analysis"]);
+            actual.Remove("analysis");
+            Assert.True(JsonNode.DeepEquals(expected[(string)spec["name"]!], actual), $"{spec["name"]}: {Short(actual)}");
+        }
+        Assert.Equal((HttpStatusCode)422, (await Post("/api/compare", new JsonObject { ["roles"] = new JsonArray("ZC:FI:ROLE_00012") })).Status);
+        Assert.Equal((HttpStatusCode)422, (await Post("/api/compare", new JsonObject { ["roles"] = new JsonArray("A", "B", "C", "D", "E", "F") })).Status);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post("/api/compare", new JsonObject { ["roles"] = new JsonArray("ZC:FI:ROLE_00012", "ZC:FI:ROLE_00012") })).Status);
+        Assert.Equal(HttpStatusCode.NotFound, (await Post("/api/compare", new JsonObject { ["roles"] = new JsonArray("ZC:FI:ROLE_00012", "NOPE") })).Status);
+    }
+
+    private async Task<(HttpStatusCode Status, JsonNode? Body)> Post(string path, JsonNode body)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, path) { Content = new StringContent(body.ToJsonString(), Encoding.UTF8, "application/json") };
+        request.Headers.Add("Origin", _client.BaseAddress!.GetLeftPart(UriPartial.Authority));
+        var response = await _client.SendAsync(request);
+        return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync()));
+    }
+
     private static string Short(JsonNode? node) { var text = node?.ToJsonString() ?? "null"; return text.Length > 300 ? text[..300] : text; }
 
     [Fact]
