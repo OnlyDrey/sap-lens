@@ -1,0 +1,3079 @@
+{
+ "employees": {
+  "exports": [
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Employee Directory\",\"modified\",\"CN=Person 2,OU=Staff\",\"Department\",\"Finance\",\"Sales\"\r\n\"T\",\"Employee Directory\",\"modified\",\"CN=Person 3,OU=Staff\",\"Department\",\"Finance\",\"Sales\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Department\",\"\",\"Finance\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"DistinguishedName\",\"\",\"CN=Person 31,OU=Staff\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Enabled\",\"\",\"True\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Mail\",\"\",\"person31@example.invalid\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerDN\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerDepartment\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerLookupStatus\",\"\",\"Resolved\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerMail\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerSamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerTitle\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Name\",\"\",\"Person 31\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"SamAccountName\",\"\",\"P031\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Site\",\"\",\"HQ\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Title\",\"\",\"Analyst\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"UserPrincipalName\",\"\",\"p31@example.invalid\"\r\n\"T\",\"Employee Directory\",\"modified\",\"cn=PERSON 5,ou=staff\",\"DistinguishedName\",\"CN=Person 5,OU=Staff\",\"cn=PERSON 5,ou=staff\"\r\n\"T\",\"Employee Directory\",\"modified\",\"cn=PERSON 5,ou=staff\",\"Title\",\"Analyst\",\"Lead\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Department\",\"Finance\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"DistinguishedName\",\"CN=Person 7,OU=Staff\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Enabled\",\"True\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Mail\",\"person7@example.invalid\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerDN\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerDepartment\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerLookupStatus\",\"Resolved\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerMail\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerSamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerTitle\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Name\",\"Person 7\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"SamAccountName\",\"P007\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Site\",\"HQ\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Title\",\"Analyst\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"UserPrincipalName\",\"p7@example.invalid\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Department\",\"Finance\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"DistinguishedName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Enabled\",\"True\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Mail\",\"person90@example.invalid\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerDN\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerDepartment\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerLookupStatus\",\"Resolved\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerMail\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerSamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerTitle\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Name\",\"Person 90\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"SamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Site\",\"HQ\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Title\",\"Analyst\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"UserPrincipalName\",\"p90@example.invalid\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Department\",\"\",\"Finance\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"DistinguishedName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Enabled\",\"\",\"True\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Mail\",\"\",\"person91@example.invalid\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerDN\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerDepartment\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerLookupStatus\",\"\",\"Resolved\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerMail\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerSamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerTitle\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Name\",\"\",\"Person 91\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"SamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Site\",\"\",\"HQ\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Title\",\"\",\"Analyst\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"UserPrincipalName\",\"\",\"p91@example.invalid\"\r\n",
+    "query": {}
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Employee Directory\",\"modified\",\"CN=Person 2,OU=Staff\",\"Department\",\"Finance\",\"Sales\"\r\n\"T\",\"Employee Directory\",\"modified\",\"CN=Person 3,OU=Staff\",\"Department\",\"Finance\",\"Sales\"\r\n\"T\",\"Employee Directory\",\"modified\",\"cn=PERSON 5,ou=staff\",\"DistinguishedName\",\"CN=Person 5,OU=Staff\",\"cn=PERSON 5,ou=staff\"\r\n\"T\",\"Employee Directory\",\"modified\",\"cn=PERSON 5,ou=staff\",\"Title\",\"Analyst\",\"Lead\"\r\n",
+    "query": {
+     "kind": "modified"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Department\",\"\",\"Finance\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"DistinguishedName\",\"\",\"CN=Person 31,OU=Staff\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Enabled\",\"\",\"True\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Mail\",\"\",\"person31@example.invalid\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerDN\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerDepartment\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerLookupStatus\",\"\",\"Resolved\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerMail\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerSamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"ManagerTitle\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Name\",\"\",\"Person 31\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"SamAccountName\",\"\",\"P031\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Site\",\"\",\"HQ\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"Title\",\"\",\"Analyst\"\r\n\"T\",\"Employee Directory\",\"added\",\"CN=Person 31,OU=Staff\",\"UserPrincipalName\",\"\",\"p31@example.invalid\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Department\",\"\",\"Finance\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"DistinguishedName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Enabled\",\"\",\"True\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Mail\",\"\",\"person91@example.invalid\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerDN\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerDepartment\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerLookupStatus\",\"\",\"Resolved\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerMail\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerSamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"ManagerTitle\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Name\",\"\",\"Person 91\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"SamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Site\",\"\",\"HQ\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"Title\",\"\",\"Analyst\"\r\n\"T\",\"Employee Directory\",\"added\",\"Unidentified record\",\"UserPrincipalName\",\"\",\"p91@example.invalid\"\r\n",
+    "query": {
+     "kind": "added"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Department\",\"Finance\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"DistinguishedName\",\"CN=Person 7,OU=Staff\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Enabled\",\"True\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Mail\",\"person7@example.invalid\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerDN\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerDepartment\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerLookupStatus\",\"Resolved\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerMail\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerSamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"ManagerTitle\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Name\",\"Person 7\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"SamAccountName\",\"P007\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Site\",\"HQ\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"Title\",\"Analyst\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"CN=Person 7,OU=Staff\",\"UserPrincipalName\",\"p7@example.invalid\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Department\",\"Finance\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"DistinguishedName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Enabled\",\"True\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Mail\",\"person90@example.invalid\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerDN\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerDepartment\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerLookupStatus\",\"Resolved\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerMail\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerSamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"ManagerTitle\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Name\",\"Person 90\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"SamAccountName\",\"\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Site\",\"HQ\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"Title\",\"Analyst\",\"\"\r\n\"T\",\"Employee Directory\",\"removed\",\"Unidentified record\",\"UserPrincipalName\",\"p90@example.invalid\",\"\"\r\n",
+    "query": {
+     "kind": "removed"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n",
+    "query": {
+     "search": "variant"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Employee Directory\",\"modified\",\"CN=Person 2,OU=Staff\",\"Department\",\"Finance\",\"Sales\"\r\n\"T\",\"Employee Directory\",\"modified\",\"CN=Person 3,OU=Staff\",\"Department\",\"Finance\",\"Sales\"\r\n",
+    "query": {
+     "search": "SALES"
+    }
+   }
+  ],
+  "pages": [
+   {
+    "items": [
+     {
+      "after": {
+       "Department": "Sales",
+       "DistinguishedName": "CN=Person 2,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person2@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 2",
+       "SamAccountName": "P002",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p2@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 2,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person2@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 2",
+       "SamAccountName": "P002",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p2@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "Sales",
+        "before": "Finance",
+        "field": "Department"
+       }
+      ],
+      "identifier": "CN=Person 2,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "Department": "Sales",
+       "DistinguishedName": "CN=Person 3,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person3@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 3",
+       "SamAccountName": "P003",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p3@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 3,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person3@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 3",
+       "SamAccountName": "P003",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p3@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "Sales",
+        "before": "Finance",
+        "field": "Department"
+       }
+      ],
+      "identifier": "CN=Person 3,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 31,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person31@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 31",
+       "SamAccountName": "P031",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p31@example.invalid"
+      },
+      "fields": [],
+      "identifier": "CN=Person 31,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "added"
+     },
+     {
+      "after": {
+       "Department": "Finance",
+       "DistinguishedName": "cn=PERSON 5,ou=staff",
+       "Enabled": "True",
+       "Mail": "person5@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 5",
+       "SamAccountName": "P005",
+       "Site": "HQ",
+       "Title": "Lead",
+       "UserPrincipalName": "p5@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 5,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person5@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 5",
+       "SamAccountName": "P005",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p5@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "cn=PERSON 5,ou=staff",
+        "before": "CN=Person 5,OU=Staff",
+        "field": "DistinguishedName"
+       },
+       {
+        "after": "Lead",
+        "before": "Analyst",
+        "field": "Title"
+       }
+      ],
+      "identifier": "cn=PERSON 5,ou=staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     },
+     {
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 7,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person7@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 7",
+       "SamAccountName": "P007",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p7@example.invalid"
+      },
+      "fields": [],
+      "identifier": "CN=Person 7,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "",
+       "Enabled": "True",
+       "Mail": "person90@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 90",
+       "SamAccountName": "",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p90@example.invalid"
+      },
+      "fields": [],
+      "identifier": "Unidentified record",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "removed"
+     },
+     {
+      "after": {
+       "Department": "Finance",
+       "DistinguishedName": "",
+       "Enabled": "True",
+       "Mail": "person91@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 91",
+       "SamAccountName": "",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p91@example.invalid"
+      },
+      "fields": [],
+      "identifier": "Unidentified record",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "added"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {},
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 7
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "Department": "Sales",
+       "DistinguishedName": "CN=Person 2,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person2@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 2",
+       "SamAccountName": "P002",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p2@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 2,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person2@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 2",
+       "SamAccountName": "P002",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p2@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "Sales",
+        "before": "Finance",
+        "field": "Department"
+       }
+      ],
+      "identifier": "CN=Person 2,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "Department": "Sales",
+       "DistinguishedName": "CN=Person 3,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person3@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 3",
+       "SamAccountName": "P003",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p3@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 3,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person3@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 3",
+       "SamAccountName": "P003",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p3@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "Sales",
+        "before": "Finance",
+        "field": "Department"
+       }
+      ],
+      "identifier": "CN=Person 3,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "Department": "Finance",
+       "DistinguishedName": "cn=PERSON 5,ou=staff",
+       "Enabled": "True",
+       "Mail": "person5@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 5",
+       "SamAccountName": "P005",
+       "Site": "HQ",
+       "Title": "Lead",
+       "UserPrincipalName": "p5@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 5,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person5@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 5",
+       "SamAccountName": "P005",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p5@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "cn=PERSON 5,ou=staff",
+        "before": "CN=Person 5,OU=Staff",
+        "field": "DistinguishedName"
+       },
+       {
+        "after": "Lead",
+        "before": "Analyst",
+        "field": "Title"
+       }
+      ],
+      "identifier": "cn=PERSON 5,ou=staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "modified"
+    },
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 3
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 31,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person31@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 31",
+       "SamAccountName": "P031",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p31@example.invalid"
+      },
+      "fields": [],
+      "identifier": "CN=Person 31,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "added"
+     },
+     {
+      "after": {
+       "Department": "Finance",
+       "DistinguishedName": "",
+       "Enabled": "True",
+       "Mail": "person91@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 91",
+       "SamAccountName": "",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p91@example.invalid"
+      },
+      "fields": [],
+      "identifier": "Unidentified record",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "added"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "added"
+    },
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 2
+   },
+   {
+    "items": [
+     {
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 7,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person7@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 7",
+       "SamAccountName": "P007",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p7@example.invalid"
+      },
+      "fields": [],
+      "identifier": "CN=Person 7,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "",
+       "Enabled": "True",
+       "Mail": "person90@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 90",
+       "SamAccountName": "",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p90@example.invalid"
+      },
+      "fields": [],
+      "identifier": "Unidentified record",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "removed"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "removed"
+    },
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 2
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "search": "variant"
+    },
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 0
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "Department": "Sales",
+       "DistinguishedName": "CN=Person 2,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person2@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 2",
+       "SamAccountName": "P002",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p2@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 2,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person2@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 2",
+       "SamAccountName": "P002",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p2@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "Sales",
+        "before": "Finance",
+        "field": "Department"
+       }
+      ],
+      "identifier": "CN=Person 2,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "Department": "Sales",
+       "DistinguishedName": "CN=Person 3,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person3@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 3",
+       "SamAccountName": "P003",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p3@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 3,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person3@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 3",
+       "SamAccountName": "P003",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p3@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "Sales",
+        "before": "Finance",
+        "field": "Department"
+       }
+      ],
+      "identifier": "CN=Person 3,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "search": "SALES"
+    },
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 2
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "Department": "Sales",
+       "DistinguishedName": "CN=Person 3,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person3@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 3",
+       "SamAccountName": "P003",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p3@example.invalid"
+      },
+      "before": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 3,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person3@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 3",
+       "SamAccountName": "P003",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p3@example.invalid"
+      },
+      "fields": [
+       {
+        "after": "Sales",
+        "before": "Finance",
+        "field": "Department"
+       }
+      ],
+      "identifier": "CN=Person 3,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "Department": "Finance",
+       "DistinguishedName": "CN=Person 31,OU=Staff",
+       "Enabled": "True",
+       "Mail": "person31@example.invalid",
+       "ManagerDN": "",
+       "ManagerDepartment": "",
+       "ManagerLookupStatus": "Resolved",
+       "ManagerMail": "",
+       "ManagerName": "",
+       "ManagerSamAccountName": "",
+       "ManagerTitle": "",
+       "Name": "Person 31",
+       "SamAccountName": "P031",
+       "Site": "HQ",
+       "Title": "Analyst",
+       "UserPrincipalName": "p31@example.invalid"
+      },
+      "fields": [],
+      "identifier": "CN=Person 31,OU=Staff",
+      "source": "employees",
+      "source_name": "Employee Directory",
+      "type": "added"
+     }
+    ],
+    "limit": 2,
+    "offset": 1,
+    "query": {
+     "limit": 2,
+     "offset": 1
+    },
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 7
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "source": "roles"
+    },
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 0
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "modified",
+     "source": "users"
+    },
+    "source": {
+     "added": 2,
+     "ambiguous_identifiers": 1,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 2,
+     "modified": 3,
+     "name": "Employee Directory",
+     "records": 31,
+     "removed": 2,
+     "source": "employees",
+     "status": "updated",
+     "unchanged": 26
+    },
+    "total": 0
+   }
+  ]
+ },
+ "roles": {
+  "exports": [
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"AGR_NAME\",\"ZC:CO:ROLE_00001\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"CHILD_AGR\",\"ZC:CO:ROLE_00001_C1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"CHILD_AGR_TEXT\",\"Child 1 of 1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"FUNCTION_KEY\",\"CO\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"PARENT_AGR\",\"ZC:CO:ROLE_00001\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"TCODE\",\"T0090\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"TEXT\",\"Synthetic role 1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"TTEXT\",\"Transaction T0090\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"AGR_NAME\",\"ZC:CO:ROLE_00001\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"CHILD_AGR\",\"ZC:CO:ROLE_00001_C1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"CHILD_AGR_TEXT\",\"Child 1 of 1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"FUNCTION_KEY\",\"CO\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"PARENT_AGR\",\"ZC:CO:ROLE_00001\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"TCODE\",\"T0357\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"TEXT\",\"Synthetic role 1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"TTEXT\",\"Transaction T0357\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"AGR_NAME\",\"\",\"ZC:MM:ROLE_00002\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"CHILD_AGR\",\"\",\"ZC:MM:ROLE_00002_C1\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"CHILD_AGR_TEXT\",\"\",\"Child 1 of 2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"FUNCTION_KEY\",\"\",\"MM\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"PARENT_AGR\",\"\",\"ZC:MM:ROLE_00002\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"TCODE\",\"\",\"ZNEW1\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"TEXT\",\"\",\"Synthetic role 2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"TTEXT\",\"\",\"Transaction T0122\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"AGR_NAME\",\"\",\"ZC:MM:ROLE_00002\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"CHILD_AGR\",\"\",\"ZC:MM:ROLE_00002_C1\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"CHILD_AGR_TEXT\",\"\",\"Child 1 of 2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"FUNCTION_KEY\",\"\",\"MM\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"PARENT_AGR\",\"\",\"ZC:MM:ROLE_00002\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"TCODE\",\"\",\"ZNEW2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"TEXT\",\"\",\"Synthetic role 2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"TTEXT\",\"\",\"Transaction T0122\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"AGR_NAME\",\"ZC:PP:ROLE_00004\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"CHILD_AGR\",\"ZC:PP:ROLE_00004_C0\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"CHILD_AGR_TEXT\",\"Child 0 of 4\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"FUNCTION_KEY\",\"PP\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"TCODE\",\"T0364\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"TEXT\",\"Synthetic role 4\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"TTEXT\",\"Transaction T0364\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"AGR_NAME\",\"\",\"ZC:PP:ROLE_00004\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR\",\"\",\"ZC:PP:ROLE_00004_C0\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR_TEXT\",\"\",\"Child 0 of 4\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"FUNCTION_KEY\",\"\",\"PP\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TCODE\",\"\",\"T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TEXT\",\"\",\"Variant A\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TTEXT\",\"\",\"Transaction T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"AGR_NAME\",\"\",\"ZC:PP:ROLE_00004\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR\",\"\",\"ZC:PP:ROLE_00004_C0\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR_TEXT\",\"\",\"Child 0 of 4\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"FUNCTION_KEY\",\"\",\"PP\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TCODE\",\"\",\"T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TEXT\",\"\",\"Variant B\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TTEXT\",\"\",\"Transaction T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"AGR_NAME\",\"\",\"zo:finance:role_00005\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"CHILD_AGR\",\"\",\"ZO:Finance:ROLE_00005_C0\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"CHILD_AGR_TEXT\",\"\",\"Child 0 of 5\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"FUNCTION_KEY\",\"\",\"Finance\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"TCODE\",\"\",\"T0321\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"TEXT\",\"\",\"Synthetic role 5\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"TTEXT\",\"\",\"Transaction T0321\"\r\n\"T\",\"Role Catalogue\",\"modified\",\"ZO:MM:M0:PO_REL_ST_E0_00:ALL / T0392\",\"FUNCTION_KEY\",\"FI\",\"HR\"\r\n\"T\",\"Role Catalogue\",\"modified\",\"ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0243\",\"TEXT\",\"Synthetic role 0\",\"'=SUM(1,2)\"\r\n\"T\",\"Role Catalogue\",\"modified\",\"ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0359\",\"TEXT\",\"Synthetic role 0\",\"Quoted \"\"role\"\", with comma\"\r\n",
+    "query": {}
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Role Catalogue\",\"modified\",\"ZO:MM:M0:PO_REL_ST_E0_00:ALL / T0392\",\"FUNCTION_KEY\",\"FI\",\"HR\"\r\n\"T\",\"Role Catalogue\",\"modified\",\"ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0243\",\"TEXT\",\"Synthetic role 0\",\"'=SUM(1,2)\"\r\n\"T\",\"Role Catalogue\",\"modified\",\"ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0359\",\"TEXT\",\"Synthetic role 0\",\"Quoted \"\"role\"\", with comma\"\r\n",
+    "query": {
+     "kind": "modified"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"AGR_NAME\",\"\",\"ZC:MM:ROLE_00002\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"CHILD_AGR\",\"\",\"ZC:MM:ROLE_00002_C1\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"CHILD_AGR_TEXT\",\"\",\"Child 1 of 2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"FUNCTION_KEY\",\"\",\"MM\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"PARENT_AGR\",\"\",\"ZC:MM:ROLE_00002\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"TCODE\",\"\",\"ZNEW1\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"TEXT\",\"\",\"Synthetic role 2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1\",\"TTEXT\",\"\",\"Transaction T0122\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"AGR_NAME\",\"\",\"ZC:MM:ROLE_00002\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"CHILD_AGR\",\"\",\"ZC:MM:ROLE_00002_C1\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"CHILD_AGR_TEXT\",\"\",\"Child 1 of 2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"FUNCTION_KEY\",\"\",\"MM\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"PARENT_AGR\",\"\",\"ZC:MM:ROLE_00002\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"TCODE\",\"\",\"ZNEW2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"TEXT\",\"\",\"Synthetic role 2\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2\",\"TTEXT\",\"\",\"Transaction T0122\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"AGR_NAME\",\"\",\"ZC:PP:ROLE_00004\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR\",\"\",\"ZC:PP:ROLE_00004_C0\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR_TEXT\",\"\",\"Child 0 of 4\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"FUNCTION_KEY\",\"\",\"PP\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TCODE\",\"\",\"T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TEXT\",\"\",\"Variant A\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TTEXT\",\"\",\"Transaction T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"AGR_NAME\",\"\",\"ZC:PP:ROLE_00004\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR\",\"\",\"ZC:PP:ROLE_00004_C0\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR_TEXT\",\"\",\"Child 0 of 4\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"FUNCTION_KEY\",\"\",\"PP\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TCODE\",\"\",\"T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TEXT\",\"\",\"Variant B\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TTEXT\",\"\",\"Transaction T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"AGR_NAME\",\"\",\"zo:finance:role_00005\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"CHILD_AGR\",\"\",\"ZO:Finance:ROLE_00005_C0\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"CHILD_AGR_TEXT\",\"\",\"Child 0 of 5\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"FUNCTION_KEY\",\"\",\"Finance\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"TCODE\",\"\",\"T0321\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"TEXT\",\"\",\"Synthetic role 5\"\r\n\"T\",\"Role Catalogue\",\"added\",\"zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321\",\"TTEXT\",\"\",\"Transaction T0321\"\r\n",
+    "query": {
+     "kind": "added"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"AGR_NAME\",\"ZC:CO:ROLE_00001\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"CHILD_AGR\",\"ZC:CO:ROLE_00001_C1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"CHILD_AGR_TEXT\",\"Child 1 of 1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"FUNCTION_KEY\",\"CO\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"PARENT_AGR\",\"ZC:CO:ROLE_00001\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"TCODE\",\"T0090\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"TEXT\",\"Synthetic role 1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090\",\"TTEXT\",\"Transaction T0090\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"AGR_NAME\",\"ZC:CO:ROLE_00001\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"CHILD_AGR\",\"ZC:CO:ROLE_00001_C1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"CHILD_AGR_TEXT\",\"Child 1 of 1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"FUNCTION_KEY\",\"CO\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"PARENT_AGR\",\"ZC:CO:ROLE_00001\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"TCODE\",\"T0357\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"TEXT\",\"Synthetic role 1\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357\",\"TTEXT\",\"Transaction T0357\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"AGR_NAME\",\"ZC:PP:ROLE_00004\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"CHILD_AGR\",\"ZC:PP:ROLE_00004_C0\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"CHILD_AGR_TEXT\",\"Child 0 of 4\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"FUNCTION_KEY\",\"PP\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"TCODE\",\"T0364\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"TEXT\",\"Synthetic role 4\",\"\"\r\n\"T\",\"Role Catalogue\",\"removed\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364\",\"TTEXT\",\"Transaction T0364\",\"\"\r\n",
+    "query": {
+     "kind": "removed"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"AGR_NAME\",\"\",\"ZC:PP:ROLE_00004\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR\",\"\",\"ZC:PP:ROLE_00004_C0\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR_TEXT\",\"\",\"Child 0 of 4\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"FUNCTION_KEY\",\"\",\"PP\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TCODE\",\"\",\"T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TEXT\",\"\",\"Variant A\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TTEXT\",\"\",\"Transaction T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"AGR_NAME\",\"\",\"ZC:PP:ROLE_00004\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR\",\"\",\"ZC:PP:ROLE_00004_C0\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"CHILD_AGR_TEXT\",\"\",\"Child 0 of 4\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"Effective_Role\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"FUNCTION_KEY\",\"\",\"PP\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"PARENT_AGR\",\"\",\"\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TCODE\",\"\",\"T0398\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TEXT\",\"\",\"Variant B\"\r\n\"T\",\"Role Catalogue\",\"added\",\"ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398\",\"TTEXT\",\"\",\"Transaction T0398\"\r\n",
+    "query": {
+     "search": "variant"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n",
+    "query": {
+     "search": "SALES"
+    }
+   }
+  ],
+  "pages": [
+   {
+    "items": [
+     {
+      "before": {
+       "AGR_NAME": "ZC:CO:ROLE_00001",
+       "CHILD_AGR": "ZC:CO:ROLE_00001_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 1",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "CO",
+       "PARENT_AGR": "ZC:CO:ROLE_00001",
+       "TCODE": "T0090",
+       "TEXT": "Synthetic role 1",
+       "TTEXT": "Transaction T0090"
+      },
+      "fields": [],
+      "identifier": "ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "AGR_NAME": "ZC:CO:ROLE_00001",
+       "CHILD_AGR": "ZC:CO:ROLE_00001_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 1",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "CO",
+       "PARENT_AGR": "ZC:CO:ROLE_00001",
+       "TCODE": "T0357",
+       "TEXT": "Synthetic role 1",
+       "TTEXT": "Transaction T0357"
+      },
+      "fields": [],
+      "identifier": "ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:MM:ROLE_00002",
+       "CHILD_AGR": "ZC:MM:ROLE_00002_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 2",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "MM",
+       "PARENT_AGR": "ZC:MM:ROLE_00002",
+       "TCODE": "ZNEW1",
+       "TEXT": "Synthetic role 2",
+       "TTEXT": "Transaction T0122"
+      },
+      "fields": [],
+      "identifier": "ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:MM:ROLE_00002",
+       "CHILD_AGR": "ZC:MM:ROLE_00002_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 2",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "MM",
+       "PARENT_AGR": "ZC:MM:ROLE_00002",
+       "TCODE": "ZNEW2",
+       "TEXT": "Synthetic role 2",
+       "TTEXT": "Transaction T0122"
+      },
+      "fields": [],
+      "identifier": "ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "before": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0364",
+       "TEXT": "Synthetic role 4",
+       "TTEXT": "Transaction T0364"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0398",
+       "TEXT": "Variant A",
+       "TTEXT": "Transaction T0398"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0398",
+       "TEXT": "Variant B",
+       "TTEXT": "Transaction T0398"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "zo:finance:role_00005",
+       "CHILD_AGR": "ZO:Finance:ROLE_00005_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 5",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "Finance",
+       "PARENT_AGR": "",
+       "TCODE": "T0321",
+       "TEXT": "Synthetic role 5",
+       "TTEXT": "Transaction T0321"
+      },
+      "fields": [],
+      "identifier": "zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "HR",
+       "PARENT_AGR": "",
+       "TCODE": "T0392",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": ""
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0392",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": ""
+      },
+      "fields": [
+       {
+        "after": "HR",
+        "before": "FI",
+        "field": "FUNCTION_KEY"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / T0392",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0243",
+       "TEXT": "=SUM(1,2)",
+       "TTEXT": "Transaction T0243"
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0243",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": "Transaction T0243"
+      },
+      "fields": [
+       {
+        "after": "=SUM(1,2)",
+        "before": "Synthetic role 0",
+        "field": "TEXT"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0243",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0359",
+       "TEXT": "Quoted \"role\", with comma",
+       "TTEXT": "Transaction T0359"
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0359",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": "Transaction T0359"
+      },
+      "fields": [
+       {
+        "after": "Quoted \"role\", with comma",
+        "before": "Synthetic role 0",
+        "field": "TEXT"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0359",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {},
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 11
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "HR",
+       "PARENT_AGR": "",
+       "TCODE": "T0392",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": ""
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0392",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": ""
+      },
+      "fields": [
+       {
+        "after": "HR",
+        "before": "FI",
+        "field": "FUNCTION_KEY"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / T0392",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0243",
+       "TEXT": "=SUM(1,2)",
+       "TTEXT": "Transaction T0243"
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0243",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": "Transaction T0243"
+      },
+      "fields": [
+       {
+        "after": "=SUM(1,2)",
+        "before": "Synthetic role 0",
+        "field": "TEXT"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0243",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0359",
+       "TEXT": "Quoted \"role\", with comma",
+       "TTEXT": "Transaction T0359"
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0359",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": "Transaction T0359"
+      },
+      "fields": [
+       {
+        "after": "Quoted \"role\", with comma",
+        "before": "Synthetic role 0",
+        "field": "TEXT"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0359",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "modified"
+    },
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 3
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "AGR_NAME": "ZC:MM:ROLE_00002",
+       "CHILD_AGR": "ZC:MM:ROLE_00002_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 2",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "MM",
+       "PARENT_AGR": "ZC:MM:ROLE_00002",
+       "TCODE": "ZNEW1",
+       "TEXT": "Synthetic role 2",
+       "TTEXT": "Transaction T0122"
+      },
+      "fields": [],
+      "identifier": "ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:MM:ROLE_00002",
+       "CHILD_AGR": "ZC:MM:ROLE_00002_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 2",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "MM",
+       "PARENT_AGR": "ZC:MM:ROLE_00002",
+       "TCODE": "ZNEW2",
+       "TEXT": "Synthetic role 2",
+       "TTEXT": "Transaction T0122"
+      },
+      "fields": [],
+      "identifier": "ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0398",
+       "TEXT": "Variant A",
+       "TTEXT": "Transaction T0398"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0398",
+       "TEXT": "Variant B",
+       "TTEXT": "Transaction T0398"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "zo:finance:role_00005",
+       "CHILD_AGR": "ZO:Finance:ROLE_00005_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 5",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "Finance",
+       "PARENT_AGR": "",
+       "TCODE": "T0321",
+       "TEXT": "Synthetic role 5",
+       "TTEXT": "Transaction T0321"
+      },
+      "fields": [],
+      "identifier": "zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "added"
+    },
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 5
+   },
+   {
+    "items": [
+     {
+      "before": {
+       "AGR_NAME": "ZC:CO:ROLE_00001",
+       "CHILD_AGR": "ZC:CO:ROLE_00001_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 1",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "CO",
+       "PARENT_AGR": "ZC:CO:ROLE_00001",
+       "TCODE": "T0090",
+       "TEXT": "Synthetic role 1",
+       "TTEXT": "Transaction T0090"
+      },
+      "fields": [],
+      "identifier": "ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "AGR_NAME": "ZC:CO:ROLE_00001",
+       "CHILD_AGR": "ZC:CO:ROLE_00001_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 1",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "CO",
+       "PARENT_AGR": "ZC:CO:ROLE_00001",
+       "TCODE": "T0357",
+       "TEXT": "Synthetic role 1",
+       "TTEXT": "Transaction T0357"
+      },
+      "fields": [],
+      "identifier": "ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0364",
+       "TEXT": "Synthetic role 4",
+       "TTEXT": "Transaction T0364"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "removed"
+    },
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 3
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0398",
+       "TEXT": "Variant A",
+       "TTEXT": "Transaction T0398"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0398",
+       "TEXT": "Variant B",
+       "TTEXT": "Transaction T0398"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "search": "variant"
+    },
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 2
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "search": "SALES"
+    },
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 0
+   },
+   {
+    "items": [
+     {
+      "before": {
+       "AGR_NAME": "ZC:CO:ROLE_00001",
+       "CHILD_AGR": "ZC:CO:ROLE_00001_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 1",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "CO",
+       "PARENT_AGR": "ZC:CO:ROLE_00001",
+       "TCODE": "T0357",
+       "TEXT": "Synthetic role 1",
+       "TTEXT": "Transaction T0357"
+      },
+      "fields": [],
+      "identifier": "ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:MM:ROLE_00002",
+       "CHILD_AGR": "ZC:MM:ROLE_00002_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 2",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "MM",
+       "PARENT_AGR": "ZC:MM:ROLE_00002",
+       "TCODE": "ZNEW1",
+       "TEXT": "Synthetic role 2",
+       "TTEXT": "Transaction T0122"
+      },
+      "fields": [],
+      "identifier": "ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     }
+    ],
+    "limit": 2,
+    "offset": 1,
+    "query": {
+     "limit": 2,
+     "offset": 1
+    },
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 11
+   },
+   {
+    "items": [
+     {
+      "before": {
+       "AGR_NAME": "ZC:CO:ROLE_00001",
+       "CHILD_AGR": "ZC:CO:ROLE_00001_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 1",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "CO",
+       "PARENT_AGR": "ZC:CO:ROLE_00001",
+       "TCODE": "T0090",
+       "TEXT": "Synthetic role 1",
+       "TTEXT": "Transaction T0090"
+      },
+      "fields": [],
+      "identifier": "ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0090",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "AGR_NAME": "ZC:CO:ROLE_00001",
+       "CHILD_AGR": "ZC:CO:ROLE_00001_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 1",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "CO",
+       "PARENT_AGR": "ZC:CO:ROLE_00001",
+       "TCODE": "T0357",
+       "TEXT": "Synthetic role 1",
+       "TTEXT": "Transaction T0357"
+      },
+      "fields": [],
+      "identifier": "ZC:CO:ROLE_00001 / ZC:CO:ROLE_00001_C1 / ZC:CO:ROLE_00001 / T0357",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:MM:ROLE_00002",
+       "CHILD_AGR": "ZC:MM:ROLE_00002_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 2",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "MM",
+       "PARENT_AGR": "ZC:MM:ROLE_00002",
+       "TCODE": "ZNEW1",
+       "TEXT": "Synthetic role 2",
+       "TTEXT": "Transaction T0122"
+      },
+      "fields": [],
+      "identifier": "ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW1",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:MM:ROLE_00002",
+       "CHILD_AGR": "ZC:MM:ROLE_00002_C1",
+       "CHILD_AGR_TEXT": "Child 1 of 2",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "MM",
+       "PARENT_AGR": "ZC:MM:ROLE_00002",
+       "TCODE": "ZNEW2",
+       "TEXT": "Synthetic role 2",
+       "TTEXT": "Transaction T0122"
+      },
+      "fields": [],
+      "identifier": "ZC:MM:ROLE_00002 / ZC:MM:ROLE_00002_C1 / ZC:MM:ROLE_00002 / ZNEW2",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "before": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0364",
+       "TEXT": "Synthetic role 4",
+       "TTEXT": "Transaction T0364"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0364",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "removed"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0398",
+       "TEXT": "Variant A",
+       "TTEXT": "Transaction T0398"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZC:PP:ROLE_00004",
+       "CHILD_AGR": "ZC:PP:ROLE_00004_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 4",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "PP",
+       "PARENT_AGR": "",
+       "TCODE": "T0398",
+       "TEXT": "Variant B",
+       "TTEXT": "Transaction T0398"
+      },
+      "fields": [],
+      "identifier": "ZC:PP:ROLE_00004 / ZC:PP:ROLE_00004_C0 / T0398",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "zo:finance:role_00005",
+       "CHILD_AGR": "ZO:Finance:ROLE_00005_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 5",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "Finance",
+       "PARENT_AGR": "",
+       "TCODE": "T0321",
+       "TEXT": "Synthetic role 5",
+       "TTEXT": "Transaction T0321"
+      },
+      "fields": [],
+      "identifier": "zo:finance:role_00005 / ZO:Finance:ROLE_00005_C0 / T0321",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "added"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "HR",
+       "PARENT_AGR": "",
+       "TCODE": "T0392",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": ""
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0392",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": ""
+      },
+      "fields": [
+       {
+        "after": "HR",
+        "before": "FI",
+        "field": "FUNCTION_KEY"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / T0392",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0243",
+       "TEXT": "=SUM(1,2)",
+       "TTEXT": "Transaction T0243"
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0243",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": "Transaction T0243"
+      },
+      "fields": [
+       {
+        "after": "=SUM(1,2)",
+        "before": "Synthetic role 0",
+        "field": "TEXT"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0243",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0359",
+       "TEXT": "Quoted \"role\", with comma",
+       "TTEXT": "Transaction T0359"
+      },
+      "before": {
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "Effective_Role": "",
+       "FUNCTION_KEY": "FI",
+       "PARENT_AGR": "",
+       "TCODE": "T0359",
+       "TEXT": "Synthetic role 0",
+       "TTEXT": "Transaction T0359"
+      },
+      "fields": [
+       {
+        "after": "Quoted \"role\", with comma",
+        "before": "Synthetic role 0",
+        "field": "TEXT"
+       }
+      ],
+      "identifier": "ZO:MM:M0:PO_REL_ST_E0_00:ALL / ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0 / T0359",
+      "source": "roles",
+      "source_name": "Role Catalogue",
+      "type": "modified"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "source": "roles"
+    },
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 11
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "modified",
+     "source": "users"
+    },
+    "source": {
+     "added": 5,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 3,
+     "name": "Role Catalogue",
+     "records": 402,
+     "removed": 3,
+     "source": "roles",
+     "status": "updated",
+     "unchanged": 394
+    },
+    "total": 0
+   }
+  ]
+ },
+ "sod": {
+  "exports": [
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"SoD Matrix\",\"modified\",\"Unidentified record\",\"TTEXT\",\"Créer fournisseur\",\"Créer fournisseur (new)\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"ACTIVITY\",\"\",\"A1\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"ACTIVITY_SLOT\",\"\",\"ACTVT1\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"ACTVT1\",\"\",\"A1\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"ACTVT2\",\"\",\"A2\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"CRITICITY\",\"\",\"High\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"RISK\",\"\",\"R001\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"TCODE\",\"\",\"T099\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"TEXT\",\"\",\"Pay and create vendor\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"TTEXT\",\"\",\"Créer fournisseur\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"TYPE\",\"\",\"S\"\r\n",
+    "query": {}
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"SoD Matrix\",\"modified\",\"Unidentified record\",\"TTEXT\",\"Créer fournisseur\",\"Créer fournisseur (new)\"\r\n",
+    "query": {
+     "kind": "modified"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"ACTIVITY\",\"\",\"A1\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"ACTIVITY_SLOT\",\"\",\"ACTVT1\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"ACTVT1\",\"\",\"A1\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"ACTVT2\",\"\",\"A2\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"CRITICITY\",\"\",\"High\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"RISK\",\"\",\"R001\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"TCODE\",\"\",\"T099\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"TEXT\",\"\",\"Pay and create vendor\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"TTEXT\",\"\",\"Créer fournisseur\"\r\n\"T\",\"SoD Matrix\",\"added\",\"Unidentified record\",\"TYPE\",\"\",\"S\"\r\n",
+    "query": {
+     "kind": "added"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n",
+    "query": {
+     "kind": "removed"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n",
+    "query": {
+     "search": "variant"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n",
+    "query": {
+     "search": "SALES"
+    }
+   }
+  ],
+  "pages": [
+   {
+    "items": [
+     {
+      "after": {
+       "ACTIVITY": "A1",
+       "ACTIVITY_SLOT": "ACTVT1",
+       "ACTVT1": "A1",
+       "ACTVT2": "A2",
+       "CRITICITY": "High",
+       "RISK": "R001",
+       "TCODE": "T001",
+       "TEXT": "Pay and create vendor",
+       "TTEXT": "Créer fournisseur (new)",
+       "TYPE": "S"
+      },
+      "before": {
+       "ACTIVITY": "A1",
+       "ACTIVITY_SLOT": "ACTVT1",
+       "ACTVT1": "A1",
+       "ACTVT2": "A2",
+       "CRITICITY": "High",
+       "RISK": "R001",
+       "TCODE": "T001",
+       "TEXT": "Pay and create vendor",
+       "TTEXT": "Créer fournisseur",
+       "TYPE": "S"
+      },
+      "fields": [
+       {
+        "after": "Créer fournisseur (new)",
+        "before": "Créer fournisseur",
+        "field": "TTEXT"
+       }
+      ],
+      "identifier": "Unidentified record",
+      "source": "sod",
+      "source_name": "SoD Matrix",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "ACTIVITY": "A1",
+       "ACTIVITY_SLOT": "ACTVT1",
+       "ACTVT1": "A1",
+       "ACTVT2": "A2",
+       "CRITICITY": "High",
+       "RISK": "R001",
+       "TCODE": "T099",
+       "TEXT": "Pay and create vendor",
+       "TTEXT": "Créer fournisseur",
+       "TYPE": "S"
+      },
+      "fields": [],
+      "identifier": "Unidentified record",
+      "source": "sod",
+      "source_name": "SoD Matrix",
+      "type": "added"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {},
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 2
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "ACTIVITY": "A1",
+       "ACTIVITY_SLOT": "ACTVT1",
+       "ACTVT1": "A1",
+       "ACTVT2": "A2",
+       "CRITICITY": "High",
+       "RISK": "R001",
+       "TCODE": "T001",
+       "TEXT": "Pay and create vendor",
+       "TTEXT": "Créer fournisseur (new)",
+       "TYPE": "S"
+      },
+      "before": {
+       "ACTIVITY": "A1",
+       "ACTIVITY_SLOT": "ACTVT1",
+       "ACTVT1": "A1",
+       "ACTVT2": "A2",
+       "CRITICITY": "High",
+       "RISK": "R001",
+       "TCODE": "T001",
+       "TEXT": "Pay and create vendor",
+       "TTEXT": "Créer fournisseur",
+       "TYPE": "S"
+      },
+      "fields": [
+       {
+        "after": "Créer fournisseur (new)",
+        "before": "Créer fournisseur",
+        "field": "TTEXT"
+       }
+      ],
+      "identifier": "Unidentified record",
+      "source": "sod",
+      "source_name": "SoD Matrix",
+      "type": "modified"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "modified"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 1
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "ACTIVITY": "A1",
+       "ACTIVITY_SLOT": "ACTVT1",
+       "ACTVT1": "A1",
+       "ACTVT2": "A2",
+       "CRITICITY": "High",
+       "RISK": "R001",
+       "TCODE": "T099",
+       "TEXT": "Pay and create vendor",
+       "TTEXT": "Créer fournisseur",
+       "TYPE": "S"
+      },
+      "fields": [],
+      "identifier": "Unidentified record",
+      "source": "sod",
+      "source_name": "SoD Matrix",
+      "type": "added"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "added"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 1
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "removed"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 0
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "search": "variant"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 0
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "search": "SALES"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 0
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "ACTIVITY": "A1",
+       "ACTIVITY_SLOT": "ACTVT1",
+       "ACTVT1": "A1",
+       "ACTVT2": "A2",
+       "CRITICITY": "High",
+       "RISK": "R001",
+       "TCODE": "T099",
+       "TEXT": "Pay and create vendor",
+       "TTEXT": "Créer fournisseur",
+       "TYPE": "S"
+      },
+      "fields": [],
+      "identifier": "Unidentified record",
+      "source": "sod",
+      "source_name": "SoD Matrix",
+      "type": "added"
+     }
+    ],
+    "limit": 2,
+    "offset": 1,
+    "query": {
+     "limit": 2,
+     "offset": 1
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 2
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "source": "roles"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 0
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "modified",
+     "source": "users"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 1,
+     "name": "SoD Matrix",
+     "records": 5,
+     "removed": 0,
+     "source": "sod",
+     "status": "updated",
+     "unchanged": 3
+    },
+    "total": 0
+   }
+  ]
+ },
+ "users": {
+  "exports": [
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"User–Role Mapping\",\"modified\",\"USER00000 / GRP_FIN\",\"LAST_NAME\",\"Last0\",\"'@Changed\"\r\n\"T\",\"User–Role Mapping\",\"modified\",\"user00000 / ZC:XX-UNKNOWN:ROLE_00022 / GRP_FIN\",\"ROLE_VALID_TO\",\"20011231\",\"20991231\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"EMAIL\",\"user2@example.invalid\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"FIRST_NAME\",\"First2\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"LAST_NAME\",\"Last2\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"ROLE_NAME\",\"ZC:FI:ROLE_00048\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"ROLE_VALID_FROM\",\"20000101\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"ROLE_VALID_TO\",\"20981231\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USERNAME\",\"USER00002\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_GROUP\",\"GRP_HR\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_LOCKED\",\"X\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_TYPE\",\"A\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_VALID_FROM\",\"20990101\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_VALID_TO\",\"20991231\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"EMAIL\",\"user2@example.invalid\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"FIRST_NAME\",\"First2\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"LAST_NAME\",\"Last2\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"ROLE_NAME\",\"ZC:PM:ROLE_00129\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"ROLE_VALID_FROM\",\"\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"ROLE_VALID_TO\",\"\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USERNAME\",\"USER00002\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_GROUP\",\"GRP_HR\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_LOCKED\",\"X\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_TYPE\",\"A\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_VALID_FROM\",\"20990101\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_VALID_TO\",\"20991231\",\"\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"EMAIL\",\"\",\"user3@example.invalid\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"FIRST_NAME\",\"\",\"First3\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"LAST_NAME\",\"\",\"Last3\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"ROLE_NAME\",\"\",\"ZC:NEW:ROLE_A\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"ROLE_VALID_FROM\",\"\",\"20000101\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"ROLE_VALID_TO\",\"\",\"20981231\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USERNAME\",\"\",\"USER00003\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_GROUP\",\"\",\"GRP_IT\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_LOCKED\",\"\",\"64\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_TYPE\",\"\",\"A\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_VALID_FROM\",\"\",\"20000101\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_VALID_TO\",\"\",\"20981231\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"EMAIL\",\"user3@example.invalid\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"FIRST_NAME\",\"First3\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"LAST_NAME\",\"Last3\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"ROLE_NAME\",\"ZO:MM:M0:PO_REL_ST_E0_00:ALL\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"ROLE_VALID_FROM\",\"\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"ROLE_VALID_TO\",\"\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USERNAME\",\"USER00003\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_GROUP\",\"GRP_IT\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_LOCKED\",\"64\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_TYPE\",\"A\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_VALID_FROM\",\"20000101\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_VALID_TO\",\"20981231\",\"\"\r\n",
+    "query": {}
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"User–Role Mapping\",\"modified\",\"USER00000 / GRP_FIN\",\"LAST_NAME\",\"Last0\",\"'@Changed\"\r\n\"T\",\"User–Role Mapping\",\"modified\",\"user00000 / ZC:XX-UNKNOWN:ROLE_00022 / GRP_FIN\",\"ROLE_VALID_TO\",\"20011231\",\"20991231\"\r\n",
+    "query": {
+     "kind": "modified"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"EMAIL\",\"\",\"user3@example.invalid\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"FIRST_NAME\",\"\",\"First3\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"LAST_NAME\",\"\",\"Last3\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"ROLE_NAME\",\"\",\"ZC:NEW:ROLE_A\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"ROLE_VALID_FROM\",\"\",\"20000101\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"ROLE_VALID_TO\",\"\",\"20981231\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USERNAME\",\"\",\"USER00003\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_GROUP\",\"\",\"GRP_IT\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_LOCKED\",\"\",\"64\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_TYPE\",\"\",\"A\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_VALID_FROM\",\"\",\"20000101\"\r\n\"T\",\"User–Role Mapping\",\"added\",\"USER00003 / ZC:NEW:ROLE_A / GRP_IT\",\"USER_VALID_TO\",\"\",\"20981231\"\r\n",
+    "query": {
+     "kind": "added"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"EMAIL\",\"user2@example.invalid\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"FIRST_NAME\",\"First2\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"LAST_NAME\",\"Last2\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"ROLE_NAME\",\"ZC:FI:ROLE_00048\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"ROLE_VALID_FROM\",\"20000101\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"ROLE_VALID_TO\",\"20981231\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USERNAME\",\"USER00002\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_GROUP\",\"GRP_HR\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_LOCKED\",\"X\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_TYPE\",\"A\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_VALID_FROM\",\"20990101\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:FI:ROLE_00048 / GRP_HR\",\"USER_VALID_TO\",\"20991231\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"EMAIL\",\"user2@example.invalid\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"FIRST_NAME\",\"First2\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"LAST_NAME\",\"Last2\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"ROLE_NAME\",\"ZC:PM:ROLE_00129\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"ROLE_VALID_FROM\",\"\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"ROLE_VALID_TO\",\"\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USERNAME\",\"USER00002\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_GROUP\",\"GRP_HR\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_LOCKED\",\"X\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_TYPE\",\"A\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_VALID_FROM\",\"20990101\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00002 / ZC:PM:ROLE_00129 / GRP_HR\",\"USER_VALID_TO\",\"20991231\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"EMAIL\",\"user3@example.invalid\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"FIRST_NAME\",\"First3\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"LAST_NAME\",\"Last3\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"ROLE_NAME\",\"ZO:MM:M0:PO_REL_ST_E0_00:ALL\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"ROLE_VALID_FROM\",\"\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"ROLE_VALID_TO\",\"\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USERNAME\",\"USER00003\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_GROUP\",\"GRP_IT\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_LOCKED\",\"64\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_TYPE\",\"A\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_VALID_FROM\",\"20000101\",\"\"\r\n\"T\",\"User–Role Mapping\",\"removed\",\"USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT\",\"USER_VALID_TO\",\"20981231\",\"\"\r\n",
+    "query": {
+     "kind": "removed"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n",
+    "query": {
+     "search": "variant"
+    }
+   },
+   {
+    "csv": "﻿\"Timestamp\",\"Source\",\"Change\",\"Identifier\",\"Field\",\"Before\",\"After\"\r\n",
+    "query": {
+     "search": "SALES"
+    }
+   }
+  ],
+  "pages": [
+   {
+    "items": [
+     {
+      "after": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "@Changed",
+       "ROLE_NAME": "",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "before": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "fields": [
+       {
+        "after": "@Changed",
+        "before": "Last0",
+        "field": "LAST_NAME"
+       }
+      ],
+      "identifier": "USER00000 / GRP_FIN",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20991231",
+       "USERNAME": "user00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "S",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "before": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231",
+       "USERNAME": "user00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "S",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "fields": [
+       {
+        "after": "20991231",
+        "before": "20011231",
+        "field": "ROLE_VALID_TO"
+       }
+      ],
+      "identifier": "user00000 / ZC:XX-UNKNOWN:ROLE_00022 / GRP_FIN",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "modified"
+     },
+     {
+      "before": {
+       "EMAIL": "user2@example.invalid",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "ROLE_NAME": "ZC:FI:ROLE_00048",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231",
+       "USERNAME": "USER00002",
+       "USER_GROUP": "GRP_HR",
+       "USER_LOCKED": "X",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20990101",
+       "USER_VALID_TO": "20991231"
+      },
+      "fields": [],
+      "identifier": "USER00002 / ZC:FI:ROLE_00048 / GRP_HR",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "EMAIL": "user2@example.invalid",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "ROLE_NAME": "ZC:PM:ROLE_00129",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00002",
+       "USER_GROUP": "GRP_HR",
+       "USER_LOCKED": "X",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20990101",
+       "USER_VALID_TO": "20991231"
+      },
+      "fields": [],
+      "identifier": "USER00002 / ZC:PM:ROLE_00129 / GRP_HR",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "removed"
+     },
+     {
+      "after": {
+       "EMAIL": "user3@example.invalid",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "ROLE_NAME": "ZC:NEW:ROLE_A",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231",
+       "USERNAME": "USER00003",
+       "USER_GROUP": "GRP_IT",
+       "USER_LOCKED": "64",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20000101",
+       "USER_VALID_TO": "20981231"
+      },
+      "fields": [],
+      "identifier": "USER00003 / ZC:NEW:ROLE_A / GRP_IT",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "added"
+     },
+     {
+      "before": {
+       "EMAIL": "user3@example.invalid",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "ROLE_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00003",
+       "USER_GROUP": "GRP_IT",
+       "USER_LOCKED": "64",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20000101",
+       "USER_VALID_TO": "20981231"
+      },
+      "fields": [],
+      "identifier": "USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "removed"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {},
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 6
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "@Changed",
+       "ROLE_NAME": "",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "before": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "fields": [
+       {
+        "after": "@Changed",
+        "before": "Last0",
+        "field": "LAST_NAME"
+       }
+      ],
+      "identifier": "USER00000 / GRP_FIN",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20991231",
+       "USERNAME": "user00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "S",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "before": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231",
+       "USERNAME": "user00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "S",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "fields": [
+       {
+        "after": "20991231",
+        "before": "20011231",
+        "field": "ROLE_VALID_TO"
+       }
+      ],
+      "identifier": "user00000 / ZC:XX-UNKNOWN:ROLE_00022 / GRP_FIN",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "modified"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "modified"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 2
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "EMAIL": "user3@example.invalid",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "ROLE_NAME": "ZC:NEW:ROLE_A",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231",
+       "USERNAME": "USER00003",
+       "USER_GROUP": "GRP_IT",
+       "USER_LOCKED": "64",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20000101",
+       "USER_VALID_TO": "20981231"
+      },
+      "fields": [],
+      "identifier": "USER00003 / ZC:NEW:ROLE_A / GRP_IT",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "added"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "added"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 1
+   },
+   {
+    "items": [
+     {
+      "before": {
+       "EMAIL": "user2@example.invalid",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "ROLE_NAME": "ZC:FI:ROLE_00048",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231",
+       "USERNAME": "USER00002",
+       "USER_GROUP": "GRP_HR",
+       "USER_LOCKED": "X",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20990101",
+       "USER_VALID_TO": "20991231"
+      },
+      "fields": [],
+      "identifier": "USER00002 / ZC:FI:ROLE_00048 / GRP_HR",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "EMAIL": "user2@example.invalid",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "ROLE_NAME": "ZC:PM:ROLE_00129",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00002",
+       "USER_GROUP": "GRP_HR",
+       "USER_LOCKED": "X",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20990101",
+       "USER_VALID_TO": "20991231"
+      },
+      "fields": [],
+      "identifier": "USER00002 / ZC:PM:ROLE_00129 / GRP_HR",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "removed"
+     },
+     {
+      "before": {
+       "EMAIL": "user3@example.invalid",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "ROLE_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00003",
+       "USER_GROUP": "GRP_IT",
+       "USER_LOCKED": "64",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20000101",
+       "USER_VALID_TO": "20981231"
+      },
+      "fields": [],
+      "identifier": "USER00003 / ZO:MM:M0:PO_REL_ST_E0_00:ALL / GRP_IT",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "removed"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "removed"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 3
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "search": "variant"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 0
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "search": "SALES"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 0
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20991231",
+       "USERNAME": "user00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "S",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "before": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231",
+       "USERNAME": "user00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "S",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "fields": [
+       {
+        "after": "20991231",
+        "before": "20011231",
+        "field": "ROLE_VALID_TO"
+       }
+      ],
+      "identifier": "user00000 / ZC:XX-UNKNOWN:ROLE_00022 / GRP_FIN",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "modified"
+     },
+     {
+      "before": {
+       "EMAIL": "user2@example.invalid",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "ROLE_NAME": "ZC:FI:ROLE_00048",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231",
+       "USERNAME": "USER00002",
+       "USER_GROUP": "GRP_HR",
+       "USER_LOCKED": "X",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "20990101",
+       "USER_VALID_TO": "20991231"
+      },
+      "fields": [],
+      "identifier": "USER00002 / ZC:FI:ROLE_00048 / GRP_HR",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "removed"
+     }
+    ],
+    "limit": 2,
+    "offset": 1,
+    "query": {
+     "limit": 2,
+     "offset": 1
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 6
+   },
+   {
+    "items": [],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "source": "roles"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 0
+   },
+   {
+    "items": [
+     {
+      "after": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "@Changed",
+       "ROLE_NAME": "",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "before": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": "",
+       "USERNAME": "USER00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "A",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "fields": [
+       {
+        "after": "@Changed",
+        "before": "Last0",
+        "field": "LAST_NAME"
+       }
+      ],
+      "identifier": "USER00000 / GRP_FIN",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "modified"
+     },
+     {
+      "after": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20991231",
+       "USERNAME": "user00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "S",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "before": {
+       "EMAIL": "",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231",
+       "USERNAME": "user00000",
+       "USER_GROUP": "GRP_FIN",
+       "USER_LOCKED": "",
+       "USER_TYPE": "S",
+       "USER_VALID_FROM": "",
+       "USER_VALID_TO": ""
+      },
+      "fields": [
+       {
+        "after": "20991231",
+        "before": "20011231",
+        "field": "ROLE_VALID_TO"
+       }
+      ],
+      "identifier": "user00000 / ZC:XX-UNKNOWN:ROLE_00022 / GRP_FIN",
+      "source": "users",
+      "source_name": "User–Role Mapping",
+      "type": "modified"
+     }
+    ],
+    "limit": 25,
+    "offset": 0,
+    "query": {
+     "kind": "modified",
+     "source": "users"
+    },
+    "source": {
+     "added": 1,
+     "ambiguous_identifiers": 0,
+     "identity_note": "Exact records are compared as multisets. Ambiguous or missing identifiers are not paired into invented modifications.",
+     "missing_identifiers": 0,
+     "modified": 2,
+     "name": "User–Role Mapping",
+     "records": 298,
+     "removed": 3,
+     "source": "users",
+     "status": "updated",
+     "unchanged": 295
+    },
+    "total": 2
+   }
+  ]
+ }
+}

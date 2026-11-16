@@ -10,8 +10,8 @@ public sealed record ImportEvaluation(bool Suspicious, IReadOnlyList<Anomaly> An
 
 public sealed record DiffCounts(int Added, int Removed, int Modified, int Unchanged, int AmbiguousIdentifiers);
 
-/// <summary>Port of import_checks.evaluate (suspicious-change detection against the active revision of the same source) and the counting part
-/// of csv_lifecycle.diff_records (multiset comparison; only one remaining old/new observation per identifier is a modification).</summary>
+/// <summary>Port of import_checks.evaluate (suspicious-change detection against the active revision of the same source) and the counts
+/// of csv_lifecycle.diff_records (<see cref="RecordDiff"/>).</summary>
 public static class ImportChecks
 {
     private static readonly Dictionary<string, ((string Label, string Field)[] Entities, (string Field, string Label)? Groups)> Spec = new()
@@ -63,50 +63,7 @@ public static class ImportChecks
         return new ImportEvaluation(anomalies.Count > 0, anomalies, old, current);
     }
 
-    public static string[] RecordKey(string source, IReadOnlyDictionary<string, string> row)
-    {
-        if (source == "employees")
-        {
-            // Email is deliberately not a record identity; rows without DN or account name are add/remove evidence, never guessed modifications.
-            var dn = row.GetValueOrDefault("DistinguishedName", "").Trim();
-            var sam = row.GetValueOrDefault("SamAccountName", "").Trim();
-            return dn.Length > 0 ? ["dn", dn.ToUpperInvariant().ToLowerInvariant()] : sam.Length > 0 ? ["sam", sam.ToUpperInvariant().ToLowerInvariant()]
-                : ["none", string.Join('\u001e', row.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + "\u001f" + p.Value))];
-        }
-        string[] fields = source switch
-        {
-            "sod" => ["RISK", "ACTIVITY_SLOT", "ACTIVITY", "TCODE"],
-            "roles" => ["AGR_NAME", "CHILD_AGR", "PARENT_AGR", "Effective_Role", "TCODE"],
-            _ => ["USERNAME", "ROLE_NAME", "USER_GROUP"],
-        };
-        return fields.Select(f => source == "sod" ? row.GetValueOrDefault(f, "") : row.GetValueOrDefault(f, "").Trim().ToUpperInvariant()).ToArray();
-    }
-
-    public static DiffCounts Diff(string source, IReadOnlyList<IReadOnlyDictionary<string, string>> before, IReadOnlyList<IReadOnlyDictionary<string, string>> after)
-    {
-        static string Identity(IReadOnlyDictionary<string, string> row) => string.Join('\u001e', row.Where(p => p.Key != "id").OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + "\u001f" + p.Value));
-        var oldCounts = before.GroupBy(Identity).ToDictionary(g => g.Key, g => g.Count());
-        var newCounts = after.GroupBy(Identity).ToDictionary(g => g.Key, g => g.Count());
-        var unchanged = oldCounts.Sum(p => Math.Min(p.Value, newCounts.GetValueOrDefault(p.Key)));
-        IEnumerable<IReadOnlyDictionary<string, string>> Leftovers(IReadOnlyList<IReadOnlyDictionary<string, string>> rows, Dictionary<string, int> mine, Dictionary<string, int> other)
-        {
-            var remaining = mine.ToDictionary(p => p.Key, p => p.Value - Math.Min(p.Value, other.GetValueOrDefault(p.Key)));
-            foreach (var row in rows)
-            {
-                var id = Identity(row);
-                if (remaining[id] > 0) { remaining[id]--; yield return row; }
-            }
-        }
-        var oldGroups = Leftovers(before, oldCounts, newCounts).GroupBy(r => string.Join('\u001f', RecordKey(source, r))).ToDictionary(g => g.Key, g => g.Count());
-        var newGroups = Leftovers(after, newCounts, oldCounts).GroupBy(r => string.Join('\u001f', RecordKey(source, r))).ToDictionary(g => g.Key, g => g.Count());
-        int added = 0, removed = 0, modified = 0, ambiguous = 0;
-        foreach (var key in oldGroups.Keys.Union(newGroups.Keys))
-        {
-            var o = oldGroups.GetValueOrDefault(key); var n = newGroups.GetValueOrDefault(key);
-            if (o == 1 && n == 1) { modified++; continue; }
-            if (o > 0 && n > 0) ambiguous++;
-            removed += o; added += n;
-        }
-        return new DiffCounts(added, removed, modified, unchanged, ambiguous);
-    }
+    /// <summary>The counts of csv_lifecycle.diff_records (see <see cref="RecordDiff"/>, which also reports the changed records).</summary>
+    public static DiffCounts Diff(string source, IReadOnlyList<IReadOnlyDictionary<string, string>> before, IReadOnlyList<IReadOnlyDictionary<string, string>> after) =>
+        RecordDiff.Compare(source, before, after, includeChanges: false).Counts;
 }

@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.EntityFrameworkCore;
 using SapLens.Application;
 using SapLens.Domain.Csv;
+using SapLens.Domain.Imports;
 using SapLens.Persistence;
 
 namespace SapLens.Api;
@@ -215,15 +216,19 @@ public static partial class V1DataSources
                 };
             }
 
-            // The refresh report, as v1 writes it for an import.
+            // The refresh report, as v1 writes it for an import: counts plus the changed records (diff_records), compared with the revision this import
+            // was evaluated against. The changes stay in the private report (detail and export routes); responses and history carry the summary only.
             var stamp = Stamp(clock);
-            var diff = evaluation["diff"]?.AsObject();
-            var unchanged = (string?)evaluation["previous_content_hash"] == dataset.ContentHash;
+            var previousId = (long?)evaluation["evaluated_against"];
+            var diff = RecordDiff.Compare(source, await SnapshotService.RecordsAsync(db, previousId, ct), await SnapshotService.RecordsAsync(db, datasetId, ct));
+            var counts = diff.Counts;
+            // v1: unchanged when no record was added, removed or modified; an SoD matrix whose descriptive content changed (content hash) is updated.
+            var unchanged = counts.Added + counts.Removed + counts.Modified == 0 && (source != "sod" || (string?)evaluation["previous_content_hash"] == dataset.ContentHash);
             var sourceResult = new JsonObject
             {
                 ["source"] = source, ["name"] = Names[source], ["mode"] = mode, ["checked_at"] = stamp, ["status"] = unchanged ? "unchanged" : "updated",
-                ["records"] = dataset.RecordCount, ["added"] = (int?)diff?["added"] ?? 0, ["removed"] = (int?)diff?["removed"] ?? 0,
-                ["modified"] = (int?)diff?["modified"] ?? 0, ["unchanged"] = (int?)diff?["unchanged"] ?? 0,
+                ["records"] = diff.Records, ["added"] = counts.Added, ["removed"] = counts.Removed, ["modified"] = counts.Modified, ["unchanged"] = counts.Unchanged,
+                ["ambiguous_identifiers"] = counts.AmbiguousIdentifiers, ["missing_identifiers"] = diff.MissingIdentifiers, ["identity_note"] = RecordDiff.IdentityNote,
             };
             var reportId = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
             var refresh = new JsonObject
@@ -231,9 +236,11 @@ public static partial class V1DataSources
                 ["operation"] = "import", ["id"] = reportId, ["timestamp"] = stamp, ["status"] = unchanged ? "unchanged" : "changed", ["checked"] = 1,
                 ["updated"] = unchanged ? 0 : 1, ["unchanged"] = unchanged ? 1 : 0, ["failed"] = 0, ["skipped"] = 0, ["sources"] = new JsonArray(sourceResult),
             };
+            var stored = refresh.DeepClone().AsObject();
+            stored["sources"]![0]!["changes"] = V1RefreshReports.Changes(diff.Changes);
             await services.GetRequiredService<WriteCoordinator>().WriteAsync((w, _) =>
             {
-                w.RefreshReports.Add(new RefreshReport { Id = reportId, TimestampUtc = clock.GetUtcNow().UtcDateTime, Operation = "import", Status = (string)refresh["status"]!, Json = refresh.ToJsonString() });
+                w.RefreshReports.Add(new RefreshReport { Id = reportId, TimestampUtc = clock.GetUtcNow().UtcDateTime, Operation = "import", Status = (string)refresh["status"]!, Json = stored.ToJsonString() });
                 return Task.CompletedTask;
             }, ct);
 

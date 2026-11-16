@@ -1,0 +1,7 @@
+RISK;CRITICITY;TYPE;TEXT;ACTVT1;ACTVT2;ACTIVITY_SLOT;ACTIVITY;TCODE;TTEXT;RISK_NAME;RISK_DESCRIPTION;BUSINESS_PROCESS;ACTIVITY_NAME;ACTIVITY_TYPE;RULESET_ID;LANGUAGE
+R001;High;S;Pay and create vendor;A1;A2;ACTVT1;A1;T001;Créer fournisseur (new);Vendor fraud;Create and pay a vendor;P2P;Maintain vendor;Function;RS1;EN
+R001;High;S;Pay and create vendor;A1;A2;ACTVT2;A2;T002;Pay;Vendor fraud (other);;P2P;Pay invoices;Function;RS1;NO
+R001;High;S;Pay and create vendor;A1;A2;ACTVT2;A2;T002;Pay;;;;;;RS2;EN
+R002;Medium;C;Critical access;A3;A4;ACTVT1;A3;T003;;;;;"Bad	tab ok";;;
+R002;Medium;C;Critical access;A3;A4;ACTVT2;A4;T004;Four;Æøå name;;;;;;
+R001;High;S;Pay and create vendor;A1;A2;ACTVT1;A1;T099;Créer fournisseur;Vendor fraud;Create and pay a vendor;P2P;Maintain vendor;Function;RS1;EN

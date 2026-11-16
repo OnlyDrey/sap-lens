@@ -167,6 +167,8 @@ public sealed class AccountsTests : IDisposable
     [InlineData("POST", "/api/sod/decisions/role", "unknown")]
     [InlineData("GET", "/api/sod/decisions/assignment/history", "read")]
     [InlineData("POST", "/api/storage/lifecycle/rebaseline", "admin")]
+    [InlineData("GET", "/api/data-sources/reports/abc", "read")]
+    [InlineData("GET", "/api/data-sources/reports/abc/export", "read")]
     [InlineData("POST", "/api/import/headers", "admin")]
     [InlineData("POST", "/api/import/preview", "admin")]
     [InlineData("POST", "/api/user-import/headers", "admin")]
