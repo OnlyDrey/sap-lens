@@ -157,3 +157,24 @@ public sealed class SodDocument
     public DateTime UpdatedUtc { get; set; }
     public string UpdatedBy { get; set; } = "";
 }
+
+/// <summary>One SoD 2.0 decision event (v1 sod_decisions.Event, stored as its canonical JSON). Append-only (database triggers) and hash-chained in
+/// insertion order: any edited, removed or reordered event breaks the chain.</summary>
+public sealed class SodDecisionRecord
+{
+    public long Seq { get; set; }
+    public required string EventId { get; set; }
+    public required string Context { get; set; }
+    public required string Kind { get; set; }
+    public required string Key { get; set; }
+    public required string Json { get; set; }
+    public string? PreviousHash { get; set; }
+    public required string Hash { get; set; }
+}
+
+/// <summary>Immutable, content-addressed evidence a decision was made against (v1 private snapshot: SHA-256 of its canonical JSON).</summary>
+public sealed class SodEvidenceSnapshot
+{
+    public required string Sha256 { get; set; }
+    public required string Json { get; set; }
+}

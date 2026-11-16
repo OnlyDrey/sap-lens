@@ -44,6 +44,18 @@ the behavior the .NET port must keep; [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.m
   evidence (unshared e-mail, full name hashes) changes completely, makes earlier decisions Outdated until a new decision. Untrusted continuity
   data makes every assignment decision Outdated until an administrator re-baselines. Events are never modified.
 
+## Storage (.NET)
+
+- `SodDecisionEvents`: one row per event, the v1 event as canonical JSON, append-only (SQLite triggers) and hash-chained in insertion order
+  (`SHA-256(previous hash + "\n" + event JSON)`); `SodDecisionStore.VerifyChainAsync` reports the first broken link.
+- `SodEvidenceSnapshots`: content-addressed evidence (SHA-256 of the canonical JSON of `{version, source, kind, evidence}`, the same address v1
+  gives its private snapshot), verified on every read.
+- The store revision is the `sod-decisions` row of `SodDocuments`. Every call runs in one SQLite write transaction: revision check, per-item
+  validation, history cap, capacity, events, evidence and the new revision commit together or not at all.
+- v1 additions not adopted: none. Addition over v1: the hash chain and database-enforced immutability (v1 keeps a JSON file).
+- Messages: where v1 raises its own text (revision, items, expiry, context, capacity, evidence) .NET returns the same text; pydantic validation
+  failures are 422 in both, with .NET's own wording.
+
 ## Attribution
 
 v1 records `reviewer` (and `approver`) as given on Desktop and the signed-in username on a Server, plus `actor_identity`. The .NET port keeps the
@@ -55,5 +67,5 @@ refused (403), because it identifies no reviewer.
 | Slice | Status | Evidence |
 | --- | --- | --- |
 | 1. Decision model: derive, lifecycle, states, coverage, effective decision | Done | `SodGovernanceTests`: Python v1 model of 90 users and 769 review items identical; the .NET analysis derives the same keys and versions |
-| 2. Persistent store: events, revision, evidence snapshots, hash chain | Pending | |
+| 2. Persistent store: events, revision, evidence snapshots, hash chain | Done (no routes yet) | `SodDecisionStoreTests`: a 20-call v1 sequence (successes, stale revision, every validator, limits, expiry, control characters, contexts, bulk tag) gives the same status, revision, previous decisions and evidence addresses; histories and evidence equal v1 after a restart; concurrent writers commit once; a failing item writes nothing; triggers refuse edits; tampering breaks the chain |
 | 3. Routes: decide, history, evidence; bulk; reappearance memory | Pending | |

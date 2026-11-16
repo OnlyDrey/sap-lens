@@ -14,6 +14,8 @@ public sealed class SapLensDb(DbContextOptions<SapLensDb> options) : DbContext(o
     public DbSet<RefreshReport> RefreshReports => Set<RefreshReport>();
     public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
     public DbSet<SodDocument> SodDocuments => Set<SodDocument>();
+    public DbSet<SodDecisionRecord> SodDecisionEvents => Set<SodDecisionRecord>();
+    public DbSet<SodEvidenceSnapshot> SodEvidenceSnapshots => Set<SodEvidenceSnapshot>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -49,6 +51,19 @@ public sealed class SapLensDb(DbContextOptions<SapLensDb> options) : DbContext(o
         model.Entity<BackupRecord>(e => e.HasIndex(x => new { x.Kind, x.CreatedUtc }));
         model.Entity<SettingsDocument>(e => { e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Revision).IsConcurrencyToken(); });
         model.Entity<RefreshReport>(e => { e.Property(x => x.Id).HasMaxLength(32); e.HasIndex(x => x.TimestampUtc); });
+        model.Entity<SodDecisionRecord>(e =>
+        {
+            e.ToTable("SodDecisionEvents");
+            e.HasKey(x => x.Seq);
+            e.HasIndex(x => x.EventId).IsUnique();
+            e.HasIndex(x => x.Hash).IsUnique();
+            e.HasIndex(x => new { x.Context, x.Kind, x.Key, x.Seq });
+            e.Property(x => x.EventId).HasMaxLength(32);
+            e.Property(x => x.Context).HasMaxLength(64);
+            e.Property(x => x.Kind).HasMaxLength(16);
+            e.Property(x => x.Key).HasMaxLength(64);
+        });
+        model.Entity<SodEvidenceSnapshot>(e => { e.HasKey(x => x.Sha256); e.Property(x => x.Sha256).HasMaxLength(64); });
         model.Entity<SodDocument>(e => { e.HasKey(x => x.Name); e.Property(x => x.Name).HasMaxLength(32); e.Property(x => x.Revision).IsConcurrencyToken(); });
         model.Entity<SavedFilter>(e =>
         {

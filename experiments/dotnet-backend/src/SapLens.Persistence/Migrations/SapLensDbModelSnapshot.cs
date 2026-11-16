@@ -412,6 +412,56 @@ namespace SapLens.Persistence.Migrations
                     b.ToTable("Settings");
                 });
 
+            modelBuilder.Entity("SapLens.Persistence.SodDecisionRecord", b =>
+                {
+                    b.Property<long>("Seq")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Context")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EventId")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Hash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Json")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Key")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(16)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PreviousHash")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Seq");
+
+                    b.HasIndex("EventId")
+                        .IsUnique();
+
+                    b.HasIndex("Hash")
+                        .IsUnique();
+
+                    b.HasIndex("Context", "Kind", "Key", "Seq");
+
+                    b.ToTable("SodDecisionEvents", (string)null);
+                });
+
             modelBuilder.Entity("SapLens.Persistence.SodDocument", b =>
                 {
                     b.Property<string>("Name")
@@ -436,6 +486,21 @@ namespace SapLens.Persistence.Migrations
                     b.HasKey("Name");
 
                     b.ToTable("SodDocuments");
+                });
+
+            modelBuilder.Entity("SapLens.Persistence.SodEvidenceSnapshot", b =>
+                {
+                    b.Property<string>("Sha256")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Json")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Sha256");
+
+                    b.ToTable("SodEvidenceSnapshots");
                 });
 
             modelBuilder.Entity("SapLens.Persistence.DatasetRecord", b =>

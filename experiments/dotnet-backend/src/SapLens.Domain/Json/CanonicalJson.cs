@@ -24,6 +24,24 @@ public static class CanonicalJson
         switch (value)
         {
             case null: b.Append("null"); break;
+            case System.Text.Json.Nodes.JsonObject node:
+                Write(b, node.ToDictionary(p => p.Key, p => (object?)p.Value, StringComparer.Ordinal));
+                break;
+            case System.Text.Json.Nodes.JsonArray node:
+                Write(b, node.Select(v => (object?)v).ToList());
+                break;
+            case System.Text.Json.Nodes.JsonValue node:
+                switch (node.GetValueKind())
+                {
+                    case System.Text.Json.JsonValueKind.String: WriteString(b, node.GetValue<string>()); break;
+                    case System.Text.Json.JsonValueKind.True: b.Append("true"); break;
+                    case System.Text.Json.JsonValueKind.False: b.Append("false"); break;
+                    case System.Text.Json.JsonValueKind.Number when node.TryGetValue<int>(out var small): b.Append(small.ToString(CultureInfo.InvariantCulture)); break;
+                    case System.Text.Json.JsonValueKind.Number when node.TryGetValue<long>(out var integer): b.Append(integer.ToString(CultureInfo.InvariantCulture)); break;
+                    // Python and .NET format non-integral numbers differently; hashed evidence never contains them.
+                    default: throw new ArgumentException("Unsupported canonical JSON number.");
+                }
+                break;
             case bool flag: b.Append(flag ? "true" : "false"); break;
             case string text: WriteString(b, text); break;
             case int or long: b.Append(Convert.ToString(value, CultureInfo.InvariantCulture)); break;

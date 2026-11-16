@@ -19,6 +19,7 @@ public static class CoreServices
         services.AddSingleton<JobQueue>();
         services.AddSingleton<SnapshotService>();
         services.AddSingleton<ReviewService>();
+        services.AddSingleton<SodDecisionStore>();
         services.AddSingleton<ImportService>();
         services.AddSingleton<IJobHandler>(sp => sp.GetRequiredService<ImportService>());
         services.AddHostedService<DatabaseInitializer>();
