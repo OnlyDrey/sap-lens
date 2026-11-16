@@ -1,0 +1,22 @@
+[
+ {"name": "roles_active", "route": "release-roles"},
+ {"name": "roles_all_po", "route": "release-roles", "status": "all", "document_type": "PO"},
+ {"name": "roles_area", "route": "release-roles", "status": "all", "release_areas": ["E"], "strategies": ["06"]},
+ {"name": "releases_default", "route": "releases"},
+ {"name": "releases_all_grouped", "route": "releases", "status": "all", "group_by_user_group": true, "sort": "assigned_users", "descending": true, "limit": 100},
+ {"name": "releases_complete", "route": "releases", "status": "all", "list_complete": true, "matrix_complete": true, "sort": "release_group"},
+ {"name": "releases_anchor", "route": "releases", "status": "all", "anchor": "zo:mm:m1:po_rel_st_e0_06:all"},
+ {"name": "releases_dates", "route": "releases", "status": "all", "valid_from_min": "1999-06-01", "open_ended": "exclude"},
+ {"name": "releases_user", "route": "releases", "status": "expired", "username": "user0001*,USER0002*", "user_groups": ["GRP_LOG", "GRP_FIN"]},
+ {"name": "opt_group", "route": "release-options", "field": "group", "status": "all"},
+ {"name": "opt_strategy", "route": "release-options", "field": "strategy", "status": "all", "document_type": "PO", "selected": "06"},
+ {"name": "opt_area", "route": "release-options", "field": "release_area", "status": "all"},
+ {"name": "opt_username", "route": "release-options", "field": "username", "status": "all", "search": "user00", "selected": "USER0001*", "limit": 5},
+ {"name": "opt_role", "route": "release-options", "field": "role", "release_groups": ["E0"]},
+ {"name": "assign_role", "route": "release-assignments", "status": "all", "role": "ZO:MM:M1:PO_REL_ST_E0_06:ALL"},
+ {"name": "assign_all", "route": "release-assignments", "status": "all", "limit": 100, "offset": 10},
+ {"name": "assign_filters", "route": "release-assignments", "document_type": "PR", "strategies": ["06", "07"], "status": "all"},
+ {"name": "export_roles", "route": "exports/release-roles", "status": "all"},
+ {"name": "export_releases", "route": "exports/releases", "status": "all"},
+ {"name": "export_releases_desc", "route": "exports/releases", "status": "all", "descending": true, "release_groups": ["E0", "E1"]}
+]

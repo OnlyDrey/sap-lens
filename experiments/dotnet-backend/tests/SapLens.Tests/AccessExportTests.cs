@@ -40,9 +40,14 @@ public sealed class AccessExportTests : IAsyncLifetime
         try { Directory.Delete(_root, true); } catch (IOException) { }
     }
 
+    private static string Value(JsonNode value) => value.GetValueKind() switch
+    {
+        System.Text.Json.JsonValueKind.True => "true", System.Text.Json.JsonValueKind.False => "false", System.Text.Json.JsonValueKind.String => (string)value!, _ => value.ToJsonString(),
+    };
+
     private static string QueryString(JsonObject spec) => string.Join('&', spec.Where(p => p.Key != "name").SelectMany(p => p.Value is JsonArray values
-        ? values.Select(v => $"{p.Key}={Uri.EscapeDataString((string)v!)}")
-        : [$"{p.Key}={Uri.EscapeDataString(p.Value!.GetValueKind() == System.Text.Json.JsonValueKind.True ? "true" : p.Value.GetValueKind() == System.Text.Json.JsonValueKind.False ? "false" : (string)p.Value!)}"]));
+        ? values.Select(v => $"{p.Key}={Uri.EscapeDataString(Value(v!))}")
+        : [$"{p.Key}={Uri.EscapeDataString(Value(p.Value!))}"]));
 
     [Fact]
     public async Task Selection_and_assignment_export_equal_python_v1()
@@ -65,6 +70,41 @@ public sealed class AccessExportTests : IAsyncLifetime
         }
         Assert.True(failures.Count == 0, string.Join("\n", failures));
     }
+
+    [Fact]
+    public async Task Release_roles_routes_equal_python_v1()
+    {
+        var expected = JsonNode.Parse(File.ReadAllText(Fixture("access", "release-expected.python.json")))!.AsObject();
+        var failures = new List<string>();
+        foreach (var spec in JsonNode.Parse(File.ReadAllText(Fixture("access", "release-queries.json")))!.AsArray().Select(s => s!.AsObject()))
+        {
+            var name = (string)spec["name"]!;
+            var route = (string)spec["route"]!;
+            var parameters = spec.DeepClone().AsObject();
+            parameters.Remove("route");
+            var response = await _client.GetAsync($"/api/access/{route}?{QueryString(parameters)}");
+            var text = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync());
+            if (response.StatusCode != HttpStatusCode.OK) { failures.Add($"{name}: {response.StatusCode} {text}"); continue; }
+            var want = expected[name]!;
+            if (route.StartsWith("exports/", StringComparison.Ordinal))
+            {
+                if (Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text))) != (string)want["csv_sha256"]!)
+                    failures.Add($"{name}: CSV differs; head {string.Join(" | ", text.Split("\r\n").Take(3))} vs {string.Join(" | ", want["csv_head"]!.AsArray().Select(v => (string)v!))}");
+                continue;
+            }
+            var actual = JsonNode.Parse(text)!.AsObject();
+            actual.Remove("as_of");
+            actual.Remove("data_revision");
+            if (!JsonNode.DeepEquals(want, actual))
+            {
+                var keys = want.AsObject().Select(p => p.Key).Union(actual.Select(p => p.Key)).Where(k => !JsonNode.DeepEquals(want[k], actual[k]));
+                failures.Add($"{name}: differs in {string.Join(", ", keys.Select(k => $"{k}: {Short(want[k])} vs {Short(actual[k])}"))}");
+            }
+        }
+        Assert.True(failures.Count == 0, string.Join("\n", failures));
+    }
+
+    private static string Short(JsonNode? node) { var text = node?.ToJsonString() ?? "null"; return text.Length > 300 ? text[..300] : text; }
 
     [Fact]
     public async Task Export_headers_formula_cells_and_refusals()

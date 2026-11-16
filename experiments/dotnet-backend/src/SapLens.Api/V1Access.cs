@@ -15,7 +15,7 @@ public static class V1Access
     private static readonly string[] Sorts = ["username", "group", "first_name", "last_name", "email", "account_status", "relevant_roles"];
     private static readonly string[] Validities = ["active", "expired", "future", "unknown", "all"];
 
-    private static DateOnly Today() => DateOnly.FromDateTime(DateTime.Now);
+    internal static DateOnly Today() => DateOnly.FromDateTime(DateTime.Now);
     private static IResult Detail(int status, string detail) => Results.Json(new { detail }, statusCode: status);
 
     private static readonly string[] AssignmentColumns = ["USERNAME", "FIRST_NAME", "LAST_NAME", "EMAIL", "USER_GROUP", "ROLE_NAME", "ROLE_VALID_FROM", "ROLE_VALID_TO",
@@ -79,11 +79,7 @@ public static class V1Access
             {
                 items = pageItems.Select(Row).ToList(), total = result.Count, offset, limit, username_filter = (object?)null,
                 loaded = snapshot.Ids.Users is not null, catalogue_loaded = snapshot.Catalogue.Roles.Count > 0,
-                report = new
-                {
-                    unique_users = snapshot.Users.Users.Count, assignments = snapshot.Users.Assignments.Count, relevant_assignments = snapshot.Users.RelevantAssignments,
-                    directory_only_users = snapshot.Users.DirectoryOnlyUsers, invalid_catalogue_patterns = snapshot.Users.InvalidCataloguePatterns, group_count = snapshot.Users.GroupCount,
-                },
+                report = await UsersReport(http, snapshot, ct),
                 as_of = today.ToString("yyyy-MM-dd"), data_revision = Revision(snapshot), groups, groups_total = snapshot.Users.GroupCount, export_assignments = exportAssignments,
             });
         });
@@ -131,9 +127,8 @@ public static class V1Access
         api.MapGet("/access/users/{**username}", async (HttpContext http, string username, SnapshotService snapshots, CancellationToken ct) =>
         {
             var q = http.Request.Query;
-            foreach (var unsupported in new[] { "valid_from_min", "valid_from_max", "valid_to_min", "valid_to_max", "open_ended" })
-                if (q[unsupported].Any(v => !string.IsNullOrEmpty(v))) return V1Compatibility.NotMigrated(http, $"access/users/…?{unsupported}=… (date filters not migrated yet)");
-            if (q["include_missing_end"].FirstOrDefault() is "false") return V1Compatibility.NotMigrated(http, "access/users/…?include_missing_end=false (date filters not migrated yet)");
+            var (dates, dateError) = V1ReleaseRoles.Dates(q);
+            if (dateError is not null) return dateError;
             var status = q["status"].FirstOrDefault() ?? "";
             var scope = q["scope"].FirstOrDefault() ?? "";
             var mode = q["transaction_mode"].FirstOrDefault() ?? "and";
@@ -144,7 +139,7 @@ public static class V1Access
             if (!snapshot.Users.Users.TryGetValue(RoleNames.NormalizeUsername(username), out var user)) return Detail(404, "User not found in the current local export.");
             var today = Today();
             var showExpired = Flag(q, "show_expired");
-            var entries = user.Assignments.Where(a => UserLookup.Relevant(a, status, showExpired, today)
+            var entries = user.Assignments.Where(a => dates!.Within(a) && UserLookup.Relevant(a, status, showExpired, today)
                 && (scope.Length == 0 || (scope == "all" ? a.Scope is "business" or "release" : a.Scope == scope))).ToList();
             var unmapped = entries.Count(a => !a.Resolved || a.Tcodes.Count == 0);
             var tcode = q["tcode"].FirstOrDefault() ?? "";
@@ -286,7 +281,7 @@ public static class V1Access
             return (object)new { items = list.Take(25).ToList(), total = list.Count };
         });
 
-    private static Dictionary<string, object?> AssignmentView(Assignment a, DateOnly today) => new()
+    internal static Dictionary<string, object?> AssignmentView(Assignment a, DateOnly today) => new()
     {
         ["id"] = a.Id, ["username"] = a.Username, ["user_key"] = a.UserKey, ["role_name"] = a.RoleName, ["user_group"] = a.UserGroup, ["scope"] = a.Scope,
         ["valid_from"] = a.ValidFrom, ["valid_to"] = a.ValidTo, ["user_valid_from"] = a.UserValidFrom, ["user_valid_to"] = a.UserValidTo, ["user_locked"] = a.UserLocked,
@@ -307,8 +302,30 @@ public static class V1Access
         ["classification_status"] = "Unassigned",
     };
 
-    private static string Revision(Snapshot snapshot) => $"{V1Compatibility.Boot}.{(snapshot.Ids.Roles ?? 0) + (snapshot.Ids.Users ?? 0) + (snapshot.Ids.Sod ?? 0)}.{(snapshot.Ids.Employees ?? 0)}";
-    private static bool Flag(IQueryCollection q, string name) => q[name].FirstOrDefault() is "true" or "True" or "1";
+    /// <summary>source_info's report: v1's User Access import report (users.report without samples and file name) from the stored import report and the
+    /// built directory's counts.</summary>
+    internal static async Task<Dictionary<string, object?>> UsersReport(HttpContext http, Snapshot snapshot, CancellationToken ct)
+    {
+        if (snapshot.Ids.Users is not { } id) return [];
+        var factory = http.RequestServices.GetRequiredService<Microsoft.EntityFrameworkCore.IDbContextFactory<SapLens.Persistence.SapLensDb>>();
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var json = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions.FirstOrDefaultAsync(
+            System.Linq.Queryable.Select(System.Linq.Queryable.Where(db.Datasets, d => d.Id == id), d => d.ReportJson), ct);
+        var stored = json is null ? null : System.Text.Json.Nodes.JsonNode.Parse(json);
+        var report = new Dictionary<string, object?>();
+        foreach (var key in new[] { "import_profile", "import_version", "detected_columns", "resolved_mapping", "parsed_rows", "unique_records", "duplicate_rows", "warnings" })
+            if (stored?[key] is { } value) report[key] = value.DeepClone();
+        report["errors"] = Array.Empty<string>();
+        report["unique_users"] = snapshot.Users.Users.Count;
+        report["assignments"] = snapshot.Users.Assignments.Count;
+        report["relevant_assignments"] = snapshot.Users.RelevantAssignments;
+        report["directory_only_users"] = snapshot.Users.DirectoryOnlyUsers;
+        report["invalid_catalogue_patterns"] = snapshot.Users.InvalidCataloguePatterns;
+        return report;
+    }
+
+    internal static string Revision(Snapshot snapshot) => $"{V1Compatibility.Boot}.{(snapshot.Ids.Roles ?? 0) + (snapshot.Ids.Users ?? 0) + (snapshot.Ids.Sod ?? 0)}.{(snapshot.Ids.Employees ?? 0)}";
+    internal static bool Flag(IQueryCollection q, string name) => q[name].FirstOrDefault() is "true" or "True" or "1";
 
     private static bool NonNegative(IQueryCollection q, string name, out int value)
     {
@@ -316,7 +333,7 @@ public static class V1Access
         return q[name].FirstOrDefault() is not { } text || (int.TryParse(text, out value) && value >= 0);
     }
 
-    private static bool Paging(IQueryCollection q, int defaultLimit, out int offset, out int limit)
+    internal static bool Paging(IQueryCollection q, int defaultLimit, out int offset, out int limit)
     {
         limit = defaultLimit;
         if (!NonNegative(q, "offset", out offset)) return false;
