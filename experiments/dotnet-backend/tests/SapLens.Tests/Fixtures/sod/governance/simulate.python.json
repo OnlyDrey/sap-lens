@@ -1,0 +1,426 @@
+{
+ "user": "USER00035",
+ "activity": "ACT_11_A",
+ "roles": [
+  "ZC:GEN:ROLE_00023",
+  "ZC:GEN:ROLE_00191",
+  "ZC:QM:ROLE_00188",
+  "ZO:MM:M2:PR_REL_ST_E2_01:ALL",
+  "ZO:PM:ROLE_00105"
+ ],
+ "cases": [
+  {
+   "name": "remove_0",
+   "removed": [
+    "ZC:GEN:ROLE_00023"
+   ],
+   "removed_roles": [
+    "ZC:GEN:ROLE_00023"
+   ]
+  },
+  {
+   "name": "remove_1",
+   "removed": [
+    "ZC:GEN:ROLE_00191"
+   ],
+   "removed_roles": [
+    "ZC:GEN:ROLE_00191"
+   ]
+  },
+  {
+   "name": "remove_2",
+   "removed": [
+    "ZC:QM:ROLE_00188"
+   ],
+   "removed_roles": [
+    "ZC:QM:ROLE_00188"
+   ]
+  },
+  {
+   "name": "remove_3",
+   "removed": [
+    "ZO:MM:M2:PR_REL_ST_E2_01:ALL"
+   ],
+   "removed_roles": [
+    "ZO:MM:M2:PR_REL_ST_E2_01:ALL"
+   ]
+  },
+  {
+   "name": "remove_4",
+   "removed": [
+    "ZO:PM:ROLE_00105"
+   ],
+   "removed_roles": [
+    "ZO:PM:ROLE_00105"
+   ]
+  },
+  {
+   "name": "remove_pair",
+   "removed": [
+    "ZC:GEN:ROLE_00023",
+    "ZC:GEN:ROLE_00191"
+   ],
+   "removed_roles": [
+    "ZC:GEN:ROLE_00023",
+    "ZC:GEN:ROLE_00191"
+   ]
+  },
+  {
+   "name": "remove_all",
+   "removed": [
+    "ZC:GEN:ROLE_00023",
+    "ZC:GEN:ROLE_00191",
+    "ZC:QM:ROLE_00188",
+    "ZO:MM:M2:PR_REL_ST_E2_01:ALL",
+    "ZO:PM:ROLE_00105"
+   ],
+   "removed_roles": [
+    "ZC:GEN:ROLE_00023",
+    "ZC:GEN:ROLE_00191",
+    "ZC:QM:ROLE_00188",
+    "ZO:MM:M2:PR_REL_ST_E2_01:ALL",
+    "ZO:PM:ROLE_00105"
+   ]
+  },
+  {
+   "name": "remove_nothing",
+   "removed": [],
+   "removed_roles": []
+  },
+  {
+   "name": "unknown",
+   "removed": [
+    "UNKNOWN"
+   ],
+   "removed_roles": [
+    "UNKNOWN"
+   ]
+  },
+  {
+   "name": "unknown_user",
+   "removed": [],
+   "user": "NOBODY",
+   "removed_roles": []
+  }
+ ],
+ "results": {
+  "remove_0": {
+   "status": 200,
+   "body": {
+    "user": "USER00035",
+    "removed": [
+     "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c"
+    ],
+    "before": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "after": [
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "resolved": [
+     "R009"
+    ],
+    "lost_activities": [
+     "ACT_9_A",
+     "ACT_9_B"
+    ],
+    "affected_approved_activities": [],
+    "warnings": [],
+    "eliminates_all": false,
+    "policy": "sod-two-sided-v1",
+    "note": "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal."
+   }
+  },
+  "remove_1": {
+   "status": 200,
+   "body": {
+    "user": "USER00035",
+    "removed": [
+     "547842d62be09a8318a287d3c808fe32234b906cd5919a4518e4faaf4a516c99"
+    ],
+    "before": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "after": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026"
+    ],
+    "resolved": [
+     "R035"
+    ],
+    "lost_activities": [
+     "ACT_35_A",
+     "ACT_35_B"
+    ],
+    "affected_approved_activities": [],
+    "warnings": [],
+    "eliminates_all": false,
+    "policy": "sod-two-sided-v1",
+    "note": "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal."
+   }
+  },
+  "remove_2": {
+   "status": 200,
+   "body": {
+    "user": "USER00035",
+    "removed": [
+     "80bd8158f5ceffd6dad8b758c381f055431412af53fff1c0b12e8914bcd7fd65"
+    ],
+    "before": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "after": [
+     "R009",
+     "R026",
+     "R035"
+    ],
+    "resolved": [
+     "R011",
+     "R017",
+     "R019"
+    ],
+    "lost_activities": [
+     "ACT_11_B",
+     "ACT_17_A",
+     "ACT_19_B"
+    ],
+    "affected_approved_activities": [],
+    "warnings": [],
+    "eliminates_all": false,
+    "policy": "sod-two-sided-v1",
+    "note": "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal."
+   }
+  },
+  "remove_3": {
+   "status": 200,
+   "body": {
+    "user": "USER00035",
+    "removed": [
+     "d839def3f7352ab9637391a641c61f71cf4ecb1e4b7edacfd15a61e7777f33bd"
+    ],
+    "before": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "after": [
+     "R009",
+     "R017",
+     "R035"
+    ],
+    "resolved": [
+     "R011",
+     "R019",
+     "R026"
+    ],
+    "lost_activities": [
+     "ACT_11_A",
+     "ACT_19_A",
+     "ACT_26_A",
+     "ACT_26_B"
+    ],
+    "affected_approved_activities": [
+     "ACT_11_A"
+    ],
+    "warnings": [
+     "Removal would end approved access to activity ACT_11_A."
+    ],
+    "eliminates_all": false,
+    "policy": "sod-two-sided-v1",
+    "note": "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal."
+   }
+  },
+  "remove_4": {
+   "status": 200,
+   "body": {
+    "user": "USER00035",
+    "removed": [
+     "38b324d1bee6c4144edbeae60c296605ea8fa8b19bd26c6597a2be635f17bfb6"
+    ],
+    "before": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "after": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "resolved": [],
+    "lost_activities": [],
+    "affected_approved_activities": [],
+    "warnings": [],
+    "eliminates_all": false,
+    "policy": "sod-two-sided-v1",
+    "note": "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal."
+   }
+  },
+  "remove_pair": {
+   "status": 200,
+   "body": {
+    "user": "USER00035",
+    "removed": [
+     "547842d62be09a8318a287d3c808fe32234b906cd5919a4518e4faaf4a516c99",
+     "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c"
+    ],
+    "before": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "after": [
+     "R011",
+     "R017",
+     "R019",
+     "R026"
+    ],
+    "resolved": [
+     "R009",
+     "R035"
+    ],
+    "lost_activities": [
+     "ACT_35_A",
+     "ACT_35_B",
+     "ACT_9_A",
+     "ACT_9_B"
+    ],
+    "affected_approved_activities": [],
+    "warnings": [],
+    "eliminates_all": false,
+    "policy": "sod-two-sided-v1",
+    "note": "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal."
+   }
+  },
+  "remove_all": {
+   "status": 200,
+   "body": {
+    "user": "USER00035",
+    "removed": [
+     "38b324d1bee6c4144edbeae60c296605ea8fa8b19bd26c6597a2be635f17bfb6",
+     "547842d62be09a8318a287d3c808fe32234b906cd5919a4518e4faaf4a516c99",
+     "80bd8158f5ceffd6dad8b758c381f055431412af53fff1c0b12e8914bcd7fd65",
+     "c2b1db28a4581423805f52c07e93a2fa27f689bfa3f2662935fbdfb64b3a539c",
+     "d839def3f7352ab9637391a641c61f71cf4ecb1e4b7edacfd15a61e7777f33bd"
+    ],
+    "before": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "after": [],
+    "resolved": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "lost_activities": [
+     "ACT_11_A",
+     "ACT_11_B",
+     "ACT_17_A",
+     "ACT_17_B",
+     "ACT_19_A",
+     "ACT_19_B",
+     "ACT_26_A",
+     "ACT_26_B",
+     "ACT_35_A",
+     "ACT_35_B",
+     "ACT_9_A",
+     "ACT_9_B"
+    ],
+    "affected_approved_activities": [
+     "ACT_11_A"
+    ],
+    "warnings": [
+     "Removal would end approved access to activity ACT_11_A."
+    ],
+    "eliminates_all": true,
+    "policy": "sod-two-sided-v1",
+    "note": "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal."
+   }
+  },
+  "remove_nothing": {
+   "status": 200,
+   "body": {
+    "user": "USER00035",
+    "removed": [],
+    "before": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "after": [
+     "R009",
+     "R011",
+     "R017",
+     "R019",
+     "R026",
+     "R035"
+    ],
+    "resolved": [],
+    "lost_activities": [],
+    "affected_approved_activities": [],
+    "warnings": [],
+    "eliminates_all": false,
+    "policy": "sod-two-sided-v1",
+    "note": "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal."
+   }
+  },
+  "unknown": {
+   "status": 422,
+   "detail": "Select assignments that contribute to this user's detected evidence."
+  },
+  "unknown_user": {
+   "status": 404,
+   "detail": "The SAP user has no detected conflict evidence in this context."
+  }
+ },
+ "review_subjects": [
+  "USER00007",
+  "USER00035"
+ ],
+ "revision": 1
+}

@@ -517,6 +517,59 @@ public static partial class V1SodDecisions
         });
     }
 
+    /// <summary>GET /api/sod/review-subjects: the requested SAP identities present in the review model (batched, independent of page filters).</summary>
+    private static async Task<IResult> ReviewSubjectsAsync(HttpContext http, CancellationToken ct)
+    {
+        var q = http.Request.Query;
+        var context = q["context"].FirstOrDefault() ?? "current";
+        if (!SodDecisionStore.ContextPattern().IsMatch(context)) return Errors([V1Validation.At("string_pattern_mismatch", "String should match pattern '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'", "query", "context")]);
+        if (q["usernames"].Count > 200) return Errors([V1Validation.At("too_long", $"List should have at most 200 items after validation, not {q["usernames"].Count}", "query", "usernames")]);
+        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/review-subjects for review period '{context}' (review periods are not migrated)");
+        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct);
+        if (loadError is not null) return loadError;
+        var result = await InfoAsync(http.RequestServices, bundle!, ct);
+        result["users"] = List(q["usernames"].OfType<string>().Where(bundle!.Review.ContainsKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
+        return Json(result);
+    }
+
+    /// <summary>POST /api/sod/simulate: read-only what-if over a copy of the evidence; imported data and decisions are untouched.</summary>
+    private static async Task<IResult> SimulateAsync(HttpContext http, CancellationToken ct)
+    {
+        var (raw, readError) = await V1Validation.ReadBody(http, ct);
+        if (readError is not null) return readError;
+        var body = raw!;
+        var errors = new List<object>();
+        V1Validation.Extra(body, ["context", "user", "removed"], errors);
+        if (body["context"] is not null && (body["context"]!.GetValueKind() != JsonValueKind.String || !SodDecisionStore.ContextPattern().IsMatch((string)body["context"]!)))
+            errors.Add(V1Validation.Error("string_pattern_mismatch", "context", "String should match pattern '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'"));
+        V1Validation.Text(body, "user", 1, 512, true, errors);
+        var removed = new List<string>();
+        if (body.TryGetPropertyValue("removed", out var node) && node is not null)
+        {
+            if (node is not JsonArray list || list.Any(v => v?.GetValueKind() != JsonValueKind.String)) errors.Add(V1Validation.Error("list_type", "removed", "Input should be a valid list of strings"));
+            else if (list.Count > 200) errors.Add(V1Validation.Error("too_long", "removed", $"List should have at most 200 items after validation, not {list.Count}"));
+            else removed = list.Select(v => (string)v!).ToList();
+        }
+        if (errors.Count > 0) return Errors(errors);
+        var context = (string?)body["context"] ?? "current";
+        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/simulate for review period '{context}' (review periods are not migrated)");
+        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct);
+        if (loadError is not null) return loadError;
+        var user = (string)body["user"]!;
+        if (!bundle!.Model.TryGetValue(user, out var entry)) return Detail(404, "The SAP user has no detected conflict evidence in this context.");
+        var state = await StatesAsync(http.RequestServices, bundle, bundle.Model, ct);
+        var mapping = entry.Activities.Values.ToDictionary(a => a.Name, a => state.Items["activity"][a.Key].Lifecycle, StringComparer.Ordinal);
+        JsonObject simulation;
+        try { simulation = SodGovernance.SimulateJson(entry, removed.ToHashSet(StringComparer.Ordinal), mapping); }
+        catch (ArgumentException error) { return Detail(422, error.Message); }
+        var result = await InfoAsync(http.RequestServices, bundle, ct);
+        result["user"] = user;
+        foreach (var (k, v) in simulation) result[k] = v?.DeepClone();
+        result["policy"] = SodSource.EvaluationPolicy;
+        result["note"] = "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal.";
+        return Json(result);
+    }
+
     public static void Map(RouteGroupBuilder api)
     {
         api.MapPost("/sod/decisions/{kind}", async (string kind, HttpContext http, SodDecisionStore store, CancellationToken ct) =>
@@ -577,6 +630,8 @@ public static partial class V1SodDecisions
 
         api.MapGet("/sod/subject", SubjectAsync);
         api.MapPost("/sod/remediation/actions", SaveActionAsync);
+        api.MapGet("/sod/review-subjects", ReviewSubjectsAsync);
+        api.MapPost("/sod/simulate", SimulateAsync);
         api.MapPost("/sod/decisions/assignment/bulk", BulkAsync);
 
         api.MapGet("/sod/decisions/{kind}/history", async (string kind, HttpContext http, SodDecisionStore store, CancellationToken ct) =>
