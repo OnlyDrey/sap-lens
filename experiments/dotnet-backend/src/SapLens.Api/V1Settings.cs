@@ -62,6 +62,9 @@ public sealed class V1Settings(WriteCoordinator writer, IDbContextFactory<SapLen
             if (expected is not null && actual is not null && actual != System.Text.Json.JsonValueKind.Null && Kind(expected.Value) != Kind(actual.Value))
                 return $"Settings field '{key}' has the wrong type.";
         }
+        // The RefreshSchedule model (a readable daily time or cron expression, a valid zone name pattern).
+        if (candidate["refresh_schedule"] is JsonObject schedule && V1RefreshSchedule.Parse(schedule.DeepClone().AsObject()).Error is { } scheduleError)
+            return $"refresh_schedule: {scheduleError}";
         foreach (var field in PathFields)
             if (candidate.ContainsKey(field) && (string?)candidate[field] != (string?)current[field])
                 return "Source files change through Data Sources (choose or upload a file), not through a settings save.";

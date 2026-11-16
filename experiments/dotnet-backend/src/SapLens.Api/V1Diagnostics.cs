@@ -32,6 +32,7 @@ public static class V1Diagnostics
         var features = settings["features"] as JsonObject ?? [];
         var modes = settings["source_modes"] as JsonObject ?? [];
         var schedule = settings["refresh_schedule"] as JsonObject ?? [];
+        var scheduleState = services.GetRequiredService<RefreshScheduleState>().Read();
         var lastLoad = active.Where(d => d.Source != Sources.Employees).Select(d => d.ActivatedUtc ?? d.CreatedUtc).DefaultIfEmpty().Max();
 
         var result = new JsonObject
@@ -54,7 +55,10 @@ public static class V1Diagnostics
             ["scheduled_refresh"] = new JsonObject
             {
                 ["enabled"] = schedule["enabled"]?.DeepClone() ?? false, ["mode"] = schedule["mode"]?.DeepClone(), ["timezone"] = schedule["timezone"]?.DeepClone(),
-                ["last_attempt"] = null, ["last_success"] = null, ["last_failure"] = null, ["last_status"] = null, ["consecutive_failures"] = 0,
+                // MIG-019: the scheduler's recorded outcome (null until the first scheduled attempt, as v1).
+                ["last_attempt"] = scheduleState["last_attempt"]?.DeepClone(), ["last_success"] = scheduleState["last_success"]?.DeepClone(),
+                ["last_failure"] = scheduleState["last_failure"]?.DeepClone(), ["last_status"] = scheduleState["last_status"]?.DeepClone(),
+                ["consecutive_failures"] = scheduleState["consecutive_failures"]?.DeepClone(),
             },
         };
 

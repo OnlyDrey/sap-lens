@@ -179,24 +179,15 @@ public static partial class V1DataSources
             var csvProfile = source == "employees" ? new CsvProfile(Id: "employees") : Profile(chosen, fields);
             if (csvProfile is null) return Detail(400, "The source import profile is invalid. Review its column mapping and format.");
 
-            // Import a private copy: the job removes its input when it finishes, the recorded source file stays.
-            var uploads = Path.Combine(database.DataDirectory, "uploads");
-            Directory.CreateDirectory(uploads);
-            var working = Path.Combine(uploads, $"{Guid.NewGuid():N}.csv");
-            try { File.Copy(importPath, working); }
+            Job finished;
+            try { finished = await RunImportJobAsync(services, source, importPath, fileName, csvProfile, ct); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             { return Detail(400, error is UnauthorizedAccessException ? "Cannot read the CSV. Check your account permissions and network-share access." : "CSV file not found. Choose an existing file or reconnect the network share."); }
-            var job = await queue.EnqueueAsync(ImportService.JobKind, JsonSerializer.Serialize(new ImportPayload(source, working, fileName, csvProfile), Sources.Json), null, ct);
-            gate.CurrentJob = job.Id;
-            var finished = await WaitAsync(queue, job.Id, ct);
-            gate.CurrentJob = 0;
             if (finished.Status == JobStatus.Cancelled) return Detail(409, "Data load canceled. Previous data and settings were retained.");
             if (finished.Status != JobStatus.Completed) return Detail(400, finished.Error ?? "The CSV could not be imported. Previous data is retained.");
-            var result = JsonNode.Parse(finished.ResultJson!)!.AsObject();
-            var datasetId = (long)result["dataset_id"]!;
             await using var db = await factory.CreateDbContextAsync(ct);
-            var dataset = await db.Datasets.AsNoTracking().FirstAsync(d => d.Id == datasetId, ct);
-            var evaluation = JsonNode.Parse(dataset.EvaluationJson ?? "{}")!.AsObject();
+            var (dataset, evaluation) = await DatasetOfAsync(db, finished, ct);
+            var datasetId = dataset.Id;
             JsonObject? confirmation = null;
             if (dataset.Status == DatasetStatus.Held)
             {
@@ -219,25 +210,17 @@ public static partial class V1DataSources
             // The refresh report, as v1 writes it for an import: counts plus the changed records (diff_records), compared with the revision this import
             // was evaluated against. The changes stay in the private report (detail and export routes); responses and history carry the summary only.
             var stamp = Stamp(clock);
-            var previousId = (long?)evaluation["evaluated_against"];
-            var diff = RecordDiff.Compare(source, await SnapshotService.RecordsAsync(db, previousId, ct), await SnapshotService.RecordsAsync(db, datasetId, ct));
-            var counts = diff.Counts;
-            // v1: unchanged when no record was added, removed or modified; an SoD matrix whose descriptive content changed (content hash) is updated.
-            var unchanged = counts.Added + counts.Removed + counts.Modified == 0 && (source != "sod" || (string?)evaluation["previous_content_hash"] == dataset.ContentHash);
-            var sourceResult = new JsonObject
-            {
-                ["source"] = source, ["name"] = Names[source], ["mode"] = mode, ["checked_at"] = stamp, ["status"] = unchanged ? "unchanged" : "updated",
-                ["records"] = diff.Records, ["added"] = counts.Added, ["removed"] = counts.Removed, ["modified"] = counts.Modified, ["unchanged"] = counts.Unchanged,
-                ["ambiguous_identifiers"] = counts.AmbiguousIdentifiers, ["missing_identifiers"] = diff.MissingIdentifiers, ["identity_note"] = RecordDiff.IdentityNote,
-            };
-            var reportId = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+            var sourceResult = new JsonObject { ["source"] = source, ["name"] = Names[source], ["mode"] = mode, ["checked_at"] = stamp };
+            var changes = await CompareAsync(db, sourceResult, dataset, evaluation, ct);
+            var unchanged = (string)sourceResult["status"]! == "unchanged";
+            var reportId = NewReportId();
             var refresh = new JsonObject
             {
                 ["operation"] = "import", ["id"] = reportId, ["timestamp"] = stamp, ["status"] = unchanged ? "unchanged" : "changed", ["checked"] = 1,
                 ["updated"] = unchanged ? 0 : 1, ["unchanged"] = unchanged ? 1 : 0, ["failed"] = 0, ["skipped"] = 0, ["sources"] = new JsonArray(sourceResult),
             };
             var stored = refresh.DeepClone().AsObject();
-            stored["sources"]![0]!["changes"] = V1RefreshReports.Changes(diff.Changes);
+            stored["sources"]![0]!["changes"] = changes;
             await services.GetRequiredService<WriteCoordinator>().WriteAsync((w, _) =>
             {
                 w.RefreshReports.Add(new RefreshReport { Id = reportId, TimestampUtc = clock.GetUtcNow().UtcDateTime, Operation = "import", Status = (string)refresh["status"]!, Json = stored.ToJsonString() });
@@ -268,12 +251,7 @@ public static partial class V1DataSources
                 }
                 var lifecycle = s["data_lifecycle"]!.AsObject();
                 lifecycle["sources"]![source] = new JsonObject { ["snapshot"] = dataset.ContentHash, ["path"] = recordedPath, ["imported_at"] = stamp, ["checked_at"] = stamp };
-                var history = lifecycle["history"]!.AsArray();
-                history.Insert(0, reportId);
-                var metadata = lifecycle["history_metadata"]!.AsObject();
-                metadata[reportId] = new JsonObject { ["timestamp"] = stamp, ["operation"] = "import", ["status"] = refresh["status"]!.DeepClone(), ["checked"] = 1,
-                    ["updated"] = refresh["updated"]!.DeepClone(), ["unchanged"] = refresh["unchanged"]!.DeepClone(), ["failed"] = 0, ["skipped"] = 0 };
-                while (history.Count > 5) { metadata.Remove((string)history[^1]!); history.RemoveAt(history.Count - 1); }
+                RecordHistory(lifecycle, reportId, refresh);
                 if (confirmation is not null)
                 {
                     var confirmations = lifecycle["confirmations"]!.AsArray();
@@ -320,7 +298,75 @@ public static partial class V1DataSources
         return list;
     }
 
-    private static string Stamp(TimeProvider clock) => clock.GetUtcNow().UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'");
+    internal static string NewReportId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
+
+    /// <summary>The active import profile of a source (Employee Directory: its fixed schema); null when the stored profile is invalid.</summary>
+    internal static CsvProfile? ActiveProfile(JsonObject settings, string source)
+    {
+        if (source == "employees") return new CsvProfile(Id: "employees");
+        if (source == "sod") return Profile(settings["sod_import"]!.AsObject(), CsvSpec.Sod.Fields);
+        var (list, active) = source == "roles" ? ("import_profiles", "active_import") : ("user_import_profiles", "active_user_import");
+        return Profile(settings[list]!.AsArray().Select(p => p!.AsObject()).First(p => (string?)p["id"] == (string?)settings[active]),
+            source == "roles" ? CsvSpec.Roles.Fields : CsvSpec.Users.Fields);
+    }
+
+    /// <summary>Imports a private copy of the file through the job queue (the job removes its input; the source file stays) and waits for the job.
+    /// File errors (missing, unreadable) surface as IOException / UnauthorizedAccessException before anything is queued.</summary>
+    internal static async Task<Job> RunImportJobAsync(IServiceProvider services, string source, string importPath, string fileName, CsvProfile profile, CancellationToken ct)
+    {
+        var queue = services.GetRequiredService<JobQueue>();
+        var gate = services.GetRequiredService<DataLoadGate>();
+        var uploads = Path.Combine(services.GetRequiredService<DatabaseOptions>().DataDirectory, "uploads");
+        Directory.CreateDirectory(uploads);
+        var working = Path.Combine(uploads, $"{Guid.NewGuid():N}.csv");
+        File.Copy(importPath, working);
+        var job = await queue.EnqueueAsync(ImportService.JobKind, JsonSerializer.Serialize(new ImportPayload(source, working, fileName, profile), Sources.Json), null, ct);
+        gate.CurrentJob = job.Id;
+        try { return await WaitAsync(queue, job.Id, ct); }
+        finally { gate.CurrentJob = 0; }
+    }
+
+    internal static async Task<(Dataset Dataset, JsonObject Evaluation)> DatasetOfAsync(SapLensDb db, Job finished, CancellationToken ct)
+    {
+        var datasetId = (long)JsonNode.Parse(finished.ResultJson!)!["dataset_id"]!;
+        var dataset = await db.Datasets.AsNoTracking().FirstAsync(d => d.Id == datasetId, ct);
+        return (dataset, JsonNode.Parse(dataset.EvaluationJson ?? "{}")!.AsObject());
+    }
+
+    /// <summary>diff_records against the revision the import was evaluated against: fills the counts and status of a source result (v1: unchanged when no
+    /// record was added, removed or modified; an SoD matrix whose descriptive content changed is updated) and returns the changed records.</summary>
+    internal static async Task<JsonArray> CompareAsync(SapLensDb db, JsonObject result, Dataset dataset, JsonObject evaluation, CancellationToken ct)
+    {
+        var source = dataset.Source;
+        var diff = RecordDiff.Compare(source, await SnapshotService.RecordsAsync(db, (long?)evaluation["evaluated_against"], ct), await SnapshotService.RecordsAsync(db, dataset.Id, ct));
+        var counts = diff.Counts;
+        var unchanged = counts.Added + counts.Removed + counts.Modified == 0 && (source != "sod" || (string?)evaluation["previous_content_hash"] == dataset.ContentHash);
+        result["status"] = unchanged ? "unchanged" : "updated";
+        result["records"] = diff.Records;
+        Counts(result, diff);
+        return V1RefreshReports.Changes(diff.Changes);
+    }
+
+    internal static void Counts(JsonObject result, RecordDiffResult diff)
+    {
+        var counts = diff.Counts;
+        result["added"] = counts.Added; result["removed"] = counts.Removed; result["modified"] = counts.Modified; result["unchanged"] = counts.Unchanged;
+        result["ambiguous_identifiers"] = counts.AmbiguousIdentifiers; result["missing_identifiers"] = diff.MissingIdentifiers; result["identity_note"] = RecordDiff.IdentityNote;
+    }
+
+    /// <summary>The five retained refresh reports (newest first) and their summaries, as v1 keeps them in data_lifecycle.</summary>
+    internal static void RecordHistory(JsonObject lifecycle, string reportId, JsonObject refresh)
+    {
+        var history = lifecycle["history"]!.AsArray();
+        history.Insert(0, reportId);
+        var metadata = lifecycle["history_metadata"]!.AsObject();
+        var summary = new JsonObject();
+        foreach (var key in new[] { "timestamp", "operation", "status", "checked", "updated", "unchanged", "failed", "skipped" }) summary[key] = refresh[key]?.DeepClone();
+        metadata[reportId] = summary;
+        while (history.Count > 5) { metadata.Remove((string)history[^1]!); history.RemoveAt(history.Count - 1); }
+    }
+
+    internal static string Stamp(TimeProvider clock) => clock.GetUtcNow().UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'");
 
     private static async Task<Job> WaitAsync(JobQueue queue, long id, CancellationToken ct)
     {
