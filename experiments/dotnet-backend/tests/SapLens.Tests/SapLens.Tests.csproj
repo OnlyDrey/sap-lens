@@ -28,4 +28,7 @@
     <ProjectReference Include="..\..\src\SapLens.Cli\SapLens.Cli.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Fixtures/**/*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

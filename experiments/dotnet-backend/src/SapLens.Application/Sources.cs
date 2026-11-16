@@ -35,8 +35,12 @@ public static class Sources
             Sod => new CsvImport(path, profile ?? new CsvProfile(Id: "sod"), CsvSpec.Sod),
             _ => throw new DomainValidationException("Unknown import source."),
         };
+        // SoD keeps the ten documented columns plus the optional descriptive columns that the file actually maps (v1 SodCsvImport): an unmapped
+        // optional column is absent from the stored record, so files without optional columns store exactly what they stored before.
         IEnumerable<IReadOnlyDictionary<string, string>> records = source == Sod
-            ? import.Records(cancellation).Select(r => (IReadOnlyDictionary<string, string>)CsvSpec.SodHeaders.ToDictionary(h => h, h => r[h], StringComparer.Ordinal))
+            ? import.Records(cancellation).Select(r => (IReadOnlyDictionary<string, string>)CsvSpec.SodHeaders
+                .Concat(CsvSpec.SodOptional.Where(f => import.Report.ResolvedMapping.GetValueOrDefault(f) is not null))
+                .ToDictionary(h => h, h => r.GetValueOrDefault(h, ""), StringComparer.Ordinal))
             : import.Records(cancellation);
         return (records, import.Report);
     }

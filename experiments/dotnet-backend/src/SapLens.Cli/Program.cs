@@ -8,6 +8,7 @@ return args.FirstOrDefault() switch
     "db-enqueue" => await DbCommands.EnqueueAsync(options["data"], int.Parse(options["count"]), options["tag"]),
     "db-claim" => await DbCommands.ClaimAllAsync(options["data"], options["owner"]),
     "bench" => await Bench.RunAsync(options),
+    "sod-fingerprints" => SodFingerprints.Run(options["csv"], options["out"]),
     "accounts-code" => await AccountsCommand.IssueAsync(options["data"], options.GetValueOrDefault("recover-administrator")),
     _ => Usage(),
 };

@@ -10,6 +10,8 @@ public sealed class SodDataset
     /// <summary>Risk definitions as canonical dictionaries (the same shape and keys as the Python store, so evidence versions match).</summary>
     public required List<Dictionary<string, object?>> Risks { get; init; }
     public required string ContentHash { get; init; }
+    /// <summary>v1 report['metadata']: optional descriptive values per risk, activity and source, present only when a mapped optional column exists.</summary>
+    public SodMetadata? Metadata { get; init; }
     public required List<string> Warnings { get; init; }
     public int DuplicateRows { get; init; }
 }
@@ -26,8 +28,10 @@ public static class SodSource
         var keyOrder = new Dictionary<string, string[]>(StringComparer.Ordinal);
         var risks = new Dictionary<string, (string[] Definition, SortedDictionary<string, string> A1, SortedDictionary<string, string> A2)>(StringComparer.Ordinal);
         int duplicates = 0, missingText = 0, index = 0;
+        var metadata = new SodMetadataCollector();
         foreach (var raw in records)
         {
+            metadata.Collect(raw);
             if (index++ >= CsvImport.MaxRows) throw new DomainValidationException("SoD exceeds the one-million-record safety limit.");
             var row = headers.ToDictionary(h => h, h => raw.TryGetValue(h, out var v) ? v.Trim() : throw new DomainValidationException("SoD records must contain exactly the documented fields."));
             if (row.Values.Any(v => v.Length > 4096 || v.Contains('\0'))) throw new DomainValidationException("SoD contains invalid or oversized fields.");
@@ -69,13 +73,17 @@ public static class SodSource
         }
         var rows = canonical.Values.Select(r => (Dictionary<string, object?>)r.ToDictionary(p => p.Key, p => (object?)p.Value)).ToList();
         var warnings = new List<string>(reportWarnings ?? []);
+        warnings.AddRange(metadata.Warnings());
         if (duplicates > 0) warnings.Add($"{duplicates} identical duplicate SoD records were deduplicated.");
         if (missingText > 0) warnings.Add($"{missingText} SoD transaction mappings have no TTEXT description.");
         var unsupported = definitions.Count(d => !(bool)d["supported"]!);
         if (unsupported > 0) warnings.Add($"{unsupported} SoD risk definitions have unsupported TYPE values and will not be evaluated.");
         var overlaps = definitions.Count(d => Codes(d, "ACTVT1").Overlaps(Codes(d, "ACTVT2")));
         if (overlaps > 0) warnings.Add($"{overlaps} SoD risk definitions contain overlapping transaction codes between activity sides; definition overlap needs review.");
-        return new SodDataset { Records = rows, Risks = definitions, ContentHash = CanonicalJson.Sha256(rows), Warnings = warnings.Distinct().ToList(), DuplicateRows = duplicates };
+        var imported = metadata.Result();
+        // Imported descriptions belong to the content identity only when the source provides them, so files without optional columns keep their hash.
+        var hash = imported is null ? CanonicalJson.Sha256(rows) : CanonicalJson.Sha256(new Dictionary<string, object?> { ["records"] = rows, ["metadata"] = imported.ToJson() });
+        return new SodDataset { Records = rows, Risks = definitions, ContentHash = hash, Metadata = imported, Warnings = warnings.Distinct().ToList(), DuplicateRows = duplicates };
     }
 
     /// <summary>Sort key with the ordering of Python tuple comparison over strings: element by element, ordinal.</summary>
