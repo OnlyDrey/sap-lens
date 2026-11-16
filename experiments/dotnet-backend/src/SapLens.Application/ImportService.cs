@@ -104,7 +104,7 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
         switch (payload.Source)
         {
             case Sources.Roles: CatalogueBuilder.Build(staged); break;
-            case Sources.Users: newKeys = Sources.AssignmentKeys(UserDirectoryBuilder.Build(staged, current.Catalogue)); break;
+            case Sources.Users: newKeys = Sources.ReviewKeys(UserDirectoryBuilder.Build(staged, current.Catalogue)); break;
             case Sources.Sod: SodSource.Build(staged, report.Warnings.Where(w => !w.StartsWith("Optional field ", StringComparison.Ordinal))); break;
             case Sources.Employees: _ = new Domain.Directory.EmployeeDirectory(staged, payload.FileName, contentHash, ""); break;
         }
@@ -115,7 +115,7 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
         var evaluation = ImportChecks.Evaluate(payload.Source, previous, staged, Checks);
         var diff = ImportChecks.Diff(payload.Source, previous, staged);
         var held = evaluation.Suspicious;
-        var removed = newKeys is null ? [] : current.AssignmentKeys.Where(k => !newKeys.Contains(k)).Order(StringComparer.Ordinal).ToList();
+        var removed = newKeys is null ? [] : Sources.ReviewKeys(current.Users).Where(k => !newKeys.Contains(k)).Order(StringComparer.Ordinal).ToList();
         var evaluationJson = JsonSerializer.Serialize(new { evaluated_against = active?.Id, previous_content_hash = active?.ContentHash, evaluation.Suspicious, anomalies = evaluation.Anomalies, old = evaluation.Old, @new = evaluation.New, diff }, Sources.Json);
         var reportJson = JsonSerializer.Serialize(report, Sources.Json);
         var result = new ImportResult(dataset.Id, held ? DatasetStatus.Held : DatasetStatus.Active, contentHash, staged.Count, held, evaluation.Anomalies.Select(a => a.Message).ToList(), diff, held ? 0 : removed.Count);
@@ -152,8 +152,8 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
         if (held.Source == Sources.Users)
         {
             var current = await snapshots.GetAsync(cancellation);
-            var keys = Sources.AssignmentKeys(UserDirectoryBuilder.Build(await SnapshotService.RecordsAsync(read, held.Id, cancellation), current.Catalogue));
-            removed = current.AssignmentKeys.Where(k => !keys.Contains(k)).Order(StringComparer.Ordinal).ToList();
+            var keys = Sources.ReviewKeys(UserDirectoryBuilder.Build(await SnapshotService.RecordsAsync(read, held.Id, cancellation), current.Catalogue));
+            removed = Sources.ReviewKeys(current.Users).Where(k => !keys.Contains(k)).Order(StringComparer.Ordinal).ToList();
         }
         return await writer.WriteAsync(async (db, ct) =>
         {

@@ -74,6 +74,8 @@ public sealed class ReviewDecision
     public required string Decision { get; set; }
     public required string Reviewer { get; set; }
     public string Comment { get; set; } = "";
+    /// <summary>Subject-specific evidence (Account Review: reviewer identity snapshot, identity version, organizational change ids). Hashed when present.</summary>
+    public string? DetailsJson { get; set; }
     public long DatasetId { get; set; }
     public DateTime DecidedUtc { get; set; }
     public required string Hash { get; set; }

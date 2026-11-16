@@ -52,6 +52,18 @@ public static class Sources
     public static string AssignmentKey(string user, string role) => RoleNames.NormalizeUsername(user) + "\u001f" + RoleNames.Normalize(role);
 
     public static HashSet<string> AssignmentKeys(UserDirectory users) => users.Assignments.Select(AssignmentKey).ToHashSet(StringComparer.Ordinal);
+
+    /// <summary>Identity of an SAP account for Account Review. The U+001E prefix keeps it apart from assignment keys in the shared invalidation log.</summary>
+    public static string AccountKey(string username) => "\u001eaccount\u001f" + RoleNames.NormalizeUsername(username);
+
+    /// <summary>Everything a users revision can make disappear: assignments and accounts. A disappearance is recorded as an invalidation, so a decision
+    /// made before it no longer applies when the subject returns.</summary>
+    public static HashSet<string> ReviewKeys(UserDirectory users)
+    {
+        var keys = AssignmentKeys(users);
+        foreach (var name in users.Users.Keys) keys.Add(AccountKey(name));
+        return keys;
+    }
 }
 
 /// <summary>Incremental SHA-256 over the ordered canonical payloads: the dataset content hash.</summary>

@@ -269,6 +269,9 @@ namespace SapLens.Persistence.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("DetailsJson")
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("EvidenceVersion")
                         .HasColumnType("TEXT");
 

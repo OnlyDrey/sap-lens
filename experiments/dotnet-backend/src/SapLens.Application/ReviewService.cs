@@ -15,11 +15,43 @@ public sealed class ReviewService(WriteCoordinator writer, IDbContextFactory<Sap
     public static readonly string[] Decisions = ["approved", "rejected", "mitigated"];
     public static readonly string[] SubjectTypes = ["assignment", "sod_finding"];
 
-    public static string HashOf(ReviewDecision d, string? previous) => CanonicalJson.Sha256(new Dictionary<string, object?>
+    public static string HashOf(ReviewDecision d, string? previous)
     {
-        ["previous"] = previous, ["subject_type"] = d.SubjectType, ["subject_key"] = d.SubjectKey, ["evidence_version"] = d.EvidenceVersion, ["decision"] = d.Decision,
-        ["reviewer"] = d.Reviewer, ["comment"] = d.Comment, ["dataset_id"] = d.DatasetId, ["decided_utc"] = d.DecidedUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
-    });
+        var fields = new Dictionary<string, object?>
+        {
+            ["previous"] = previous, ["subject_type"] = d.SubjectType, ["subject_key"] = d.SubjectKey, ["evidence_version"] = d.EvidenceVersion, ["decision"] = d.Decision,
+            ["reviewer"] = d.Reviewer, ["comment"] = d.Comment, ["dataset_id"] = d.DatasetId, ["decided_utc"] = d.DecidedUtc.ToString("yyyy-MM-ddTHH:mm:ss.fffffff"),
+        };
+        if (d.DetailsJson is not null) fields["details"] = d.DetailsJson; // decisions written before details existed keep their hashes
+        return CanonicalJson.Sha256(fields);
+    }
+
+    public static readonly string[] AccountStates = ["Needs review", "Investigating", "Approved for deactivation", "No action required"];
+
+    /// <summary>Appends an Account Review decision (v1 states) to the same hash chain. Refused when the users revision changed since the caller computed
+    /// the evidence, or when another decision for the account was recorded after the one the reviewer saw (<paramref name="expectedLatest"/>).</summary>
+    public Task<ReviewDecision> RecordAccountAsync(string username, string state, string evidenceVersion, string reviewer, string rationale, string detailsJson,
+        long usersId, Func<ReviewDecision?, bool> expectedLatest, CancellationToken cancellation = default)
+    {
+        if (!AccountStates.Contains(state)) throw new DomainValidationException("Unknown review state.");
+        var key = Sources.AccountKey(username);
+        return writer.WriteAsync(async (db, ct) =>
+        {
+            var active = await SnapshotService.ActiveAsync(db, ct);
+            if (active.Users != usersId) throw new ImportConflictException("Source data changed while saving. Refresh the review before saving.");
+            var latest = await db.ReviewDecisions.Where(d => d.SubjectType == "account" && d.SubjectKey == key).OrderByDescending(d => d.Id).FirstOrDefaultAsync(ct);
+            if (!expectedLatest(latest)) throw new ImportConflictException("Another user changed this review. Reload before saving.");
+            var previous = await db.ReviewDecisions.OrderByDescending(d => d.Id).Select(d => d.Hash).FirstOrDefaultAsync(ct);
+            var record = new ReviewDecision
+            {
+                SubjectType = "account", SubjectKey = key, EvidenceVersion = evidenceVersion, Decision = state, Reviewer = reviewer, Comment = rationale, DetailsJson = detailsJson,
+                DatasetId = usersId, DecidedUtc = clock.GetUtcNow().UtcDateTime, Hash = "", PreviousHash = previous,
+            };
+            record.Hash = HashOf(record, previous);
+            db.ReviewDecisions.Add(record);
+            return record;
+        }, cancellation);
+    }
 
     public async Task<ReviewDecision> RecordAsync(string subjectType, string subjectKey, string? evidenceVersion, string decision, string reviewer, string? comment, CancellationToken cancellation = default)
     {

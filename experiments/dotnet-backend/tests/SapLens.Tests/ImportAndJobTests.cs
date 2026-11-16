@@ -182,7 +182,7 @@ public sealed class ReviewTests
         Assert.True((await env.Reviews.AssignmentStatusAsync(Key)).DecisionApplies);
 
         var without = await env.RunImportAsync("users", Csv.Users(all.Where(a => a.Item1 != "USER0001")));
-        Assert.Equal(1, without.Invalidated);
+        Assert.Equal(2, without.Invalidated); // the assignment and, for Account Review, the account itself
         var gone = await env.Reviews.AssignmentStatusAsync(Key);
         Assert.False(gone.Present);
         Assert.False(gone.NeedsReview);

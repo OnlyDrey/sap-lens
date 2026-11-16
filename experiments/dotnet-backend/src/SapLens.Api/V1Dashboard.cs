@@ -4,17 +4,17 @@ using SapLens.Domain.Roles;
 namespace SapLens.Api;
 
 /// <summary>Port of routers/dashboard.py: aggregates of the active validated snapshots. Missing or disabled sources are never zero-filled.
-/// Employee Directory and Account Review are not migrated yet; their metrics are null with an explicit reason, never estimated.</summary>
+/// Position-change history is not migrated yet; its metric is null with an explicit reason, never estimated.</summary>
 public static class V1Dashboard
 {
-    public const string ReviewReason = "Account Review is not available in the .NET server yet.";
+    public const string PositionReason = "Position-change history between Employee Directory imports is not available in the .NET server yet.";
     public static readonly string[] Bands = ["0–5", "6–10", "11–20", "21–30", "31+"];
 
     public static string Band(int count) => count <= 5 ? Bands[0] : count <= 10 ? Bands[1] : count <= 20 ? Bands[2] : count <= 30 ? Bands[3] : Bands[4];
 
     public static void Map(RouteGroupBuilder api)
     {
-        api.MapGet("/dashboard", async (SnapshotService snapshots, V1Settings store, CancellationToken ct) =>
+        api.MapGet("/dashboard", async (SnapshotService snapshots, V1Settings store, IServiceProvider services, CancellationToken ct) =>
         {
             var state = await snapshots.GetAsync(ct);
             var settings = await store.GetAsync(ct);
@@ -58,15 +58,26 @@ public static class V1Dashboard
                 "Duplicate directory emails or SAP emails shared by several users; open them in Account Review.", coverageReason);
             Add("unresolved", "Missing or ambiguous directory matches", Coverage(c => c.Where(p => p.Key != "matched").Sum(p => p.Value)), "review",
                 "Includes missing SAP email, unmatched and ambiguous evidence; open data quality.", coverageReason);
-            var reviewReason = mapping ? ReviewReason : reason;
-            Add("account_review", "Accounts requiring review", null, "review", "Open Account Review.", reviewReason);
-            foreach (var (id, label) in new[] { ("reviewed", "Completed reviews"), ("pending", "Pending reviews"), ("outdated", "Outdated reviews") })
-                Add(id, label, null, "review", "Open Account Review.", reviewReason);
             if (mapping)
             {
+                var rows = (await V1AccountReview.CurrentAsync(services, ct)).Rows;
+                Add("account_review", "Accounts requiring review", rows.Count(r => (bool)r["needs_review"]!), "review",
+                    "Review supported account evidence and stale annotations, not effective authorization or license savings.");
+                var reviewed = rows.Count(r => V1AccountReview.Has(r, "reviewed"));
+                foreach (var (id, label, value) in new[] { ("reviewed", "Completed reviews", reviewed), ("pending", "Pending reviews", rows.Count - reviewed), ("outdated", "Outdated reviews", rows.Count(r => (bool)r["stale"]!)) })
+                    Add(id, label, value, "review", "All currently imported SAP accounts form the review population; outdated reviews are included in pending.");
+                var directoryLoaded = directoryEnabled && (bool)directory["loaded"]!;
                 Add("position_changes", "Users requiring review — Position changes", null, "review",
-                    "Department or job title changed between Employee Directory imports and not yet reviewed. Separate from SoD conflicts and other account findings; opens Account Review.", ReviewReason);
-                Add("ad_disabled_open", "AD disabled / SAP valid and unlocked", null, "review", "Reliably matched AD and SAP account evidence.", ReviewReason);
+                    "Department or job title changed between Employee Directory imports and not yet reviewed. Separate from SoD conflicts and other account findings; opens Account Review.",
+                    directoryLoaded ? PositionReason : "Employee Directory not loaded");
+                Add("ad_disabled_open", "AD disabled / SAP valid and unlocked", directoryLoaded ? rows.Count(r => ((List<string>)r["findings"]!).Contains("ad_disabled_open")) : null, "review",
+                    "Reliably matched AD and SAP account evidence.", coverageReason);
+            }
+            else
+            {
+                Add("account_review", "Accounts requiring review", null, "review", "Open Account Review.", reason);
+                foreach (var (id, label) in new[] { ("reviewed", "Completed reviews"), ("pending", "Pending reviews"), ("outdated", "Outdated reviews") })
+                    Add(id, label, null, "review", "Open Account Review.", reason);
             }
 
             Dictionary<string, int>? roleDistribution = catalogue
