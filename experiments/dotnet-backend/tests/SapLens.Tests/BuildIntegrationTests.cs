@@ -54,6 +54,26 @@ public sealed class BuildIntegrationTests
         Assert.Contains(UiAssets.Marker, reader.ReadToEnd());
     }
 
+    /// <summary>Every file of the embedded-files manifest must sit in a directory element: a file name containing a separator means the build passed a
+    /// path with the other OS's separator to GenerateEmbeddedResourcesManifest (it splits on Path.DirectorySeparatorChar only) and the file is
+    /// invisible to the provider. This is the Windows release failure ("missing index.html, theme.js, sap-lens.png").</summary>
+    internal static void AssertNestedManifest(XDocument manifest)
+    {
+        var flat = manifest.Descendants("File").Select(f => (string)f.Attribute("Name")!).Where(n => n.Contains('/') || n.Contains('\\')).ToList();
+        Assert.True(flat.Count == 0, "Embedded files with a separator in their name (not under a directory): " + string.Join(", ", flat.Take(10)));
+        var root = manifest.Root!.Element("FileSystem")!.Elements("Directory").SingleOrDefault(d => (string?)d.Attribute("Name") == "wwwroot");
+        Assert.NotNull(root);
+        foreach (var name in UiAssets.Required) Assert.Contains(root!.Elements("File"), f => (string)f.Attribute("Name")! == name);
+    }
+
+    [Fact]
+    public void The_built_assembly_embeds_the_ui_under_wwwroot_with_nested_directories()
+    {
+        using var stream = typeof(UiAssets).Assembly.GetManifestResourceStream("Microsoft.Extensions.FileProviders.Embedded.Manifest.xml");
+        Assert.NotNull(stream);
+        AssertNestedManifest(XDocument.Load(stream!));
+    }
+
     [Fact]
     public void The_solution_builds_every_project_so_tests_never_run_stale_binaries()
     {
@@ -120,6 +140,7 @@ public sealed class BuildIntegrationTests
             static bool Has(byte[] bytes, string text) => bytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(text)) >= 0;
             Assert.Contains("first-1a2b.js", Manifest());
             Assert.Contains("theme.js", Manifest());
+            AssertNestedManifest(XDocument.Parse(Manifest()));   // clean build
 
             // A new frontend build replaces the hashed asset. The incremental build must follow: the manifest and the resources name the new file only.
             File.Delete(Path.Combine(dist, "assets", "first-1a2b.js"));
@@ -129,6 +150,9 @@ public sealed class BuildIntegrationTests
             var manifest = Manifest();
             Assert.Contains("second-3c4d.js", manifest);
             Assert.DoesNotContain("first-1a2b.js", manifest);
+            AssertNestedManifest(XDocument.Parse(manifest));     // repeat (incremental) build
+            var assets = XDocument.Parse(manifest).Descendants("Directory").Single(d => (string?)d.Attribute("Name") == "assets");
+            Assert.Contains(assets.Elements("File"), f => (string)f.Attribute("Name")! == "second-3c4d.js");
             var dll = Assembly();
             Assert.True(Has(dll, "wwwroot.assets.second-3c4d.js"), "the new asset is not embedded");
             Assert.False(Has(dll, "wwwroot.assets.first-1a2b.js"), "a removed asset is still embedded");

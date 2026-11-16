@@ -32,6 +32,9 @@ dotnet publish "$root/src/SapLens.Desktop" -c Release -o "$output/desktop-win-x6
 for check in "server-linux-x64/SapLens.Api.dll" "server-win-x64/SapLens.Api.dll" "desktop-win-x64/SapLens2Prototype.exe"; do
   grep -qa "+$sha" "$output/$check" || { echo "build identity $sha missing in $check" >&2; exit 1; }
   grep -qa 'SapLens.Api.wwwroot.assets.' "$output/$check" || { echo "React UI missing in $check" >&2; exit 1; }
+  # The embedded-files manifest must nest the UI under wwwroot; a separator in a file name makes it invisible to the provider (Windows failure).
+  grep -qa '<File Name="index.html">' "$output/$check" || { echo "index.html missing from the embedded-files manifest of $check" >&2; exit 1; }
+  if grep -qaE '<File Name="wwwroot[/\\]' "$output/$check"; then echo "UI files embedded with a separator in their name in $check" >&2; exit 1; fi
 done
 for package in server-linux-x64 server-win-x64 desktop-win-x64; do [ ! -d "$output/$package/wwwroot" ] && [ ! -d "$output/$package/frontend" ] || { echo "unexpected loose UI folder in $package" >&2; exit 1; }; done
 (cd "$output" && find . -type f ! -name SHA256SUMS ! -name manifest.json | sort | xargs sha256sum > SHA256SUMS)

@@ -43,7 +43,10 @@
     <Error Condition="!Exists('$(SapLensFrontendDist)/index.html')" Text="frontend/dist/index.html is missing after the frontend build." />
     <ItemGroup>
       <_SapLensFrontendFiles Include="$(SapLensFrontendDist)/**/*" />
-      <EmbeddedResource Include="@(_SapLensFrontendFiles)" Link="wwwroot/%(RecursiveDir)%(Filename)%(Extension)" />
+      <!-- The Link must use the OS directory separator (RecursiveDir already does): GenerateEmbeddedResourcesManifest splits TargetPath on
+           Path.DirectorySeparatorChar only. With "wwwroot/" on Windows every React file became a root-level entry literally named
+           "wwwroot/index.html", invisible to ManifestEmbeddedFileProvider(..., "wwwroot"); Linux was unaffected. -->
+      <EmbeddedResource Include="@(_SapLensFrontendFiles)" Link="wwwroot$([System.IO.Path]::DirectorySeparatorChar)%(RecursiveDir)%(Filename)%(Extension)" />
     </ItemGroup>
   </Target>
 
