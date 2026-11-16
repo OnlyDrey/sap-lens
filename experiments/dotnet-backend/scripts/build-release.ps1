@@ -132,6 +132,11 @@ $manifest = [ordered]@{
 $sums = Get-Artifacts $release @('SHA256SUMS') | ForEach-Object { '{0}  ./{1}' -f $_.sha256, $_.path }
 [System.IO.File]::WriteAllText((Join-Path $release 'SHA256SUMS'), (($sums -join "`n") + "`n"))
 
+# No secrets or environment-specific values in the release (key/certificate/secret files, token formats, and the personal values listed in the
+# git-ignored .secret-scan.local). Needs Python; without it the scan is reported as not run.
+$python = @('python', 'py', 'python3') | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
+if ($python) { Invoke-Step 'Secret scan of the release folder' { & $python (Join-Path $root '..\..\scripts\check-secrets.py') --path $release } }
+else { Write-Warning 'Python not found: the release secret scan (scripts/check-secrets.py --path) was NOT run.' }
 & (Join-Path $PSScriptRoot 'verify-release.ps1') -ReleasePath $release
 if ($LASTEXITCODE -ne 0) { throw 'Release verification failed.' }
 foreach ($exe in 'server\SapLens.Api.exe', 'desktop\SapLens2Prototype.exe') { Write-Host ('{0}: {1:N1} MB' -f $exe, ((Get-Item (Join-Path $release $exe)).Length / 1MB)) }

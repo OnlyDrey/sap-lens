@@ -12,6 +12,22 @@ functionality users rely on. Windows runtime acceptance has not been performed f
 are reported from the Windows VM, native Server startup, HTTPS, UI, authentication, Desktop and service operation are pending (levels in
 [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md#8-what-each-result-proves)).
 
+## Repository exposure audit (2026-11-16)
+
+Scope: all 8 refs (local and `origin`: `experiment/dotnet-backend`, `experiment/go-python`, `main`, `work`), 661 commits, every added line;
+tracked files at HEAD; untracked and ignored files of the working tree. Tool: `scripts/check-secrets.py` (and `--history`) plus targeted searches.
+
+| Finding | Severity | Where | Status |
+| --- | --- | --- | --- |
+| No private key, certificate with key, PFX, real token, API key, connection-string password or credential file has ever been committed | None | All refs | Two `BEGIN ... PRIVATE KEY`/`CERTIFICATE` hits are synthetic test placeholders (`b'A'*100`) and PEM-parsing code; credential-like literals are labelled synthetic test passphrases |
+| The private addresses and the public host name of one test environment appeared in documentation, the test launcher defaults, a release README template and tests | Low (infrastructure detail, not a secret: private RFC 1918 addresses and a public DNS name) | Commits `0c04b52`, `848afe0`, `5be1658`, `f407dc4`, `7fc13e7`, only on `experiment/dotnet-backend` (pushed to `origin`); never on `main` or `work` | Removed from HEAD (replaced with reserved examples; launcher values now come from a git-ignored local file). Still present in those historical commits |
+| Two reference tools hard-coded the build container's checkout path | Low | `experiments/dotnet-backend/tools/sod_catalogue_reference.py`, `sod_fingerprints_reference.py` | Fixed (relative path, `SAP_LENS_V1_BACKEND` override) |
+| `.gitignore` did not cover TLS material, secret files, SQLite databases or machine-specific configuration | Low (preventive) | `.gitignore` | Fixed; covered by `test_repository_privacy` |
+
+No credential or certificate rotation is needed: no secret was exposed. Rewriting history to remove the environment values is **not**
+recommended (they are not secrets; a rewrite would force-push a shared branch and invalidate every clone and commit reference); it would need
+explicit approval. Release folders are scanned by the build scripts (`check-secrets.py --path`) before they are shared.
+
 ## Phase status
 
 | Phase | Status | Evidence | What blocks exit |

@@ -1,7 +1,7 @@
 """Python v1 catalogue/activity catalogue/lookup for a SoD CSV and a v1 sod-catalogue.json (stdin args: csv storage out)."""
 import json, os, sys, tempfile
 os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
-sys.path.insert(0, '/home/user/sap-lens/backend')
+sys.path.insert(0, os.environ.get('SAP_LENS_V1_BACKEND') or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'backend'))  # v1 backend; override with SAP_LENS_V1_BACKEND
 from types import SimpleNamespace
 from sod_import import parse_sod
 import sod_catalogue as store, sod_metadata

@@ -125,7 +125,7 @@ Rules:
   one with the Desktop or v1.
 - **Invalid configuration** stops startup before anything listens: the process prints `startup refused: <reason>` on stderr and exits with
   code **3**. Examples: `Unknown option '--bind'.`, `--port needs a value.`, `--port must be between 1 and 65535.`, `--listen must be an IP
-  address, not 'server.lan'.`, `--data-dir must be an absolute path.`, `Listening on 10.0.7.50 needs network access to be enabled explicitly
+  address, not 'server.lan'.`, `--data-dir must be an absolute path.`, `Listening on 192.168.10.20 needs network access to be enabled explicitly
   (--network) with HTTPS.`, `Network access requires HTTPS: configure a certificate (--cert).`, `Network access needs the host names or
   addresses clients use (--allowed-hosts).`, `The certificate password file '...' does not exist.`, `The certificate '...' could not be opened
   (wrong password, missing key or damaged file).`, `The TLS certificate is not usable: Its subject alternative names do not include '...'.`
@@ -136,12 +136,12 @@ Examples (replace every address, name and path):
 # Windows: loopback only (local checks)
 & .\SapLens.Api.exe --data-dir C:\saplens2\local-test
 # Windows: LAN HTTPS, password from a protected file
-& .\SapLens.Api.exe --data-dir C:\saplens2\runtime-test --network --listen 10.0.7.50 --port 18795 `
-  --allowed-hosts saplens2.test.example,10.0.7.50 --cert C:\ProgramData\SapLens2\tls\server.pfx `
+& .\SapLens.Api.exe --data-dir C:\saplens2\runtime-test --network --listen 192.168.10.20 --port 18795 `
+  --allowed-hosts saplens2.test.example,192.168.10.20 --cert C:\ProgramData\SapLens2\tls\server.pfx `
   --cert-password-file C:\ProgramData\SapLens2\tls\cert-password
 # Windows: the same through environment variables (current session only)
-$env:SAP_LENS_V2_DATA_DIR = 'C:\saplens2\runtime-test'; $env:SAP_LENS_V2_NETWORK = 'true'; $env:SAP_LENS_V2_LISTEN = '10.0.7.50'
-$env:SAP_LENS_V2_PORT = '18795'; $env:SAP_LENS_V2_ALLOWED_HOSTS = '10.0.7.50'; $env:SAP_LENS_V2_CERT = 'C:\ProgramData\SapLens2\tls\server.pfx'
+$env:SAP_LENS_V2_DATA_DIR = 'C:\saplens2\runtime-test'; $env:SAP_LENS_V2_NETWORK = 'true'; $env:SAP_LENS_V2_LISTEN = '192.168.10.20'
+$env:SAP_LENS_V2_PORT = '18795'; $env:SAP_LENS_V2_ALLOWED_HOSTS = '192.168.10.20'; $env:SAP_LENS_V2_CERT = 'C:\ProgramData\SapLens2\tls\server.pfx'
 $env:SAP_LENS_V2_CERT_PASSWORD_FILE = 'C:\ProgramData\SapLens2\tls\cert-password'
 & .\SapLens.Api.exe
 ```
@@ -441,7 +441,7 @@ Pangolin deployment has **not** been verified [U].
 ### Public and internal origin
 
 A browser that opens `https://lens.example` (the **public origin**) sends `Origin: https://lens.example` on every state change. The proxy then
-opens its own connection to the **internal endpoint**, for example `https://10.0.7.50:18795`, and the Host it sends there may be the public
+opens its own connection to the **internal endpoint**, for example `https://192.168.10.20:18795`, and the Host it sends there may be the public
 name, the public name with the internal port (`lens.example:18795`), or the internal address. The Server accepts a state-changing request only
 when its Origin equals the request's effective `scheme://host:port`, so the public origin must be **established** on the Server, never guessed:
 
@@ -467,29 +467,29 @@ Rules for trusted proxies:
 - Sign-in throttling uses the effective client address: with one trusted hop behind Cloudflare that is normally the Cloudflare edge address
   Pangolin connected from, so the per-client limit is shared by users of that edge; the global limit still applies.
 
-### Configuration for the reported deployment
+### Example configuration
 
-Public origin `https://lens.akio.no`, backend `https://10.0.7.50:18795`, certificate SAN `lens.akio.no` and `10.0.7.50`.
+Public origin `https://lens.example.com`, backend `https://192.168.10.20:18795`, certificate SAN `lens.example.com` and `192.168.10.20`.
 `<PANGOLIN_PEER_IP>` is a placeholder for the address the backend actually sees as the TCP peer of Pangolin's connections. It is not
 necessarily the Pangolin server's public address, a Cloudflare address, the gateway or the VM's own address. With a Newt site connector it is
 normally the LAN address of the machine running Newt (the VM's own address if Newt runs on the VM). Determine it as shown below before
 configuring it.
 
 ```powershell
-& .\SapLens.Api.exe --data-dir C:\saplens2\runtime-test --network --listen 10.0.7.50 --port 18795 `
-  --allowed-hosts lens.akio.no,10.0.7.50 --cert C:\ProgramData\SapLens2\tls\server.pfx `
+& .\SapLens.Api.exe --data-dir C:\saplens2\runtime-test --network --listen 192.168.10.20 --port 18795 `
+  --allowed-hosts lens.example.com,192.168.10.20 --cert C:\ProgramData\SapLens2\tls\server.pfx `
   --cert-password-file C:\ProgramData\SapLens2\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
 ```
 
-With the test launcher: `.\scripts\start-server-test.ps1 -AllowedHosts 'lens.akio.no','10.0.7.50' -TrustedProxies '<PANGOLIN_PEER_IP>'`.
+With the test launcher: `.\scripts\start-server-test.ps1 -AllowedHosts 'lens.example.com','192.168.10.20' -TrustedProxies '<PANGOLIN_PEER_IP>'`.
 
 Finding the peer address and what the proxy sends (before trusting anything): start without `--trusted-proxies`, sign in through
-`https://lens.akio.no`, and read the warning the refusal logs:
+`https://lens.example.com`, and read the warning the refusal logs:
 
 ```text
-Request refused (403 Cross-origin request refused.): POST /api/auth/login; peer 10.0.7.20 trusted proxy False; client 10.0.7.20;
-forwarded headers present True applied False; raw https://lens.akio.no:18795; effective https://lens.akio.no:18795;
-origin https://lens.akio.no:443 comparison PortMismatch
+Request refused (403 Cross-origin request refused.): POST /api/auth/login; peer 192.168.10.30 trusted proxy False; client 192.168.10.30;
+forwarded headers present True applied False; raw https://lens.example.com:18795; effective https://lens.example.com:18795;
+origin https://lens.example.com:443 comparison PortMismatch
 ```
 
 `peer` is the address to trust, `raw` is the Host Pangolin sends upstream, `forwarded headers present True` shows Pangolin sends `X-Forwarded-*`.
@@ -501,10 +501,10 @@ Pangolin is built on Traefik; field names differ between versions, so check them
 
 | Setting | Required value |
 | --- | --- |
-| Resource domain | `lens.akio.no` (HTTP resource, TLS at Pangolin) |
-| Target | method `https`, address `10.0.7.50`, port `18795` |
-| Upstream TLS | verify the backend certificate: add the private CA (`saplens2-ca.cer`) to the trust store Traefik uses for upstream connections, and use a server name (SNI) that the SAN covers (`lens.akio.no` or `10.0.7.50`). Skipping verification is acceptable only for a short diagnostic run, never as the configuration |
-| Host header | leave Traefik's default (pass the client's Host) or set a custom Host of `lens.akio.no`; either works once the proxy is trusted, because `X-Forwarded-Host` carries the public host |
+| Resource domain | `lens.example.com` (HTTP resource, TLS at Pangolin) |
+| Target | method `https`, address `192.168.10.20`, port `18795` |
+| Upstream TLS | verify the backend certificate: add the private CA (`saplens2-ca.cer`) to the trust store Traefik uses for upstream connections, and use a server name (SNI) that the SAN covers (`lens.example.com` or `192.168.10.20`). Skipping verification is acceptable only for a short diagnostic run, never as the configuration |
+| Host header | leave Traefik's default (pass the client's Host) or set a custom Host of `lens.example.com`; either works once the proxy is trusted, because `X-Forwarded-Host` carries the public host |
 | Forwarded headers | keep `X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-For` (Traefik sets them by default); do not strip them |
 | Pangolin authentication | optional. With Pangolin's resource authentication on, unauthenticated requests get Pangolin's own (plain-text) 401 before reaching SAP Lens; SAP Lens accounts still apply after it |
 
@@ -516,7 +516,7 @@ Cloudflare: use SSL mode "Full (strict)" so Cloudflare to Pangolin is verified H
 | --- | --- | --- |
 | `421 Unexpected host.` | The effective Host is not loopback and not in `--allowed-hosts` | Add the public name to `--allowed-hosts` (and to the certificate SAN); check `raw`/`effective` in the log |
 | `403 Cross-origin request refused.` with `trusted proxy False` | Forwarded headers ignored: the peer is not trusted | Add the logged `peer` to `--trusted-proxies` |
-| `403 Cross-origin request refused.` with `trusted proxy True`, `applied False` | Proxy trusted, but no allowed `X-Forwarded-Host` | Make Pangolin send `X-Forwarded-Host: lens.akio.no`; check the name is in `--allowed-hosts` |
+| `403 Cross-origin request refused.` with `trusted proxy True`, `applied False` | Proxy trusted, but no allowed `X-Forwarded-Host` | Make Pangolin send `X-Forwarded-Host: lens.example.com`; check the name is in `--allowed-hosts` |
 | `403 Cross-origin request refused.` with `comparison PortMismatch` | Host and Origin differ by port (for example `:18795` against the public 443) | Same as above: the public host must come from the trusted proxy |
 | `403 HTTPS is required.` | A trusted proxy reported `X-Forwarded-Proto: http` | Serve the resource over HTTPS only |
 | `403 State-changing requests need a same-origin signal.` | No Origin and no `Sec-Fetch-Site: same-origin` on a state change | Expected for non-browser clients; use the access-token header |
@@ -531,14 +531,14 @@ successful sign-in. A successful sign-in returns 200 with the account and sets `
 $body = Join-Path $env:TEMP 'saplens-login.json'
 Set-Content -Path $body -Value '{"username":"nobody","password":"wrong-password"}' -Encoding ASCII -NoNewline   # synthetic, not an account
 # Direct LAN access still works (boundary passes; JSON 401 with a code = wrong credentials, as intended)
-curl.exe -s -w "`n%{http_code}`n" -X POST https://10.0.7.50:18795/api/auth/login -H "Origin: https://10.0.7.50:18795" -H "Content-Type: application/json" --data "@$body"
+curl.exe -s -w "`n%{http_code}`n" -X POST https://192.168.10.20:18795/api/auth/login -H "Origin: https://192.168.10.20:18795" -H "Content-Type: application/json" --data "@$body"
 # Spoofed forwarding from a machine that is not the trusted proxy is ignored: 403 Cross-origin
-curl.exe -s -w "`n%{http_code}`n" -X POST https://10.0.7.50:18795/api/auth/login -H "Origin: https://lens.akio.no" -H "X-Forwarded-Host: lens.akio.no" `
+curl.exe -s -w "`n%{http_code}`n" -X POST https://192.168.10.20:18795/api/auth/login -H "Origin: https://lens.example.com" -H "X-Forwarded-Host: lens.example.com" `
   -H "X-Forwarded-Proto: https" -H "Content-Type: application/json" --data "@$body"
 # Through Pangolin (add Pangolin's own sign-in first if its resource authentication is on)
-curl.exe -s -w "`n%{http_code}`n" -X POST https://lens.akio.no/api/auth/login -H "Origin: https://lens.akio.no" -H "Content-Type: application/json" --data "@$body"   # JSON 401 with a code, not 403
-curl.exe -s -w "`n%{http_code}`n" -X POST https://lens.akio.no/api/auth/login -H "Origin: https://evil.example" -H "Content-Type: application/json" --data "@$body"  # 403
+curl.exe -s -w "`n%{http_code}`n" -X POST https://lens.example.com/api/auth/login -H "Origin: https://lens.example.com" -H "Content-Type: application/json" --data "@$body"   # JSON 401 with a code, not 403
+curl.exe -s -w "`n%{http_code}`n" -X POST https://lens.example.com/api/auth/login -H "Origin: https://evil.example" -H "Content-Type: application/json" --data "@$body"  # 403
 Remove-Item $body
 ```
 
-Then sign in with a real account in a browser at `https://lens.akio.no/` and confirm in the server log that no `Request refused` line appears.
+Then sign in with a real account in a browser at `https://lens.example.com/` and confirm in the server log that no `Request refused` line appears.

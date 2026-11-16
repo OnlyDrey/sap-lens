@@ -112,3 +112,27 @@ sod-periods.json
 
 # Verified project-local build tools (never release inputs)
 .build-tools/
+
+# TLS material and secret files (never committed; documentation and tests use reserved example values or generate keys at run time)
+*.pfx
+*.p12
+*.key
+*.pem
+*.crt
+*.cer
+*.der
+*.jks
+cert-password
+api-token
+# Runtime databases (SQLite and its WAL/SHM side files)
+*.sqlite3
+*.sqlite3-wal
+*.sqlite3-shm
+*.db
+*.db-wal
+*.db-shm
+# Machine-specific configuration (templates such as start-server-test.example.json stay versioned)
+*.local.json
+*.local.psd1
+# Local deny list for scripts/check-secrets.py (personal hostnames, addresses or names; never committed)
+.secret-scan.local

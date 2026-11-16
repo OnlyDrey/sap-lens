@@ -80,9 +80,9 @@ Describe 'Configuration validation' {
         $tls = Join-Path $TestDrive 'tls'; New-Item -ItemType Directory -Force $tls | Out-Null
         $cert = Join-Path $tls 'server.pfx'; Set-Content $cert 'synthetic'
         $passwordFile = Join-Path $tls 'cert-password'; Set-Content $passwordFile 'synthetic-password-value' -NoNewline
-        $valid = @{ ListenAddress = '10.0.7.50'; Port = 18795; AllowedHosts = @(); DataDirectory = (Join-Path $TestDrive 'runtime-test')
+        $valid = @{ ListenAddress = '192.168.10.20'; Port = 18795; AllowedHosts = @(); DataDirectory = (Join-Path $TestDrive 'runtime-test')
                     CertificatePath = $cert; CertificatePasswordFile = $passwordFile; Release = @{ Release = (Join-Path $TestDrive 'release') } }
-        Mock Get-LocalIPAddresses { [System.Net.IPAddress]::Parse('10.0.7.50') }
+        Mock Get-LocalIPAddresses { [System.Net.IPAddress]::Parse('192.168.10.20') }
         Mock Test-PortAvailable { $true }
     }
 
@@ -94,10 +94,10 @@ Describe 'Configuration validation' {
         @{ Name = 'a host name as listen address'; Change = @{ ListenAddress = 'server.lan' }; Message = '*must be an IP address*' }
         @{ Name = 'all interfaces'; Change = @{ ListenAddress = '0.0.0.0' }; Message = '*one specific address*' }
         @{ Name = 'loopback'; Change = @{ ListenAddress = '127.0.0.1' }; Message = '*LAN address*' }
-        @{ Name = 'an address not assigned here'; Change = @{ ListenAddress = '10.0.7.51' }; Message = '*not assigned to this machine*' }
+        @{ Name = 'an address not assigned here'; Change = @{ ListenAddress = '192.168.10.21' }; Message = '*not assigned to this machine*' }
         @{ Name = 'a port out of range'; Change = @{ Port = 70000 }; Message = '*between 1 and 65535*' }
         @{ Name = 'a wildcard allowed host'; Change = @{ AllowedHosts = @('*.corp.example') }; Message = '*not a valid -AllowedHosts*' }
-        @{ Name = 'a malformed trusted proxy'; Change = @{ TrustedProxies = @('10.0.7.20, 10.0.7.21') }; Message = '*not a valid -TrustedProxies*' }
+        @{ Name = 'a malformed trusted proxy'; Change = @{ TrustedProxies = @('192.168.10.30, 192.168.10.31') }; Message = '*not a valid -TrustedProxies*' }
         @{ Name = 'a relative data directory'; Change = @{ DataDirectory = 'runtime-test' }; Message = '*absolute path*' }
         @{ Name = 'a network share'; Change = @{ DataDirectory = '\\server\share\data' }; Message = '*network share*' }
         @{ Name = 'a missing certificate'; Change = @{ CertificatePath = (Join-Path ([System.IO.Path]::GetTempPath()) 'saplens2-absent-test.pfx') }; Message = '*never creates certificates*' }
@@ -133,20 +133,20 @@ Describe 'Configuration validation' {
 
 Describe 'Argument construction' {
     It 'uses only the supported options, defaults allowed hosts to the listen address and never includes the password' {
-        $arguments = New-ServerArguments -ListenAddress '10.0.7.50' -Port 18795 -AllowedHosts @() -DataDirectory (Join-Path $TestDrive 'runtime-test') `
+        $arguments = New-ServerArguments -ListenAddress '192.168.10.20' -Port 18795 -AllowedHosts @() -DataDirectory (Join-Path $TestDrive 'runtime-test') `
             -CertificatePath 'C:\ProgramData\SapLens2\tls\server.pfx' -CertificatePasswordFile 'C:\ProgramData\SapLens2\tls\cert-password'
-        $arguments | Should -Be @('--data-dir', [System.IO.Path]::GetFullPath((Join-Path $TestDrive 'runtime-test')), '--network', '--listen', '10.0.7.50', '--port', '18795',
-            '--allowed-hosts', '10.0.7.50', '--cert', 'C:\ProgramData\SapLens2\tls\server.pfx', '--cert-password-file', 'C:\ProgramData\SapLens2\tls\cert-password')
-        (New-ServerArguments -ListenAddress '10.0.7.50' -Port 1 -AllowedHosts 'saplens2.test.example', '10.0.7.50' -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p)[8] |
-            Should -Be 'saplens2.test.example,10.0.7.50'
+        $arguments | Should -Be @('--data-dir', [System.IO.Path]::GetFullPath((Join-Path $TestDrive 'runtime-test')), '--network', '--listen', '192.168.10.20', '--port', '18795',
+            '--allowed-hosts', '192.168.10.20', '--cert', 'C:\ProgramData\SapLens2\tls\server.pfx', '--cert-password-file', 'C:\ProgramData\SapLens2\tls\cert-password')
+        (New-ServerArguments -ListenAddress '192.168.10.20' -Port 1 -AllowedHosts 'saplens2.test.example', '192.168.10.20' -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p)[8] |
+            Should -Be 'saplens2.test.example,192.168.10.20'
     }
 
     It 'adds --trusted-proxies only when -TrustedProxies is given' {
-        $plain = New-ServerArguments -ListenAddress '10.0.7.50' -Port 18795 -AllowedHosts @() -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p
+        $plain = New-ServerArguments -ListenAddress '192.168.10.20' -Port 18795 -AllowedHosts @() -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p
         $plain | Should -Not -Contain '--trusted-proxies'
-        $proxied = New-ServerArguments -ListenAddress '10.0.7.50' -Port 18795 -AllowedHosts 'lens.proxy.test', '10.0.7.50' -DataDirectory $TestDrive -CertificatePath c `
-            -CertificatePasswordFile p -TrustedProxies '10.0.7.20', '10.0.8.0/24'
-        $proxied[-2..-1] | Should -Be @('--trusted-proxies', '10.0.7.20,10.0.8.0/24')
+        $proxied = New-ServerArguments -ListenAddress '192.168.10.20' -Port 18795 -AllowedHosts 'lens.proxy.test', '192.168.10.20' -DataDirectory $TestDrive -CertificatePath c `
+            -CertificatePasswordFile p -TrustedProxies '192.168.10.30', '192.168.20.0/24'
+        $proxied[-2..-1] | Should -Be @('--trusted-proxies', '192.168.10.30,192.168.20.0/24')
     }
 
     It 'quotes paths with spaces for display' {
@@ -207,6 +207,119 @@ Describe 'End to end with a fake Server executable' -Skip:([System.IO.Path]::Dir
         $refused = Invoke-Launcher (Join-Path $TestDrive 'no-builds') @('-DryRun')
         $refused.Code | Should -Be 2
         $refused.Output | Should -Match 'start-server-test: Builds folder'
+    }
+}
+
+Describe 'Background mode with a fake Server executable' -Skip:([System.IO.Path]::DirectorySeparatorChar -ne '/') {
+    BeforeAll {
+        $address = @(Get-LocalIPAddresses | Where-Object { $_.AddressFamily -eq 'InterNetwork' -and -not [System.Net.IPAddress]::IsLoopback($_) }) | Select-Object -First 1
+        $tls = Join-Path $TestDrive 'bg-tls'; New-Item -ItemType Directory -Force $tls | Out-Null
+        $cert = Join-Path $tls 'server.pfx'; Set-Content $cert 'synthetic'
+        $passwordFile = Join-Path $tls 'cert-password'; Set-Content $passwordFile 'synthetic-password-value' -NoNewline
+        # Listens on --listen/--port like the Server, prints a startup line, then waits to be stopped.
+        $listener = "#!/bin/sh`nexec python3 -c 'import socket,sys,time`na=sys.argv[1:]`ns=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)`ns.bind((a[a.index(""--listen"")+1],int(a[a.index(""--port"")+1])));s.listen()`nprint(""Listening (fake)"",flush=True)`ntime.sleep(120)' `"`$@`"`n"
+        function Invoke-Background([string]$Builds, [string]$Logs, [int]$Port, [string[]]$Extra = @()) {
+            $output = & pwsh -NoProfile -NonInteractive -File $script:Launcher -BuildsRoot $Builds -ListenAddress $address.ToString() -Port $Port `
+                -DataDirectory (Join-Path $TestDrive 'bg-runtime') -CertificatePath $cert -CertificatePasswordFile $passwordFile -LogDirectory $Logs -ReadyTimeoutSeconds 20 @Extra 2>&1
+            @{ Code = $LASTEXITCODE; Output = ($output | Out-String) }
+        }
+    }
+
+    It 'starts detached, refuses a second start, and stops exactly the recorded process' {
+        if (-not $address) { Set-ItResult -Skipped -Because 'no non-loopback IPv4 address on this host'; return }
+        $builds = Join-Path $TestDrive 'bg-builds'; $logs = Join-Path $TestDrive 'bg-logs'; $port = Get-FreePort
+        New-FakeRelease $builds 'r1' ([datetime]'2026-11-10T10:00:00Z') -ExeContent $listener | Out-Null
+        $run = Invoke-Background $builds $logs $port @('-Background')
+        try {
+            $run.Code | Should -Be 0
+            $run.Output | Should -Match 'Running in the background: process \d+'
+            $run.Output | Should -Not -Match 'synthetic-password-value'
+            $record = Get-Content (Join-Path $logs 'saplens2-test-server.json') -Raw | ConvertFrom-Json
+            Get-Process -Id $record.pid | Should -Not -BeNullOrEmpty
+            (Get-Content $record.out_log -Raw) | Should -Match 'Listening \(fake\)'
+            $again = Invoke-Background $builds $logs (Get-FreePort) @('-Background')
+            $again.Code | Should -Be 2
+            $again.Output | Should -Match 'already running'
+        } finally {
+            $stop = Invoke-Background $builds $logs $port @('-Stop')
+        }
+        $stop.Code | Should -Be 0
+        $stop.Output | Should -Match 'Stopped the test server'
+        Get-Process -Id $record.pid -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
+        Test-Path (Join-Path $logs 'saplens2-test-server.json') | Should -BeFalse
+        (Invoke-Background $builds $logs $port @('-Stop')).Output | Should -Match 'No test server started by this script is running'
+    }
+
+    It 'reports a startup refusal with the Server exit code and its error output' {
+        if (-not $address) { Set-ItResult -Skipped -Because 'no non-loopback IPv4 address on this host'; return }
+        $builds = Join-Path $TestDrive 'bg-refused'; $logs = Join-Path $TestDrive 'bg-refused-logs'
+        New-FakeRelease $builds 'r1' ([datetime]'2026-11-10T10:00:00Z') -ExeContent "#!/bin/sh`necho 'startup refused: synthetic reason' >&2`nexit 3`n" | Out-Null
+        $run = Invoke-Background $builds $logs (Get-FreePort) @('-Background')
+        $run.Code | Should -Be 3
+        $run.Output | Should -Match 'exited with code 3 during startup'
+        $run.Output | Should -Match 'startup refused: synthetic reason'
+        Test-Path (Join-Path $logs 'saplens2-test-server.json') | Should -BeFalse
+    }
+
+    It 'refuses a log directory inside the release folder' {
+        if (-not $address) { Set-ItResult -Skipped -Because 'no non-loopback IPv4 address on this host'; return }
+        $builds = Join-Path $TestDrive 'bg-inside'
+        $release = New-FakeRelease $builds 'r1' ([datetime]'2026-11-10T10:00:00Z') -ExeContent $listener
+        $run = Invoke-Background $builds (Join-Path $release 'logs') (Get-FreePort) @('-Background')
+        $run.Code | Should -Be 2
+        $run.Output | Should -Match 'must not be inside the release folder'
+    }
+}
+
+Describe 'Local configuration file' -Skip:([System.IO.Path]::DirectorySeparatorChar -ne '/') {
+    BeforeAll {
+        $address = @(Get-LocalIPAddresses | Where-Object { $_.AddressFamily -eq 'InterNetwork' -and -not [System.Net.IPAddress]::IsLoopback($_) }) | Select-Object -First 1
+        $tls = Join-Path $TestDrive 'cfg-tls'; New-Item -ItemType Directory -Force $tls | Out-Null
+        $cert = Join-Path $tls 'server.pfx'; Set-Content $cert 'synthetic'
+        $passwordFile = Join-Path $tls 'cert-password'; Set-Content $passwordFile 'synthetic-password-value' -NoNewline
+        $builds = Join-Path $TestDrive 'cfg-builds'
+        New-FakeRelease $builds 'r1' ([datetime]'2026-11-10T10:00:00Z') -ExeContent "#!/bin/sh`nexit 0`n" | Out-Null
+        function Write-Config([hashtable]$Values) {
+            $path = Join-Path $TestDrive ([guid]::NewGuid().ToString('n') + '.local.json'); [System.IO.File]::WriteAllText($path, ($Values | ConvertTo-Json)); $path
+        }
+        function Invoke-WithConfig([string]$Config, [string[]]$Extra = @()) {
+            $output = & pwsh -NoProfile -NonInteractive -File $script:Launcher -ConfigFile $Config -DryRun @Extra 2>&1
+            @{ Code = $LASTEXITCODE; Output = ($output | Out-String) }
+        }
+    }
+
+    It 'takes environment values from the local file and lets parameters override them' {
+        if (-not $address) { Set-ItResult -Skipped -Because 'no non-loopback IPv4 address on this host'; return }
+        $port = Get-FreePort
+        $config = Write-Config @{ ListenAddress = $address.ToString(); Port = $port; AllowedHosts = @('lens.example.com', $address.ToString()); TrustedProxies = @('192.168.10.10')
+            DataDirectory = (Join-Path $TestDrive 'cfg-runtime'); CertificatePath = $cert; CertificatePasswordFile = $passwordFile; BuildsRoot = $builds }
+        $run = Invoke-WithConfig $config
+        $run.Code | Should -Be 0
+        $run.Output | Should -Match ([regex]::Escape("--port $port"))
+        $run.Output | Should -Match 'allowed-hosts lens.example.com,'
+        $run.Output | Should -Match '--trusted-proxies 192.168.10.10'
+        $run.Output | Should -Match 'Local configuration: '
+        $other = Get-FreePort
+        $override = Invoke-WithConfig $config @('-Port', "$other", '-AllowedHosts', 'alt.example.org')
+        $override.Code | Should -Be 0
+        $override.Output | Should -Match ([regex]::Escape("--port $other"))
+        $override.Output | Should -Match '--allowed-hosts alt.example.org'
+    }
+
+    It 'refuses secrets, unknown settings and a missing listen address' {
+        (Invoke-WithConfig (Write-Config @{ ListenAddress = '192.168.10.20'; CertificatePassword = 'x' })).Output | Should -Match 'must not contain secrets'
+        (Invoke-WithConfig (Write-Config @{ ListenAddress = '192.168.10.20'; Hostname = 'x' })).Output | Should -Match "unknown setting 'Hostname'"
+        $none = Invoke-WithConfig (Write-Config @{ Port = 18791 })
+        $none.Code | Should -Be 2
+        $none.Output | Should -Match 'No listen address'
+        (Invoke-WithConfig (Join-Path $TestDrive 'absent.local.json')).Output | Should -Match 'does not exist'
+    }
+
+    It 'ships an example file with reserved addresses and known keys only' {
+        $example = Join-Path (Split-Path -Parent $script:Launcher) 'start-server-test.example.json'
+        { Read-LocalConfig $example } | Should -Not -Throw
+        (Get-Content $example -Raw) | Should -Match '192\.168\.10\.20'
+        (Get-Content $example -Raw) | Should -Match 'lens\.example\.com'
     }
 }
 

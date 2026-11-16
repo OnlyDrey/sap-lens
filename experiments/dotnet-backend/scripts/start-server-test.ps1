@@ -17,25 +17,41 @@
   It never creates, changes or reads the contents of certificate or password files (the Server reads the password file itself), never puts a
   secret on a command line or in its output, and never installs services or changes firewall rules.
 
-  The defaults are the example values of one isolated test VM (docs/experiments/dotnet-backend/WINDOWS_TEST_VM.md), not product defaults.
+  Environment-specific values (listen address, port, host names, trusted proxies, paths) are never built in: put them in a local JSON file that is
+  not committed (start-server-test.local.json, git-ignored; copy start-server-test.example.json) or pass them as parameters. Lookup order for the
+  file: -ConfigFile, $env:SAPLENS2_TEST_CONFIG, C:\saplens2\start-server-test.local.json, then start-server-test.local.json next to this script.
+  An explicit parameter always wins over the file. The file holds no secrets: the certificate password stays in its own protected file.
 
 .EXAMPLE
   .\start-server-test.ps1 -DryRun
 .EXAMPLE
-  .\start-server-test.ps1 -ListenAddress 10.0.7.50 -Port 18795 -DataDirectory C:\saplens2\runtime-test
+  .\start-server-test.ps1 -ListenAddress 192.168.10.20 -Port 18791 -DataDirectory C:\saplens2\runtime-test   # reserved example values
+.EXAMPLE
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server-test.ps1 -Background     # detached; logs and PID file in -LogDirectory
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server-test.ps1 -Stop           # stops the process recorded in the PID file
+
+  -Background starts the Server detached, writes its output to <LogDirectory>\server-<UTC time>.out.log / .err.log and its identity to
+  <LogDirectory>\saplens2-test-server.json, then waits until the port accepts connections (or the process exits, which is reported with its exit code
+  and the error log). -Stop ends exactly that process (process id and start time must match). Stopping a detached console process is a hard stop:
+  a running import is recovered when its 30-second lease expires on the next start. Use the foreground mode or the Windows service for a graceful stop.
 #>
 [CmdletBinding()]
 param(
     [string]$BuildsRoot = 'C:\saplens2\builds',
     [string]$ReleasePath = '',
-    [string]$ListenAddress = '10.0.7.50',
-    [int]$Port = 18795,
+    [string]$ListenAddress = '',
+    [int]$Port = 18790,
     [string[]]$AllowedHosts = @(),
     [string[]]$TrustedProxies = @(),
     [string]$DataDirectory = 'C:\saplens2\runtime-test',
     [string]$CertificatePath = 'C:\ProgramData\SapLens2\tls\server.pfx',
     [string]$CertificatePasswordFile = 'C:\ProgramData\SapLens2\tls\cert-password',
-    [switch]$DryRun
+    [switch]$DryRun,
+    [switch]$Background,
+    [switch]$Stop,
+    [string]$LogDirectory = 'C:\saplens2\logs',
+    [int]$ReadyTimeoutSeconds = 60,
+    [string]$ConfigFile = ''
 )
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
@@ -176,13 +192,92 @@ function Format-CommandLine([string]$Executable, [string[]]$Arguments) {
     (@($Executable) + $Arguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ } }) -join ' '
 }
 
+function Get-PidFile([string]$LogDirectory) { Join-Path $LogDirectory 'saplens2-test-server.json' }
+
+function Get-RecordedServer([string]$LogDirectory) {
+    <# The process recorded by -Background when it is still the same process (id and start time match), otherwise $null. #>
+    $file = Get-PidFile $LogDirectory
+    if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { return $null }
+    $record = Get-Content -LiteralPath $file -Raw | ConvertFrom-Json
+    $process = Get-Process -Id ([int]$record.pid) -ErrorAction SilentlyContinue
+    if (-not $process) { return $null }
+    try { $started = $process.StartTime.ToUniversalTime() } catch { return $null }
+    # The id may have been reused by another process: the start time must match (to the second; sources differ in precision).
+    if ([Math]::Abs(($started - [DateTime]::Parse($record.started_utc, $null, [System.Globalization.DateTimeStyles]::RoundtripKind).ToUniversalTime()).TotalSeconds) -ge 1) { return $null }
+    [pscustomobject]@{ Process = $process; Record = $record }
+}
+
+function Test-PortListening([string]$Address, [int]$Port) {
+    $client = [System.Net.Sockets.TcpClient]::new()
+    try { $client.ConnectAsync($Address, $Port).Wait(1000) -and $client.Connected } catch { $false } finally { $client.Dispose() }
+}
+
+function Stop-RecordedServer([string]$LogDirectory) {
+    $recorded = Get-RecordedServer $LogDirectory
+    $file = Get-PidFile $LogDirectory
+    if (-not $recorded) {
+        if (Test-Path -LiteralPath $file) { Remove-Item -LiteralPath $file }
+        Write-Host 'No test server started by this script is running.'
+        return 0
+    }
+    Stop-Process -Id $recorded.Process.Id -Force
+    $recorded.Process.WaitForExit(15000) | Out-Null
+    Remove-Item -LiteralPath $file
+    Write-Host "Stopped the test server (process $($recorded.Process.Id), started $($recorded.Record.started_utc)). Logs: $($recorded.Record.out_log)"
+    return 0
+}
+
+function Start-BackgroundServer {
+    param([hashtable]$Release, [string[]]$Arguments, [string]$LogDirectory, [string]$ListenAddress, [int]$Port, [int]$ReadyTimeoutSeconds)
+    if (Get-RecordedServer $LogDirectory) { throw "A test server started by this script is already running (see $(Get-PidFile $LogDirectory)); stop it with -Stop first." }
+    New-Item -ItemType Directory -Force $LogDirectory | Out-Null
+    $stamp = [DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss')
+    $out = Join-Path $LogDirectory "server-$stamp.out.log"; $err = Join-Path $LogDirectory "server-$stamp.err.log"
+    $window = if ([System.IO.Path]::DirectorySeparatorChar -eq '\') { @{ WindowStyle = 'Hidden' } } else { @{} }   # no console window on Windows
+    $quoted = @($Arguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ } })
+    $process = Start-Process -FilePath $Release.Executable -ArgumentList $quoted -RedirectStandardOutput $out -RedirectStandardError $err `
+        -PassThru -WorkingDirectory $LogDirectory @window
+    $started = [DateTime]::UtcNow                                                            # an immediately exited process has no start time
+    try { $started = $process.StartTime.ToUniversalTime() } catch { Write-Verbose 'start time unavailable' }
+    $record = [ordered]@{ pid = $process.Id; started_utc = $started.ToString('o'); executable = $Release.Executable
+        url = "https://$($ListenAddress):$Port/"; out_log = $out; err_log = $err }
+    [System.IO.File]::WriteAllText((Get-PidFile $LogDirectory), ($record | ConvertTo-Json))
+    $deadline = [DateTime]::UtcNow.AddSeconds($ReadyTimeoutSeconds)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if ($process.HasExited) {
+            Remove-Item -LiteralPath (Get-PidFile $LogDirectory) -ErrorAction SilentlyContinue
+            $reason = (Get-Content -LiteralPath $err -ErrorAction SilentlyContinue) -join [Environment]::NewLine
+            [Console]::Error.WriteLine("start-server-test: the Server exited with code $($process.ExitCode) during startup.$(if ($reason) { [Environment]::NewLine + $reason })")
+            return $(if ($process.ExitCode) { $process.ExitCode } else { 1 })
+        }
+        if (Test-PortListening $ListenAddress $Port) {
+            Write-Host "Running in the background: process $($process.Id), $($record.url)"
+            Write-Host "  Logs:  $out"
+            Write-Host "         $err"
+            Write-Host '  Stop:  powershell -NoProfile -ExecutionPolicy Bypass -File <this script> -Stop'
+            return 0
+        }
+        Start-Sleep -Milliseconds 500
+    }
+    [Console]::Error.WriteLine("start-server-test: the Server did not accept connections on $($ListenAddress):$Port within $ReadyTimeoutSeconds s; it is still running (process $($process.Id)). Check $out and $err, or stop it with -Stop.")
+    return 4
+}
+
 function Invoke-ServerTestLauncher {
     param([string]$BuildsRoot, [string]$ReleasePath, [string]$ListenAddress, [int]$Port, [string[]]$AllowedHosts, [string]$DataDirectory,
-          [string]$CertificatePath, [string]$CertificatePasswordFile, [switch]$DryRun, [string[]]$TrustedProxies = @())
+          [string]$CertificatePath, [string]$CertificatePasswordFile, [switch]$DryRun, [string[]]$TrustedProxies = @(),
+          [switch]$Background, [switch]$Stop, [string]$LogDirectory = 'C:\saplens2\logs', [int]$ReadyTimeoutSeconds = 60)
+    if ($Stop) {
+        try { return Stop-RecordedServer $LogDirectory } catch { [Console]::Error.WriteLine("start-server-test: $($_.Exception.Message)"); return 2 }
+    }
     try {
         $release = Resolve-ServerRelease -BuildsRoot $BuildsRoot -ReleasePath $ReleasePath
         Assert-TestConfiguration -ListenAddress $ListenAddress -Port $Port -AllowedHosts $AllowedHosts -DataDirectory $DataDirectory `
             -CertificatePath $CertificatePath -CertificatePasswordFile $CertificatePasswordFile -Release $release -TrustedProxies $TrustedProxies
+        if ($Background) {
+            if (-not $LogDirectory -or -not [System.IO.Path]::IsPathRooted($LogDirectory)) { throw "-LogDirectory must be an absolute path, not '$LogDirectory'." }
+            if (Test-PathWithin $LogDirectory $release.Release) { throw "-LogDirectory must not be inside the release folder '$($release.Release)'." }
+        }
         $arguments = New-ServerArguments -ListenAddress $ListenAddress -Port $Port -AllowedHosts $AllowedHosts -DataDirectory $DataDirectory `
             -CertificatePath $CertificatePath -CertificatePasswordFile $CertificatePasswordFile -TrustedProxies $TrustedProxies
     } catch {
@@ -200,6 +295,10 @@ function Invoke-ServerTestLauncher {
     if ($inherited.Count -gt 0) { Write-Host "  Inherited environment (names only; options above take precedence): $($inherited -join ', ')" }
     Write-Host "  Command:  $(Format-CommandLine $release.Executable $arguments)"
     if ($DryRun) { Write-Host 'Dry run: configuration valid; nothing was started.'; return 0 }
+    if ($Background) {
+        try { return Start-BackgroundServer -Release $release -Arguments $arguments -LogDirectory $LogDirectory -ListenAddress $ListenAddress -Port $Port -ReadyTimeoutSeconds $ReadyTimeoutSeconds }
+        catch { [Console]::Error.WriteLine("start-server-test: $($_.Exception.Message)"); return 2 }
+    }
     Write-Host 'Starting in the foreground; press Ctrl+C to stop.'
     & $release.Executable @arguments | Out-Host     # the Server's output goes to the console, never into this function's return value
     $code = $LASTEXITCODE
@@ -207,7 +306,48 @@ function Invoke-ServerTestLauncher {
     return $code
 }
 
+$script:ConfigKeys = @('BuildsRoot', 'ReleasePath', 'ListenAddress', 'Port', 'AllowedHosts', 'TrustedProxies', 'DataDirectory', 'CertificatePath',
+    'CertificatePasswordFile', 'LogDirectory', 'ReadyTimeoutSeconds')
+
+function Find-LocalConfig([string]$ConfigFile) {
+    if ($ConfigFile) { if (-not (Test-Path -LiteralPath $ConfigFile -PathType Leaf)) { throw "Configuration file '$ConfigFile' does not exist." }; return $ConfigFile }
+    foreach ($candidate in @($env:SAPLENS2_TEST_CONFIG, 'C:\saplens2\start-server-test.local.json', (Join-Path $PSScriptRoot 'start-server-test.local.json'))) {
+        if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { return $candidate }
+    }
+    $null
+}
+
+function Read-LocalConfig([string]$Path) {
+    <# The local configuration as a hashtable of known keys. Unknown keys and anything that looks like a secret are refused. #>
+    $values = @{}
+    $json = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    foreach ($property in $json.PSObject.Properties) {
+        if ($property.Name -match 'password$|secret|token') { throw "Configuration file '$Path' must not contain secrets ('$($property.Name)'); keep the password in the file named by CertificatePasswordFile." }
+        if ($script:ConfigKeys -notcontains $property.Name) { throw "Configuration file '$Path' has an unknown setting '$($property.Name)' (known: $($script:ConfigKeys -join ', '))." }
+        $values[$property.Name] = if ($property.Name -in 'AllowedHosts', 'TrustedProxies') { @($property.Value) } else { $property.Value }
+    }
+    $values
+}
+
 # Dot-sourced (tests): define the functions only.
 if ($MyInvocation.InvocationName -eq '.') { return }
-exit (Invoke-ServerTestLauncher -BuildsRoot $BuildsRoot -ReleasePath $ReleasePath -ListenAddress $ListenAddress -Port $Port -AllowedHosts $AllowedHosts `
-    -DataDirectory $DataDirectory -CertificatePath $CertificatePath -CertificatePasswordFile $CertificatePasswordFile -DryRun:$DryRun -TrustedProxies $TrustedProxies)
+$settings = @{ BuildsRoot = $BuildsRoot; ReleasePath = $ReleasePath; ListenAddress = $ListenAddress; Port = $Port; AllowedHosts = $AllowedHosts
+    TrustedProxies = $TrustedProxies; DataDirectory = $DataDirectory; CertificatePath = $CertificatePath; CertificatePasswordFile = $CertificatePasswordFile
+    LogDirectory = $LogDirectory; ReadyTimeoutSeconds = $ReadyTimeoutSeconds }
+if (-not $Stop) {
+    try {
+        $config = Find-LocalConfig $ConfigFile
+        if ($config) {
+            $local = Read-LocalConfig $config
+            foreach ($key in $local.Keys) { if (-not $PSBoundParameters.ContainsKey($key)) { $settings[$key] = $local[$key] } }   # parameters win
+            Write-Host "Local configuration: $config"
+        }
+        if (-not $settings.ListenAddress) { throw 'No listen address: pass -ListenAddress or set ListenAddress in a local configuration file (see start-server-test.example.json).' }
+    } catch { [Console]::Error.WriteLine("start-server-test: $($_.Exception.Message)"); exit 2 }
+} elseif (-not $PSBoundParameters.ContainsKey('LogDirectory')) {
+    try { $config = Find-LocalConfig $ConfigFile; if ($config) { $local = Read-LocalConfig $config; if ($local.ContainsKey('LogDirectory')) { $settings.LogDirectory = $local.LogDirectory } } }
+    catch { [Console]::Error.WriteLine("start-server-test: $($_.Exception.Message)"); exit 2 }
+}
+exit (Invoke-ServerTestLauncher -BuildsRoot $settings.BuildsRoot -ReleasePath $settings.ReleasePath -ListenAddress $settings.ListenAddress -Port ([int]$settings.Port) `
+    -AllowedHosts $settings.AllowedHosts -DataDirectory $settings.DataDirectory -CertificatePath $settings.CertificatePath -CertificatePasswordFile $settings.CertificatePasswordFile `
+    -DryRun:$DryRun -TrustedProxies $settings.TrustedProxies -Background:$Background -Stop:$Stop -LogDirectory $settings.LogDirectory -ReadyTimeoutSeconds ([int]$settings.ReadyTimeoutSeconds))

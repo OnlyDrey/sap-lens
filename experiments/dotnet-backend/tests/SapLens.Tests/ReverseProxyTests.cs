@@ -27,7 +27,7 @@ public sealed class OriginPolicyTests
     [InlineData("https://evil.lens.proxy.test", "https", "lens.proxy.test", OriginPolicy.Result.HostMismatch)]
     [InlineData("https://lens.proxy.test.evil.example", "https", "lens.proxy.test", OriginPolicy.Result.HostMismatch)]
     [InlineData("https://proxy.test", "https", "lens.proxy.test", OriginPolicy.Result.HostMismatch)]
-    [InlineData("https://10.0.7.50:18795", "https", "10.0.7.50:18795", OriginPolicy.Result.Match)]
+    [InlineData("https://192.168.10.20:18795", "https", "192.168.10.20:18795", OriginPolicy.Result.Match)]
     [InlineData("https://[fd00::5]:18795", "https", "[fd00::5]:18795", OriginPolicy.Result.Match)]
     [InlineData("https://[fd00:0:0::5]:18795", "https", "[FD00::5]:18795", OriginPolicy.Result.Match)]
     [InlineData("https://[fd00::6]:18795", "https", "[fd00::5]:18795", OriginPolicy.Result.HostMismatch)]
@@ -60,17 +60,17 @@ public sealed class OriginPolicyTests
     {
         var none = ServerConfiguration.Parse(["--data-dir", _root], Env());
         Assert.Empty(none.TrustedProxies);
-        var settings = ServerConfiguration.Parse(["--data-dir", _root, "--trusted-proxies", "10.0.7.10, 10.0.8.0/24,fd00::10,::ffff:10.0.7.11"], Env());
-        Assert.Equal(["10.0.7.10/32", "10.0.8.0/24", "fd00::10/128", "10.0.7.11/32"], settings.TrustedProxies.Select(n => n.ToString()));
+        var settings = ServerConfiguration.Parse(["--data-dir", _root, "--trusted-proxies", "192.168.10.10, 192.168.20.0/24,fd00::10,::ffff:192.168.10.11"], Env());
+        Assert.Equal(["192.168.10.10/32", "192.168.20.0/24", "fd00::10/128", "192.168.10.11/32"], settings.TrustedProxies.Select(n => n.ToString()));
         Assert.Equal(1, settings.TrustedProxyHops);
-        var fromEnvironment = ServerConfiguration.Parse(["--data-dir", _root], Env(("SAP_LENS_V2_TRUSTED_PROXIES", "10.0.7.10"), ("SAP_LENS_V2_TRUSTED_PROXY_HOPS", "2")));
+        var fromEnvironment = ServerConfiguration.Parse(["--data-dir", _root], Env(("SAP_LENS_V2_TRUSTED_PROXIES", "192.168.10.10"), ("SAP_LENS_V2_TRUSTED_PROXY_HOPS", "2")));
         Assert.Equal(2, fromEnvironment.TrustedProxyHops);
         Assert.Single(fromEnvironment.TrustedProxies);
 
-        foreach (var bad in new[] { "lens.proxy.test", "10.0.7.10/33", "10.0.7.300", "*" })
+        foreach (var bad in new[] { "lens.proxy.test", "192.168.10.10/33", "192.168.10.300", "*" })
             Assert.Throws<InvalidOperationException>(() => ServerConfiguration.Parse(["--data-dir", _root, "--trusted-proxies", bad], Env()));
         foreach (var hops in new[] { "0", "6", "x" })
-            Assert.Throws<InvalidOperationException>(() => ServerConfiguration.Parse(["--data-dir", _root, "--trusted-proxies", "10.0.7.10", "--trusted-proxy-hops", hops], Env()));
+            Assert.Throws<InvalidOperationException>(() => ServerConfiguration.Parse(["--data-dir", _root, "--trusted-proxies", "192.168.10.10", "--trusted-proxy-hops", hops], Env()));
         Assert.Contains("needs --trusted-proxies", Assert.Throws<InvalidOperationException>(() => ServerConfiguration.Parse(["--data-dir", _root, "--trusted-proxy-hops", "2"], Env())).Message);
     }
 
@@ -96,9 +96,9 @@ public sealed class OriginPolicyTests
     [Fact]
     public void Trusted_proxies_need_network_access_and_are_refused_on_the_desktop()
     {
-        var loopback = new HostSettings { DataDirectory = _root, AccessToken = new string('t', 40), TrustedProxies = [ProxyTrust.ParseNetwork("10.0.7.10")] };
+        var loopback = new HostSettings { DataDirectory = _root, AccessToken = new string('t', 40), TrustedProxies = [ProxyTrust.ParseNetwork("192.168.10.10")] };
         Assert.Contains("need network access", Assert.Throws<InvalidOperationException>(() => loopback.Validate()).Message);
-        var desktop = new HostSettings { DataDirectory = _root, AccessToken = new string('t', 40), Mode = HostMode.Desktop, TrustedProxies = [ProxyTrust.ParseNetwork("10.0.7.10")] };
+        var desktop = new HostSettings { DataDirectory = _root, AccessToken = new string('t', 40), Mode = HostMode.Desktop, TrustedProxies = [ProxyTrust.ParseNetwork("192.168.10.10")] };
         Assert.Contains("trusted proxies", Assert.Throws<InvalidOperationException>(() => desktop.Validate()).Message);
     }
 }
@@ -109,7 +109,7 @@ public sealed class OriginPolicyTests
 /// ("Invalid access token." / "invalid_credentials"), never a boundary title.</summary>
 public sealed class ReverseProxyTests : IAsyncDisposable
 {
-    private const string Public = "lens.proxy.test";             // stands for the public name (lens.akio.no in the reported deployment)
+    private const string Public = "lens.proxy.test";             // stands for the public name (lens.example.com in the reported deployment)
     private static readonly IPAddress Ipv6Name = IPAddress.Parse("fd00::5");
     private readonly string _root = Directory.CreateTempSubdirectory("saplens-proxy-").FullName;
     private readonly string _token = HostSettings.NewToken();

@@ -97,20 +97,20 @@ Validate the new server package side by side over HTTPS (replace the certificate
 needs no firewall change when tested from the VM itself):
 
 ```bat
-start "SAP Lens validation" C:\saplens2\release-next\server-win-x64\SapLens.Api.exe --data-dir C:\saplens2\validation-data --network --listen 10.0.7.50 --port 18795 --allowed-hosts 10.0.7.50 --cert <path-to-server.pfx> --cert-password-file <path-to-cert-password>
-curl.exe -s -o NUL -w "sign-in page %{http_code}\n" https://10.0.7.50:18795/login.html
-curl.exe -s -o NUL -w "app without session %{http_code} (302 expected)\n" https://10.0.7.50:18795/
-curl.exe -s -o NUL -w "api without token %{http_code} (401 expected)\n" https://10.0.7.50:18795/api/roles
+start "SAP Lens validation" C:\saplens2\release-next\server-win-x64\SapLens.Api.exe --data-dir C:\saplens2\validation-data --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20 --cert <path-to-server.pfx> --cert-password-file <path-to-cert-password>
+curl.exe -s -o NUL -w "sign-in page %{http_code}\n" https://192.168.10.20:18795/login.html
+curl.exe -s -o NUL -w "app without session %{http_code} (302 expected)\n" https://192.168.10.20:18795/
+curl.exe -s -o NUL -w "api without token %{http_code} (401 expected)\n" https://192.168.10.20:18795/api/roles
 set /p TOKEN=<C:\saplens2\validation-data\api-token
-curl.exe -s -H "X-SAP-Lens-Token: %TOKEN%" https://10.0.7.50:18795/api/version
-curl.exe -s -o NUL -w "not migrated %{http_code} (501 expected)\n" -H "X-SAP-Lens-Token: %TOKEN%" https://10.0.7.50:18795/api/dashboard
-curl.exe -s -X POST -H "X-SAP-Lens-Token: %TOKEN%" -H "Content-Type: text/csv" --data-binary @%TEMP%\saplens2-csv\roles.csv https://10.0.7.50:18795/api/v1/imports/roles
+curl.exe -s -H "X-SAP-Lens-Token: %TOKEN%" https://192.168.10.20:18795/api/version
+curl.exe -s -o NUL -w "not migrated %{http_code} (501 expected)\n" -H "X-SAP-Lens-Token: %TOKEN%" https://192.168.10.20:18795/api/dashboard
+curl.exe -s -X POST -H "X-SAP-Lens-Token: %TOKEN%" -H "Content-Type: text/csv" --data-binary @%TEMP%\saplens2-csv\roles.csv https://192.168.10.20:18795/api/v1/imports/roles
 set TOKEN=
 ```
 
 The synthetic `roles.csv` comes from the PowerShell snippet in
 [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md#b-interactive-desktop-session-powershell-51-or-7-window-webview2-import-shutdown). Then
-open `https://10.0.7.50:18795/` in a browser on the VM (and, with a temporary firewall rule for port 18795 restricted to the trusted subnet,
+open `https://192.168.10.20:18795/` in a browser on the VM (and, with a temporary firewall rule for port 18795 restricted to the trusted subnet,
 from another device): expected are the sign-in page, then the SAP Lens UI with the .NET notice, and Role Lookup listing the imported roles.
 Stop the validation server by closing its window. Only after this passes, replace the running lab service's binaries
 (`Stop-Service SapLens2`, copy `server-win-x64`, `Start-Service SapLens2`; see [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md#9-secure-shutdown-and-restart)).

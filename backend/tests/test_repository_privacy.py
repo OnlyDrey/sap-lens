@@ -55,4 +55,31 @@ class RepositoryPrivacyTests(unittest.TestCase):
             self.assertIn(required,allowed)
 
 
+    def test_tls_material_secret_files_databases_and_local_configuration_are_ignored(self):
+        for file in ['server.pfx','tls/server.p12','tls/server.key','tls/server.pem','tls/server.crt','tls/ca.cer','cert-password','data/api-token',
+                     'data/sap-lens-v2.sqlite3','data/sap-lens-v2.sqlite3-wal','data/sap-lens-v2.sqlite3-shm','data/x.db',
+                     'experiments/dotnet-backend/scripts/start-server-test.local.json','.secret-scan.local']:
+            self.assertEqual(subprocess.run(['git','check-ignore','-q',file],cwd=ROOT).returncode,0,file)
+        for file in ['experiments/dotnet-backend/scripts/start-server-test.example.json','backend/.env.example']:
+            self.assertEqual(subprocess.run(['git','check-ignore','-q',file],cwd=ROOT).returncode,1,file)
+
+    def test_secret_scan_reports_rules_never_values_and_tracked_files_are_clean(self):
+        import importlib.util,tempfile
+        spec=importlib.util.spec_from_file_location('check_secrets',ROOT/'scripts/check-secrets.py');scan=importlib.util.module_from_spec(spec);spec.loader.exec_module(scan)
+        body='MII'+'A'*60
+        cases={'-----BEGIN PRIVATE KEY-----\n'+body:'private key','token '+'ghp_'+'b'*36:'GitHub token','id '+'AKIA'+'C'*16:'AWS access key',
+               'Server=db;Password='+'Synthetic1x;':'connection string password'}
+        for line,rule in cases.items():self.assertEqual(scan.scan_line(line,[]),[rule],rule)
+        self.assertEqual(scan.scan_line('connect(password=self.password)',[]),[])          # keyword arguments are not connection strings
+        self.assertEqual(scan.scan_line('ghp_'+'b'*36+'  # secret-scan: allow',[]),[])
+        self.assertEqual(scan.scan_line('Host: Lens.Example.ORG',['lens.example.org']),['local deny list #1'])
+        with tempfile.TemporaryDirectory() as folder:
+            Path(folder,'cert-password').write_text('x');Path(folder,'notes.txt').write_text('aws AKIA'+'D'*16)
+            done=subprocess.run([sys.executable,str(ROOT/'scripts/check-secrets.py'),'--path',folder],capture_output=True,text=True)
+            self.assertEqual(done.returncode,1)
+            self.assertIn('cert-password: secret or key file',done.stdout);self.assertIn('notes.txt:1: AWS access key',done.stdout)
+            self.assertNotIn('D'*16,done.stdout)                                              # the value is never printed
+        done=subprocess.run([sys.executable,str(ROOT/'scripts/check-secrets.py')],capture_output=True,text=True,cwd=ROOT)
+        self.assertEqual(done.returncode,0,done.stdout[-2000:])
+
 if __name__=='__main__':unittest.main()

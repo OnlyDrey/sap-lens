@@ -81,5 +81,5 @@ for release, platform in ((win, 'win-x64'), (linux, 'linux-x64')):
     (release / 'SHA256SUMS').write_text('\n'.join(sums) + '\n')
     print(f'{release.name}: ' + ', '.join(f"{a['path']} {a['bytes'] / 1048576:.1f} MB" for a in artifacts if a['path'] in executables.values()))
 PY
-for release in "$win" "$linux"; do (cd "$release" && sha256sum --quiet -c SHA256SUMS); done
+for release in "$win" "$linux"; do (cd "$release" && sha256sum --quiet -c SHA256SUMS); python3 "$root/../../scripts/check-secrets.py" --path "$release"; done
 echo "Release build complete: $win and $linux. Nothing was installed or started."

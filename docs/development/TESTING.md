@@ -146,6 +146,10 @@ the manual build workflows and the [validation matrix](../deployment/README.md#v
 Underlying commands (still valid on their own): `python -m unittest -b discover -s backend/tests` (`-b` keeps expected diagnostics out of a passing run),
 `npm --prefix frontend run test:unit`, `npm --prefix frontend run build`, `npm --prefix frontend run test:browser -- tests/<file>.spec.ts --grep <title>`,
 `python scripts/check-docs.py`, `python scripts/check-workflows.py`, `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`.
+`python scripts/check-secrets.py` (part of QUICK and the static checks) scans tracked files for private keys, token formats, connection-string
+passwords and committed key/certificate/secret files, never printing a matched value; `--history` scans every line ever added on every ref,
+`--path DIR` scans a folder such as a release before it is shared. Personal host names, addresses or names go one per line into the git-ignored
+`.secret-scan.local`, so they are checked without being committed. It runs locally; no workflow was added.
 A prepared host may need `PLAYWRIGHT_EXECUTABLE_PATH` for Chromium; report that override.
 
 ### Runner output, exit codes and artifacts

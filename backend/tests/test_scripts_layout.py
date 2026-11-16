@@ -24,6 +24,11 @@ class ScriptLayout(unittest.TestCase):
                 continue
             for match in pattern.finditer(path.read_text(encoding='utf-8', errors='ignore')):
                 relative = 'scripts/' + match.group(1)
+                # Experiments (experiments/<name>, documented in docs/experiments/<name>) keep their own scripts/ folder; their files name those paths.
+                parts = name.split('/')
+                experiment = parts[1] if parts[0] == 'experiments' else parts[2] if parts[:2] == ['docs', 'experiments'] and len(parts) > 2 else None
+                if experiment and (ROOT / 'experiments' / experiment / relative).exists():
+                    continue
                 if relative not in files and not (ROOT / relative).exists():
                     missing.append(f'{name}: {relative}')
         # fixtures that build throw-away repositories name scripts that exist only inside the fixture
@@ -64,7 +69,7 @@ class ScriptLayout(unittest.TestCase):
     def test_the_top_level_keeps_only_entrypoints_shipped_files_and_windows_scripts(self):
         top = sorted(path.name for path in (ROOT / 'scripts').iterdir() if path.is_file())
         self.assertEqual([name for name in top if name.endswith('.py')],
-                         ['build.py', 'check-docs.py', 'check-workflows.py', 'deployment-package.py', 'install-linux-server.py', 'run-installed-server.py', 'run-tests.py', 'validate.py'])
+                         ['build.py', 'check-docs.py', 'check-secrets.py', 'check-workflows.py', 'deployment-package.py', 'install-linux-server.py', 'run-installed-server.py', 'run-tests.py', 'validate.py'])
 
 
 if __name__ == '__main__':

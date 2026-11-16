@@ -6,23 +6,31 @@ variable, default and refusal) is [SERVER_NETWORK_ACCESS.md, section 2](SERVER_N
 are in [section 4](SERVER_NETWORK_ACCESS.md#4-tls-certificates). The Windows service procedure is in
 [section 5](SERVER_NETWORK_ACCESS.md#5-deployment); it has **not** been run natively yet.
 
-## Example values (this VM only)
+## Example values and local configuration
 
-These values describe one test environment. They are **not product defaults**: the Server's own defaults are `127.0.0.1:18790` over HTTP with
-network access off, and `--data-dir` has no default. Replace every value for another machine.
+The addresses and names in this runbook are **reserved examples** (`192.168.10.20`, `lens.example.com`), not product defaults and not any real
+environment: the Server's own defaults are `127.0.0.1:18790` over HTTP with network access off, and `--data-dir` has no default. Nothing
+environment-specific is built into the executables or the scripts; the same release runs with any address, host name and port.
+
+Keep your environment's real values in a local file that is never committed: copy
+`experiments\dotnet-backend\scripts\start-server-test.example.json` to `C:\saplens2\start-server-test.local.json` (or
+`start-server-test.local.json` next to the script; `*.local.json` is git-ignored) and edit it. The launcher reads it automatically; explicit
+parameters still win, and the file must not contain secrets (the certificate password stays in its own protected file). To keep your real values
+out of future commits, list them one per line in `.secret-scan.local` at the repository root (git-ignored); `python scripts/check-secrets.py`
+then reports any tracked file that contains them.
 
 | Item | Example value |
 | --- | --- |
-| Server IP (a private address assigned to the VM) | `10.0.7.50` |
-| HTTPS port | `18795` |
+| Server IP (a private address assigned to the VM) | `192.168.10.20` |
+| HTTPS port | `18795` (any free port) |
 | Test data directory (disposable, synthetic data only) | `C:\saplens2\runtime-test` |
 | Releases built on the VM | `C:\saplens2\builds\<name>` |
-| Certificate (PFX, SAN includes `10.0.7.50`) | `C:\ProgramData\SapLens2\tls\server.pfx` |
+| Certificate (PFX, SAN includes `192.168.10.20`) | `C:\ProgramData\SapLens2\tls\server.pfx` |
 | Certificate password file | `C:\ProgramData\SapLens2\tls\cert-password` |
 | Repository checkout | `C:\src\sap-lens` |
 
 The certificate and password file are created once by an administrator with the commands in
-[SERVER_NETWORK_ACCESS.md section 4](SERVER_NETWORK_ACCESS.md#windows-powershell-as-administrator), using `$ip = '10.0.7.50'` and a DNS name
+[SERVER_NETWORK_ACCESS.md section 4](SERVER_NETWORK_ACCESS.md#windows-powershell-as-administrator), using `$ip = '192.168.10.20'` and a DNS name
 of your choice. Nothing in this runbook creates or overwrites them.
 
 ## 1. Build a native release
@@ -76,24 +84,29 @@ configuration and runs the Server in the foreground.
 
 ```powershell
 cd C:\src\sap-lens\experiments\dotnet-backend
-.\scripts\start-server-test.ps1 -DryRun          # validate and show the command; starts nothing
-.\scripts\start-server-test.ps1                  # run in the foreground; Ctrl+C stops it
-.\scripts\start-server-test.ps1 -ListenAddress '10.0.7.50' -Port 18795 -DataDirectory 'C:\saplens2\runtime-test' `
-    -AllowedHosts 'saplens2.test.example','10.0.7.50' -ReleasePath "C:\saplens2\builds\$name"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -DryRun       # validate and show the command; starts nothing
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1              # foreground; Ctrl+C stops it gracefully
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -Background  # detached; logs and PID file in C:\saplens2\logs
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -Stop        # stops exactly the process -Background started
+.\scripts\start-server-test.ps1 -ListenAddress '192.168.10.20' -Port 18795 -DataDirectory 'C:\saplens2\runtime-test' `
+    -AllowedHosts 'saplens2.test.example','192.168.10.20' -ReleasePath "C:\saplens2\builds\$name"
 ```
 
 | Parameter | Default (example VM) | Notes |
 | --- | --- | --- |
+| `-ConfigFile` | see lookup order | Local JSON with environment values (`start-server-test.example.json` is the template); lookup: `-ConfigFile`, `%SAPLENS2_TEST_CONFIG%`, `C:\saplens2\start-server-test.local.json`, `start-server-test.local.json` next to the script |
 | `-BuildsRoot` | `C:\saplens2\builds` | Searched when `-ReleasePath` is not given |
 | `-ReleasePath` | none | A release folder, its `server` folder, or a plain `dotnet publish` folder |
-| `-ListenAddress` | `10.0.7.50` | Must be assigned to this machine; loopback and `0.0.0.0` are refused |
-| `-Port` | `18795` | Must be free on that address |
+| `-ListenAddress` | none (required, from the parameter or the local file) | Must be assigned to this machine; loopback and `0.0.0.0` are refused |
+| `-Port` | `18790` | Must be free on that address |
 | `-AllowedHosts` | the listen address | Host names or addresses clients type; the certificate SAN must cover each |
 | `-TrustedProxies` | none | Reverse-proxy tests only: IP or CIDR of the proxy peer, passed as `--trusted-proxies` ([section 11](SERVER_NETWORK_ACCESS.md#11-reverse-proxy-pangolin-cloudflare)) |
 | `-DataDirectory` | `C:\saplens2\runtime-test` | Absolute, local; refused inside `%ProgramData%\SapLens2`, `%ProgramData%\SAP Lens Server`, `%LOCALAPPDATA%\SAP Lens`, `%LOCALAPPDATA%\SAP Lens 2 Prototype`, Program Files, Windows or the release folder |
 | `-CertificatePath` | `C:\ProgramData\SapLens2\tls\server.pfx` | Must exist; never created |
 | `-CertificatePasswordFile` | `C:\ProgramData\SapLens2\tls\cert-password` | Must exist and be non-empty; the Server reads it, the launcher never does |
 | `-DryRun` | off | Validates and prints the command without secrets |
+| `-Background` / `-Stop` | off | Start detached (output to `<LogDirectory>\server-<UTC time>.out.log`/`.err.log`, identity in `saplens2-test-server.json`; waits until the port accepts connections, reports a startup refusal with its exit code and error log) / stop exactly that process (id and start time must match). A detached console process can only be stopped hard; a running import is recovered by its 30-second lease on the next start. Use the foreground or the Windows service for a graceful stop |
+| `-LogDirectory` | `C:\saplens2\logs` | Background logs and PID file; refused inside the release folder |
 
 The Server receives `--data-dir --network --listen --port --allowed-hosts --cert --cert-password-file`. Exit codes: `0` normal stop,
 `2` the launcher refused the configuration (reason on stderr), `3` the Server refused it (`startup refused: <reason>`), anything else is the
@@ -116,13 +129,13 @@ The same configuration without the launcher. The password stays in its file; it 
 
 ```powershell
 $server = Join-Path $release.FullName 'server\SapLens.Api.exe'
-& $server --data-dir 'C:\saplens2\runtime-test' --network --listen 10.0.7.50 --port 18795 --allowed-hosts 10.0.7.50 `
+& $server --data-dir 'C:\saplens2\runtime-test' --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20 `
   --cert 'C:\ProgramData\SapLens2\tls\server.pfx' --cert-password-file 'C:\ProgramData\SapLens2\tls\cert-password'
 "exit code $LASTEXITCODE"
 ```
 
-Startup is quiet until it succeeds. The console then shows JSON log lines, including `Listening on 10.0.7.50:18795 (https), network access
-enabled, allowed hosts 10.0.7.50` and `TLS certificate CN=..., thumbprint ..., valid until ...`. A refusal prints `startup refused: <reason>`
+Startup is quiet until it succeeds. The console then shows JSON log lines, including `Listening on 192.168.10.20:18795 (https), network access
+enabled, allowed hosts 192.168.10.20` and `TLS certificate CN=..., thumbprint ..., valid until ...`. A refusal prints `startup refused: <reason>`
 and exits with code 3. Before listening, the Server performs a real TLS handshake with its certificate through SChannel, so a certificate
 Windows cannot use is refused at startup instead of failing every client.
 
@@ -143,23 +156,23 @@ dotnet run --project src\SapLens.Cli -c Release -- accounts-code --data C:\saple
 On the VM (PowerShell 7 `Invoke-WebRequest` or `curl.exe`; the CA must be trusted, see the next section):
 
 ```powershell
-Get-NetTCPConnection -LocalPort 18795 -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess   # only 10.0.7.50
-curl.exe -s -o NUL -w "ready %{http_code}\n" https://10.0.7.50:18795/health/ready                            # 200
-curl.exe -s -o NUL -w "ui %{http_code}\n" https://10.0.7.50:18795/                                          # 200
-curl.exe -s -o NUL -w "api without credentials %{http_code}\n" https://10.0.7.50:18795/api/v1/roles          # 401
-curl.exe -s -o NUL -w "auth state %{http_code}\n" https://10.0.7.50:18795/api/auth/state                    # 200
-curl.exe -s -o NUL -w "foreign host %{http_code}\n" -H "Host: other.example" https://10.0.7.50:18795/health/ready   # 421
-curl.exe -s -o NUL -w "plain http %{http_code}\n" http://10.0.7.50:18795/                                    # 000 or 400
+Get-NetTCPConnection -LocalPort 18795 -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess   # only 192.168.10.20
+curl.exe -s -o NUL -w "ready %{http_code}\n" https://192.168.10.20:18795/health/ready                            # 200
+curl.exe -s -o NUL -w "ui %{http_code}\n" https://192.168.10.20:18795/                                          # 200
+curl.exe -s -o NUL -w "api without credentials %{http_code}\n" https://192.168.10.20:18795/api/v1/roles          # 401
+curl.exe -s -o NUL -w "auth state %{http_code}\n" https://192.168.10.20:18795/api/auth/state                    # 200
+curl.exe -s -o NUL -w "foreign host %{http_code}\n" -H "Host: other.example" https://192.168.10.20:18795/health/ready   # 421
+curl.exe -s -o NUL -w "plain http %{http_code}\n" http://192.168.10.20:18795/                                    # 000 or 400
 ```
 
 From another machine on the same subnet, after the firewall rule in [section 6](#6-restricted-firewall-rule):
 
 ```powershell
-Test-NetConnection 10.0.7.50 -Port 18795
-curl.exe -s -o NUL -w "ready %{http_code}\n" https://10.0.7.50:18795/health/ready     # 200 with the CA trusted, never with -k
+Test-NetConnection 192.168.10.20 -Port 18795
+curl.exe -s -o NUL -w "ready %{http_code}\n" https://192.168.10.20:18795/health/ready     # 200 with the CA trusted, never with -k
 ```
 
-Then open `https://10.0.7.50:18795/` in a browser. It must show a valid lock, sign in, and run a Role Lookup after a synthetic import.
+Then open `https://192.168.10.20:18795/` in a browser. It must show a valid lock, sign in, and run a Role Lookup after a synthetic import.
 
 ## 5. Validate the TLS certificate
 
@@ -168,7 +181,7 @@ $pfx = Get-PfxData -FilePath C:\ProgramData\SapLens2\tls\server.pfx `
   -Password (ConvertTo-SecureString (Get-Content C:\ProgramData\SapLens2\tls\cert-password -Raw) -AsPlainText -Force)   # administrator prompt only
 $cert = $pfx.EndEntityCertificates[0]
 $cert | Format-List Subject, NotBefore, NotAfter, Thumbprint, HasPrivateKey
-($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.17' }).Format($true)    # SAN: must list 10.0.7.50 and every allowed host name
+($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.17' }).Format($true)    # SAN: must list 192.168.10.20 and every allowed host name
 ($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' }).Format($true)    # EKU: Server Authentication
 ```
 
@@ -176,7 +189,7 @@ From a client, check the chain the browser will see (the CA certificate `saplens
 
 ```powershell
 Import-Certificate -FilePath .\saplens2-ca.cer -CertStoreLocation Cert:\CurrentUser\Root
-curl.exe -v -s -o NUL https://10.0.7.50:18795/health/ready 2>&1 | Select-String 'SSL|subject|issuer|expire'
+curl.exe -v -s -o NUL https://192.168.10.20:18795/health/ready 2>&1 | Select-String 'SSL|subject|issuer|expire'
 ```
 
 The Server itself refuses certificates that have no private key, are outside their validity, are not for server authentication, have an RSA
@@ -190,7 +203,7 @@ Private profiles only.
 ```powershell
 $exe = Join-Path $release.FullName 'server\SapLens.Api.exe'
 New-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (test VM)' -Direction Inbound -Action Allow -Protocol TCP `
-  -LocalAddress 10.0.7.50 -LocalPort 18795 -RemoteAddress 10.0.7.0/24 -Profile Domain,Private -Program $exe
+  -LocalAddress 192.168.10.20 -LocalPort 18795 -RemoteAddress 192.168.10.0/24 -Profile Domain,Private -Program $exe
 Get-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (test VM)' | Get-NetFirewallAddressFilter
 Remove-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (test VM)'      # when the test is finished
 ```

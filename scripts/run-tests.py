@@ -1216,7 +1216,7 @@ def quick_static_checks(frontend: bool) -> list[dict]:
     py = python_exe()
     checks = [('whitespace (git diff --check)', ['git', 'diff', '--check']), ('documentation links', [py, 'scripts/check-docs.py']),
               ('workflow contracts', [py, 'scripts/check-workflows.py']), ('test ownership map', [py, str(Path(__file__).resolve()), 'check']),
-              ('Python lint (ruff)', [py, '-m', 'ruff', 'check', 'backend', 'scripts'])]
+              ('Python lint (ruff)', [py, '-m', 'ruff', 'check', 'backend', 'scripts']), ('secret scan (tracked files)', [py, 'scripts/check-secrets.py'])]
     if frontend:
         checks += [('frontend lint (ESLint)', [npm(), '--prefix', str(FRONTEND), 'run', 'lint']), ('TypeScript check', [npm(), '--prefix', str(FRONTEND), 'run', 'check:types'])]
     return [step(name, command) for name, command in checks]
@@ -1236,6 +1236,7 @@ def static_checks() -> list[dict]:
         ('frontend lint (ESLint)', [npm(), '--prefix', str(FRONTEND), 'run', 'lint']),
         ('whitespace (git diff --check)', ['git', 'diff', '--check']),
         ('pip check', [py, '-m', 'pip', 'check']),
+        ('secret scan (tracked files)', [py, 'scripts/check-secrets.py']),
     ]
     return [step(name, command) for name, command in checks]
 

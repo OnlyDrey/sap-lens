@@ -1,0 +1,11 @@
+{
+  "ListenAddress": "192.168.10.20",
+  "Port": 18791,
+  "AllowedHosts": ["lens.example.com", "192.168.10.20"],
+  "TrustedProxies": [],
+  "DataDirectory": "C:\\saplens2\\runtime-test",
+  "CertificatePath": "C:\\ProgramData\\SapLens2\\tls\\server.pfx",
+  "CertificatePasswordFile": "C:\\ProgramData\\SapLens2\\tls\\cert-password",
+  "BuildsRoot": "C:\\saplens2\\builds",
+  "LogDirectory": "C:\\saplens2\\logs"
+}
