@@ -1,0 +1,1327 @@
+{
+ "catalogue": "roles_default",
+ "runs": [
+  {
+   "route": "/api/import/headers",
+   "case": "roles_default",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "AGR_NAME",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "delimiter": ";",
+     "encoding": "utf-8-sig",
+     "proposed_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "AGR_NAME": "AGR_NAME",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "issues": []
+    }
+   }
+  },
+  {
+   "route": "/api/import/preview",
+   "case": "roles_default",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "file_name": "roles_default.csv",
+     "import_profile": "default",
+     "import_version": 1,
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "AGR_NAME",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "resolved_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "AGR_NAME": "AGR_NAME",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "parsed_rows": 1820,
+     "unique_records": 1818,
+     "duplicate_rows": 1,
+     "warnings": [
+      "1 identical duplicate records were deduplicated.",
+      "1 empty records were ignored.",
+      "Transactions without CHILD_AGR/Effective_Role are retained as direct composite assignments.",
+      "Conflicting transaction descriptions are retained as alternate texts.",
+      "Some roles have conflicting CSV SAP areas; shown as Unclassified.",
+      "Conflicting role descriptions are retained as alternate descriptions."
+     ],
+     "errors": [],
+     "samples": [
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0154",
+       "TTEXT": "Transaction T0154"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0012",
+       "TTEXT": "Transaction T0012"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0243",
+       "TTEXT": "Transaction T0243"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0359",
+       "TTEXT": "Transaction T0359"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0392",
+       "TTEXT": ""
+      }
+     ],
+     "unique_roles": 227,
+     "unique_transactions": 403,
+     "transaction_assignments": 1816,
+     "relationship_count": 498,
+     "analysis": {
+      "module_source": "CSV FUNCTION_KEY",
+      "import_profile_id": "default",
+      "import_profile_version": 1,
+      "configuration_revision": 0
+     },
+     "count_definitions": {
+      "parsed_rows": "Logical CSV records before blank/duplicate filtering",
+      "transaction_assignments": "Distinct composite/child/parent/effective-role/T-code tuples",
+      "unique_transactions": "Distinct source transaction spellings; search remains case-insensitive",
+      "unique_roles": "Distinct AGR_NAME composites"
+     }
+    }
+   }
+  },
+  {
+   "route": "/api/import/headers",
+   "case": "roles_mapped_cp1252",
+   "profile": {
+    "id": "nordic",
+    "name": "Nordic export",
+    "version": 2,
+    "mapping": {
+     "AGR_NAME": "Rolle"
+    },
+    "delimiter": ";",
+    "encoding": "cp1252"
+   },
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "Rolle",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "delimiter": ";",
+     "encoding": "cp1252",
+     "proposed_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "issues": []
+    }
+   }
+  },
+  {
+   "route": "/api/import/preview",
+   "case": "roles_mapped_cp1252",
+   "profile": {
+    "id": "nordic",
+    "name": "Nordic export",
+    "version": 2,
+    "mapping": {
+     "AGR_NAME": "Rolle"
+    },
+    "delimiter": ";",
+    "encoding": "cp1252"
+   },
+   "result": {
+    "status": 200,
+    "body": {
+     "file_name": "roles_mapped_cp1252.csv",
+     "import_profile": "nordic",
+     "import_version": 2,
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "Rolle",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "resolved_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "AGR_NAME": "Rolle",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "parsed_rows": 299,
+     "unique_records": 299,
+     "duplicate_rows": 0,
+     "warnings": [
+      "Transactions without CHILD_AGR/Effective_Role are retained as direct composite assignments."
+     ],
+     "errors": [],
+     "samples": [
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0154",
+       "TTEXT": "Transaction T0154"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0012",
+       "TTEXT": "Transaction T0012"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0243",
+       "TTEXT": "Transaction T0243"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0359",
+       "TTEXT": "Transaction T0359"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0392",
+       "TTEXT": ""
+      }
+     ],
+     "unique_roles": 37,
+     "unique_transactions": 212,
+     "transaction_assignments": 299,
+     "relationship_count": 83,
+     "analysis": {
+      "module_source": "CSV FUNCTION_KEY",
+      "import_profile_id": "nordic",
+      "import_profile_version": 2,
+      "configuration_revision": 0
+     },
+     "count_definitions": {
+      "parsed_rows": "Logical CSV records before blank/duplicate filtering",
+      "transaction_assignments": "Distinct composite/child/parent/effective-role/T-code tuples",
+      "unique_transactions": "Distinct source transaction spellings; search remains case-insensitive",
+      "unique_roles": "Distinct AGR_NAME composites"
+     }
+    }
+   }
+  },
+  {
+   "route": "/api/import/headers",
+   "case": "roles_mapped_cp1252",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "Rolle",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "delimiter": ";",
+     "encoding": "cp1252",
+     "proposed_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "issues": [
+      "Required AGR_NAME was not detected. Choose its column manually."
+     ]
+    }
+   }
+  },
+  {
+   "route": "/api/import/preview",
+   "case": "roles_mapped_cp1252",
+   "profile": null,
+   "result": {
+    "status": 400,
+    "body": {
+     "detail": "Import preview failed. Check the absolute path, encoding, delimiter, mappings and required AGR_NAME column."
+    }
+   }
+  },
+  {
+   "route": "/api/import/headers",
+   "case": "roles_comma_duplicates",
+   "profile": {
+    "id": "comma",
+    "name": "Comma",
+    "delimiter": ","
+   },
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "AGR_NAME",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "delimiter": ",",
+     "encoding": "utf-8-sig",
+     "proposed_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "AGR_NAME": "AGR_NAME",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "issues": []
+    }
+   }
+  },
+  {
+   "route": "/api/import/preview",
+   "case": "roles_comma_duplicates",
+   "profile": {
+    "id": "comma",
+    "name": "Comma",
+    "delimiter": ","
+   },
+   "result": {
+    "status": 200,
+    "body": {
+     "file_name": "roles_comma_duplicates.csv",
+     "import_profile": "comma",
+     "import_version": 1,
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "AGR_NAME",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "resolved_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "AGR_NAME": "AGR_NAME",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "parsed_rows": 201,
+     "unique_records": 199,
+     "duplicate_rows": 1,
+     "warnings": [
+      "1 identical duplicate records were deduplicated.",
+      "1 empty records were ignored.",
+      "Transactions without CHILD_AGR/Effective_Role are retained as direct composite assignments."
+     ],
+     "errors": [],
+     "samples": [
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0154",
+       "TTEXT": "Transaction T0154"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0012",
+       "TTEXT": "Transaction T0012"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0243",
+       "TTEXT": "Transaction T0243"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "ZO:MM:M0:PO_REL_ST_E0_00:ALL_C0",
+       "CHILD_AGR_TEXT": "Child 0 of 0",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0359",
+       "TTEXT": "Transaction T0359"
+      },
+      {
+       "FUNCTION_KEY": "FI",
+       "AGR_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "TEXT": "Synthetic role 0",
+       "CHILD_AGR": "",
+       "CHILD_AGR_TEXT": "",
+       "PARENT_AGR": "",
+       "Effective_Role": "",
+       "TCODE": "T0392",
+       "TTEXT": ""
+      }
+     ],
+     "unique_roles": 24,
+     "unique_transactions": 159,
+     "transaction_assignments": 199,
+     "relationship_count": 55,
+     "analysis": {
+      "module_source": "CSV FUNCTION_KEY",
+      "import_profile_id": "comma",
+      "import_profile_version": 1,
+      "configuration_revision": 0
+     },
+     "count_definitions": {
+      "parsed_rows": "Logical CSV records before blank/duplicate filtering",
+      "transaction_assignments": "Distinct composite/child/parent/effective-role/T-code tuples",
+      "unique_transactions": "Distinct source transaction spellings; search remains case-insensitive",
+      "unique_roles": "Distinct AGR_NAME composites"
+     }
+    }
+   }
+  },
+  {
+   "route": "/api/import/headers",
+   "case": "roles_duplicate_header",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "AGR_NAME",
+      "Agr Name",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "delimiter": ";",
+     "encoding": "utf-8-sig",
+     "proposed_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "issues": [
+      "Duplicate, ambiguous or empty headers must be corrected before importing.",
+      "Required AGR_NAME was not detected. Choose its column manually."
+     ]
+    }
+   }
+  },
+  {
+   "route": "/api/import/preview",
+   "case": "roles_duplicate_header",
+   "profile": null,
+   "result": {
+    "status": 400,
+    "body": {
+     "detail": "Import preview failed. Check the absolute path, encoding, delimiter, mappings and required AGR_NAME column."
+    }
+   }
+  },
+  {
+   "route": "/api/import/headers",
+   "case": "roles_missing_required",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "delimiter": ";",
+     "encoding": "utf-8-sig",
+     "proposed_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "issues": [
+      "Required AGR_NAME was not detected. Choose its column manually."
+     ]
+    }
+   }
+  },
+  {
+   "route": "/api/import/preview",
+   "case": "roles_missing_required",
+   "profile": null,
+   "result": {
+    "status": 400,
+    "body": {
+     "detail": "Import preview failed. Check the absolute path, encoding, delimiter, mappings and required AGR_NAME column."
+    }
+   }
+  },
+  {
+   "route": "/api/import/headers",
+   "case": "roles_ragged",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "FUNCTION_KEY",
+      "AGR_NAME",
+      "TEXT",
+      "CHILD_AGR",
+      "CHILD_AGR_TEXT",
+      "PARENT_AGR",
+      "Effective_Role",
+      "TCODE",
+      "TTEXT"
+     ],
+     "delimiter": ";",
+     "encoding": "utf-8-sig",
+     "proposed_mapping": {
+      "FUNCTION_KEY": "FUNCTION_KEY",
+      "AGR_NAME": "AGR_NAME",
+      "TEXT": "TEXT",
+      "CHILD_AGR": "CHILD_AGR",
+      "CHILD_AGR_TEXT": "CHILD_AGR_TEXT",
+      "PARENT_AGR": "PARENT_AGR",
+      "Effective_Role": "Effective_Role",
+      "TCODE": "TCODE",
+      "TTEXT": "TTEXT"
+     },
+     "issues": []
+    }
+   }
+  },
+  {
+   "route": "/api/import/preview",
+   "case": "roles_ragged",
+   "profile": null,
+   "result": {
+    "status": 400,
+    "body": {
+     "detail": "Import preview failed. Check the absolute path, encoding, delimiter, mappings and required AGR_NAME column."
+    }
+   }
+  },
+  {
+   "route": "/api/user-import/headers",
+   "case": "users_default",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "USERNAME",
+      "ROLE_NAME",
+      "USER_GROUP",
+      "FIRST_NAME",
+      "LAST_NAME",
+      "EMAIL",
+      "USER_VALID_FROM",
+      "USER_VALID_TO",
+      "ROLE_VALID_FROM",
+      "ROLE_VALID_TO",
+      "USER_LOCKED",
+      "USER_TYPE"
+     ],
+     "delimiter": ";",
+     "encoding": "utf-8-sig",
+     "proposed_mapping": {
+      "USERNAME": "USERNAME",
+      "ROLE_NAME": "ROLE_NAME",
+      "USER_GROUP": "USER_GROUP",
+      "FIRST_NAME": "FIRST_NAME",
+      "LAST_NAME": "LAST_NAME",
+      "EMAIL": "EMAIL",
+      "USER_VALID_FROM": "USER_VALID_FROM",
+      "USER_VALID_TO": "USER_VALID_TO",
+      "ROLE_VALID_FROM": "ROLE_VALID_FROM",
+      "ROLE_VALID_TO": "ROLE_VALID_TO",
+      "USER_LOCKED": "USER_LOCKED",
+      "USER_TYPE": "USER_TYPE"
+     },
+     "issues": []
+    }
+   }
+  },
+  {
+   "route": "/api/user-import/preview",
+   "case": "users_default",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "file_name": "users_default.csv",
+     "import_profile": "default",
+     "import_version": 1,
+     "detected_columns": [
+      "USERNAME",
+      "ROLE_NAME",
+      "USER_GROUP",
+      "FIRST_NAME",
+      "LAST_NAME",
+      "EMAIL",
+      "USER_VALID_FROM",
+      "USER_VALID_TO",
+      "ROLE_VALID_FROM",
+      "ROLE_VALID_TO",
+      "USER_LOCKED",
+      "USER_TYPE"
+     ],
+     "resolved_mapping": {
+      "USERNAME": "USERNAME",
+      "ROLE_NAME": "ROLE_NAME",
+      "USER_GROUP": "USER_GROUP",
+      "FIRST_NAME": "FIRST_NAME",
+      "LAST_NAME": "LAST_NAME",
+      "EMAIL": "EMAIL",
+      "USER_VALID_FROM": "USER_VALID_FROM",
+      "USER_VALID_TO": "USER_VALID_TO",
+      "ROLE_VALID_FROM": "ROLE_VALID_FROM",
+      "ROLE_VALID_TO": "ROLE_VALID_TO",
+      "USER_LOCKED": "USER_LOCKED",
+      "USER_TYPE": "USER_TYPE"
+     },
+     "parsed_rows": 1515,
+     "unique_records": 1512,
+     "duplicate_rows": 3,
+     "warnings": [
+      "3 identical duplicate records were deduplicated."
+     ],
+     "errors": [],
+     "samples": [
+      {
+       "USERNAME": "user00000",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "USER_GROUP": "GRP_FIN",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231"
+      },
+      {
+       "USERNAME": "USER00000",
+       "ROLE_NAME": "",
+       "USER_GROUP": "GRP_FIN",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": ""
+      },
+      {
+       "USERNAME": "USER00001",
+       "ROLE_NAME": "ZC:MM:ROLE_00218",
+       "USER_GROUP": "GRP_LOG",
+       "FIRST_NAME": "First1",
+       "LAST_NAME": "Last1",
+       "EMAIL": "user1@example.invalid",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00001",
+       "ROLE_NAME": "ZO:MM:M1:PO_REL_ST_E0_06:ALL",
+       "USER_GROUP": "GRP_LOG",
+       "FIRST_NAME": "First1",
+       "LAST_NAME": "Last1",
+       "EMAIL": "user1@example.invalid",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231"
+      },
+      {
+       "USERNAME": "USER00002",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00082",
+       "USER_GROUP": "GRP_HR",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "EMAIL": "user2@example.invalid",
+       "ROLE_VALID_FROM": "00000000",
+       "ROLE_VALID_TO": "99991231"
+      },
+      {
+       "USERNAME": "USER00002",
+       "ROLE_NAME": "ZC:FI:ROLE_00048",
+       "USER_GROUP": "GRP_HR",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "EMAIL": "user2@example.invalid",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      },
+      {
+       "USERNAME": "USER00002",
+       "ROLE_NAME": "ZC:PM:ROLE_00129",
+       "USER_GROUP": "GRP_HR",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "EMAIL": "user2@example.invalid",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": ""
+      },
+      {
+       "USERNAME": "USER00003",
+       "ROLE_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "USER_GROUP": "GRP_IT",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "EMAIL": "user3@example.invalid",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": ""
+      },
+      {
+       "USERNAME": "USER00003",
+       "ROLE_NAME": "ZC:PM:ROLE_00213",
+       "USER_GROUP": "GRP_IT",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "EMAIL": "user3@example.invalid",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00003",
+       "ROLE_NAME": "ZC:HR:ROLE_00043",
+       "USER_GROUP": "GRP_IT",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "EMAIL": "user3@example.invalid",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      },
+      {
+       "USERNAME": "USER00003",
+       "ROLE_NAME": "ZC:SD:ROLE_00099",
+       "USER_GROUP": "GRP_IT",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "EMAIL": "user3@example.invalid",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:MM:ROLE_00122",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "00000000",
+       "ROLE_VALID_TO": "99991231"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:NO:TCODES",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:SD:ROLE_00027",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:MM:ROLE_00122",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:SD:ROLE_00039",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00005",
+       "ROLE_NAME": "ZO:MM:M1:PO_REL_ST_E0_06:ALL",
+       "USER_GROUP": "",
+       "FIRST_NAME": "First5",
+       "LAST_NAME": "Last5",
+       "EMAIL": "user5@example.invalid",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00005",
+       "ROLE_NAME": "ZC:MM:ROLE_00098",
+       "USER_GROUP": "",
+       "FIRST_NAME": "First5",
+       "LAST_NAME": "Last5",
+       "EMAIL": "user5@example.invalid",
+       "ROLE_VALID_FROM": "00000000",
+       "ROLE_VALID_TO": "99991231"
+      },
+      {
+       "USERNAME": "USER00005",
+       "ROLE_NAME": "ZC:HR:ROLE_00211",
+       "USER_GROUP": "",
+       "FIRST_NAME": "First5",
+       "LAST_NAME": "Last5",
+       "EMAIL": "user5@example.invalid",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00005",
+       "ROLE_NAME": "ZC:FI:ROLE_00012",
+       "USER_GROUP": "",
+       "FIRST_NAME": "First5",
+       "LAST_NAME": "Last5",
+       "EMAIL": "user5@example.invalid",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      }
+     ],
+     "unique_users": 302,
+     "assignments": 1495,
+     "relevant_assignments": 1495,
+     "directory_only_users": 0,
+     "invalid_catalogue_patterns": 1
+    }
+   }
+  },
+  {
+   "route": "/api/user-import/headers",
+   "case": "users_default",
+   "profile": {
+    "id": "u2",
+    "name": "Users",
+    "delimiter": ";",
+    "encoding": "utf-8-sig"
+   },
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "USERNAME",
+      "ROLE_NAME",
+      "USER_GROUP",
+      "FIRST_NAME",
+      "LAST_NAME",
+      "EMAIL",
+      "USER_VALID_FROM",
+      "USER_VALID_TO",
+      "ROLE_VALID_FROM",
+      "ROLE_VALID_TO",
+      "USER_LOCKED",
+      "USER_TYPE"
+     ],
+     "delimiter": ";",
+     "encoding": "utf-8-sig",
+     "proposed_mapping": {
+      "USERNAME": "USERNAME",
+      "ROLE_NAME": "ROLE_NAME",
+      "USER_GROUP": "USER_GROUP",
+      "FIRST_NAME": "FIRST_NAME",
+      "LAST_NAME": "LAST_NAME",
+      "EMAIL": "EMAIL",
+      "USER_VALID_FROM": "USER_VALID_FROM",
+      "USER_VALID_TO": "USER_VALID_TO",
+      "ROLE_VALID_FROM": "ROLE_VALID_FROM",
+      "ROLE_VALID_TO": "ROLE_VALID_TO",
+      "USER_LOCKED": "USER_LOCKED",
+      "USER_TYPE": "USER_TYPE"
+     },
+     "issues": []
+    }
+   }
+  },
+  {
+   "route": "/api/user-import/preview",
+   "case": "users_default",
+   "profile": {
+    "id": "u2",
+    "name": "Users",
+    "delimiter": ";",
+    "encoding": "utf-8-sig"
+   },
+   "result": {
+    "status": 200,
+    "body": {
+     "file_name": "users_default.csv",
+     "import_profile": "u2",
+     "import_version": 1,
+     "detected_columns": [
+      "USERNAME",
+      "ROLE_NAME",
+      "USER_GROUP",
+      "FIRST_NAME",
+      "LAST_NAME",
+      "EMAIL",
+      "USER_VALID_FROM",
+      "USER_VALID_TO",
+      "ROLE_VALID_FROM",
+      "ROLE_VALID_TO",
+      "USER_LOCKED",
+      "USER_TYPE"
+     ],
+     "resolved_mapping": {
+      "USERNAME": "USERNAME",
+      "ROLE_NAME": "ROLE_NAME",
+      "USER_GROUP": "USER_GROUP",
+      "FIRST_NAME": "FIRST_NAME",
+      "LAST_NAME": "LAST_NAME",
+      "EMAIL": "EMAIL",
+      "USER_VALID_FROM": "USER_VALID_FROM",
+      "USER_VALID_TO": "USER_VALID_TO",
+      "ROLE_VALID_FROM": "ROLE_VALID_FROM",
+      "ROLE_VALID_TO": "ROLE_VALID_TO",
+      "USER_LOCKED": "USER_LOCKED",
+      "USER_TYPE": "USER_TYPE"
+     },
+     "parsed_rows": 1515,
+     "unique_records": 1512,
+     "duplicate_rows": 3,
+     "warnings": [
+      "3 identical duplicate records were deduplicated."
+     ],
+     "errors": [],
+     "samples": [
+      {
+       "USERNAME": "user00000",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00022",
+       "USER_GROUP": "GRP_FIN",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231"
+      },
+      {
+       "USERNAME": "USER00000",
+       "ROLE_NAME": "",
+       "USER_GROUP": "GRP_FIN",
+       "FIRST_NAME": "First0",
+       "LAST_NAME": "Last0",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": ""
+      },
+      {
+       "USERNAME": "USER00001",
+       "ROLE_NAME": "ZC:MM:ROLE_00218",
+       "USER_GROUP": "GRP_LOG",
+       "FIRST_NAME": "First1",
+       "LAST_NAME": "Last1",
+       "EMAIL": "user1@example.invalid",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00001",
+       "ROLE_NAME": "ZO:MM:M1:PO_REL_ST_E0_06:ALL",
+       "USER_GROUP": "GRP_LOG",
+       "FIRST_NAME": "First1",
+       "LAST_NAME": "Last1",
+       "EMAIL": "user1@example.invalid",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231"
+      },
+      {
+       "USERNAME": "USER00002",
+       "ROLE_NAME": "ZC:XX-UNKNOWN:ROLE_00082",
+       "USER_GROUP": "GRP_HR",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "EMAIL": "user2@example.invalid",
+       "ROLE_VALID_FROM": "00000000",
+       "ROLE_VALID_TO": "99991231"
+      },
+      {
+       "USERNAME": "USER00002",
+       "ROLE_NAME": "ZC:FI:ROLE_00048",
+       "USER_GROUP": "GRP_HR",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "EMAIL": "user2@example.invalid",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      },
+      {
+       "USERNAME": "USER00002",
+       "ROLE_NAME": "ZC:PM:ROLE_00129",
+       "USER_GROUP": "GRP_HR",
+       "FIRST_NAME": "First2",
+       "LAST_NAME": "Last2",
+       "EMAIL": "user2@example.invalid",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": ""
+      },
+      {
+       "USERNAME": "USER00003",
+       "ROLE_NAME": "ZO:MM:M0:PO_REL_ST_E0_00:ALL",
+       "USER_GROUP": "GRP_IT",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "EMAIL": "user3@example.invalid",
+       "ROLE_VALID_FROM": "",
+       "ROLE_VALID_TO": ""
+      },
+      {
+       "USERNAME": "USER00003",
+       "ROLE_NAME": "ZC:PM:ROLE_00213",
+       "USER_GROUP": "GRP_IT",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "EMAIL": "user3@example.invalid",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00003",
+       "ROLE_NAME": "ZC:HR:ROLE_00043",
+       "USER_GROUP": "GRP_IT",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "EMAIL": "user3@example.invalid",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      },
+      {
+       "USERNAME": "USER00003",
+       "ROLE_NAME": "ZC:SD:ROLE_00099",
+       "USER_GROUP": "GRP_IT",
+       "FIRST_NAME": "First3",
+       "LAST_NAME": "Last3",
+       "EMAIL": "user3@example.invalid",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:MM:ROLE_00122",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "00000000",
+       "ROLE_VALID_TO": "99991231"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:NO:TCODES",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:SD:ROLE_00027",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "19990101",
+       "ROLE_VALID_TO": "20011231"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:MM:ROLE_00122",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00004",
+       "ROLE_NAME": "ZC:SD:ROLE_00039",
+       "USER_GROUP": "GRP_*LITERAL",
+       "FIRST_NAME": "First4",
+       "LAST_NAME": "Last4",
+       "EMAIL": "",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00005",
+       "ROLE_NAME": "ZO:MM:M1:PO_REL_ST_E0_06:ALL",
+       "USER_GROUP": "",
+       "FIRST_NAME": "First5",
+       "LAST_NAME": "Last5",
+       "EMAIL": "user5@example.invalid",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00005",
+       "ROLE_NAME": "ZC:MM:ROLE_00098",
+       "USER_GROUP": "",
+       "FIRST_NAME": "First5",
+       "LAST_NAME": "Last5",
+       "EMAIL": "user5@example.invalid",
+       "ROLE_VALID_FROM": "00000000",
+       "ROLE_VALID_TO": "99991231"
+      },
+      {
+       "USERNAME": "USER00005",
+       "ROLE_NAME": "ZC:HR:ROLE_00211",
+       "USER_GROUP": "",
+       "FIRST_NAME": "First5",
+       "LAST_NAME": "Last5",
+       "EMAIL": "user5@example.invalid",
+       "ROLE_VALID_FROM": "2000-01-01",
+       "ROLE_VALID_TO": "2098-12-31"
+      },
+      {
+       "USERNAME": "USER00005",
+       "ROLE_NAME": "ZC:FI:ROLE_00012",
+       "USER_GROUP": "",
+       "FIRST_NAME": "First5",
+       "LAST_NAME": "Last5",
+       "EMAIL": "user5@example.invalid",
+       "ROLE_VALID_FROM": "20000101",
+       "ROLE_VALID_TO": "20981231"
+      }
+     ],
+     "unique_users": 302,
+     "assignments": 1495,
+     "relevant_assignments": 1495,
+     "directory_only_users": 0,
+     "invalid_catalogue_patterns": 1
+    }
+   }
+  },
+  {
+   "route": "/api/user-import/headers",
+   "case": "users_ragged",
+   "profile": null,
+   "result": {
+    "status": 200,
+    "body": {
+     "detected_columns": [
+      "USERNAME",
+      "ROLE_NAME",
+      "USER_GROUP",
+      "FIRST_NAME",
+      "LAST_NAME",
+      "EMAIL",
+      "USER_VALID_FROM",
+      "USER_VALID_TO",
+      "ROLE_VALID_FROM",
+      "ROLE_VALID_TO",
+      "USER_LOCKED",
+      "USER_TYPE"
+     ],
+     "delimiter": ";",
+     "encoding": "utf-8-sig",
+     "proposed_mapping": {
+      "USERNAME": "USERNAME",
+      "ROLE_NAME": "ROLE_NAME",
+      "USER_GROUP": "USER_GROUP",
+      "FIRST_NAME": "FIRST_NAME",
+      "LAST_NAME": "LAST_NAME",
+      "EMAIL": "EMAIL",
+      "USER_VALID_FROM": "USER_VALID_FROM",
+      "USER_VALID_TO": "USER_VALID_TO",
+      "ROLE_VALID_FROM": "ROLE_VALID_FROM",
+      "ROLE_VALID_TO": "ROLE_VALID_TO",
+      "USER_LOCKED": "USER_LOCKED",
+      "USER_TYPE": "USER_TYPE"
+     },
+     "issues": []
+    }
+   }
+  },
+  {
+   "route": "/api/user-import/preview",
+   "case": "users_ragged",
+   "profile": null,
+   "result": {
+    "status": 400,
+    "body": {
+     "detail": "CSV row width does not match its header; no data was applied."
+    }
+   }
+  }
+ ]
+}

@@ -33,7 +33,14 @@ public sealed class ImportReport
     public List<string> Warnings { get; set; } = [];
     public string Encoding { get; set; } = "";
     public string Delimiter { get; set; } = "";
+    /// <summary>The first five unique mapped records (v1 `samples`), for previews only; never stored with a dataset.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<Dictionary<string, string>> Samples { get; } = [];
 }
+
+/// <summary>csv_import.CsvImport.inspect_header: the header row, the format actually used and the mapping the profile would get automatically.</summary>
+public sealed record HeaderInspection(IReadOnlyList<string> DetectedColumns, string Delimiter, string Encoding, IReadOnlyDictionary<string, string> ProposedMapping,
+    IReadOnlyList<string> Issues);
 
 /// <summary>Port of csv_import.CsvImport: streaming mapped import with the same limits, validation messages, deduplication and the
 /// "file changed while being read" guard. Rows are yielded lazily; nothing is applied by this class.</summary>
@@ -57,6 +64,36 @@ public sealed class CsvImport
     }
 
     public static string NormalizedHeader(string value) => new(value.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+
+    /// <summary>Port of inspect_header: reads only the first 64 KiB, never the records. Duplicate or empty headers and an undetected required field are
+    /// reported as issues (not errors), so the user can fix the mapping before importing.</summary>
+    public HeaderInspection InspectHeader()
+    {
+        var info = new FileInfo(_path);
+        if (!info.Exists) throw new FileNotFoundException("CSV file not found.");
+        if (info.Length > MaxBytes) throw new Roles.DomainValidationException("CSV exceeds its size limit.");
+        var encoding = ResolveEncoding();
+        string sample;
+        using (var reader = new StreamReader(_path, encoding, detectEncodingFromByteOrderMarks: true))
+        {
+            var buffer = new char[65536];
+            sample = new string(buffer, 0, reader.ReadBlock(buffer, 0, buffer.Length));
+        }
+        var delimiter = _profile.Delimiter == "auto" ? PythonSniffer.Sniff(sample, ",;\t|") ?? ',' : _profile.Delimiter[0];
+        using var text = new StringReader(sample);
+        using var rows = CsvReader.Read(text, delimiter).GetEnumerator();
+        var headers = rows.MoveNext() ? rows.Current : [];
+        var keys = headers.Select(NormalizedHeader).ToList();
+        var issues = new List<string>();
+        if (keys.Distinct().Count() != keys.Count || headers.Any(h => h.Trim().Length == 0))
+            issues.Add("Duplicate, ambiguous or empty headers must be corrected before importing.");
+        var proposed = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var field in _spec.Fields)
+            if (keys.Count(k => k == NormalizedHeader(field)) == 1) proposed[field] = headers[keys.IndexOf(NormalizedHeader(field))];
+        if (!proposed.ContainsKey(_spec.Required) && !(_profile.Columns.TryGetValue(_spec.Required, out var manual) && headers.Contains(manual)))
+            issues.Add($"Required {_spec.Required} was not detected. Choose its column manually.");
+        return new HeaderInspection(headers, delimiter.ToString(), Report.Encoding, proposed, issues);
+    }
 
     private Encoding ResolveEncoding()
     {
@@ -129,6 +166,7 @@ public sealed class CsvImport
                 if (_spec.IdentifierFields.Any(f => row[f].Length > 512)) throw new Roles.DomainValidationException("A role identifier is too long.");
                 if (!seen.Add(string.Join('\u001f', _spec.Fields.Select(f => row[f])))) { Report.DuplicateRows++; continue; }
                 Report.UniqueRecords++;
+                if (Report.Samples.Count < 5) Report.Samples.Add(new Dictionary<string, string>(row, StringComparer.Ordinal));
                 yield return row;
             }
             if (Report.DuplicateRows > 0) Report.Warnings.Add($"{Report.DuplicateRows} identical duplicate records were deduplicated.");

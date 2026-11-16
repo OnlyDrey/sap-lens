@@ -9,7 +9,7 @@ Status: **Done** (served with the v1 contract and contract-tested), **Partial** 
 Parity: **Verified** (identical results against Python v1 on synthetic fixtures), **Contract** (shape, validation and refusals tested; no
 data-dependent comparison needed or possible), **Pending**.
 
-Baseline 2026-11-16 at `902ddba`: route audit **83 of 145** UI route strings implemented. Every unimplemented route answers `501 not_migrated`.
+Baseline 2026-11-16 at `902ddba`: route audit **83 of 145** UI route strings implemented. After MIG-009: **87 of 145**. Every unimplemented route answers `501 not_migrated`.
 
 | Area / feature | v1 implementation | SAP Lens 2 implementation | Status | Parity | Tests (.NET) | Dependencies | Remaining work | MIG |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -23,7 +23,7 @@ Baseline 2026-11-16 at `902ddba`: route audit **83 of 145** UI route strings imp
 | Data Health and coverage | `routers/data_health.py` | `V1DataHealth` | Done | Verified | `DataHealthTests`, `SodLifecycleTests` | - | - | - |
 | Diagnostics and export | `diagnostics.py` | `V1Diagnostics` | Partial | Contract (key sets equal v1) | `DiagnosticsTests` | MIG-008 | Scheduler state reports "never attempted" | MIG-019 |
 | Data Sources: browse, select, upload, preview, history, cancel, employee inspection | `routers/data_sources.py`, `csv_lifecycle.py` | `V1DataSources`, `ImportService` | Partial | Verified for imports | `DataSourcesTests`, `ImportAndJobTests` | - | Refresh report detail and change export; SoD source inspection (last milestone) | MIG-010 |
-| Import profile header inspection and preview (`import/*`, `user-import/*`) | `configuration_routes.py`, `csv_import.py`, `user_access.py` | - | Missing | Pending | - | CSV readers (exist) | All four routes | MIG-009 |
+| Import profile header inspection and preview (`import/*`, `user-import/*`) | `configuration_routes.py`, `csv_import.py`, `user_access.py` | `V1ImportPreview`, `CsvImport.InspectHeader` | Done | Verified (20 runs over 8 synthetic CSVs: delimiters, cp1252, duplicate and missing headers, ragged rows, manual mappings) | `ImportPreviewTests`, `AccountsTests` (admin), `tools/import_preview_check.js` (React flow on a Server) | CSV readers | - | MIG-009 |
 | Manual and scheduled refresh (`refresh`, `refresh-schedule/*`) | `main.py`, `refresh_schedule.py`, `cron_schedule.py` | - | Missing | Pending | - | MIG-009 readers, path sources | All three routes, scheduler | MIG-008 |
 | Settings save re-imports after profile or module changes | `perform_apply` in `configuration_routes.py` | Settings stored; next import uses them | Partial | Pending | `ConfigurationTests` | Path sources | Re-import of the active dataset | MIG-002 |
 | Configuration: export, import, reset, theme | `config.py`, `configuration_routes.py` | `V1Configuration`, `V1Settings` | Partial | Verified | `ConfigurationTests` | Image codec | `logo_base64` in configuration import answers 501 | MIG-001 |
