@@ -25,7 +25,20 @@ for method, path in re.findall(r'"(GET|POST|PUT|DELETE) (/api/[^"]*)"', block):
     implemented.setdefault(re.sub(r'\{[^}]*\}', '{x}', path), set()).add(method)
 
 
+# UI strings built by concatenation or a template whose concrete values are known from the code (the value list is the whole set the UI can
+# produce). Such a route counts as implemented only when every concrete route is; the table names the values, so nothing is hidden behind {x}.
+TEMPLATES = {
+    '/api/access/exports/{x}': ['/api/access/exports/users', '/api/access/exports/release-roles', '/api/access/exports/releases'],   # useAssignmentCSVExport view
+    '/api/auth': ['/api/auth/reset', '/api/auth/recover'],   # Authentication.tsx: '/api/auth/' + ('reset' | 'recover')
+}
+
+
 def status(route):
+    if route in TEMPLATES:
+        missing = [r for r in TEMPLATES[route] if r not in implemented]
+        methods = sorted({m for r in TEMPLATES[route] if r in implemented for m in implemented[r]})
+        values = ', '.join(r.rsplit('/', 1)[1] for r in TEMPLATES[route])
+        return ('implemented', f'{", ".join(methods)} (values: {values})') if not missing else ('not migrated (501)', 'missing: ' + ', '.join(missing))
     if route in implemented:
         return 'implemented', ', '.join(sorted(implemented[route]))
     # A UI string that is a prefix of an implemented parameterised route (for example `/api/roles/` + name).

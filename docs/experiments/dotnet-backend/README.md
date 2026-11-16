@@ -11,6 +11,7 @@ Evidence tags used in every document: **[M]** measured on Linux x64 in this envi
 
 | Document | Content |
 | --- | --- |
+| [MIGRATION_MATRIX.md](MIGRATION_MATRIX.md) | Migration completion matrix: every v1 area with its .NET implementation, status, parity, tests, dependencies, remaining work and MIG id (source of truth) |
 | [FEATURE_PARITY.md](FEATURE_PARITY.md) | Phase 0 inventory: every UI area, v1 implementation, .NET status, gaps, complexity, tests |
 | [ROUTE_AUDIT.md](ROUTE_AUDIT.md) | Generated route-by-route status of every API route the React UI references |
 | [RELEASE_STATUS.md](RELEASE_STATUS.md) | Phase 3 to 6 status, release decision (NO-GO), remaining work, next commands |

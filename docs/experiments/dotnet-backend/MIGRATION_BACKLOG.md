@@ -1,6 +1,6 @@
 # Migration backlog (.NET experiment)
 
-Actionable list of the Python v1 functionality (`origin/work`) not yet served by the .NET backend. Route status is generated in
+Status of every area is summarised in [MIGRATION_MATRIX.md](MIGRATION_MATRIX.md) (source of truth). Actionable list of the Python v1 functionality (`origin/work`) not yet served by the .NET backend. Route status is generated in
 [ROUTE_AUDIT.md](ROUTE_AUDIT.md); feature status is in [FEATURE_PARITY.md](FEATURE_PARITY.md). Every unmigrated route answers `501 not_migrated`.
 Statuses: TODO, BLOCKED, READY, IN PROGRESS, RESOLVED, VERIFIED. "Independent" means other work can continue without it.
 
