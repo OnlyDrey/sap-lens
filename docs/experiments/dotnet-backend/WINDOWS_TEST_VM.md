@@ -77,6 +77,7 @@ cd C:\src\sap-lens\experiments\dotnet-backend
 | `-ListenAddress` | `10.0.7.50` | Must be assigned to this machine; loopback and `0.0.0.0` are refused |
 | `-Port` | `18795` | Must be free on that address |
 | `-AllowedHosts` | the listen address | Host names or addresses clients type; the certificate SAN must cover each |
+| `-TrustedProxies` | none | Reverse-proxy tests only: IP or CIDR of the proxy peer, passed as `--trusted-proxies` ([section 11](SERVER_NETWORK_ACCESS.md#11-reverse-proxy-pangolin-cloudflare)) |
 | `-DataDirectory` | `C:\saplens2\runtime-test` | Absolute, local; refused inside `%ProgramData%\SapLens2`, `%ProgramData%\SAP Lens Server`, `%LOCALAPPDATA%\SAP Lens`, `%LOCALAPPDATA%\SAP Lens 2 Prototype`, Program Files, Windows or the release folder |
 | `-CertificatePath` | `C:\ProgramData\SapLens2\tls\server.pfx` | Must exist; never created |
 | `-CertificatePasswordFile` | `C:\ProgramData\SapLens2\tls\cert-password` | Must exist and be non-empty; the Server reads it, the launcher never does |

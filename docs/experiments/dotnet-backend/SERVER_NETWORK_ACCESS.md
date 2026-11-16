@@ -87,6 +87,8 @@ Both exit 0 without reading any configuration.
 | Browser authentication | `--auth accounts\|shared-token` | `SAP_LENS_V2_AUTH` | `accounts` |
 | Name recorded for API clients that use the access token | | `SAP_LENS_V2_PRINCIPAL` | `server-operator` |
 | Background worker off | `--no-worker` | | on |
+| Trusted reverse proxies (IP or CIDR; needs `--network`) | `--trusted-proxies a,b` | `SAP_LENS_V2_TRUSTED_PROXIES` | none: forwarded headers ignored |
+| Trusted proxy hops to walk back through | `--trusted-proxy-hops 1-5` | `SAP_LENS_V2_TRUSTED_PROXY_HOPS` | `1` |
 | Help / version | `--help`, `-h` / `--version` | | |
 
 Rules:
@@ -108,6 +110,11 @@ Rules:
   GET, HEAD, OPTIONS) an `Origin` header must equal the request's own `scheme://host[:port]`, otherwise `403 Cross-origin request refused.`;
   without the access-token header such a request also needs that same-origin `Origin` (or no `Origin` and `Sec-Fetch-Site: same-origin`),
   otherwise `403 State-changing requests need a same-origin signal.` Accounts mode adds its per-session CSRF token.
+- **Origin comparison** is exact: scheme, host (DNS names case-insensitive, IP literals by value, IPv6 with brackets) and port, with 443/80
+  filled in for an origin or Host without a port. `https://lens.example` equals Host `lens.example` or `lens.example:443`, never
+  `lens.example:18795`, `sub.lens.example` or `lens.example.evil`. An Origin with a path, query, user info or the value `null` never matches.
+- **Reverse proxies** (`--trusted-proxies`): opt-in, see [section 11](#11-reverse-proxy-pangolin-cloudflare). Without it, `X-Forwarded-*` and
+  `Forwarded` headers are ignored, from every peer including loopback.
 - **Authentication:** `accounts` (default) uses individual v1-compatible accounts with server sessions and roles; `shared-token` is one
   operator identity for everyone holding the token (isolated tests only). API clients always may use the `X-SAP-Lens-Token` header.
 - **Certificate password file:** read once at startup; trailing CR/LF removed. A missing file stops startup. Restrict it to administrators
@@ -425,3 +432,113 @@ After a restart all browser sessions are gone (sign in again); data and decision
 | 6 | Device outside the trusted subnet cannot connect | Pending |
 | 7 | Stop/start: data persists, sessions require sign-in again | Pending |
 | 8 | Windows service and Linux systemd variants both pass 1 to 7 | Pending |
+
+## 11. Reverse proxy (Pangolin, Cloudflare)
+
+Status: implemented and tested on Linux through the real Kestrel and TLS pipeline (`ReverseProxyTests`, `OriginPolicyTests`) [T]. A live
+Pangolin deployment has **not** been verified [U].
+
+### Public and internal origin
+
+A browser that opens `https://lens.example` (the **public origin**) sends `Origin: https://lens.example` on every state change. The proxy then
+opens its own connection to the **internal endpoint**, for example `https://10.0.7.50:18795`, and the Host it sends there may be the public
+name, the public name with the internal port (`lens.example:18795`), or the internal address. The Server accepts a state-changing request only
+when its Origin equals the request's effective `scheme://host:port`, so the public origin must be **established** on the Server, never guessed:
+
+| Request arrives from | Effective scheme and host | Forwarded headers |
+| --- | --- | --- |
+| Any peer, no `--trusted-proxies` (default) | The TLS connection's scheme and the Host header | Ignored |
+| A peer outside `--trusted-proxies` | Same | Ignored (logged as present, not applied) |
+| A peer inside `--trusted-proxies` | `X-Forwarded-Proto` and `X-Forwarded-Host` (rightmost value per trusted hop), client address from `X-Forwarded-For` | Applied by ASP.NET Core `ForwardedHeadersMiddleware` before the request boundary |
+
+Rules for trusted proxies:
+
+- Only addresses or networks you list are trusted: single addresses, or networks no wider than /24 (IPv4) or /64 (IPv6). Loopback,
+  unspecified and multicast are refused; private ranges, Docker networks and Cloudflare are never trusted implicitly. Requires `--network`.
+- `X-Forwarded-Host` is applied only if its host is one of `--allowed-hosts` (exact; the port may differ, it is then part of the origin, for
+  example `lens.example:8443`). Otherwise the request is judged on its own Host.
+- `X-Forwarded-Proto` must end up `https`: a proxy reporting a plain-HTTP client gets `403 HTTPS is required.`, so cookies never lose
+  `Secure`/`__Host-`.
+- Hops (`--trusted-proxy-hops`, default 1): the middleware walks back through `X-Forwarded-For` at most that many entries and only while each
+  hop is itself a trusted proxy; client-supplied entries further left are never used. Raise it only for a chain of proxies you control and list.
+- The RFC 7239 `Forwarded` header is not processed. Cloudflare headers (`CF-Connecting-IP`, `CF-Visitor`) are not used.
+- Host allowlisting (421), Origin and CSRF checks, Accounts sessions and CSRF tokens, HTTPS-only transport, secure cookies, security headers
+  and correlation ids are unchanged; they operate on the effective values.
+- Sign-in throttling uses the effective client address: with one trusted hop behind Cloudflare that is normally the Cloudflare edge address
+  Pangolin connected from, so the per-client limit is shared by users of that edge; the global limit still applies.
+
+### Configuration for the reported deployment
+
+Public origin `https://lens.akio.no`, backend `https://10.0.7.50:18795`, certificate SAN `lens.akio.no` and `10.0.7.50`.
+`<PANGOLIN_PEER_IP>` is a placeholder for the address the backend actually sees as the TCP peer of Pangolin's connections. It is not
+necessarily the Pangolin server's public address, a Cloudflare address, the gateway or the VM's own address. With a Newt site connector it is
+normally the LAN address of the machine running Newt (the VM's own address if Newt runs on the VM). Determine it as shown below before
+configuring it.
+
+```powershell
+& .\SapLens.Api.exe --data-dir C:\saplens2\runtime-test --network --listen 10.0.7.50 --port 18795 `
+  --allowed-hosts lens.akio.no,10.0.7.50 --cert C:\ProgramData\SapLens2\tls\server.pfx `
+  --cert-password-file C:\ProgramData\SapLens2\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
+```
+
+With the test launcher: `.\scripts\start-server-test.ps1 -AllowedHosts 'lens.akio.no','10.0.7.50' -TrustedProxies '<PANGOLIN_PEER_IP>'`.
+
+Finding the peer address and what the proxy sends (before trusting anything): start without `--trusted-proxies`, sign in through
+`https://lens.akio.no`, and read the warning the refusal logs:
+
+```text
+Request refused (403 Cross-origin request refused.): POST /api/auth/login; peer 10.0.7.20 trusted proxy False; client 10.0.7.20;
+forwarded headers present True applied False; raw https://lens.akio.no:18795; effective https://lens.akio.no:18795;
+origin https://lens.akio.no:443 comparison PortMismatch
+```
+
+`peer` is the address to trust, `raw` is the Host Pangolin sends upstream, `forwarded headers present True` shows Pangolin sends `X-Forwarded-*`.
+On the VM, `Get-NetTCPConnection -LocalPort 18795 -State Established | Select-Object RemoteAddress` shows the same peers while connections are open.
+
+### Pangolin settings
+
+Pangolin is built on Traefik; field names differ between versions, so check them against your Pangolin version.
+
+| Setting | Required value |
+| --- | --- |
+| Resource domain | `lens.akio.no` (HTTP resource, TLS at Pangolin) |
+| Target | method `https`, address `10.0.7.50`, port `18795` |
+| Upstream TLS | verify the backend certificate: add the private CA (`saplens2-ca.cer`) to the trust store Traefik uses for upstream connections, and use a server name (SNI) that the SAN covers (`lens.akio.no` or `10.0.7.50`). Skipping verification is acceptable only for a short diagnostic run, never as the configuration |
+| Host header | leave Traefik's default (pass the client's Host) or set a custom Host of `lens.akio.no`; either works once the proxy is trusted, because `X-Forwarded-Host` carries the public host |
+| Forwarded headers | keep `X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-For` (Traefik sets them by default); do not strip them |
+| Pangolin authentication | optional. With Pangolin's resource authentication on, unauthenticated requests get Pangolin's own (plain-text) 401 before reaching SAP Lens; SAP Lens accounts still apply after it |
+
+Cloudflare: use SSL mode "Full (strict)" so Cloudflare to Pangolin is verified HTTPS. SAP Lens does not trust Cloudflare directly.
+
+### Troubleshooting 403 and 421
+
+| Response (title) | Meaning | Check |
+| --- | --- | --- |
+| `421 Unexpected host.` | The effective Host is not loopback and not in `--allowed-hosts` | Add the public name to `--allowed-hosts` (and to the certificate SAN); check `raw`/`effective` in the log |
+| `403 Cross-origin request refused.` with `trusted proxy False` | Forwarded headers ignored: the peer is not trusted | Add the logged `peer` to `--trusted-proxies` |
+| `403 Cross-origin request refused.` with `trusted proxy True`, `applied False` | Proxy trusted, but no allowed `X-Forwarded-Host` | Make Pangolin send `X-Forwarded-Host: lens.akio.no`; check the name is in `--allowed-hosts` |
+| `403 Cross-origin request refused.` with `comparison PortMismatch` | Host and Origin differ by port (for example `:18795` against the public 443) | Same as above: the public host must come from the trusted proxy |
+| `403 HTTPS is required.` | A trusted proxy reported `X-Forwarded-Proto: http` | Serve the resource over HTTPS only |
+| `403 State-changing requests need a same-origin signal.` | No Origin and no `Sec-Fetch-Site: same-origin` on a state change | Expected for non-browser clients; use the access-token header |
+| Plain-text 401 not in JSON | Pangolin's authentication layer, not SAP Lens | Sign in to Pangolin first or disable its resource authentication |
+
+A 401 from `/api/auth/login` with an error `code` means the request passed the boundary and the credentials were wrong; it is not a
+successful sign-in. A successful sign-in returns 200 with the account and sets `sap-lens-session` (Secure, HttpOnly, SameSite=Strict).
+
+### Verification (Windows PowerShell, after configuring the trusted proxy)
+
+```powershell
+$body = Join-Path $env:TEMP 'saplens-login.json'
+Set-Content -Path $body -Value '{"username":"nobody","password":"wrong-password"}' -Encoding ASCII -NoNewline   # synthetic, not an account
+# Direct LAN access still works (boundary passes; JSON 401 with a code = wrong credentials, as intended)
+curl.exe -s -w "`n%{http_code}`n" -X POST https://10.0.7.50:18795/api/auth/login -H "Origin: https://10.0.7.50:18795" -H "Content-Type: application/json" --data "@$body"
+# Spoofed forwarding from a machine that is not the trusted proxy is ignored: 403 Cross-origin
+curl.exe -s -w "`n%{http_code}`n" -X POST https://10.0.7.50:18795/api/auth/login -H "Origin: https://lens.akio.no" -H "X-Forwarded-Host: lens.akio.no" `
+  -H "X-Forwarded-Proto: https" -H "Content-Type: application/json" --data "@$body"
+# Through Pangolin (add Pangolin's own sign-in first if its resource authentication is on)
+curl.exe -s -w "`n%{http_code}`n" -X POST https://lens.akio.no/api/auth/login -H "Origin: https://lens.akio.no" -H "Content-Type: application/json" --data "@$body"   # JSON 401 with a code, not 403
+curl.exe -s -w "`n%{http_code}`n" -X POST https://lens.akio.no/api/auth/login -H "Origin: https://evil.example" -H "Content-Type: application/json" --data "@$body"  # 403
+Remove-Item $body
+```
+
+Then sign in with a real account in a browser at `https://lens.akio.no/` and confirm in the server log that no `Request refused` line appears.

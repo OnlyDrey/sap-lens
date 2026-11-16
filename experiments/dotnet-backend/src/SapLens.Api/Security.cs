@@ -34,17 +34,21 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
         using var scope = logger.BeginScope(new Dictionary<string, object> { ["CorrelationId"] = correlation });
 
         if (context.Request.IsHttps) headers.StrictTransportSecurity = "max-age=31536000";
-        if (!settings.HostAllowed(context.Request.Host.Host)) { await Reject(context, 421, "Unexpected host."); return; }
         var request = context.Request;
-        var unsafeMethod = !HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method);
         var origin = request.Headers.Origin.ToString();
-        var sameOrigin = string.Equals(origin, $"{request.Scheme}://{request.Host}", StringComparison.OrdinalIgnoreCase);
-        if (unsafeMethod && origin.Length > 0 && !sameOrigin) { await Reject(context, 403, "Cross-origin request refused."); return; }
+        // Scheme and Host are the effective values: the connection's own, or those a trusted proxy forwarded (ProxyTrust runs earlier).
+        if (!settings.HostAllowed(request.Host.Host)) { await Reject(context, 421, "Unexpected host.", origin); return; }
+        // An HTTPS listener serves HTTPS only: a trusted proxy reporting a plain-HTTP client is refused, never downgraded to insecure cookies.
+        if (settings.Https && !request.IsHttps) { await Reject(context, 403, "HTTPS is required.", origin); return; }
+        var unsafeMethod = !HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method);
+        var comparison = OriginPolicy.Compare(origin, request.Scheme, request.Host);
+        var sameOrigin = comparison == OriginPolicy.Result.Match;
+        if (unsafeMethod && origin.Length > 0 && !sameOrigin) { await Reject(context, 403, "Cross-origin request refused.", origin, comparison); return; }
         var tokenAuthenticated = token.Matches(request.Headers[TokenHeader].ToString());
         // CSRF: a state change that is not authenticated by the custom header (which browsers never attach cross-site) must carry a same-origin signal
         // (Origin equal to this server, or Sec-Fetch-Site: same-origin). SameSite=Strict on the session cookie is the second layer.
         if (unsafeMethod && !tokenAuthenticated && !sameOrigin && !(origin.Length == 0 && request.Headers["Sec-Fetch-Site"].ToString() == "same-origin"))
-        { await Reject(context, 403, "State-changing requests need a same-origin signal."); return; }
+        { await Reject(context, 403, "State-changing requests need a same-origin signal.", origin, comparison); return; }
 
         if (settings.Authentication == AuthenticationMode.Accounts)
         {
@@ -79,6 +83,26 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
         }
         await next(context);
     }
+
+    /// <summary>Boundary refusal with a server-side diagnostic: reason, peer and whether it is a trusted proxy, whether forwarded headers were present
+    /// and applied, the raw and effective scheme and host, and the origin reduced to scheme://host:port. No cookie, token or credential is logged; the
+    /// response carries only the reason and the correlation id.</summary>
+    private Task Reject(HttpContext context, int status, string detail, string? origin, OriginPolicy.Result? comparison = null)
+    {
+        var request = context.Request;
+        var peer = context.Items[ProxyTrust.PeerItem] as System.Net.IPAddress ?? context.Connection.RemoteIpAddress;
+        var rawScheme = context.Items[ProxyTrust.RawSchemeItem] as string ?? request.Scheme;
+        var rawHost = context.Items[ProxyTrust.RawHostItem] as string ?? request.Host.Value;
+        var applied = !string.Equals(rawScheme, request.Scheme, StringComparison.Ordinal) || !string.Equals(rawHost, request.Host.Value, StringComparison.Ordinal) ||
+                      !Equals(peer, context.Connection.RemoteIpAddress);
+        logger.LogWarning("Request refused ({Status} {Reason}): {Method} {Path}; peer {Peer} trusted proxy {PeerTrusted}; client {Client}; forwarded headers present {ForwardedPresent} applied {ForwardedApplied}; " +
+                          "raw {RawScheme}://{RawHost}; effective {Scheme}://{Host}; origin {Origin} comparison {Comparison}",
+            status, detail, request.Method, Clip(request.Path.Value), peer, ProxyTrust.Trusted(settings, peer), context.Connection.RemoteIpAddress, ProxyTrust.HasForwardedHeaders(request), applied,
+            rawScheme, Clip(rawHost), request.Scheme, Clip(request.Host.Value), OriginPolicy.Describe(origin), comparison?.ToString() ?? OriginPolicy.Compare(origin, request.Scheme, request.Host).ToString());
+        return Reject(context, status, detail);
+    }
+
+    private static string Clip(string? value) => value is null ? "" : new string([.. value.Take(200).Select(c => char.IsControl(c) ? '?' : c)]);
 
     private static Task Reject(HttpContext context, int status, string detail)
     {

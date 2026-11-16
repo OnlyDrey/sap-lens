@@ -8,7 +8,7 @@ namespace SapLens.Api;
 /// Unknown options are errors, so a typo never silently falls back to a default.</summary>
 public static class ServerConfiguration
 {
-    public static readonly string[] ValueOptions = ["--data-dir", "--listen", "--port", "--allowed-hosts", "--cert", "--cert-key", "--cert-password-file", "--auth"];
+    public static readonly string[] ValueOptions = ["--data-dir", "--listen", "--port", "--allowed-hosts", "--cert", "--cert-key", "--cert-password-file", "--auth", "--trusted-proxies", "--trusted-proxy-hops"];
     public static readonly string[] FlagOptions = ["--network", "--no-worker"];
 
     /// <summary>--help (-h) and --version: answered before any configuration is read, so they create no directory or token, open no certificate and
@@ -36,6 +36,9 @@ public static class ServerConfiguration
           --cert-password-file <file>  SAP_LENS_V2_CERT_PASSWORD_FILE  File holding the certificate password.
                                        SAP_LENS_V2_CERT_PASSWORD   Password from the environment, used only without a password file.
           --auth <mode>                SAP_LENS_V2_AUTH            accounts (default) or shared-token.
+          --trusted-proxies <a,b>      SAP_LENS_V2_TRUSTED_PROXIES Reverse proxies (IP or CIDR, at most /24 or /64 wide) whose X-Forwarded-For,
+                                                                   -Proto and -Host are applied. Default none. Needs --network.
+          --trusted-proxy-hops <1-5>   SAP_LENS_V2_TRUSTED_PROXY_HOPS  Trusted proxy hops to walk back through. Default 1.
           --no-worker                                              Do not run the background import worker.
                                        SAP_LENS_V2_TOKEN           API access token (at least 32 characters); otherwise <data-dir>/api-token.
                                        SAP_LENS_V2_PRINCIPAL       Name recorded for API clients using the token. Default server-operator.
@@ -78,12 +81,19 @@ public static class ServerConfiguration
             "shared-token" => AuthenticationMode.SharedToken,
             var other => throw new InvalidOperationException($"--auth must be 'accounts' or 'shared-token', not '{other}'."),
         };
+        var proxies = (Get("--trusted-proxies", "SAP_LENS_V2_TRUSTED_PROXIES") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(ProxyTrust.ParseNetwork).ToList();
+        var hopsText = Get("--trusted-proxy-hops", "SAP_LENS_V2_TRUSTED_PROXY_HOPS");
+        var hops = 1;
+        if (hopsText is not null && (!int.TryParse(hopsText, out hops) || hops is < 1 or > ProxyTrust.MaxHops))
+            throw new InvalidOperationException($"--trusted-proxy-hops must be between 1 and {ProxyTrust.MaxHops}.");
+        if (hopsText is not null && proxies.Count == 0) throw new InvalidOperationException("--trusted-proxy-hops needs --trusted-proxies.");
         Directory.CreateDirectory(dataDirectory);
         return new HostSettings
         {
             DataDirectory = Path.GetFullPath(dataDirectory), ListenAddress = listen, Port = port, NetworkAccess = network, AllowedHosts = hosts, Certificate = certificate,
             AccessToken = Token(dataDirectory, environment), WorkerEnabled = !options.ContainsKey("--no-worker"), Authentication = auth,
-            PrincipalName = environment("SAP_LENS_V2_PRINCIPAL") ?? "server-operator",
+            PrincipalName = environment("SAP_LENS_V2_PRINCIPAL") ?? "server-operator", TrustedProxies = proxies, TrustedProxyHops = hops,
         };
     }
 

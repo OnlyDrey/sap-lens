@@ -80,6 +80,7 @@ Describe 'Configuration validation' {
         @{ Name = 'an address not assigned here'; Change = @{ ListenAddress = '10.0.7.51' }; Message = '*not assigned to this machine*' }
         @{ Name = 'a port out of range'; Change = @{ Port = 70000 }; Message = '*between 1 and 65535*' }
         @{ Name = 'a wildcard allowed host'; Change = @{ AllowedHosts = @('*.corp.example') }; Message = '*not a valid -AllowedHosts*' }
+        @{ Name = 'a malformed trusted proxy'; Change = @{ TrustedProxies = @('10.0.7.20, 10.0.7.21') }; Message = '*not a valid -TrustedProxies*' }
         @{ Name = 'a relative data directory'; Change = @{ DataDirectory = 'runtime-test' }; Message = '*absolute path*' }
         @{ Name = 'a network share'; Change = @{ DataDirectory = '\\server\share\data' }; Message = '*network share*' }
         @{ Name = 'a missing certificate'; Change = @{ CertificatePath = (Join-Path ([System.IO.Path]::GetTempPath()) 'saplens2-absent-test.pfx') }; Message = '*never creates certificates*' }
@@ -121,6 +122,14 @@ Describe 'Argument construction' {
             '--allowed-hosts', '10.0.7.50', '--cert', 'C:\ProgramData\SapLens2\tls\server.pfx', '--cert-password-file', 'C:\ProgramData\SapLens2\tls\cert-password')
         (New-ServerArguments -ListenAddress '10.0.7.50' -Port 1 -AllowedHosts 'saplens2.test.example', '10.0.7.50' -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p)[8] |
             Should -Be 'saplens2.test.example,10.0.7.50'
+    }
+
+    It 'adds --trusted-proxies only when -TrustedProxies is given' {
+        $plain = New-ServerArguments -ListenAddress '10.0.7.50' -Port 18795 -AllowedHosts @() -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p
+        $plain | Should -Not -Contain '--trusted-proxies'
+        $proxied = New-ServerArguments -ListenAddress '10.0.7.50' -Port 18795 -AllowedHosts 'lens.proxy.test', '10.0.7.50' -DataDirectory $TestDrive -CertificatePath c `
+            -CertificatePasswordFile p -TrustedProxies '10.0.7.20', '10.0.8.0/24'
+        $proxied[-2..-1] | Should -Be @('--trusted-proxies', '10.0.7.20,10.0.8.0/24')
     }
 
     It 'quotes paths with spaces for display' {

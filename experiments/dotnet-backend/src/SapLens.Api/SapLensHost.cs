@@ -62,11 +62,14 @@ public static class SapLensHost
         var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SapLens.Startup");
         startup.LogInformation("Listening on {Address}:{Port} ({Scheme}), network access {Network}, allowed hosts {Hosts}", settings.ListenAddress, settings.Port,
             settings.Https ? "https" : "http", settings.NetworkAccess ? "enabled" : "disabled", settings.AllowedHosts.Count == 0 ? "loopback only" : string.Join(",", settings.AllowedHosts));
+        if (settings.TrustedProxies.Count > 0)
+            startup.LogInformation("Trusted reverse proxies {Proxies} ({Hops} hop(s)): X-Forwarded-For, -Proto and -Host applied from these peers only", string.Join(",", settings.TrustedProxies), settings.TrustedProxyHops);
         if (settings.Certificate is { } cert)
         {
             startup.LogInformation("TLS certificate {Subject}, thumbprint {Thumbprint}, valid until {NotAfter:u}", cert.Subject, cert.Thumbprint, cert.NotAfter);
             foreach (var warning in CertificatePolicy.Validate(cert, settings.AllowedHosts, DateTimeOffset.UtcNow).Warnings) startup.LogWarning("TLS certificate: {Warning}", warning);
         }
+        ProxyTrust.Use(app, settings);   // first: peer capture, then forwarded headers from trusted proxies only
         app.UseExceptionHandler();
         app.UseMiddleware<RequestBoundary>();
         app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = ui });

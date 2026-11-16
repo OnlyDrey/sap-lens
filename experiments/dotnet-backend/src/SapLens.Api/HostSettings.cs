@@ -32,6 +32,10 @@ public sealed class HostSettings
     /// operator identity for everyone holding the access token (Desktop, tests, API clients).</summary>
     public AuthenticationMode Authentication { get; init; } = AuthenticationMode.SharedToken;
     public bool WorkerEnabled { get; init; } = true;
+    /// <summary>Server only, opt-in: reverse proxies whose X-Forwarded-For/-Proto/-Host headers are applied (see ProxyTrust). Empty: none.</summary>
+    public IReadOnlyList<IPNetwork> TrustedProxies { get; init; } = [];
+    /// <summary>How many trusted proxy hops ForwardedHeadersMiddleware walks back through; each hop must be a trusted proxy.</summary>
+    public int TrustedProxyHops { get; init; } = 1;
     public bool JsonConsoleLogging { get; init; } = true;
 
     /// <summary>Which addresses network access may use. Not configurable by operators (no option or environment variable sets it); tests replace it
@@ -51,9 +55,14 @@ public sealed class HostSettings
             throw new InvalidOperationException("The Desktop has one local user; account sign-in is a Server feature.");
         if (Mode == HostMode.Desktop)
         {
-            if (NetworkAccess || !IPAddress.IsLoopback(ListenAddress) || Certificate is not null || AllowedHosts.Count > 0)
-                throw new InvalidOperationException("The Desktop is loopback-only; network access, certificates and extra host names are refused.");
+            if (NetworkAccess || !IPAddress.IsLoopback(ListenAddress) || Certificate is not null || AllowedHosts.Count > 0 || TrustedProxies.Count > 0)
+                throw new InvalidOperationException("The Desktop is loopback-only; network access, certificates, extra host names and trusted proxies are refused.");
             return;
+        }
+        if (TrustedProxies.Count > 0)
+        {
+            if (!NetworkAccess) throw new InvalidOperationException("Trusted proxies (--trusted-proxies) need network access (--network) with HTTPS.");
+            ProxyTrust.Validate(TrustedProxies, TrustedProxyHops);
         }
         if (!NetworkAccess)
         {
