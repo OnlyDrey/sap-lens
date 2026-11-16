@@ -68,14 +68,13 @@ public static partial class V1DataSources
 
         api.MapGet("/data-sources/{source}/preview", async (string source, SnapshotService snapshots, IDbContextFactory<SapLensDb> factory, int? offset, int? limit, CancellationToken ct) =>
         {
-            if (source == "employees") return V1Compatibility.NotMigrated(null!, "data-sources/employees/preview");
-            if (source is not ("roles" or "users" or "sod")) return Detail(422, "Unknown source.");
+            if (source is not ("roles" or "users" or "sod" or "employees")) return Detail(422, "Unknown source.");
             var (o, l) = (offset ?? 0, limit ?? 20);
             if (o < 0 || l is < 1 or > 100) return Detail(422, "offset must be ≥ 0 and limit between 1 and 100.");
             await using var db = await factory.CreateDbContextAsync(ct);
             var ids = await SnapshotService.ActiveAsync(db, ct);
-            var id = source switch { "roles" => ids.Roles, "users" => ids.Users, _ => ids.Sod };
-            var columns = source switch { "roles" => CsvSpec.Roles.Fields, "users" => CsvSpec.Users.Fields, _ => (IReadOnlyList<string>)CsvSpec.SodHeaders };
+            var id = source switch { "roles" => ids.Roles, "users" => ids.Users, "employees" => ids.Employees, _ => ids.Sod };
+            var columns = source switch { "roles" => CsvSpec.Roles.Fields, "users" => CsvSpec.Users.Fields, "employees" => SapLens.Domain.Directory.EmployeeDirectory.Headers, _ => (IReadOnlyList<string>)CsvSpec.SodHeaders };
             var total = id is null ? 0 : await db.DatasetRecords.CountAsync(r => r.DatasetId == id, ct);
             var page = id is null ? [] : await db.DatasetRecords.AsNoTracking().Where(r => r.DatasetId == id).OrderBy(r => r.Ordinal).Skip(o).Take(l).Select(r => r.Payload).ToListAsync(ct);
             var items = page.Select(p => { var row = Sources.Deserialize(p); return columns.ToDictionary(c => c, c => row.GetValueOrDefault(c, "")); }).ToList();
@@ -90,7 +89,6 @@ public static partial class V1DataSources
 
         api.MapPost("/data-sources/{source}/select", async (string source, HttpContext http, HostSettings host, IServiceProvider services, CancellationToken ct) =>
         {
-            if (source == "employees") return V1Compatibility.NotMigrated(http, "data-sources/employees/select");
             if (!Names.ContainsKey(source)) return Detail(422, "Unknown source.");
             var body = await JsonNode.ParseAsync(http.Request.Body, cancellationToken: ct) as JsonObject;
             var path = ((string?)body?["path"])?.Trim();
@@ -106,7 +104,6 @@ public static partial class V1DataSources
 
         api.MapPost("/server/uploads/{source}/activate", async (string source, HttpContext http, IServiceProvider services, DatabaseOptions database, CancellationToken ct) =>
         {
-            if (source == "employees") return V1Compatibility.NotMigrated(http, "server/uploads/employees/activate");
             if (!Names.ContainsKey(source)) return Detail(422, "Unknown source.");
             var limit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
             if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = Endpoints.MaxUploadBytes + 64 * 1024;
@@ -154,7 +151,7 @@ public static partial class V1DataSources
         return new CsvProfile(id, (int?)profile["version"] ?? 1, delimiter, encoding, mapping);
     }
 
-    private static async Task<IResult> ActivateAsync(IServiceProvider services, HttpContext http, string source, string importPath, string recordedPath, string fileName,
+    internal static async Task<IResult> ActivateAsync(IServiceProvider services, HttpContext http, string source, string importPath, string recordedPath, string fileName,
         string mode, JsonObject? requestedProfile, bool confirm, int revision, CancellationToken ct)
     {
         var store = services.GetRequiredService<V1Settings>();
@@ -173,11 +170,13 @@ public static partial class V1DataSources
             // The profile that applies: the active profile of the source, or the one sent with the selection (stored with a higher version when it changed).
             var (profilesField, activeField) = source switch { "roles" => ("import_profiles", "active_import"), "users" => ("user_import_profiles", "active_user_import"), _ => ("", "") };
             var fields = source switch { "roles" => CsvSpec.Roles.Fields, "users" => CsvSpec.Users.Fields, _ => CsvSpec.Sod.Fields };
-            JsonObject activeProfile = source == "sod"
+            // The Employee Directory has one fixed documented schema; it takes no import profile.
+            if (source == "employees" && requestedProfile is not null) return Detail(400, "This source uses its fixed documented schema.");
+            JsonObject activeProfile = source is "sod" or "employees"
                 ? settings["sod_import"]!.AsObject()
                 : settings[profilesField]!.AsArray().Select(p => p!.AsObject()).First(p => (string?)p["id"] == (string?)settings[activeField]);
             var chosen = requestedProfile ?? activeProfile;
-            var csvProfile = Profile(chosen, fields);
+            var csvProfile = source == "employees" ? new CsvProfile(Id: "employees") : Profile(chosen, fields);
             if (csvProfile is null) return Detail(400, "The source import profile is invalid. Review its column mapping and format.");
 
             // Import a private copy: the job removes its input when it finishes, the recorded source file stays.
@@ -245,6 +244,7 @@ public static partial class V1DataSources
                 previousPath = (string?)s[PathField[source]];
                 s[PathField[source]] = recordedPath;
                 s["source_modes"]![source] = mode;
+                if (source == "employees") s["employee_snapshot_id"] = dataset.ContentHash;
                 if (requestedProfile is not null)
                 {
                     var stored = Profile(requestedProfile, fields)!;

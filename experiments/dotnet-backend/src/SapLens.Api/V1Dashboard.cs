@@ -7,7 +7,6 @@ namespace SapLens.Api;
 /// Employee Directory and Account Review are not migrated yet; their metrics are null with an explicit reason, never estimated.</summary>
 public static class V1Dashboard
 {
-    public const string DirectoryReason = "The Employee Directory is not available in the .NET server yet.";
     public const string ReviewReason = "Account Review is not available in the .NET server yet.";
     public static readonly string[] Bands = ["0–5", "6–10", "11–20", "21–30", "31+"];
 
@@ -44,11 +43,21 @@ public static class V1Dashboard
             foreach (var status in new[] { "expired", "future" })
                 Add(status, char.ToUpperInvariant(status[0]) + status[1..] + " assignment records", mapping ? statuses.GetValueOrDefault(status) : null, "users",
                     "Snapshot validity, not account state. Opens all users; select assignment status in User Details.", reason);
-            Add("employees", "Employee Directory records", null, "employees", "Open directory import and data quality.", DirectoryReason);
-            Add("email_matches", "Matched SAP identities", null, "review", "Exact matches of SAP identities; open directory data quality.", DirectoryReason);
-            Add("directory_missing", "Missing matches", null, "review", "SAP users without an email or whose email is not in the directory; open them in Account Review.", DirectoryReason);
-            Add("directory_ambiguous", "Ambiguous matches", null, "review", "Duplicate directory emails or SAP emails shared by several users; open them in Account Review.", DirectoryReason);
-            Add("unresolved", "Missing or ambiguous directory matches", null, "review", "Includes missing SAP email, unmatched and ambiguous evidence; open data quality.", DirectoryReason);
+            var directory = V1Employees.Status(state, settings, @private: false);
+            var directoryEnabled = (bool)directory["enabled"]!;
+            var coverage = (Dictionary<string, int>)directory["coverage"]!;
+            var coverageTotal = (int)directory["coverage_total"]!;
+            var coverageReason = (string)directory["coverage_reason"]!;
+            int? Coverage(Func<Dictionary<string, int>, int> value) => coverageTotal > 0 ? value(coverage) : null;
+            Add("employees", "Employee Directory records", directoryEnabled && (bool)directory["loaded"]! ? state.Directory!.Rows.Count : null, "employees", "Open directory import and data quality.",
+                directoryEnabled ? "Import directory records first" : "Employee Directory disabled");
+            Add("email_matches", "Matched SAP identities", Coverage(c => c.GetValueOrDefault("matched")), "review", $"Exact matches of {coverageTotal} SAP identities; open directory data quality.", coverageReason);
+            Add("directory_missing", "Missing matches", Coverage(c => c.GetValueOrDefault("missing_email") + c.GetValueOrDefault("unmatched")), "review",
+                "SAP users without an email or whose email is not in the directory; open them in Account Review.", coverageReason);
+            Add("directory_ambiguous", "Ambiguous matches", Coverage(c => c.GetValueOrDefault("duplicate_email") + c.GetValueOrDefault("ambiguous_sap_email")), "review",
+                "Duplicate directory emails or SAP emails shared by several users; open them in Account Review.", coverageReason);
+            Add("unresolved", "Missing or ambiguous directory matches", Coverage(c => c.Where(p => p.Key != "matched").Sum(p => p.Value)), "review",
+                "Includes missing SAP email, unmatched and ambiguous evidence; open data quality.", coverageReason);
             var reviewReason = mapping ? ReviewReason : reason;
             Add("account_review", "Accounts requiring review", null, "review", "Open Account Review.", reviewReason);
             foreach (var (id, label) in new[] { ("reviewed", "Completed reviews"), ("pending", "Pending reviews"), ("outdated", "Outdated reviews") })
@@ -56,8 +65,8 @@ public static class V1Dashboard
             if (mapping)
             {
                 Add("position_changes", "Users requiring review — Position changes", null, "review",
-                    "Department or job title changed between Employee Directory imports and not yet reviewed. Separate from SoD conflicts and other account findings; opens Account Review.", DirectoryReason);
-                Add("ad_disabled_open", "AD disabled / SAP valid and unlocked", null, "review", "Reliably matched AD and SAP account evidence.", DirectoryReason);
+                    "Department or job title changed between Employee Directory imports and not yet reviewed. Separate from SoD conflicts and other account findings; opens Account Review.", ReviewReason);
+                Add("ad_disabled_open", "AD disabled / SAP valid and unlocked", null, "review", "Reliably matched AD and SAP account evidence.", ReviewReason);
             }
 
             Dictionary<string, int>? roleDistribution = catalogue
@@ -90,14 +99,14 @@ public static class V1Dashboard
                 assignment_distribution = assignmentDistribution,
                 last_successful_refresh = (string?)lifecycle?["last_successful_refresh"],
                 source_warning = (string?)null,
-                coverage_total = 0,
+                coverage_total = coverageTotal,
                 sources = new[]
                 {
                     Source("roles", "Role Catalogue", true, !string.IsNullOrEmpty((string?)settings["data_csv_path"]), catalogue, Freshness("roles", "data_csv_path")),
                     Source("users", "User–Role Mapping", mappingEnabled, !string.IsNullOrEmpty((string?)settings["user_csv_path"]), state.Ids.Users is not null, Freshness("users", "user_csv_path")),
-                    Source("employees", "Employee Directory", false, false, false, (null, null)),
+                    Source("employees", "Employee Directory", directoryEnabled, (bool)directory["configured"]!, (bool)directory["loaded"]!, Freshness("employees", "employee_csv_path")),
                 },
-                as_of = (string?)null,
+                as_of = state.Directory is { } d && (bool)directory["loaded"]! ? d.ImportedAt : null,
                 notice = "Current local snapshots only; no historical trends or effective-authorization claims.",
             });
         });

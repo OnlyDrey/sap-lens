@@ -30,6 +30,10 @@ public sealed class V1Settings(WriteCoordinator writer, IDbContextFactory<SapLen
     /// <summary>Applies <paramref name="mutate"/> to the current document inside one write transaction. With an expected revision the save is refused when
     /// another save happened in between (409); the stored revision then increases by one.</summary>
     public Task<JsonObject> UpdateAsync(int? expectedRevision, Action<JsonObject> mutate, string actor, CancellationToken cancellation) =>
+        UpdateAsync(expectedRevision, mutate, actor, null, cancellation);
+
+    /// <summary>As above, with <paramref name="alsoInTransaction"/> applied in the same SQLite write transaction (all or nothing).</summary>
+    public Task<JsonObject> UpdateAsync(int? expectedRevision, Action<JsonObject> mutate, string actor, Func<SapLensDb, CancellationToken, Task>? alsoInTransaction, CancellationToken cancellation) =>
         writer.WriteAsync(async (db, ct) =>
         {
             var row = await db.Settings.FirstOrDefaultAsync(ct);
@@ -37,6 +41,7 @@ public sealed class V1Settings(WriteCoordinator writer, IDbContextFactory<SapLen
             if (expectedRevision is { } expected && (int)current["revision"]! != expected)
                 throw new ImportConflictException("Settings changed. Reload this page before saving again.");
             mutate(current);
+            if (alsoInTransaction is not null) await alsoInTransaction(db, ct);
             var revision = (row?.Revision ?? 0) + 1;
             current["revision"] = revision;
             if (row is null) db.Settings.Add(row = new SettingsDocument { Json = "{}" });

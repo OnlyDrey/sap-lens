@@ -136,7 +136,7 @@ public sealed class V1CompatibilityTests : IAsyncLifetime
     [InlineData("GET", "/api/functional-groups")]
     [InlineData("GET", "/api/access/exports/users")]
     [InlineData("GET", "/api/account-review")]
-    [InlineData("GET", "/api/employees")]
+    [InlineData("GET", "/api/account-review/history/USER1")]
     [InlineData("POST", "/api/configuration/reset")]
     [InlineData("GET", "/api/sod/overview")]
     [InlineData("POST", "/api/backups/create")]

@@ -186,9 +186,9 @@ public sealed class DataSourcesTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.BadRequest, status);
         Assert.Contains("upload", (string)body["detail"]!);
 
-        (status, body) = await Upload("employees", "x", await Revision());
-        Assert.Equal((HttpStatusCode)501, status);
-        Assert.Equal("not_migrated", (string)body["code"]!);
+        (status, body) = await Upload("employees", "x", await Revision()); // an invalid directory is refused before it can replace anything
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Contains("16 documented headers", (string)body["detail"]!);
         Assert.Equal(0, await Revision());
         Assert.Empty(JsonNode.Parse(await _client.GetStringAsync("/api/data-sources/history"))!["items"]!.AsArray());
     }

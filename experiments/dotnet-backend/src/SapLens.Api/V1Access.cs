@@ -253,7 +253,7 @@ public static class V1Access
         ["classification_status"] = "Unassigned",
     };
 
-    private static string Revision(Snapshot snapshot) => $"{V1Compatibility.Boot}.{(snapshot.Ids.Roles ?? 0) + (snapshot.Ids.Users ?? 0) + (snapshot.Ids.Sod ?? 0)}.0";
+    private static string Revision(Snapshot snapshot) => $"{V1Compatibility.Boot}.{(snapshot.Ids.Roles ?? 0) + (snapshot.Ids.Users ?? 0) + (snapshot.Ids.Sod ?? 0)}.{(snapshot.Ids.Employees ?? 0)}";
     private static bool Flag(IQueryCollection q, string name) => q[name].FirstOrDefault() is "true" or "True" or "1";
 
     private static bool NonNegative(IQueryCollection q, string name, out int value)

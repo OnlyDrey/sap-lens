@@ -7,8 +7,8 @@ using SapLens.Persistence;
 namespace SapLens.Api;
 
 /// <summary>Port of routers/data_health.py: coverage of the active validated snapshots and the same finding catalogue, labels and availability rules.
-/// Review continuity comes from the .NET review store (hash chain, invalidated-and-reappeared assignments). The Employee Directory is not migrated, so its
-/// source and coverage are reported as unavailable rather than estimated.</summary>
+/// Review continuity comes from the .NET review store (hash chain, invalidated-and-reappeared assignments). Employee Directory
+/// source and identity coverage come from the active directory dataset (feature switch applied).</summary>
 public static class V1DataHealth
 {
     private static readonly (string Id, string Title, string Severity, string Explanation)[] Labels =
@@ -109,6 +109,8 @@ public static class V1DataHealth
             };
             var selected = findings.FirstOrDefault(f => (string)f["id"]! == finding);
             var rows = selected is not null && selected["count"] is not null ? (continuity.GetValueOrDefault(finding) ?? data.GetValueOrDefault(finding) ?? []) : [];
+            var directory = V1Employees.Status(state, settings, @private: false);
+            var coverage = (Dictionary<string, int>)directory["coverage"]!;
             var datasets = await db.Datasets.AsNoTracking().Where(d => d.Status == DatasetStatus.Active).ToListAsync(ct);
             string? Last(string source) => datasets.FirstOrDefault(d => d.Source == source)?.ActivatedUtc?.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'");
             object Totals(string source)
@@ -124,7 +126,8 @@ public static class V1DataHealth
                         records = catalogue ? state.Catalogue.Roles.Count : (int?)null, snapshot = catalogue ? "Durable local snapshot" : "Memory; no durable snapshot yet", last_successful = Last("roles") },
                     new { id = "users", name = "User–Role Mapping", enabled = mapping, configured = !string.IsNullOrEmpty((string?)settings["user_csv_path"]), available = state.Ids.Users is not null,
                         records = state.Ids.Users is not null ? state.Users.Users.Count : (int?)null, snapshot = state.Ids.Users is not null ? "Durable local snapshot" : "Memory; no durable snapshot yet", last_successful = Last("users") },
-                    new { id = "employees", name = "Employee Directory", enabled = false, configured = false, available = false, records = (int?)null, snapshot = "No durable snapshot", last_successful = (string?)null },
+                    new { id = "employees", name = "Employee Directory", enabled = (bool)directory["enabled"]!, configured = (bool)directory["configured"]!, available = state.Directory is not null,
+                        records = state.Directory?.Rows.Count, snapshot = state.Directory is not null ? "Durable local snapshot" : "No durable snapshot", last_successful = Last("employees") },
                     new { id = "sod", name = "SoD Matrix", enabled = true, configured = !string.IsNullOrEmpty((string?)settings["sod_csv_path"]), available = state.Sod is not null,
                         records = state.Sod?.Records.Count, snapshot = state.Sod is not null ? "Durable local snapshot" : "No durable snapshot", last_successful = Last("sod") },
                 },
@@ -132,11 +135,11 @@ public static class V1DataHealth
                 {
                     Ratio("Business/release assignment records mapped to catalogue", matched, eligible.Count, users && catalogue),
                     Ratio("Catalogue roles with transaction mappings", state.Catalogue.Ordered.Count(r => r.TcodeCount > 0), state.Catalogue.Roles.Count, catalogue),
-                    Ratio("SAP identities matched to Employee Directory", 0, 0, false),
+                    Ratio("SAP identities matched to Employee Directory", coverage.GetValueOrDefault("matched"), (int)directory["coverage_total"]!, (int)directory["coverage_total"]! > 0),
                 },
                 findings, items = rows.Skip(offset).Take(limit).ToList(), total = rows.Count, offset, limit,
-                directory_coverage_reason = "The Employee Directory is not available in the .NET server yet.",
-                data_revision = $"{V1Compatibility.Boot}.{(state.Ids.Roles ?? 0) + (state.Ids.Users ?? 0) + (state.Ids.Sod ?? 0)}.0",
+                directory_coverage_reason = (string)directory["coverage_reason"]!,
+                data_revision = $"{V1Compatibility.Boot}.{(state.Ids.Roles ?? 0) + (state.Ids.Users ?? 0) + (state.Ids.Sod ?? 0)}.{(state.Ids.Employees ?? 0)}",
                 import_totals = new { roles = Totals("roles"), users = Totals("users") },
                 validation_note = "Only validated published snapshots are counted. Invalid headers, missing usernames, invalid dates and reversed intervals reject the replacement atomically. Identical duplicate rows are deduplicated at import; import totals below count raw rows, not duplicate role definitions.",
             });

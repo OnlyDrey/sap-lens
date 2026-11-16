@@ -11,8 +11,8 @@ namespace SapLens.Application;
 /// <summary>The three import sources of the prototype and how a CSV becomes canonical records (the same mapping the equivalence harness checks).</summary>
 public static class Sources
 {
-    public const string Roles = "roles", Users = "users", Sod = "sod";
-    public static readonly string[] All = [Roles, Users, Sod];
+    public const string Roles = "roles", Users = "users", Sod = "sod", Employees = "employees";
+    public static readonly string[] All = [Roles, Users, Sod, Employees];
     public static readonly JsonSerializerOptions Json = new() { Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping, PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower };
 
     public static bool IsKnown(string source) => All.Contains(source, StringComparer.Ordinal);
@@ -20,6 +20,14 @@ public static class Sources
     /// <summary>Streams the canonical records of a CSV. SoD keeps only the core headers, exactly as the v1 SoD source does.</summary>
     public static (IEnumerable<IReadOnlyDictionary<string, string>> Records, ImportReport Report) Read(string source, string path, CancellationToken cancellation, CsvProfile? profile = null)
     {
+        if (source == Employees)
+        {
+            // Fixed documented schema (no import profile), read once and parsed as a whole, like v1 parse_directory.
+            var length = new FileInfo(path).Length;
+            if (length > Domain.Directory.EmployeeDirectory.MaxBytes) throw new CsvFormatException("Employee Directory CSV exceeds the 50 MB limit.");
+            var rows = Domain.Directory.EmployeeDirectory.Parse(File.ReadAllBytes(path));
+            return (rows, new ImportReport { FileName = Path.GetFileName(path), ParsedRows = rows.Count, UniqueRecords = rows.Count, DetectedColumns = [.. Domain.Directory.EmployeeDirectory.Headers] });
+        }
         var import = source switch
         {
             Roles => new CsvImport(path, profile ?? new CsvProfile(), CsvSpec.Roles),

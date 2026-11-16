@@ -19,6 +19,7 @@ public static class ImportChecks
         ["roles"] = ([("role catalogue entries", "AGR_NAME"), ("transactions", "TCODE")], ("FUNCTION_KEY", "SAP module area")),
         ["users"] = ([("SAP users", "USERNAME"), ("assigned roles", "ROLE_NAME")], ("USER_GROUP", "SAP user group")),
         ["sod"] = ([("risks", "RISK")], null),
+        ["employees"] = ([("directory accounts", "SamAccountName")], ("Department", "department")),
     };
     private const int GroupMinRows = 5;
 
@@ -64,6 +65,14 @@ public static class ImportChecks
 
     public static string[] RecordKey(string source, IReadOnlyDictionary<string, string> row)
     {
+        if (source == "employees")
+        {
+            // Email is deliberately not a record identity; rows without DN or account name are add/remove evidence, never guessed modifications.
+            var dn = row.GetValueOrDefault("DistinguishedName", "").Trim();
+            var sam = row.GetValueOrDefault("SamAccountName", "").Trim();
+            return dn.Length > 0 ? ["dn", dn.ToUpperInvariant().ToLowerInvariant()] : sam.Length > 0 ? ["sam", sam.ToUpperInvariant().ToLowerInvariant()]
+                : ["none", string.Join('\u001e', row.OrderBy(p => p.Key, StringComparer.Ordinal).Select(p => p.Key + "\u001f" + p.Value))];
+        }
         string[] fields = source switch
         {
             "sod" => ["RISK", "ACTIVITY_SLOT", "ACTIVITY", "TCODE"],

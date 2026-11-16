@@ -47,6 +47,8 @@ public static class V1Compatibility
         "GET /api/data-health", "GET /api/dashboard",
         "GET /api/roles/naming", "POST /api/roles/package/preview", "POST /api/roles/package/export",
         "GET /api/saved-filters", "POST /api/saved-filters", "POST /api/saved-filters/delete",
+        "GET /api/employees/status", "GET /api/employees", "GET /api/employees/record/{employee_id}", "GET /api/employees/match/{username}", "POST /api/employees/clear",
+        "POST /api/employees/persist", "POST /api/data-sources/employees/inspect", "POST /api/employees/preview", "POST /api/employees/import",
         // Accounts mode (the Server default); in shared-token mode these answer 501.
         "POST /api/auth/activate", "POST /api/auth/recover", "POST /api/auth/login", "POST /api/auth/reset", "GET /api/auth/me", "GET /api/auth/sessions",
         "POST /api/auth/logout", "POST /api/auth/logout-all", "POST /api/auth/logout-others", "POST /api/auth/password", "POST /api/auth/profile",
@@ -63,7 +65,7 @@ public static class V1Compatibility
             await using (var db = await factory.CreateDbContextAsync(context.HttpContext.RequestAborted))
             {
                 var ids = await SnapshotService.ActiveAsync(db, context.HttpContext.RequestAborted);
-                context.HttpContext.Response.Headers["X-Data-Revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.0";
+                context.HttpContext.Response.Headers["X-Data-Revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.{(ids.Employees ?? 0)}";
             }
             return await next(context);
         });
@@ -126,6 +128,7 @@ public static class V1Compatibility
         V1Dashboard.Map(api);
         V1SavedFilters.Map(api);
         V1AccessPackage.Map(api);
+        V1Employees.Map(api);
         V1Auth.Map(api, app.Services.GetRequiredService<HostSettings>());
 
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).
@@ -155,7 +158,7 @@ public static class V1Compatibility
             ["settings"] = await store.GetAsync(ct),
             ["notice"] = null,
             ["error"] = null, ["loading"] = false, ["progress"] = null, ["analysis"] = new JsonObject(),
-            ["data_revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.0", ["instance_id"] = Boot,
+            ["data_revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.{(ids.Employees ?? 0)}", ["instance_id"] = Boot,
         };
     }
 

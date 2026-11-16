@@ -106,6 +106,7 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
             case Sources.Roles: CatalogueBuilder.Build(staged); break;
             case Sources.Users: newKeys = Sources.AssignmentKeys(UserDirectoryBuilder.Build(staged, current.Catalogue)); break;
             case Sources.Sod: SodSource.Build(staged, report.Warnings.Where(w => !w.StartsWith("Optional field ", StringComparison.Ordinal))); break;
+            case Sources.Employees: _ = new Domain.Directory.EmployeeDirectory(staged, payload.FileName, contentHash, ""); break;
         }
 
         await using var read = await factory.CreateDbContextAsync(ct);

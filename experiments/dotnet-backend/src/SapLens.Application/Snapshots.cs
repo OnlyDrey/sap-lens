@@ -1,12 +1,14 @@
 using Microsoft.EntityFrameworkCore;
+using System.Globalization;
 using SapLens.Domain.Catalogue;
+using SapLens.Domain.Directory;
 using SapLens.Domain.Sod;
 using SapLens.Domain.Users;
 using SapLens.Persistence;
 
 namespace SapLens.Application;
 
-public sealed record ActiveIds(long? Roles, long? Users, long? Sod);
+public sealed record ActiveIds(long? Roles, long? Users, long? Sod, long? Employees = null);
 
 public sealed class Snapshot
 {
@@ -14,6 +16,8 @@ public sealed class Snapshot
     public required RoleCatalogue Catalogue { get; init; }
     public required UserDirectory Users { get; init; }
     public SodDataset? Sod { get; init; }
+    /// <summary>The active Employee Directory dataset, when one was imported (independent of the feature switch, which callers apply).</summary>
+    public EmployeeDirectory? Directory { get; init; }
     public required HashSet<string> AssignmentKeys { get; init; }
 }
 
@@ -28,7 +32,7 @@ public sealed class SnapshotService(IDbContextFactory<SapLensDb> factory)
     {
         var active = await db.Datasets.AsNoTracking().Where(d => d.Status == DatasetStatus.Active).Select(d => new { d.Source, d.Id }).ToListAsync(ct);
         long? Of(string source) => active.FirstOrDefault(a => a.Source == source)?.Id;
-        return new ActiveIds(Of(Sources.Roles), Of(Sources.Users), Of(Sources.Sod));
+        return new ActiveIds(Of(Sources.Roles), Of(Sources.Users), Of(Sources.Sod), Of(Sources.Employees));
     }
 
     public static async Task<List<IReadOnlyDictionary<string, string>>> RecordsAsync(SapLensDb db, long? datasetId, CancellationToken ct)
@@ -47,11 +51,21 @@ public sealed class SnapshotService(IDbContextFactory<SapLensDb> factory)
         try
         {
             if (_current is { } again && again.Ids == ids) return again;
+            EmployeeDirectory? directory = null;
+            if (ids.Employees is { } employees)
+            {
+                var dataset = await db.Datasets.AsNoTracking().FirstAsync(d => d.Id == employees, cancellation);
+                directory = new EmployeeDirectory(await RecordsAsync(db, employees, cancellation), dataset.FileName ?? "", dataset.ContentHash ?? "",
+                    (dataset.ActivatedUtc ?? dataset.CreatedUtc).ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'", CultureInfo.InvariantCulture));
+            }
+            // A directory-only change keeps the SAP analysis objects (and the SAP data revision), as v1 does.
+            if (_current is { } previous && previous.Ids with { Employees = ids.Employees } == ids)
+                return _current = new Snapshot { Ids = ids, Catalogue = previous.Catalogue, Users = previous.Users, Sod = previous.Sod, AssignmentKeys = previous.AssignmentKeys, Directory = directory };
             var catalogue = CatalogueBuilder.Build(await RecordsAsync(db, ids.Roles, cancellation));
             var users = UserDirectoryBuilder.Build(await RecordsAsync(db, ids.Users, cancellation), catalogue);
             var sodRecords = await RecordsAsync(db, ids.Sod, cancellation);
             var sod = ids.Sod is null ? null : SodSource.Build(sodRecords);
-            return _current = new Snapshot { Ids = ids, Catalogue = catalogue, Users = users, Sod = sod, AssignmentKeys = Sources.AssignmentKeys(users) };
+            return _current = new Snapshot { Ids = ids, Catalogue = catalogue, Users = users, Sod = sod, AssignmentKeys = Sources.AssignmentKeys(users), Directory = directory };
         }
         finally
         {

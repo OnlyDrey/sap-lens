@@ -82,11 +82,13 @@ public sealed class DashboardAndSavedFiltersTests : IAsyncLifetime
         Assert.Equal(0, (int)dashboard["assignment_distribution"]!["31+"]!);
         Assert.Equal(2, (int)dashboard["review_population"]!);
         // Not migrated yet: explicit null with a reason, never an estimate.
-        foreach (var id in new[] { "employees", "email_matches", "account_review", "reviewed", "pending", "outdated", "position_changes" })
+        foreach (var id in new[] { "account_review", "reviewed", "pending", "outdated", "position_changes" })
         {
             Assert.Null((int?)Metric(dashboard, id)["value"]);
             Assert.Contains("not available in the .NET server", (string)Metric(dashboard, id)["unavailable_reason"]!);
         }
+        Assert.Equal("Employee Directory disabled", (string?)Metric(dashboard, "employees")["unavailable_reason"]);
+        Assert.Equal("Enable Employee Directory in Feature Settings.", (string?)Metric(dashboard, "email_matches")["unavailable_reason"]);
         Assert.Equal("Current local snapshots only; no historical trends or effective-authorization claims.", (string)dashboard["notice"]!);
         Assert.Equal(3, dashboard["sources"]!.AsArray().Count);
     }

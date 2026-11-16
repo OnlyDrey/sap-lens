@@ -38,7 +38,7 @@ Everything lives in [`experiments/dotnet-backend`](../../../experiments/dotnet-b
 | `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded production React UI (`frontend/dist`) and sign-in page, v1 compatibility API (`V1Compatibility.cs`), startup probe |
 | `src/SapLens.Desktop` | Windows shell: WinForms + WebView2, in-process core, loopback, per-run token (built on Linux, never run) |
 | `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
-| `tests/SapLens.Tests` | 154 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, v1 compatibility contracts (Data Sources, Access, Data Health, Dashboard, Saved Filters, Access Packages, accounts and sessions), publish acceptance (`Category=Publish`, slow) |
+| `tests/SapLens.Tests` | 158 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, v1 compatibility contracts (Data Sources, Access, Data Health, Dashboard, Saved Filters, Access Packages, accounts and sessions, Employee Directory), publish acceptance (`Category=Publish`, slow) |
 | `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses, v1 reference-data export |
 | `scripts/` | `build-release.ps1` (Windows) and `build-release.sh` (Linux): UI build, .NET build and tests, self-contained packages, build identity check, `SHA256SUMS`, `manifest.json` |
 
