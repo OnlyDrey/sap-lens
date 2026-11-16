@@ -15,13 +15,21 @@ public sealed class SodSourceMetadataTests
 {
     private static string Fixture(string name) => Path.Combine(AppContext.BaseDirectory, "Fixtures", "sod", name);
 
+    /// <summary>The importer accepts only .csv paths; the committed fixtures use .sod.txt because the repository ignores *.csv (SAP exports).</summary>
+    private static string Csv(string name)
+    {
+        var target = Path.Combine(Directory.CreateTempSubdirectory("saplens-sodfixture-").FullName, name + ".csv");
+        File.Copy(Fixture(name + ".sod.txt"), target);
+        return target;
+    }
+
     [Theory]
     [InlineData("with_meta")]
     [InlineData("no_meta")]
     [InlineData("edge")]
     public void Content_hash_metadata_warnings_and_definition_fingerprints_equal_python_v1(string name)
     {
-        var (records, report) = Sources.Read(Sources.Sod, Fixture(name + ".sod.txt"), CancellationToken.None);
+        var (records, report) = Sources.Read(Sources.Sod, Csv(name), CancellationToken.None);
         var dataset = SodSource.Build(records.ToList(), report.Warnings.Where(w => !w.StartsWith("Optional field ", StringComparison.Ordinal)));
         var expected = JsonNode.Parse(File.ReadAllText(Fixture(name + ".python.json")))!;
         Assert.Equal((string)expected["content_hash"]!, dataset.ContentHash);
@@ -34,9 +42,9 @@ public sealed class SodSourceMetadataTests
     [Fact]
     public void A_file_without_optional_columns_stores_exactly_the_ten_documented_fields()
     {
-        var (records, _) = Sources.Read(Sources.Sod, Fixture("no_meta.sod.txt"), CancellationToken.None);
+        var (records, _) = Sources.Read(Sources.Sod, Csv("no_meta"), CancellationToken.None);
         Assert.All(records, r => Assert.Equal(10, r.Count));
-        var (withMeta, _) = Sources.Read(Sources.Sod, Fixture("with_meta.sod.txt"), CancellationToken.None);
+        var (withMeta, _) = Sources.Read(Sources.Sod, Csv("with_meta"), CancellationToken.None);
         Assert.Equal(17, withMeta.First().Count); // only the optional columns the file maps
     }
 
