@@ -51,10 +51,13 @@ public sealed class EmbeddedUiFileProvider : IFileProvider
         }
     }
 
+    /// <summary>The UI is part of the executable (single-file packages have no assembly path), so its files change only with a new process: the start
+    /// time, to the second, is their modification time. Responses are no-cache, so clients revalidate after every restart.</summary>
     private static DateTimeOffset LastModified(Assembly assembly)
     {
-        try { return string.IsNullOrEmpty(assembly.Location) ? DateTimeOffset.UtcNow : File.GetLastWriteTimeUtc(assembly.Location); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or NotSupportedException) { return DateTimeOffset.UtcNow; }
+        _ = assembly;
+        var now = DateTimeOffset.UtcNow;
+        return new DateTimeOffset(now.Ticks - now.Ticks % TimeSpan.TicksPerSecond, TimeSpan.Zero);
     }
 
     /// <summary>"/assets/x.js", "assets\x.js" -> "assets/x.js"; null for anything that leaves the UI root or has empty segments.</summary>

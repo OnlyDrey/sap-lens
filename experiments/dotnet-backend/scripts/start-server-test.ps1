@@ -4,8 +4,9 @@
 
 .DESCRIPTION
   Not a production deployment mechanism. The script:
-  1. Selects the newest complete release under -BuildsRoot (a folder written by build-release.ps1: manifest.json plus server-win-x64\ with the
-     Server executable and its runtime files), or the release given with -ReleasePath (a release folder or its server-win-x64 folder).
+  1. Selects the newest complete release under -BuildsRoot (a folder written by build-release.ps1: build-manifest.json plus server\ with the
+     single-file SapLens.Api.exe and e_sqlite3.dll; earlier folder-publish releases with manifest.json and server-win-x64\ are still recognized),
+     or the release given with -ReleasePath (a release folder, its server folder, or a plain publish folder).
   2. Validates the configuration before anything starts: the listen address is an IP assigned to this machine (not loopback or all interfaces),
      the port is free, the certificate and password files exist, and the data directory is an absolute local path outside known production
      and Desktop data locations.
@@ -39,45 +40,67 @@ param(
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
-$script:ServerFolder = 'server-win-x64'
 $script:ServerExecutable = 'SapLens.Api.exe'
-# Files a self-contained win-x64 publish of SapLens.Api cannot start without.
-$script:RequiredServerFiles = @(
-    'SapLens.Api.exe', 'SapLens.Api.dll', 'SapLens.Api.deps.json', 'SapLens.Api.runtimeconfig.json',
-    'SapLens.Application.dll', 'SapLens.Domain.dll', 'SapLens.Persistence.dll',
-    'hostfxr.dll', 'hostpolicy.dll', 'coreclr.dll', 'System.Private.CoreLib.dll', 'e_sqlite3.dll'
+# Release layouts written by build-release.ps1/.sh, newest first. Each lists the files its Server cannot start without.
+$script:Layouts = @(
+    # Single-file (current): everything managed inside SapLens.Api.exe, SQLite's native library beside it.
+    @{ Name = 'single-file'; Folder = 'server'; Manifest = 'build-manifest.json'; Required = @('SapLens.Api.exe', 'e_sqlite3.dll') },
+    # Folder publish (earlier builds).
+    @{ Name = 'folder'; Folder = 'server-win-x64'; Manifest = 'manifest.json'; Required = @(
+        'SapLens.Api.exe', 'SapLens.Api.dll', 'SapLens.Api.deps.json', 'SapLens.Api.runtimeconfig.json',
+        'SapLens.Application.dll', 'SapLens.Domain.dll', 'SapLens.Persistence.dll',
+        'hostfxr.dll', 'hostpolicy.dll', 'coreclr.dll', 'System.Private.CoreLib.dll', 'e_sqlite3.dll') }
 )
+# Kept for the tests and callers of the earlier layout: the current layout's required files.
+$script:RequiredServerFiles = $script:Layouts[0].Required
 
-function Get-MissingServerFiles([string]$ServerPath) {
-    @($script:RequiredServerFiles | Where-Object { -not (Test-Path -LiteralPath (Join-Path $ServerPath $_) -PathType Leaf) })
+function Get-MissingServerFiles([string]$ServerPath, [string[]]$Required = $script:RequiredServerFiles) {
+    @($Required | Where-Object { -not (Test-Path -LiteralPath (Join-Path $ServerPath $_) -PathType Leaf) })
+}
+
+function Get-ReleaseCandidate([string]$Folder) {
+    <# The release in $Folder (any layout) with its server folder and manifest, or a reason it is not one. #>
+    foreach ($layout in $script:Layouts) {
+        $server = Join-Path $Folder $layout.Folder
+        if (-not (Test-Path -LiteralPath $server -PathType Container)) { continue }
+        $missing = @(Get-MissingServerFiles $server $layout.Required)
+        $manifest = Join-Path $Folder $layout.Manifest
+        return [pscustomobject]@{ Release = $Folder; Server = $server; Layout = $layout.Name; Missing = $missing
+            Manifest = $(if (Test-Path -LiteralPath $manifest -PathType Leaf) { $manifest } else { $null }) }
+    }
+    $null
 }
 
 function Resolve-ServerRelease {
-    <# Returns @{ Release; Server; Executable; Manifest } for -ReleasePath, or the newest complete release under -BuildsRoot. #>
+    <# Returns @{ Release; Server; Executable; Manifest; Layout } for -ReleasePath, or the newest complete release under -BuildsRoot. #>
     param([string]$BuildsRoot, [string]$ReleasePath)
     if ($ReleasePath) {
         if (-not (Test-Path -LiteralPath $ReleasePath -PathType Container)) { throw "Release path '$ReleasePath' does not exist." }
-        $full = (Resolve-Path -LiteralPath $ReleasePath).ProviderPath
-        $server = if (Test-Path -LiteralPath (Join-Path $full $script:ServerFolder) -PathType Container) { Join-Path $full $script:ServerFolder } else { $full }
-        $missing = @(Get-MissingServerFiles $server)
-        if ($missing.Count -gt 0) { throw "Release '$full' is not a complete Server release; missing in ${server}: $($missing -join ', ')." }
-        $release = if ($server -eq $full) { Split-Path -Parent $full } else { $full }
-        $manifest = Join-Path $release 'manifest.json'
-        return @{ Release = $release; Server = $server; Executable = (Join-Path $server $script:ServerExecutable); Manifest = $(if (Test-Path -LiteralPath $manifest) { $manifest } else { $null }) }
+        $full = (Resolve-Path -LiteralPath $ReleasePath).ProviderPath.TrimEnd('\', '/')
+        $candidate = Get-ReleaseCandidate $full
+        if (-not $candidate -and (Split-Path -Leaf $full) -in @($script:Layouts | ForEach-Object { $_.Folder })) { $candidate = Get-ReleaseCandidate (Split-Path -Parent $full) }
+        if (-not $candidate) {
+            # A bare publish folder (dotnet publish -o): the executable and its runtime files directly inside.
+            $layout = @($script:Layouts | Where-Object { @(Get-MissingServerFiles $full $_.Required).Count -eq 0 }) | Select-Object -First 1
+            if (-not $layout) { throw "Release '$full' is not a complete Server release; missing in ${full}: $((Get-MissingServerFiles $full) -join ', ')." }
+            $candidate = [pscustomobject]@{ Release = (Split-Path -Parent $full); Server = $full; Layout = $layout.Name; Missing = @(); Manifest = $null }
+        }
+        if ($candidate.Missing.Count -gt 0) { throw "Release '$full' is not a complete Server release; missing in $($candidate.Server): $($candidate.Missing -join ', ')." }
+        return @{ Release = $candidate.Release; Server = $candidate.Server; Executable = (Join-Path $candidate.Server $script:ServerExecutable); Manifest = $candidate.Manifest; Layout = $candidate.Layout }
     }
-    if (-not (Test-Path -LiteralPath $BuildsRoot -PathType Container)) { throw "Builds folder '$BuildsRoot' does not exist. Build a release with build-release.ps1 -Output $BuildsRoot\<name>, or pass -ReleasePath." }
+    if (-not (Test-Path -LiteralPath $BuildsRoot -PathType Container)) { throw "Builds folder '$BuildsRoot' does not exist. Build a release with build-release.ps1 -Output $BuildsRoot, or pass -ReleasePath." }
     $candidates = foreach ($folder in Get-ChildItem -LiteralPath $BuildsRoot -Directory) {
-        $manifest = Join-Path $folder.FullName 'manifest.json'     # build-release.ps1 writes it last: an interrupted build has none
-        $server = Join-Path $folder.FullName $script:ServerFolder
-        if (-not (Test-Path -LiteralPath $manifest -PathType Leaf)) { Write-Verbose "Skipping $($folder.Name): no manifest.json"; continue }
-        if (-not (Test-Path -LiteralPath $server -PathType Container)) { Write-Verbose "Skipping $($folder.Name): no $script:ServerFolder"; continue }
-        $missing = @(Get-MissingServerFiles $server)
-        if ($missing.Count -gt 0) { Write-Verbose "Skipping $($folder.Name): missing $($missing -join ', ')"; continue }
-        [pscustomobject]@{ Release = $folder.FullName; Server = $server; Manifest = $manifest; Built = (Get-Item -LiteralPath $manifest).LastWriteTimeUtc; Name = $folder.Name }
+        $candidate = Get-ReleaseCandidate $folder.FullName
+        if (-not $candidate) { Write-Verbose "Skipping $($folder.Name): no server folder"; continue }
+        # The manifest is written last: an interrupted build has none.
+        if (-not $candidate.Manifest) { Write-Verbose "Skipping $($folder.Name): no manifest"; continue }
+        if ($candidate.Missing.Count -gt 0) { Write-Verbose "Skipping $($folder.Name): missing $($candidate.Missing -join ', ')"; continue }
+        $candidate | Add-Member -NotePropertyName Built -NotePropertyValue (Get-Item -LiteralPath $candidate.Manifest).LastWriteTimeUtc -PassThru |
+            Add-Member -NotePropertyName Name -NotePropertyValue $folder.Name -PassThru
     }
     $newest = @($candidates | Sort-Object -Property @{ Expression = 'Built'; Descending = $true }, @{ Expression = 'Name'; Descending = $true }) | Select-Object -First 1
-    if (-not $newest) { throw "No complete Server release under '$BuildsRoot' (expected <release>\manifest.json and <release>\$script:ServerFolder\$script:ServerExecutable with its runtime files)." }
-    @{ Release = $newest.Release; Server = $newest.Server; Executable = (Join-Path $newest.Server $script:ServerExecutable); Manifest = $newest.Manifest }
+    if (-not $newest) { throw "No complete Server release under '$BuildsRoot' (expected <release>\build-manifest.json and <release>\server\SapLens.Api.exe with e_sqlite3.dll)." }
+    @{ Release = $newest.Release; Server = $newest.Server; Executable = (Join-Path $newest.Server $script:ServerExecutable); Manifest = $newest.Manifest; Layout = $newest.Layout }
 }
 
 function Get-LocalIPAddresses {
@@ -167,7 +190,7 @@ function Invoke-ServerTestLauncher {
         return 2
     }
     Write-Host 'SAP Lens 2 Server test launcher (development and acceptance testing only)'
-    Write-Host "  Release:  $($release.Release)$(if (-not $release.Manifest) { ' (no manifest.json)' })"
+    Write-Host "  Release:  $($release.Release)$(if (-not $release.Manifest) { ' (no build manifest)' })"
     if ($release.Manifest) {
         $manifest = Get-Content -LiteralPath $release.Manifest -Raw | ConvertFrom-Json
         Write-Host "  Source:   $($manifest.source_sha)$(if ($manifest.source_dirty) { ' (dirty working tree)' })"

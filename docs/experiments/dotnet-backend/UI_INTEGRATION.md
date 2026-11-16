@@ -73,6 +73,9 @@ Not verified: anything on Windows, the Desktop window with the React UI, mobile 
 Prerequisites: Git, .NET 10 SDK, Node.js 24 or 25 (`node --version`; the frontend refuses 26). The running lab deployment is not touched:
 the new package runs side by side with its own data directory and port.
 
+> Historical milestone commands (folder layout `server-win-x64`/`desktop-win-x64`). Current builds create a versioned folder with `server\` and
+> `desktop\`: see [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md#1-build-a-native-release).
+
 ```bat
 cd /d C:\src\sap-lens && git fetch origin && git checkout experiment/dotnet-backend && git pull --ff-only
 cd /d C:\src\sap-lens\experiments\dotnet-backend

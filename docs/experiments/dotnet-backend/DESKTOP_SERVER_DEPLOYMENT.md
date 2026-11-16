@@ -36,7 +36,8 @@ Fix:
 
 ```bash
 cd experiments/dotnet-backend
-dotnet publish src/SapLens.Api -c Release -r linux-x64 --self-contained true -o <out>/server-linux-x64   # or -r win-x64
+dotnet publish src/SapLens.Api -c Release -r linux-x64 --self-contained true -o <out>/server-linux-x64   # folder publish
+dotnet publish src/SapLens.Api -c Release -r win-x64 -o <out>/server   # single file: SapLens.Api.exe + e_sqlite3.dll (settings in the project)
 # run (no .NET or Python needed on the host)
 SAP_LENS_V2_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-dir /var/lib/saplens-v2 --port 18790 [--no-worker]
 ```
@@ -66,10 +67,10 @@ SAP_LENS_V2_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-
 ## Desktop
 
 ```bash
-dotnet publish src/SapLens.Desktop -c Release -o <out>/desktop-win-x64   # win-x64, self-contained, single file: set in the project
+dotnet publish src/SapLens.Desktop -c Release -o <out>/desktop   # win-x64, self-contained, single file: set in the project
 ```
 
-The package is `SapLens2Prototype.exe` (plus `.pdb` files that can be deleted). No `frontend` or `wwwroot` folder exists or is needed.
+The package is `SapLens2Prototype.exe` (plus `.pdb` files that can be deleted; the release scripts move them to `symbols\desktop`). No `frontend` or `wwwroot` folder exists or is needed.
 Arguments: `--data-dir <absolute path>` (default `%LOCALAPPDATA%\SAP Lens 2 Prototype\data`) and `--self-check` (start, probe, log, exit
 without a window: exit code 0 ready, 2 start or readiness failure, 1 another instance running).
 

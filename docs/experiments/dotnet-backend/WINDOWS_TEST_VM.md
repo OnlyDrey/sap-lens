@@ -32,34 +32,46 @@ Prerequisites: .NET 10 SDK, Node.js 24 or 25, Git. PowerShell 5.1 or 7.
 ```powershell
 cd C:\src\sap-lens
 git fetch origin experiment/dotnet-backend; git checkout experiment/dotnet-backend; git pull --ff-only
-$name = 'release-' + (Get-Date -Format 'yyyyMMdd-HHmm')
-.\experiments\dotnet-backend\scripts\build-release.ps1 -Output "C:\saplens2\builds\$name"
+powershell -NoProfile -ExecutionPolicy Bypass -File .\experiments\dotnet-backend\scripts\build-release.ps1 -Output C:\saplens2\builds
 ```
 
-`build-release.ps1` builds the UI and the solution, runs the tests, publishes and validates the packages, and writes `SHA256SUMS` and
-`manifest.json` last. It **does not install or start anything**. A completed build proves compilation, the automated tests and the publish
-step; it says nothing about runtime behaviour on this VM (see [section 8](#8-what-each-result-proves)).
+`-ExecutionPolicy Bypass` on the `powershell -File` call applies to that one process only; it changes no machine or user policy. `-Output` is the
+parent folder: each build creates a new folder `SAP-Lens-2-<version>-<UTC time>-<commit>-win-x64` inside it and never overwrites one.
 
-Output layout:
+`build-release.ps1` builds the UI and the solution, runs the tests, publishes both executables, validates the packages, writes `README.txt`,
+`build-manifest.json` and `SHA256SUMS`, and verifies them with `verify-release.ps1`. It **does not install or start anything**. A completed build
+proves compilation, the automated tests and the publish step; it says nothing about runtime behaviour on this VM (see
+[section 8](#8-what-each-result-proves)).
 
-| Path | Content |
+Release layout (self-contained single-file executables; no .NET installation needed; no trimming, Native AOT or compression):
+
+| Path in the release folder | Content |
 | --- | --- |
-| `C:\saplens2\builds\<name>\server-win-x64\SapLens.Api.exe` | Server (self-contained; runs as a console process or Windows service) |
-| `C:\saplens2\builds\<name>\desktop-win-x64\SapLens2Prototype.exe` | Desktop (single file, loopback only) |
-| `C:\saplens2\builds\<name>\manifest.json` | Source commit, dirty flag, SDK and Node versions, package sizes |
-| `C:\saplens2\builds\<name>\SHA256SUMS` | Checksums of every published file |
+| `server\SapLens.Api.exe` | Server: console process or Windows service. Everything managed, including the React UI, is inside the exe |
+| `server\e_sqlite3.dll` | SQLite native library. It stays beside the exe (loaded from there, never extracted to a temporary folder, which a service account may not be allowed to use) |
+| `desktop\SapLens2Prototype.exe` | Desktop (WebView2, loopback only). It extracts its native libraries (WebView2 loader, SQLite) to a temporary folder at start |
+| `symbols\server\`, `symbols\desktop\` | `.pdb` debugging symbols; not needed at runtime |
+| `build-manifest.json` | Commit, dirty flag, branch, version, build time (UTC), target platform, SDK and Node versions, publish settings, and the size and SHA-256 of every file |
+| `README.txt` | Which executable to run and how to configure the Server |
+| `SHA256SUMS` | SHA-256 of every file, `build-manifest.json` included (`sha256sum -c` format) |
+
+Nothing else belongs in the release folder: no `appsettings.json`, data, logs, certificates or secrets. The Server refuses a data directory
+inside its application folder (`startup refused: The data directory must be outside the application directory`), so a release folder can be
+replaced or deleted without touching data.
 
 ```powershell
-$release = Get-ChildItem C:\saplens2\builds -Directory | Sort-Object { (Get-Item (Join-Path $_.FullName 'manifest.json')).LastWriteTime } | Select-Object -Last 1
-Get-Content (Join-Path $release.FullName 'manifest.json')
-& (Join-Path $release.FullName 'server-win-x64\SapLens.Api.exe') --version
-& (Join-Path $release.FullName 'server-win-x64\SapLens.Api.exe') --help
+$release = Get-ChildItem C:\saplens2\builds -Directory -Filter 'SAP-Lens-2-*' | Sort-Object { (Get-Item (Join-Path $_.FullName 'build-manifest.json')).LastWriteTime } | Select-Object -Last 1
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\src\sap-lens\experiments\dotnet-backend\scripts\verify-release.ps1 -ReleasePath $release.FullName   # after copying a release, too
+Get-Content (Join-Path $release.FullName 'build-manifest.json') | Select-Object -First 12
+& (Join-Path $release.FullName 'server\SapLens.Api.exe') --version
+& (Join-Path $release.FullName 'server\SapLens.Api.exe') --help
 ```
 
 ## 2. Start the Server with the test launcher (recommended)
 
 `experiments\dotnet-backend\scripts\start-server-test.ps1` is a development and acceptance-testing utility, **not** a deployment mechanism.
-It picks the newest complete release under `C:\saplens2\builds` (one with `manifest.json` and every required runtime file), validates the
+It picks the newest complete release under `C:\saplens2\builds` (one with `build-manifest.json`, `server\SapLens.Api.exe` and `e_sqlite3.dll`;
+earlier folder-publish releases with `manifest.json` and `server-win-x64\` are still recognized), validates the
 configuration and runs the Server in the foreground.
 
 ```powershell
@@ -73,7 +85,7 @@ cd C:\src\sap-lens\experiments\dotnet-backend
 | Parameter | Default (example VM) | Notes |
 | --- | --- | --- |
 | `-BuildsRoot` | `C:\saplens2\builds` | Searched when `-ReleasePath` is not given |
-| `-ReleasePath` | none | A release folder or its `server-win-x64` folder |
+| `-ReleasePath` | none | A release folder, its `server` folder, or a plain `dotnet publish` folder |
 | `-ListenAddress` | `10.0.7.50` | Must be assigned to this machine; loopback and `0.0.0.0` are refused |
 | `-Port` | `18795` | Must be free on that address |
 | `-AllowedHosts` | the listen address | Host names or addresses clients type; the certificate SAN must cover each |
@@ -103,7 +115,7 @@ On Windows the end-to-end block (a fake `SapLens.Api.exe` shell script) is skipp
 The same configuration without the launcher. The password stays in its file; it never appears on the command line.
 
 ```powershell
-$server = Join-Path $release.FullName 'server-win-x64\SapLens.Api.exe'
+$server = Join-Path $release.FullName 'server\SapLens.Api.exe'
 & $server --data-dir 'C:\saplens2\runtime-test' --network --listen 10.0.7.50 --port 18795 --allowed-hosts 10.0.7.50 `
   --cert 'C:\ProgramData\SapLens2\tls\server.pfx' --cert-password-file 'C:\ProgramData\SapLens2\tls\cert-password'
 "exit code $LASTEXITCODE"
@@ -176,7 +188,7 @@ The Server never changes the firewall. An administrator adds one rule: this prog
 Private profiles only.
 
 ```powershell
-$exe = Join-Path $release.FullName 'server-win-x64\SapLens.Api.exe'
+$exe = Join-Path $release.FullName 'server\SapLens.Api.exe'
 New-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (test VM)' -Direction Inbound -Action Allow -Protocol TCP `
   -LocalAddress 10.0.7.50 -LocalPort 18795 -RemoteAddress 10.0.7.0/24 -Profile Domain,Private -Program $exe
 Get-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (test VM)' | Get-NetFirewallAddressFilter
@@ -215,7 +227,7 @@ Record each level separately. A successful build is **never** runtime acceptance
 | --- | --- | --- |
 | 1 Compilation | `dotnet build` / `build-release.ps1` without errors | Reported for `ea09de2` on the VM |
 | 2 Automated tests | `dotnet test` (Linux and Windows) and Pester launcher tests | Reported for `ea09de2` (238 tests); later commits validated on Linux only |
-| 3 Publish | `server-win-x64` and `desktop-win-x64` produced, validated and checksummed | Reported for `ea09de2` (Server 117 MB, Desktop 151 MB) |
+| 3 Publish | `server\` and `desktop\` produced, validated, checksummed and verified (`verify-release.ps1`) | Folder layout reported for `ea09de2` (Server 117 MB, Desktop 151 MB); single-file layout built and verified on Linux only (Server 108.5 MB, Desktop 150.1 MB) |
 | 4 Native Server startup | Section 3: `Listening on ... (https)` and no refusal | Pending |
 | 5 HTTPS connectivity | Section 4 from the VM and another machine; valid chain without `-k` | Pending |
 | 6 Browser UI | React UI loads with a valid lock from another machine | Pending |

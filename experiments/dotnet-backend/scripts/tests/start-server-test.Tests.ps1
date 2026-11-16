@@ -4,16 +4,17 @@ BeforeAll {
     $script:Launcher = (Resolve-Path (Join-Path $PSScriptRoot '..\start-server-test.ps1')).Path
     . $script:Launcher
 
-    function New-FakeRelease([string]$Root, [string]$Name, [datetime]$Built, [string[]]$Skip = @(), [switch]$NoManifest, [string]$ExeContent = '') {
-        $server = Join-Path (Join-Path $Root $Name) 'server-win-x64'
+    function New-FakeRelease([string]$Root, [string]$Name, [datetime]$Built, [string[]]$Skip = @(), [switch]$NoManifest, [string]$ExeContent = '', [switch]$Legacy) {
+        $layout = if ($Legacy) { $script:Layouts[1] } else { $script:Layouts[0] }
+        $server = Join-Path (Join-Path $Root $Name) $layout.Folder
         New-Item -ItemType Directory -Force $server | Out-Null
-        foreach ($file in $script:RequiredServerFiles) { if ($Skip -notcontains $file) { Set-Content -LiteralPath (Join-Path $server $file) -Value 'x' } }
+        foreach ($file in $layout.Required) { if ($Skip -notcontains $file) { Set-Content -LiteralPath (Join-Path $server $file) -Value 'x' } }
         if ($ExeContent) {
             [System.IO.File]::WriteAllText((Join-Path $server 'SapLens.Api.exe'), $ExeContent.Replace("`r`n", "`n"))
             if ([System.IO.Path]::DirectorySeparatorChar -eq '/') { & chmod +x (Join-Path $server 'SapLens.Api.exe') }
         }
         if (-not $NoManifest) {
-            $manifest = Join-Path (Join-Path $Root $Name) 'manifest.json'
+            $manifest = Join-Path (Join-Path $Root $Name) $layout.Manifest
             Set-Content -LiteralPath $manifest -Value '{"source_sha":"0123456789abcdef","source_dirty":false}'
             (Get-Item -LiteralPath $manifest).LastWriteTimeUtc = $Built
         }
@@ -34,12 +35,23 @@ Describe 'Release selection' {
     It 'selects the newest complete release and skips incomplete or unfinished ones' {
         New-FakeRelease $builds 'r1-old' ([datetime]'2026-11-01T10:00:00Z') | Out-Null
         $expected = New-FakeRelease $builds 'r2-good' ([datetime]'2026-11-10T10:00:00Z')
-        New-FakeRelease $builds 'r3-missing-runtime' ([datetime]'2026-11-12T10:00:00Z') -Skip 'hostfxr.dll' | Out-Null
+        New-FakeRelease $builds 'r3-missing-runtime' ([datetime]'2026-11-12T10:00:00Z') -Skip 'e_sqlite3.dll' | Out-Null
+        New-FakeRelease $builds 'r3b-legacy-incomplete' ([datetime]'2026-11-12T11:00:00Z') -Legacy -Skip 'hostfxr.dll' | Out-Null
         New-FakeRelease $builds 'r4-interrupted' ([datetime]'2026-11-13T10:00:00Z') -NoManifest | Out-Null
         New-Item -ItemType Directory (Join-Path $builds 'r5-empty') | Out-Null
         $release = Resolve-ServerRelease -BuildsRoot $builds -ReleasePath ''
         $release.Release | Should -Be (Get-Item $expected).FullName
-        $release.Executable | Should -Be (Join-Path (Join-Path $expected 'server-win-x64') 'SapLens.Api.exe')
+        $release.Executable | Should -Be (Join-Path (Join-Path $expected 'server') 'SapLens.Api.exe')
+        $release.Layout | Should -Be 'single-file'
+    }
+
+    It 'still recognizes earlier folder-publish releases' {
+        $legacy = New-FakeRelease $builds 'legacy' ([datetime]'2026-11-20T10:00:00Z') -Legacy
+        New-FakeRelease $builds 'current' ([datetime]'2026-11-10T10:00:00Z') | Out-Null
+        $release = Resolve-ServerRelease -BuildsRoot $builds -ReleasePath ''
+        $release.Release | Should -Be (Get-Item $legacy).FullName
+        $release.Layout | Should -Be 'folder'
+        $release.Server | Should -Be (Join-Path (Get-Item $legacy).FullName 'server-win-x64')
     }
 
     It 'fails when no complete release exists' {
@@ -50,10 +62,15 @@ Describe 'Release selection' {
 
     It 'accepts -ReleasePath as the release folder or its server folder and validates it' {
         $release = New-FakeRelease $builds 'manual' ([datetime]'2026-11-10T10:00:00Z')
-        (Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath $release).Server | Should -Be (Join-Path (Get-Item $release).FullName 'server-win-x64')
-        (Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath (Join-Path $release 'server-win-x64')).Release | Should -Be (Get-Item $release).FullName
-        $broken = New-FakeRelease $builds 'broken' ([datetime]'2026-11-10T10:00:00Z') -Skip 'e_sqlite3.dll', 'coreclr.dll'
-        { Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath $broken } | Should -Throw '*missing*coreclr.dll, e_sqlite3.dll*'
+        (Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath $release).Server | Should -Be (Join-Path (Get-Item $release).FullName 'server')
+        (Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath (Join-Path $release 'server')).Release | Should -Be (Get-Item $release).FullName
+        $broken = New-FakeRelease $builds 'broken' ([datetime]'2026-11-10T10:00:00Z') -Skip 'e_sqlite3.dll'
+        { Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath $broken } | Should -Throw '*missing*e_sqlite3.dll*'
+        $legacyBroken = New-FakeRelease $builds 'legacy-broken' ([datetime]'2026-11-10T10:00:00Z') -Legacy -Skip 'e_sqlite3.dll', 'coreclr.dll'
+        { Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath $legacyBroken } | Should -Throw '*missing*coreclr.dll, e_sqlite3.dll*'
+        $plain = Join-Path $builds 'plain-publish'; New-Item -ItemType Directory $plain | Out-Null
+        foreach ($file in $script:RequiredServerFiles) { Set-Content (Join-Path $plain $file) 'x' }
+        (Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath $plain).Server | Should -Be (Get-Item $plain).FullName
         { Resolve-ServerRelease -BuildsRoot 'unused' -ReleasePath (Join-Path $builds 'nope') } | Should -Throw '*does not exist*'
     }
 }
@@ -190,5 +207,50 @@ Describe 'End to end with a fake Server executable' -Skip:([System.IO.Path]::Dir
         $refused = Invoke-Launcher (Join-Path $TestDrive 'no-builds') @('-DryRun')
         $refused.Code | Should -Be 2
         $refused.Output | Should -Match 'start-server-test: Builds folder'
+    }
+}
+
+Describe 'Release verification' {
+    BeforeAll {
+        $script:Verify = (Resolve-Path (Join-Path $PSScriptRoot '..\verify-release.ps1')).Path
+        function New-VerifiableRelease([string]$Path) {
+            New-Item -ItemType Directory -Force (Join-Path $Path 'server'), (Join-Path $Path 'desktop') | Out-Null
+            Set-Content (Join-Path $Path 'server/SapLens.Api.exe') 'server'; Set-Content (Join-Path $Path 'server/e_sqlite3.dll') 'sqlite'
+            Set-Content (Join-Path $Path 'desktop/SapLens2Prototype.exe') 'desktop'; Set-Content (Join-Path $Path 'README.txt') 'readme'
+            $artifacts = foreach ($relative in 'README.txt', 'desktop/SapLens2Prototype.exe', 'server/SapLens.Api.exe', 'server/e_sqlite3.dll') {
+                $file = Get-Item (Join-Path $Path $relative)
+                [ordered]@{ path = $relative; bytes = $file.Length; sha256 = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
+            }
+            $manifest = [ordered]@{ source_sha = 'abc'; build_timestamp_utc = '2026-11-16T10:00:00Z'; target_platform = 'win-x64'
+                executables = [ordered]@{ server = 'server/SapLens.Api.exe'; desktop = 'desktop/SapLens2Prototype.exe' }; artifacts = @($artifacts) }
+            [System.IO.File]::WriteAllText((Join-Path $Path 'build-manifest.json'), ($manifest | ConvertTo-Json -Depth 5))
+            $sums = foreach ($relative in @('build-manifest.json') + @($artifacts | ForEach-Object { $_.path })) {
+                '{0}  ./{1}' -f (Get-FileHash (Join-Path $Path $relative) -Algorithm SHA256).Hash.ToLowerInvariant(), $relative }
+            [System.IO.File]::WriteAllText((Join-Path $Path 'SHA256SUMS'), (($sums -join "`n") + "`n"))
+        }
+        function Invoke-Verify([string]$Path) {
+            $output = & pwsh -NoProfile -NonInteractive -File $script:Verify -ReleasePath $Path 2>&1
+            @{ Code = $LASTEXITCODE; Output = ($output | Out-String) }
+        }
+    }
+
+    It 'accepts an intact release' {
+        $path = Join-Path $TestDrive 'intact'; New-VerifiableRelease $path
+        $run = Invoke-Verify $path
+        $run.Code | Should -Be 0
+        $run.Output | Should -Match 'Release verified: 4 artifacts'
+    }
+
+    It 'detects <Name>' -ForEach @(
+        @{ Name = 'a modified executable'; Change = { param($p) Add-Content (Join-Path $p 'server/SapLens.Api.exe') 'tampered' }; Message = 'differs: server/SapLens.Api.exe' }
+        @{ Name = 'a missing native library'; Change = { param($p) Remove-Item (Join-Path $p 'server/e_sqlite3.dll') }; Message = 'missing: server/e_sqlite3.dll' }
+        @{ Name = 'an added file'; Change = { param($p) Set-Content (Join-Path $p 'server/appsettings.json') '{}' }; Message = 'not in the manifest: server/appsettings.json' }
+        @{ Name = 'an edited manifest'; Change = { param($p) Add-Content (Join-Path $p 'build-manifest.json') ' ' }; Message = 'SHA256SUMS checksum differs: build-manifest.json' }
+    ) {
+        $path = Join-Path $TestDrive ([guid]::NewGuid().ToString('n')); New-VerifiableRelease $path
+        & $Change $path
+        $run = Invoke-Verify $path
+        $run.Code | Should -Be 1
+        $run.Output | Should -Match ([regex]::Escape($Message))
     }
 }

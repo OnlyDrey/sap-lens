@@ -12,6 +12,7 @@ public static class SapLensHost
     {
         settings.Validate();
         DatabaseOptions.ValidateLocal(settings.DataDirectory);
+        RefuseInsideApplication(settings.DataDirectory);
         var ui = UiAssets.Create();
         var tls = PrepareCertificate(settings);
         // Content root is the application directory (never the current working directory); no file is read from it at runtime.
@@ -28,6 +29,10 @@ public static class SapLensHost
             });
         });
         builder.Logging.ClearProviders();
+        // Log levels are part of the executable (no appsettings.json is shipped or required next to it).
+        builder.Logging.SetMinimumLevel(LogLevel.Information);
+        builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+        builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
         // TLS handshake failures are logged by Kestrel at Debug (exception and connection id, no secrets); keep them, they are the only server-side
         // trace of a client that "just sees EOF".
         builder.Logging.AddFilter("Microsoft.AspNetCore.Server.Kestrel.Https", LogLevel.Debug);
@@ -79,6 +84,17 @@ public static class SapLensHost
         V1Compatibility.Map(app);
         MapSession(app, settings);
         return app;
+    }
+
+    /// <summary>Runtime data (database, token, accounts, logs) never lives in the application folder, which is replaced on every upgrade and readable by
+    /// everyone who can run the program.</summary>
+    internal static void RefuseInsideApplication(string dataDirectory, string? applicationDirectory = null)
+    {
+        var app = Path.GetFullPath(applicationDirectory ?? AppContext.BaseDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var data = Path.GetFullPath(dataDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (data.Equals(app, comparison) || data.StartsWith(app + Path.DirectorySeparatorChar, comparison))
+            throw new InvalidOperationException($"The data directory must be outside the application directory ({app}).");
     }
 
     /// <summary>The certificate Kestrel will use, prepared for this operating system's TLS stack and proven by a real handshake before the host is built:

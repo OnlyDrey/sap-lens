@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
-# Repeatable release build on Linux: React UI, .NET build and tests, self-contained server-linux-x64 plus the Windows packages (cross-published).
+# Repeatable release build on Linux: React UI, .NET build and tests, then two versioned release folders under OUTPUT_DIR (default artifacts/release):
+#   SAP-Lens-2-<version>-<UTC time>-<commit>-win-x64/   the same layout as build-release.ps1 (server/, desktop/, symbols/, build-manifest.json, README.txt,
+#                                                       SHA256SUMS), cross-published
+#   SAP-Lens-2-<version>-<UTC time>-<commit>-linux-x64/ server/SapLens.Api (single file) and libe_sqlite3.so, symbols/, build-manifest.json, SHA256SUMS
+# Self-contained single-file executables; no trimming, Native AOT or compression. Nothing is installed or started.
 #   scripts/build-release.sh [OUTPUT_DIR] [--skip-tests] [--skip-publish-tests] [--allow-unsupported-node]
 set -euo pipefail
 root="$(cd "$(dirname "$0")/.." && pwd)"; frontend="$(cd "$root/../../frontend" && pwd)"
@@ -14,7 +18,11 @@ if [ "$major" -lt 24 ] || [ "$major" -gt 25 ]; then
 fi
 sha="$(git -C "$root" rev-parse HEAD)"
 dirty="$(git -C "$root" status --porcelain -- . ../../frontend | head -1)"
-if [ -n "$dirty" ]; then echo "warning: the working tree has uncommitted changes; the manifest records dirty=true" >&2; fi
+if [ -n "$dirty" ]; then echo "warning: the working tree has uncommitted changes; the manifest records source_dirty=true" >&2; fi
+version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$root/Directory.Build.props" | head -1)"
+now="$(date -u +%s)"; stamp="$(date -u -d "@$now" +%Y%m%d-%H%M%S)"; built="$(date -u -d "@$now" +%Y-%m-%dT%H:%M:%SZ)"; shown="$(date -u -d "@$now" '+%Y-%m-%d %H:%M:%S')"
+win="$output/SAP-Lens-2-$version-$stamp-${sha:0:7}-win-x64"; linux="$output/SAP-Lens-2-$version-$stamp-${sha:0:7}-linux-x64"
+for release in "$win" "$linux"; do [ ! -e "$release" ] || { echo "$release exists; an existing release is never overwritten" >&2; exit 1; }; done
 identity=(-p:SourceRevisionId="$sha")
 (cd "$frontend" && npm ci --no-audit --no-fund && npm run build)
 # The solution contains every project, the test project included, so `dotnet test --no-build` runs exactly what this build produced (with the UI
@@ -24,33 +32,54 @@ if [ "$tests" = 1 ]; then
   if [ "$publish_tests" = 1 ]; then dotnet test "$root/tests/SapLens.Tests" -c Release --no-build
   else dotnet test "$root/tests/SapLens.Tests" -c Release --no-build --filter "Category!=Publish"; fi
 fi
-rm -rf "$output"; mkdir -p "$output"
-dotnet publish "$root/src/SapLens.Api" -c Release -r linux-x64 --self-contained true -o "$output/server-linux-x64" "${identity[@]}"
-dotnet publish "$root/src/SapLens.Api" -c Release -r win-x64 --self-contained true -o "$output/server-win-x64" "${identity[@]}"
-dotnet publish "$root/src/SapLens.Desktop" -c Release -o "$output/desktop-win-x64" "${identity[@]}"
-# Artifact validation: build identity stamped in every package, React UI embedded, no loose UI folders.
-for check in "server-linux-x64/SapLens.Api.dll" "server-win-x64/SapLens.Api.dll" "desktop-win-x64/SapLens2Prototype.exe"; do
-  grep -qa "+$sha" "$output/$check" || { echo "build identity $sha missing in $check" >&2; exit 1; }
-  # The UI is embedded as resources named SapLensUi/<path> (the separator after "assets" is the build machine's; the server normalizes it).
-  grep -qa 'SapLensUi/index.html' "$output/$check" || { echo "index.html missing from the embedded UI of $check" >&2; exit 1; }
-  grep -qaE 'SapLensUi/assets[/\\]' "$output/$check" || { echo "React UI assets missing in $check" >&2; exit 1; }
+mkdir -p "$output"
+# Windows single-file settings live in the project files; Linux passes the same ones explicitly (native library beside the executable, not extracted).
+dotnet publish "$root/src/SapLens.Api" -c Release -r win-x64 -o "$win/server" "${identity[@]}"
+dotnet publish "$root/src/SapLens.Desktop" -c Release -o "$win/desktop" "${identity[@]}"
+dotnet publish "$root/src/SapLens.Api" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false \
+  -o "$linux/server" "${identity[@]}"
+for release in "$win" "$linux"; do
+  for part in server desktop; do
+    [ -d "$release/$part" ] || continue
+    mkdir -p "$release/symbols/$part"; find "$release/$part" -maxdepth 1 -name '*.pdb' -exec mv {} "$release/symbols/$part/" \;
+  done
 done
-for package in server-linux-x64 server-win-x64 desktop-win-x64; do [ ! -d "$output/$package/wwwroot" ] && [ ! -d "$output/$package/frontend" ] || { echo "unexpected loose UI folder in $package" >&2; exit 1; }; done
-(cd "$output" && find . -type f ! -name SHA256SUMS ! -name manifest.json | sort | xargs sha256sum > SHA256SUMS)
-python3 - "$output" "$sha" "${dirty:+true}" <<'PY'
+sed -e "s/{{VERSION}}/$version/" -e "s/{{SHA}}/$sha/" -e "s/{{BUILT}}/$shown/" -e "s/{{PLATFORM}}/Windows x64/" \
+  "$root/scripts/release-README.txt" | sed 's/$/\r/' > "$win/README.txt"
+
+# Artifact validation, manifests and checksums (same schema as build-release.ps1).
+python3 - "$win" "$linux" "$sha" "${dirty:+true}" "$version" "$built" <<'PY'
 import hashlib, json, subprocess, sys
 from pathlib import Path
-out, sha, dirty = Path(sys.argv[1]), sys.argv[2], sys.argv[3] == 'true'
+win, linux, sha, dirty, version, built = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4] == 'true', sys.argv[5], sys.argv[6]
 def run(*cmd): return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
-packages = {}
-for package in sorted(p for p in out.iterdir() if p.is_dir()):
-    files = sorted(f for f in package.rglob('*') if f.is_file())
-    packages[package.name] = dict(files=len(files), bytes=sum(f.stat().st_size for f in files))
-manifest = dict(product='SAP Lens 2 (.NET experiment)', version='0.0.0-experiment', source_sha=sha, source_dirty=dirty, branch=run('git', 'rev-parse', '--abbrev-ref', 'HEAD'),
-                dotnet_sdk=run('dotnet', '--version'), node=run('node', '--version'), packages=packages,
-                checksums_sha256=hashlib.sha256((out / 'SHA256SUMS').read_bytes()).hexdigest())
-(out / 'manifest.json').write_text(json.dumps(manifest, indent=1) + '\n')
-print(json.dumps(manifest, indent=1))
+def files(folder): return sorted(str(f.relative_to(folder)).replace('\\', '/') for f in folder.rglob('*') if f.is_file())
+def check(cond, message):
+    if not cond: sys.exit(f'release validation failed: {message}')
+expected = {win: {'server': ['SapLens.Api.exe', 'e_sqlite3.dll'], 'desktop': ['SapLens2Prototype.exe']}, linux: {'server': ['SapLens.Api', 'libe_sqlite3.so']}}
+for release, parts in expected.items():
+    for part, names in parts.items():
+        check(files(release / part) == sorted(names), f'{release.name}/{part} holds {files(release / part)}, expected {sorted(names)}')
+for exe in (win / 'server/SapLens.Api.exe', win / 'desktop/SapLens2Prototype.exe', linux / 'server/SapLens.Api'):
+    data = exe.read_bytes()
+    check(f'+{sha}'.encode() in data, f'build identity missing in {exe.name}')
+    check(b'SapLensUi/index.html' in data, f'index.html missing from the embedded UI of {exe.name}')
+    check(b'SapLensUi/assets/' in data or b'SapLensUi/assets\\' in data, f'React UI assets missing in {exe.name}')
+check(b'Microsoft.Extensions.Hosting.WindowsServices.dll' in (win / 'server/SapLens.Api.exe').read_bytes(), 'Windows service host missing')
+def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
+for release, platform in ((win, 'win-x64'), (linux, 'linux-x64')):
+    executables = {'server': 'server/SapLens.Api.exe', 'desktop': 'desktop/SapLens2Prototype.exe'} if platform == 'win-x64' else {'server': 'server/SapLens.Api'}
+    artifacts = [dict(path=p, bytes=(release / p).stat().st_size, sha256=digest(release / p)) for p in files(release)]
+    manifest = dict(schema=1, product='SAP Lens 2 (.NET experiment)', version=version, source_sha=sha, source_dirty=dirty,
+                    source_committed_at=run('git', 'log', '-1', '--format=%cI'), branch=run('git', 'rev-parse', '--abbrev-ref', 'HEAD'), build_timestamp_utc=built,
+                    target_platform=platform, dotnet_sdk=run('dotnet', '--version'), node=run('node', '--version'),
+                    publish=dict(self_contained=True, single_file=True, trimmed=False, native_aot=False, compressed=False,
+                                 server_native_libraries='beside the executable', **({'desktop_native_libraries': 'bundled, extracted to a temporary folder at start'} if platform == 'win-x64' else {})),
+                    executables=executables, artifacts=artifacts)
+    (release / 'build-manifest.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    sums = [f'{digest(release / p)}  ./{p}' for p in files(release) if p != 'SHA256SUMS']
+    (release / 'SHA256SUMS').write_text('\n'.join(sums) + '\n')
+    print(f'{release.name}: ' + ', '.join(f"{a['path']} {a['bytes'] / 1048576:.1f} MB" for a in artifacts if a['path'] in executables.values()))
 PY
-du -sh "$output"/*
-echo "Release build complete. Nothing was installed or started."
+for release in "$win" "$linux"; do (cd "$release" && sha256sum --quiet -c SHA256SUMS); done
+echo "Release build complete: $win and $linux. Nothing was installed or started."

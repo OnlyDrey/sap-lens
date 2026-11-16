@@ -14,6 +14,30 @@
     <SapLensFrontendDist>$(SapLensFrontendRoot)/dist</SapLensFrontendDist>
   </PropertyGroup>
 
+  <!-- Windows Server package: one self-contained single-file SapLens.Api.exe. Native libraries (SQLite's e_sqlite3.dll) stay next to the exe instead of
+       being extracted to %TEMP% at startup, which a Windows service account may not be allowed to use. No trimming, Native AOT or compression (not
+       validated). No IIS web.config: the Server is not hosted by IIS. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>false</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishAot>false</PublishAot>
+    <IsTransformWebConfigDisabled>true</IsTransformWebConfigDisabled>
+  </PropertyGroup>
+
+  <!-- Not used by this self-hosted (Kestrel) server: the IIS in-process module and the static web assets endpoint manifest (the UI is embedded). -->
+  <Target Name="DropUnusedServerFiles" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'aspnetcorev2_inprocess.dll'" />
+    </ItemGroup>
+  </Target>
+  <!-- The static web assets SDK copies its endpoint manifest after the publish list is computed; the server never reads it (the UI is embedded). -->
+  <Target Name="DropStaticWebAssetsManifest" AfterTargets="Publish">
+    <Delete Files="$(PublishDir)$(TargetName).staticwebassets.endpoints.json" />
+  </Target>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.15" />
@@ -22,6 +46,8 @@
 
   <ItemGroup>
     <Content Remove="wwwroot\**" />
+    <!-- Embedded below; never published as loose files. -->
+    <Content Remove="V1Reference\**" />
     <EmbeddedResource Include="wwwroot\**" LogicalName="SapLensUi/%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Reference data exported from Python v1 by tools/export_v1_reference.py; read by the v1 compatibility API, not served as files. -->
     <EmbeddedResource Include="V1Reference\*.json;V1Reference\*.xlsx" LogicalName="V1Reference.%(Filename)%(Extension)" ExcludeFromManifest="true" />

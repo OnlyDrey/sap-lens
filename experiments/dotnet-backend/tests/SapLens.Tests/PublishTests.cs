@@ -16,11 +16,12 @@ public sealed class PublishFixture : IDisposable
     public string Root { get; } = Directory.CreateTempSubdirectory("saplens-publish-").FullName;
     private readonly Dictionary<string, string> _outputs = new();
 
-    public string Get(string project, string rid)
+    public string Get(string project, string rid, params string[] properties)
     {
         lock (_outputs)
         {
-            if (!_outputs.TryGetValue(project + rid, out var output)) _outputs[project + rid] = output = PublishTests.Publish(Root, project, rid);
+            var key = project + rid + string.Join(";", properties);
+            if (!_outputs.TryGetValue(key, out var output)) _outputs[key] = output = PublishTests.PublishTo(Root, project, rid, properties);
             return output;
         }
     }
@@ -45,7 +46,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         try { Directory.Delete(_root, true); } catch (IOException) { } catch (UnauthorizedAccessException) { }
     }
 
-    private string Publish(string project, string rid) => fixture.Get(project, rid);
+    private string Publish(string project, string rid, params string[] properties) => fixture.Get(project, rid, properties);
 
     private static string RepoProject(string name)
     {
@@ -54,15 +55,17 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         return Path.Combine(dir!.FullName, "src", name, name + ".csproj");
     }
 
-    internal static string Publish(string root, string project, string rid)
+    internal static string PublishTo(string root, string project, string rid, params string[] properties)
     {
-        var output = Path.Combine(root, $"{project}-{rid}");
+        var variant = properties.Length == 0 ? "" : "-" + Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(string.Join(";", properties))))[..8];
+        var output = Path.Combine(root, $"{project}-{rid}{variant}");
         var info = new ProcessStartInfo("dotnet") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, WorkingDirectory = root };
         foreach (var arg in new[] { "publish", RepoProject(project), "-c", "Release", "-r", rid, "--self-contained", "true", "-o", output,
-                     "--artifacts-path", Path.Combine(root, "artifacts-" + project + "-" + rid), "-nologo",
+                     "--artifacts-path", Path.Combine(root, "artifacts-" + project + "-" + rid + variant), "-nologo",
                      // No long-lived MSBuild nodes or compiler server: they would inherit the redirected pipes and keep them open after publish exits.
                      "-nodeReuse:false", "-p:UseSharedCompilation=false" })
             info.ArgumentList.Add(arg);
+        foreach (var property in properties) info.ArgumentList.Add("-p:" + property);
         info.Environment["MSBUILDDISABLENODEREUSE"] = "1";
         info.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         using var process = Process.Start(info)!;
@@ -131,16 +134,86 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         }
     }
 
+    private static string[] Files(string output) =>
+        [.. Directory.GetFiles(output, "*", SearchOption.AllDirectories).Select(f => Path.GetRelativePath(output, f).Replace('\\', '/')).Order(StringComparer.Ordinal)];
+
     [Fact]
-    public void Published_windows_server_contains_the_embedded_ui()
+    public void Published_windows_server_is_one_single_file_exe_with_sqlite_beside_it()
     {
         var output = Publish("SapLens.Api", "win-x64");
-        Assert.True(File.Exists(Path.Combine(output, "SapLens.Api.exe")));
-        Assert.False(Directory.Exists(Path.Combine(output, "wwwroot")));
-        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), UiAssets.Marker));
-        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), "SapLensUi/index.html"));
-        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), "SapLensUi/assets")); // the React build output
-        Assert.True(File.Exists(Path.Combine(output, "Microsoft.Extensions.Hosting.WindowsServices.dll"))); // runs as a Windows service
+        // Everything managed (the server, the embedded React UI, ASP.NET Core, the Windows service host) is inside SapLens.Api.exe; the only other
+        // runtime file is SQLite's native library, deliberately not self-extracted to %TEMP%. Symbols are collected separately by the release scripts.
+        Assert.Equal(["SapLens.Api.exe", "e_sqlite3.dll"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));
+        var exe = Path.Combine(output, "SapLens.Api.exe");
+        Assert.True(Contains(exe, UiAssets.Marker));
+        Assert.True(Contains(exe, "SapLensUi/index.html"));
+        Assert.True(Contains(exe, "SapLensUi/assets")); // the React build output
+        Assert.True(Contains(exe, "Microsoft.Extensions.Hosting.WindowsServices.dll")); // runs as a Windows service
+        Assert.True(Contains(exe, "System.Private.CoreLib.dll"));                         // self-contained
+        Assert.True(Contains(exe, "SapLens.Api.runtimeconfig.json"));
+        Assert.True(new FileInfo(exe).Length > 50_000_000);
+    }
+
+    [Fact]
+    public async Task Single_file_server_runs_without_extraction_and_keeps_data_outside_the_application()
+    {
+        // The Windows exe cannot run here; this is the same bundling mode on linux-x64 (managed code in one file, the native SQLite library beside it).
+        if (!OperatingSystem.IsLinux()) return;
+        var output = Publish("SapLens.Api", "linux-x64", "PublishSingleFile=true", "IncludeNativeLibrariesForSelfExtract=false");
+        Assert.Equal(["SapLens.Api", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));
+        var extract = Directory.CreateDirectory(Path.Combine(_root, "extract")).FullName;
+        async Task<(int Code, string Out, string Error)> Run(params string[] args)
+        {
+            var info = new ProcessStartInfo(Path.Combine(output, "SapLens.Api")) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            foreach (var arg in args) info.ArgumentList.Add(arg);
+            info.Environment["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = extract;
+            info.Environment["SAP_LENS_V2_TOKEN"] = HostSettings.NewToken();
+            using var process = Process.Start(info)!;
+            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stderr = process.StandardError.ReadToEndAsync();
+            Assert.True(process.WaitForExit(30000));
+            return (process.ExitCode, await stdout, await stderr);
+        }
+        var version = await Run("--version");
+        Assert.Equal(0, version.Code);
+        Assert.StartsWith("SAP Lens 2 server ", version.Out);
+        Assert.Contains("--trusted-proxies", (await Run("--help")).Out);
+        var inside = await Run("--data-dir", Path.Combine(output, "data"), "--port", FreePort().ToString());
+        Assert.Equal(3, inside.Code);
+        Assert.Contains("outside the application directory", inside.Error);
+
+        var token = HostSettings.NewToken();
+        var port = FreePort();
+        var info = new ProcessStartInfo(Path.Combine(output, "SapLens.Api")) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var arg in new[] { "--data-dir", Path.Combine(_root, "single-file-data"), "--port", port.ToString() }) info.ArgumentList.Add(arg);
+        info.Environment["SAP_LENS_V2_TOKEN"] = token;
+        info.Environment["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = extract;
+        using var server = Process.Start(info)!;
+        _ = server.StandardOutput.ReadToEndAsync();
+        _ = server.StandardError.ReadToEndAsync();
+        try
+        {
+            using var http = new HttpClient(new HttpClientHandler { UseProxy = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
+            var probe = await StartupProbe.WaitAsync(http.BaseAddress, TimeSpan.FromSeconds(30), token: token);   // readiness (SQLite migrated) and the UI at "/"
+            Assert.True(probe.Ok, probe.Problem);
+            var index = await http.GetStringAsync("/");
+            var script = System.Text.RegularExpressions.Regex.Match(index, "src=\"(/assets/[^\"]+\\.js)\"").Groups[1].Value;
+            Assert.NotEmpty(script);
+            var asset = await http.GetAsync(script);
+            Assert.Equal(HttpStatusCode.OK, asset.StatusCode);
+            Assert.Equal("text/javascript", asset.Content.Headers.ContentType!.MediaType);
+            using var authorized = new HttpRequestMessage(HttpMethod.Get, "/api/v1/roles");
+            authorized.Headers.Add(RequestBoundary.TokenHeader, token);
+            Assert.Equal(HttpStatusCode.OK, (await http.SendAsync(authorized)).StatusCode);       // SQLite through the native library beside the exe
+            Assert.True(File.Exists(Path.Combine(_root, "single-file-data", "sap-lens-v2.sqlite3")));
+            Assert.Empty(Directory.GetFileSystemEntries(extract));                                // nothing extracted
+            Assert.Equal(["SapLens.Api", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // nothing written next to the exe
+        }
+        finally
+        {
+            server.Kill(entireProcessTree: true);
+            server.WaitForExit(10000);
+        }
     }
 
     private async Task<(int? ExitCode, string Error)> RunServer(string output, string[] args, Func<HttpClient, Task>? whileRunning = null, Func<HttpMessageHandler>? handler = null, Uri? baseAddress = null)
@@ -238,5 +311,6 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         Assert.True(Contains(exe, "WebView2Loader.dll"));
         Assert.True(Contains(exe, "System.Private.CoreLib.dll"));
         Assert.True(new FileInfo(exe).Length > 50_000_000);
+        Assert.Equal(["SapLens2Prototype.exe"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // no loose server host, docs or settings
     }
 }
