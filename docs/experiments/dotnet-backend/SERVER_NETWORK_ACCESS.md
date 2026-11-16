@@ -66,25 +66,90 @@ Expected: the first test confirms the premise (the original key is ephemeral, th
 handshake; a failure would print `startup refused: The TLS certificate cannot be used by this system's TLS stack (...)` and exit 3). Stop it
 with Ctrl+C, then `set SAP_LENS_V2_CERT_PASSWORD=`. The lab PFX and password are for this check only.
 
-## 2. Configuration
+## 2. Configuration reference
+
+Source of truth: `ServerConfiguration.cs` (parsing), `HostSettings.cs` (validation), `SapLensHost.cs` (startup), covered by `NetworkPolicyTests`,
+`LanHttpsTests` and `PublishTests`. `SapLens.Api --help` prints the same list; `SapLens.Api --version` prints the version and source commit.
+Both exit 0 without reading any configuration.
 
 | Setting | Option | Environment variable | Default |
 | --- | --- | --- | --- |
-| Data directory (absolute, local) | `--data-dir` | `SAP_LENS_V2_DATA_DIR` | required |
+| Data directory (absolute, local) | `--data-dir` | `SAP_LENS_V2_DATA_DIR` | **required**, no default |
 | Listen address (IP literal) | `--listen` | `SAP_LENS_V2_LISTEN` | `127.0.0.1` |
 | Port (HTTPS when a certificate is set) | `--port` | `SAP_LENS_V2_PORT` | `18790` |
 | Network access enabled | `--network` | `SAP_LENS_V2_NETWORK=true` | disabled |
 | Host names / addresses clients use | `--allowed-hosts a,b` | `SAP_LENS_V2_ALLOWED_HOSTS` | none |
-| Certificate (`.pfx`/`.p12`, or PEM) | `--cert` | `SAP_LENS_V2_CERT` | none |
+| Certificate (`.pfx`/`.p12`, or PEM) | `--cert` | `SAP_LENS_V2_CERT` | none (HTTP) |
 | PEM private key | `--cert-key` | `SAP_LENS_V2_CERT_KEY` | none |
-| Certificate password | `--cert-password-file` (preferred) | `SAP_LENS_V2_CERT_PASSWORD_FILE`, or `SAP_LENS_V2_CERT_PASSWORD` | none |
-| Access token | (never an option) | `SAP_LENS_V2_TOKEN` | generated once into `<data-dir>/api-token` |
+| Certificate password file | `--cert-password-file` (preferred) | `SAP_LENS_V2_CERT_PASSWORD_FILE` | none |
+| Certificate password | (never an option) | `SAP_LENS_V2_CERT_PASSWORD`, used only without a password file | none |
+| Access token (API clients, at least 32 characters) | (never an option) | `SAP_LENS_V2_TOKEN` | generated once into `<data-dir>/api-token` |
 | Browser authentication | `--auth accounts\|shared-token` | `SAP_LENS_V2_AUTH` | `accounts` |
 | Name recorded for API clients that use the access token | | `SAP_LENS_V2_PRINCIPAL` | `server-operator` |
 | Background worker off | `--no-worker` | | on |
+| Help / version | `--help`, `-h` / `--version` | | |
+
+Rules:
+
+- **Precedence:** an option wins over its environment variable; an empty variable counts as unset. `--network` is on when the option is given
+  or `SAP_LENS_V2_NETWORK` is `true` (case-insensitive).
+- **Required:** only the data directory. A bare `SapLens.Api.exe` therefore refuses to start: `--data-dir (or SAP_LENS_V2_DATA_DIR) is
+  required.` This is deliberate: no implicit data location.
+- **Loopback start:** without `--network` the Server listens on `http://127.0.0.1:18790` (or `--port`), reachable only from the same machine.
+  A certificate without `--network` gives HTTPS on loopback.
+- **LAN binding** (`--network`): one specific private or link-local address with `--listen` (10/8, 172.16/12, 192.168/16, 169.254/16,
+  fc00::/7, fe80::/10; never `0.0.0.0`, `::`, loopback or a public address), a fixed non-zero port, `--cert`, and `--allowed-hosts`.
+- **HTTPS:** TLS 1.2 or 1.3. The certificate must load, have a private key, be valid now, allow server authentication (if it has an EKU), use
+  RSA of at least 2048 bits, and list every allowed host in its SAN (IP entries for addresses, DNS entries for names; `*.example` covers one
+  label). It is proven by a real TLS handshake through the operating system's stack before the listener starts. Expiry within 30 days is
+  logged as a warning.
+- **Allowed hosts:** requests whose `Host` is not `localhost`, `127.0.0.1`, `::1` or (with `--network`) an `--allowed-hosts` entry receive
+  `421 Unexpected host.` Entries are exact names or addresses: no wildcards, schemes, paths or ports. On unsafe requests (anything but
+  GET, HEAD, OPTIONS) an `Origin` header must equal the request's own `scheme://host[:port]`, otherwise `403 Cross-origin request refused.`;
+  without the access-token header such a request also needs that same-origin `Origin` (or no `Origin` and `Sec-Fetch-Site: same-origin`),
+  otherwise `403 State-changing requests need a same-origin signal.` Accounts mode adds its per-session CSRF token.
+- **Authentication:** `accounts` (default) uses individual v1-compatible accounts with server sessions and roles; `shared-token` is one
+  operator identity for everyone holding the token (isolated tests only). API clients always may use the `X-SAP-Lens-Token` header.
+- **Certificate password file:** read once at startup; trailing CR/LF removed. A missing file stops startup. Restrict it to administrators
+  and the service account. `--cert-password` and `--token` are refused on the command line, where other local users could read them.
+- **Data directory:** absolute and local (UNC paths, `//host/share` and mapped network drives are refused, because SQLite locking is
+  unreliable there). It is created if missing, with the `api-token` file inside, as soon as the options parse; a later validation failure
+  (for example a missing `--allowed-hosts`) can leave that new directory behind. Use a separate directory per Server instance; never share
+  one with the Desktop or v1.
+- **Invalid configuration** stops startup before anything listens: the process prints `startup refused: <reason>` on stderr and exits with
+  code **3**. Examples: `Unknown option '--bind'.`, `--port needs a value.`, `--port must be between 1 and 65535.`, `--listen must be an IP
+  address, not 'server.lan'.`, `--data-dir must be an absolute path.`, `Listening on 10.0.7.50 needs network access to be enabled explicitly
+  (--network) with HTTPS.`, `Network access requires HTTPS: configure a certificate (--cert).`, `Network access needs the host names or
+  addresses clients use (--allowed-hosts).`, `The certificate password file '...' does not exist.`, `The certificate '...' could not be opened
+  (wrong password, missing key or damaged file).`, `The TLS certificate is not usable: Its subject alternative names do not include '...'.`
+
+Examples (replace every address, name and path):
+
+```powershell
+# Windows: loopback only (local checks)
+& .\SapLens.Api.exe --data-dir C:\saplens2\local-test
+# Windows: LAN HTTPS, password from a protected file
+& .\SapLens.Api.exe --data-dir C:\saplens2\runtime-test --network --listen 10.0.7.50 --port 18795 `
+  --allowed-hosts saplens2.test.example,10.0.7.50 --cert C:\ProgramData\SapLens2\tls\server.pfx `
+  --cert-password-file C:\ProgramData\SapLens2\tls\cert-password
+# Windows: the same through environment variables (current session only)
+$env:SAP_LENS_V2_DATA_DIR = 'C:\saplens2\runtime-test'; $env:SAP_LENS_V2_NETWORK = 'true'; $env:SAP_LENS_V2_LISTEN = '10.0.7.50'
+$env:SAP_LENS_V2_PORT = '18795'; $env:SAP_LENS_V2_ALLOWED_HOSTS = '10.0.7.50'; $env:SAP_LENS_V2_CERT = 'C:\ProgramData\SapLens2\tls\server.pfx'
+$env:SAP_LENS_V2_CERT_PASSWORD_FILE = 'C:\ProgramData\SapLens2\tls\cert-password'
+& .\SapLens.Api.exe
+```
+
+```bash
+# Linux: loopback only
+./SapLens.Api --data-dir /var/tmp/saplens2-local
+# Linux: LAN HTTPS with a PEM certificate and key
+./SapLens.Api --data-dir /var/lib/saplens2 --network --listen 192.168.10.20 --port 18791 \
+  --allowed-hosts saplens2.corp.example,192.168.10.20 --cert /etc/saplens2/tls/server.crt --cert-key /etc/saplens2/tls/server.key
+```
 
 Nothing secret is stored in committed files. The startup log states the address, port, scheme, network mode, allowed hosts and the
-certificate subject, thumbprint and expiry, never a password or token.
+certificate subject, thumbprint and expiry, never a password or token. For a step-by-step test on one Windows VM see
+[WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md).
 
 ## 3. Authentication and authorization review
 
@@ -182,6 +247,10 @@ cp ca.crt ~/saplens2-ca.crt                                                     
 ## 5. Deployment
 
 ### Windows Server (PowerShell as administrator)
+
+**Status:** this procedure uses only standard Windows tooling (`New-Service`, `sc.exe`, `icacls`); SAP Lens ships no installer or service
+tool. The executable contains the service host (`AddWindowsService`, service name `SapLens2`), but the procedure has **not been run on
+Windows yet** [U]. Treat every step as pending acceptance.
 
 ```powershell
 # On the build machine
@@ -309,6 +378,31 @@ From a device **outside** the trusted subnet the connection must time out (firew
 ```powershell
 Stop-Service SapLens2      # graceful: running import handed back (Queued), SQLite closed; Start-Service / Restart-Service SapLens2
 Get-Content 'C:\ProgramData\SapLens2\data\logs\server-*.log' -Tail 5
+```
+
+Windows service operation (pending native verification [U]):
+
+```powershell
+Get-Service SapLens2 | Format-List Name, Status, StartType
+Get-CimInstance Win32_Service -Filter "Name='SapLens2'" | Format-List State, StartName, PathName, ProcessId   # identity and command line
+Restart-Service SapLens2
+# Service Control Manager: start/stop (7036), failures to start (7000, 7009), unexpected exits and recovery (7031, 7034)
+Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Service Control Manager'; StartTime = (Get-Date).AddHours(-1) } |
+  Where-Object Message -like '*SAP Lens 2*' | Format-Table TimeCreated, Id, Message -Wrap
+# Application log: the Windows service host can write warnings and errors under the source of the executable; not observed yet [U].
+Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddHours(-1) } | Where-Object ProviderName -like 'SapLens*'
+```
+
+The authoritative application log is `<data-dir>\logs\server-YYYYMMDD.log`; a refused startup writes `startup refused: <reason>` to stderr,
+which a service does not show, so reproduce a start failure by running the same command line in a console as the service account would.
+
+Safe removal (keeps data, certificates and the firewall rule unless removed explicitly):
+
+```powershell
+Stop-Service SapLens2
+sc.exe delete SapLens2                                        # removes the registration only
+Remove-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (trusted LAN)' -ErrorAction SilentlyContinue
+# Data (C:\ProgramData\SapLens2\data) and TLS files stay; back them up or delete them deliberately.
 ```
 
 ```bash

@@ -23,7 +23,8 @@ Evidence tags used in every document: **[M]** measured on Linux x64 in this envi
 | [FUNCTIONAL_EQUIVALENCE.md](FUNCTIONAL_EQUIVALENCE.md) | Python v1 versus .NET on identical synthetic data: 68/68 small, 68/68 large |
 | [PERFORMANCE_BENCHMARK.md](PERFORMANCE_BENCHMARK.md) | Algorithm and service benchmarks, concurrency under import, memory, sizes |
 | [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md) | Desktop (WebView2) and Server builds, run commands, packaging assessment |
-| [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md) | Trusted-LAN access: HTTPS, binding policy, authentication review, firewall, deployment and verification |
+| [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md) | Server configuration reference (every option, environment variable, default and refusal), trusted-LAN HTTPS, authentication review, firewall, Windows service and systemd deployment |
+| [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md) | Windows test VM runbook: native release build, test launcher (`scripts/start-server-test.ps1`), manual start, HTTPS and TLS checks, firewall, logs, restart, and the acceptance levels (build is not runtime acceptance) |
 | [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | How v1 data, decisions and evidence would move, with rollback |
 
 ## Code

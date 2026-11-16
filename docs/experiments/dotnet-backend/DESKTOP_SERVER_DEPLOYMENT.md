@@ -41,7 +41,9 @@ dotnet publish src/SapLens.Api -c Release -r linux-x64 --self-contained true -o 
 SAP_LENS_V2_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-dir /var/lib/saplens-v2 --port 18790 [--no-worker]
 ```
 
-- **Data directory**: `--data-dir` or `SAP_LENS_V2_DATA_DIR`; must be absolute and local (UNC, `//host/share` and network drives refused).
+- **Options**: `SapLens.Api --help`; full reference in [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md#2-configuration-reference); Windows
+  VM runbook and test launcher in [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md).
+- **Data directory**: `--data-dir` or `SAP_LENS_V2_DATA_DIR` (required, no default); must be absolute and local (UNC, `//host/share` and network drives refused).
 - **Token**: `SAP_LENS_V2_TOKEN`, otherwise generated once into `<data>/api-token` (mode 0600 on Linux; on Windows it inherits the data
   directory ACL, which an installer must restrict to the service account [U]). Every `/api` request needs `X-SAP-Lens-Token`.
 - **Binding**: `127.0.0.1` by default. Access from other devices only with `--network`, one private LAN address, HTTPS with a validated
