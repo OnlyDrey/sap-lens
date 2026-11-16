@@ -1,0 +1,345 @@
+{
+ "defaults": {
+  "active_import": "default",
+  "active_user_import": "default",
+  "data_csv_path": "",
+  "data_lifecycle": {
+   "confirmations": [],
+   "history": [],
+   "history_metadata": {},
+   "last_failed_refresh": null,
+   "last_successful_refresh": null,
+   "sod_history": [],
+   "sources": {}
+  },
+  "desktop": {
+   "close_to_tray": false,
+   "run_at_signin": false,
+   "start_minimized": false
+  },
+  "employee_csv_path": "",
+  "employee_snapshot_id": null,
+  "features": {
+   "employee_directory": false,
+   "sod": false,
+   "user_role_mapping": true
+  },
+  "import_checks": {
+   "enabled": true,
+   "max_drop_percent": 30,
+   "min_previous_records": 20
+  },
+  "import_profiles": [
+   {
+    "delimiter": "auto",
+    "encoding": "auto",
+    "id": "default",
+    "mapping": {},
+    "name": "Standard SAP CSV",
+    "version": 1
+   }
+  ],
+  "legacy_classification": null,
+  "logo_id": null,
+  "module_overrides": {},
+  "organization": {
+   "client": "100",
+   "custom_platform": "",
+   "description": "Example System",
+   "footer": "",
+   "name": "Example Inc.",
+   "platform": "SAP S/4HANA",
+   "system_id": "DEMO"
+  },
+  "refresh_schedule": {
+   "cron": "0 6 * * *",
+   "enabled": false,
+   "mode": "daily",
+   "time": "06:00",
+   "timezone": "local"
+  },
+  "revision": 0,
+  "schema_version": 3,
+  "sod_csv_path": "",
+  "sod_import": {
+   "delimiter": "auto",
+   "encoding": "auto",
+   "id": "default",
+   "mapping": {},
+   "name": "Standard SoD matrix",
+   "version": 1
+  },
+  "source_modes": {
+   "employees": "static",
+   "roles": "dynamic",
+   "sod": "static",
+   "users": "dynamic"
+  },
+  "theme": "dark",
+  "theme_colors": {
+   "custom_presets": [],
+   "dark": {
+    "accent": "#7c85d4",
+    "background": "#0d0d1a",
+    "primary": "#1a003b",
+    "secondary": "#2a3156",
+    "surface": "#111827",
+    "text": "#f1f5f9"
+   },
+   "light": {
+    "accent": "#515793",
+    "background": "#f0f2f7",
+    "primary": "#182c53",
+    "secondary": "#e1e5f2",
+    "surface": "#ffffff",
+    "text": "#182c53"
+   }
+  },
+  "unlicensed_user_groups": [
+   "UNLICENSED"
+  ],
+  "user_csv_path": "",
+  "user_import_profiles": [
+   {
+    "delimiter": "auto",
+    "encoding": "auto",
+    "id": "default",
+    "mapping": {},
+    "name": "Standard SAP user CSV",
+    "version": 1
+   }
+  ]
+ },
+ "private": {
+  "format": "SAP Lens configuration",
+  "logo_base64": null,
+  "package_version": 1,
+  "settings": {
+   "active_import": "default",
+   "active_user_import": "default",
+   "data_csv_path": "",
+   "data_lifecycle": {
+    "confirmations": [],
+    "history": [],
+    "history_metadata": {},
+    "last_failed_refresh": null,
+    "last_successful_refresh": null,
+    "sod_history": [],
+    "sources": {}
+   },
+   "desktop": {
+    "close_to_tray": false,
+    "run_at_signin": false,
+    "start_minimized": false
+   },
+   "employee_csv_path": "",
+   "employee_snapshot_id": null,
+   "features": {
+    "employee_directory": false,
+    "sod": false,
+    "user_role_mapping": true
+   },
+   "import_checks": {
+    "enabled": true,
+    "max_drop_percent": 30,
+    "min_previous_records": 20
+   },
+   "import_profiles": [
+    {
+     "delimiter": "auto",
+     "encoding": "auto",
+     "id": "default",
+     "mapping": {},
+     "name": "Standard SAP CSV",
+     "version": 1
+    }
+   ],
+   "legacy_classification": null,
+   "logo_id": null,
+   "module_overrides": {},
+   "organization": {
+    "client": "100",
+    "custom_platform": "",
+    "description": "Synthetic organization",
+    "footer": "",
+    "name": "Example Org",
+    "platform": "SAP S/4HANA",
+    "system_id": "DEMO"
+   },
+   "refresh_schedule": {
+    "cron": "0 6 * * *",
+    "enabled": false,
+    "mode": "daily",
+    "time": "06:00",
+    "timezone": "local"
+   },
+   "revision": 0,
+   "schema_version": 3,
+   "sod_csv_path": "",
+   "sod_import": {
+    "delimiter": "auto",
+    "encoding": "auto",
+    "id": "default",
+    "mapping": {},
+    "name": "Standard SoD matrix",
+    "version": 1
+   },
+   "source_modes": {
+    "employees": "static",
+    "roles": "dynamic",
+    "sod": "static",
+    "users": "dynamic"
+   },
+   "theme": "dark",
+   "theme_colors": {
+    "custom_presets": [],
+    "dark": {
+     "accent": "#7c85d4",
+     "background": "#0d0d1a",
+     "primary": "#1a003b",
+     "secondary": "#2a3156",
+     "surface": "#111827",
+     "text": "#f1f5f9"
+    },
+    "light": {
+     "accent": "#515793",
+     "background": "#f0f2f7",
+     "primary": "#182c53",
+     "secondary": "#e1e5f2",
+     "surface": "#ffffff",
+     "text": "#182c53"
+    }
+   },
+   "unlicensed_user_groups": [
+    "UNLICENSED"
+   ],
+   "user_csv_path": "",
+   "user_import_profiles": [
+    {
+     "delimiter": "auto",
+     "encoding": "auto",
+     "id": "default",
+     "mapping": {},
+     "name": "Standard SAP user CSV",
+     "version": 1
+    }
+   ]
+  }
+ },
+ "redacted": {
+  "format": "SAP Lens configuration",
+  "logo_base64": null,
+  "package_version": 1,
+  "settings": {
+   "active_import": "default",
+   "active_user_import": "default",
+   "data_csv_path": "",
+   "data_lifecycle": {
+    "confirmations": [],
+    "history": [],
+    "history_metadata": {},
+    "last_failed_refresh": null,
+    "last_successful_refresh": null,
+    "sod_history": [],
+    "sources": {}
+   },
+   "desktop": {
+    "close_to_tray": false,
+    "run_at_signin": false,
+    "start_minimized": false
+   },
+   "employee_csv_path": "",
+   "employee_snapshot_id": null,
+   "features": {
+    "employee_directory": false,
+    "sod": false,
+    "user_role_mapping": true
+   },
+   "import_checks": {
+    "enabled": true,
+    "max_drop_percent": 30,
+    "min_previous_records": 20
+   },
+   "import_profiles": [
+    {
+     "delimiter": "auto",
+     "encoding": "auto",
+     "id": "default",
+     "mapping": {},
+     "name": "Standard SAP CSV",
+     "version": 1
+    }
+   ],
+   "legacy_classification": null,
+   "logo_id": null,
+   "module_overrides": {},
+   "organization": {
+    "client": "100",
+    "custom_platform": "",
+    "description": "Example System",
+    "footer": "",
+    "name": "Example Inc.",
+    "platform": "SAP S/4HANA",
+    "system_id": "DEMO"
+   },
+   "refresh_schedule": {
+    "cron": "0 6 * * *",
+    "enabled": false,
+    "mode": "daily",
+    "time": "06:00",
+    "timezone": "local"
+   },
+   "revision": 0,
+   "schema_version": 3,
+   "sod_csv_path": "",
+   "sod_import": {
+    "delimiter": "auto",
+    "encoding": "auto",
+    "id": "default",
+    "mapping": {},
+    "name": "Standard SoD matrix",
+    "version": 1
+   },
+   "source_modes": {
+    "employees": "static",
+    "roles": "dynamic",
+    "sod": "static",
+    "users": "dynamic"
+   },
+   "theme": "dark",
+   "theme_colors": {
+    "custom_presets": [],
+    "dark": {
+     "accent": "#7c85d4",
+     "background": "#0d0d1a",
+     "primary": "#1a003b",
+     "secondary": "#2a3156",
+     "surface": "#111827",
+     "text": "#f1f5f9"
+    },
+    "light": {
+     "accent": "#515793",
+     "background": "#f0f2f7",
+     "primary": "#182c53",
+     "secondary": "#e1e5f2",
+     "surface": "#ffffff",
+     "text": "#182c53"
+    }
+   },
+   "unlicensed_user_groups": [
+    "UNLICENSED"
+   ],
+   "user_csv_path": "",
+   "user_import_profiles": [
+    {
+     "delimiter": "auto",
+     "encoding": "auto",
+     "id": "default",
+     "mapping": {},
+     "name": "Standard SAP user CSV",
+     "version": 1
+    }
+   ]
+  }
+ }
+}

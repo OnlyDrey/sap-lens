@@ -258,7 +258,8 @@ public static class V1AccountReview
             var reviewer = sessionUser ? actor.Username : reviewerText.Trim();
             var identity = sessionUser
                 ? new Dictionary<string, object?> { ["id"] = actor.Id, ["username"] = actor.Username, ["display_name"] = actor.DisplayName, ["provenance"] = "server-session" }
-                : new Dictionary<string, object?> { ["id"] = CanonicalJson.Sha256(host.PrincipalName)[..32], ["username"] = host.PrincipalName, ["display_name"] = reviewer, ["provenance"] = "desktop-local" };
+                : (await V1Configuration.EnsureProfileAsync(services.GetRequiredService<WriteCoordinator>(), services.GetRequiredService<TimeProvider>(), null, null, ct))["identity"]!
+                    .AsObject().ToDictionary(p => p.Key, p => (object?)(string?)p.Value);
 
             var (snapshot, _, items, _, _) = await CurrentAsync(services, ct);
             var row = items.FirstOrDefault(r => ((string)r["username"]!).Trim().ToUpperInvariant() == username.Trim().ToUpperInvariant());
