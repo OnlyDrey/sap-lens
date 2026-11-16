@@ -21,7 +21,7 @@ public sealed class SodSourceMetadataTests
     [InlineData("edge")]
     public void Content_hash_metadata_warnings_and_definition_fingerprints_equal_python_v1(string name)
     {
-        var (records, report) = Sources.Read(Sources.Sod, Fixture(name + ".csv"), CancellationToken.None);
+        var (records, report) = Sources.Read(Sources.Sod, Fixture(name + ".sod.txt"), CancellationToken.None);
         var dataset = SodSource.Build(records.ToList(), report.Warnings.Where(w => !w.StartsWith("Optional field ", StringComparison.Ordinal)));
         var expected = JsonNode.Parse(File.ReadAllText(Fixture(name + ".python.json")))!;
         Assert.Equal((string)expected["content_hash"]!, dataset.ContentHash);
@@ -34,9 +34,9 @@ public sealed class SodSourceMetadataTests
     [Fact]
     public void A_file_without_optional_columns_stores_exactly_the_ten_documented_fields()
     {
-        var (records, _) = Sources.Read(Sources.Sod, Fixture("no_meta.csv"), CancellationToken.None);
+        var (records, _) = Sources.Read(Sources.Sod, Fixture("no_meta.sod.txt"), CancellationToken.None);
         Assert.All(records, r => Assert.Equal(10, r.Count));
-        var (withMeta, _) = Sources.Read(Sources.Sod, Fixture("with_meta.csv"), CancellationToken.None);
+        var (withMeta, _) = Sources.Read(Sources.Sod, Fixture("with_meta.sod.txt"), CancellationToken.None);
         Assert.Equal(17, withMeta.First().Count); // only the optional columns the file maps
     }
 
@@ -57,7 +57,7 @@ public sealed class SodSourceMetadataTests
             using (var client = new HttpClient { BaseAddress = new Uri(app.Urls.First()) })
             {
                 client.DefaultRequestHeaders.Add(RequestBoundary.TokenHeader, token);
-                var job = JsonNode.Parse(await (await client.PostAsync("/api/v1/imports/sod", new StringContent(File.ReadAllText(Fixture("with_meta.csv")), Encoding.UTF8, "text/csv"))).Content.ReadAsStringAsync())!;
+                var job = JsonNode.Parse(await (await client.PostAsync("/api/v1/imports/sod", new StringContent(File.ReadAllText(Fixture("with_meta.sod.txt")), Encoding.UTF8, "text/csv"))).Content.ReadAsStringAsync())!;
                 for (var i = 0; i < 200 && (string)JsonNode.Parse(await client.GetStringAsync($"/api/v1/jobs/{(long)job["id"]!}"))!["status"]! != "Completed"; i++) await Task.Delay(50);
             }
             Assert.Equal("Vendor fraud", (await app.Services.GetRequiredService<SnapshotService>().GetAsync()).Sod!.Metadata!.Risks["R001"]["name"]);
