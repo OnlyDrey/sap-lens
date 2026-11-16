@@ -10,9 +10,11 @@ public static class UiAssets
     public const string Marker = "<div id=\"root\">";
     public static readonly string[] Required = ["index.html", "theme.js", "sap-lens.png", "login.html", "login.css"];
 
-    public static IFileProvider Create()
+    public static IFileProvider Create() => Validate(new ManifestEmbeddedFileProvider(typeof(UiAssets).Assembly, "wwwroot"));
+
+    /// <summary>Refuses a provider that lacks any required file, naming every missing one.</summary>
+    internal static IFileProvider Validate(IFileProvider provider)
     {
-        var provider = new ManifestEmbeddedFileProvider(typeof(UiAssets).Assembly, "wwwroot");
         var missing = Required.Where(name => !provider.GetFileInfo(name).Exists).ToList();
         if (missing.Count > 0) throw new InvalidOperationException($"The user interface is incomplete in this build (missing {string.Join(", ", missing)}); rebuild with -p:BuildFrontend=true.");
         return provider;

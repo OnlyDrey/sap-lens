@@ -42,6 +42,8 @@ try {
     Invoke-Step 'Build the React UI' { & npm run build }
 } finally { Pop-Location }
 
+# The solution contains every project, the test project included, so `dotnet test --no-build` runs exactly what this build produced (with the UI
+# embedded from the dist just built), never older binaries left in tests\*\bin.
 Invoke-Step 'Build the .NET solution' { & dotnet build (Join-Path $root 'SapLens.slnx') -c Release $identity }
 if (-not $SkipTests) {
     $filter = if ($SkipPublishTests) { 'Category!=Publish' } else { '' }

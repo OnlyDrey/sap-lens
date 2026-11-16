@@ -17,6 +17,8 @@ dirty="$(git -C "$root" status --porcelain -- . ../../frontend | head -1)"
 if [ -n "$dirty" ]; then echo "warning: the working tree has uncommitted changes; the manifest records dirty=true" >&2; fi
 identity=(-p:SourceRevisionId="$sha")
 (cd "$frontend" && npm ci --no-audit --no-fund && npm run build)
+# The solution contains every project, the test project included, so `dotnet test --no-build` runs exactly what this build produced (with the UI
+# embedded from the dist just built), never older binaries left in tests/*/bin.
 dotnet build "$root/SapLens.slnx" -c Release "${identity[@]}"
 if [ "$tests" = 1 ]; then
   if [ "$publish_tests" = 1 ]; then dotnet test "$root/tests/SapLens.Tests" -c Release --no-build
