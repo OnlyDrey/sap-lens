@@ -38,6 +38,7 @@ public static class SapLensHost
         builder.Services.AddSapLensCore(new DatabaseOptions { DataDirectory = settings.DataDirectory }, new WorkerOptions { Enabled = settings.WorkerEnabled });
         builder.Services.AddSingleton<SessionStore>();
         builder.Services.AddSingleton<V1Settings>();
+        builder.Services.AddSingleton<DataLoadGate>();
         builder.Services.AddSingleton<RequestBoundaryTokenCheck>();
         if (settings.Authentication == AuthenticationMode.Accounts)
         {

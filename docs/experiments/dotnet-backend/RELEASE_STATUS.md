@@ -19,6 +19,21 @@ functionality users rely on. Windows runtime acceptance has not been performed f
 | 5 Full regression and hardening | **Not started as a phase** | Existing suites: equivalence 68/68 small and large (domain), benchmarks, security and TLS tests, multi-process SQLite tests [T][M] | Depends on Phase 3 parity; the v1 Playwright suite cannot pass until the UI's areas are migrated |
 | 6 Release Candidate and acceptance | **Not started** | Windows acceptance commands and checklists exist ([UI_INTEGRATION.md](UI_INTEGRATION.md), [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md), [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md)) | No RC exists (see decision); no Windows or mobile acceptance run |
 
+## Validation at the end of the functional migration sprint (2026-11-16)
+
+| Check | Result |
+| --- | --- |
+| .NET suite (`dotnet test tests/SapLens.Tests -c Release`) | 160/160, two consecutive full runs [T] |
+| Equivalence harness vs Python v1 | 68/68 small, 68/68 large [T] |
+| EF migrations (`dotnet ef migrations has-pending-model-changes`) | No pending model changes [T] |
+| Frontend unit tests, `tsc --noEmit`, production build | 41/41, clean, built [T] (no frontend code changed) |
+| ESLint | 0 errors, 115 existing warnings (threshold 115) [T] |
+| Browser smoke in Chromium, Accounts mode | Sign-in, Dashboard, Role Lookup, User Access, Account Review, Data Sources, Employee Directory, User Management; only expected 401 before sign-in and 501 for unmigrated `diagnostics` and `functional-groups/options` [M] |
+| Docs link check | 0 failures [T] |
+
+A test-isolation defect was found and fixed in this round: the Data Sources "one load at a time" gate was process-wide static state, so two hosts in
+one test process refused each other's imports (409). It is now a per-host singleton; three repeated parallel runs passed after the fix, all three failed before.
+
 ## Remaining work, in dependency order
 
 1. Diagnostics and functional groups (read paths the shell calls). Dashboard, saved filters and Access Packages are done.

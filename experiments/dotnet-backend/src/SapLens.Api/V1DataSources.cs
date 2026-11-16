@@ -23,8 +23,6 @@ public static partial class V1DataSources
     {
         ["roles"] = "data_csv_path", ["users"] = "user_csv_path", ["employees"] = "employee_csv_path", ["sod"] = "sod_csv_path",
     };
-    private static readonly SemaphoreSlim Loading = new(1, 1);
-    private static long _currentJob;
 
     [GeneratedRegex("^[A-Za-z0-9_-]{1,40}$")]
     private static partial Regex ProfileId();
@@ -81,9 +79,9 @@ public static partial class V1DataSources
             return Results.Ok(new { source, loaded = id is not null, columns, items, total, offset = o, limit = l });
         });
 
-        api.MapPost("/data/cancel", async (JobQueue queue, CancellationToken ct) =>
+        api.MapPost("/data/cancel", async (JobQueue queue, DataLoadGate gate, CancellationToken ct) =>
         {
-            if (Interlocked.Read(ref _currentJob) is var job and > 0) await queue.RequestCancelAsync(job, ct);
+            if (gate.CurrentJob is var job and > 0) await queue.RequestCancelAsync(job, ct);
             return Results.Ok(new { status = "canceled" });
         });
 
@@ -161,7 +159,8 @@ public static partial class V1DataSources
         var database = services.GetRequiredService<DatabaseOptions>();
         var host = services.GetRequiredService<HostSettings>();
         var clock = services.GetRequiredService<TimeProvider>();
-        if (!await Loading.WaitAsync(0, ct)) return Detail(409, "A CSV is already loading. Wait or cancel it before trying another file.");
+        var gate = services.GetRequiredService<DataLoadGate>();
+        if (!await gate.Loading.WaitAsync(0, ct)) return Detail(409, "A CSV is already loading. Wait or cancel it before trying another file.");
         try
         {
             var settings = await store.GetAsync(ct);
@@ -187,9 +186,9 @@ public static partial class V1DataSources
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             { return Detail(400, error is UnauthorizedAccessException ? "Cannot read the CSV. Check your account permissions and network-share access." : "CSV file not found. Choose an existing file or reconnect the network share."); }
             var job = await queue.EnqueueAsync(ImportService.JobKind, JsonSerializer.Serialize(new ImportPayload(source, working, fileName, csvProfile), Sources.Json), null, ct);
-            Interlocked.Exchange(ref _currentJob, job.Id);
+            gate.CurrentJob = job.Id;
             var finished = await WaitAsync(queue, job.Id, ct);
-            Interlocked.Exchange(ref _currentJob, 0);
+            gate.CurrentJob = 0;
             if (finished.Status == JobStatus.Cancelled) return Detail(409, "Data load canceled. Previous data and settings were retained.");
             if (finished.Status != JobStatus.Completed) return Detail(400, finished.Error ?? "The CSV could not be imported. Previous data is retained.");
             var result = JsonNode.Parse(finished.ResultJson!)!.AsObject();
@@ -289,7 +288,7 @@ public static partial class V1DataSources
         }
         finally
         {
-            Loading.Release();
+            gate.Loading.Release();
         }
     }
 
@@ -325,4 +324,12 @@ public static partial class V1DataSources
             await Task.Delay(100, ct);
         }
     }
+}
+
+/// <summary>One CSV load at a time per server (v1 loader semantics) and the job the cancel button stops. Per host, never process-wide static state.</summary>
+public sealed class DataLoadGate
+{
+    private long _currentJob;
+    public SemaphoreSlim Loading { get; } = new(1, 1);
+    public long CurrentJob { get => Interlocked.Read(ref _currentJob); set => Interlocked.Exchange(ref _currentJob, value); }
 }
