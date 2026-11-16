@@ -9,14 +9,17 @@ and Server. The earlier simplified prototype UI was removed. Status tags as in [
   is missing, or with `-p:BuildFrontend=true`, the build runs `npm ci` and `npm run build` first. Node.js 24 or 25 is a build-time requirement
   only; no Node.js, Python or loose UI files ship. `scripts/build-release.ps1` (Windows) and `scripts/build-release.sh` (Linux) always rebuild
   the UI, build and test the solution and publish the packages.
-- **Embedding rules** (both caused Windows release failures, "The user interface is incomplete in this build"):
-  - The dist files are added to `EmbeddedResource` before `_CalculateEmbeddedFilesManifestInputs`, so the embedded-files manifest is
-    regenerated whenever the set of UI files changes (incremental builds included).
-  - Their `Link` uses the OS directory separator. `GenerateEmbeddedResourcesManifest` splits paths on `Path.DirectorySeparatorChar` only. A
-    hard-coded `wwwroot/` made every UI file on Windows a root-level entry literally named `wwwroot/index.html`, which the provider cannot
-    find; Linux builds were unaffected.
-  - Guards: `BuildIntegrationTests` checks the manifest of the built assembly and of a clean and a repeat build (every file nested under
-    `wwwroot`, no separator in a file name). Both release scripts check the published binaries the same way.
+- **Embedding** (the cause of the Windows release failures, "The user interface is incomplete in this build"):
+  - Every UI file (`frontend/dist/**` and the sign-in page in `wwwroot/`) is a manifest resource with the explicit name
+    `SapLensUi/<relative path>`; `EmbeddedUiFileProvider` (`UiAssets.cs`) serves them, normalizes `\` to `/` (MSBuild's `RecursiveDir` uses
+    the build machine's separator) and refuses `..`, empty and drive segments.
+  - The embedded-files manifest (`GenerateEmbeddedFilesManifest`, `ManifestEmbeddedFileProvider`) is no longer used. It splits paths on the
+    build machine's separator only, so a `wwwroot/...` path became a flat root entry on Windows, and its regeneration check ignores changes
+    other than the file list, so an existing `obj` folder could keep a broken manifest after the fix.
+  - The list of embedded UI names is a compile input (`obj/.../SapLensUi.files`); adding or removing a UI file always rebuilds the assembly.
+  - Guards: `BuildIntegrationTests` (resource names and layout of the built assembly; Windows-style names; path traversal; a clean build and two
+    incremental builds with a replaced and a removed asset, checked by loading the built assembly) and both release scripts (`SapLensUi/index.html`
+    and `SapLensUi/assets` in every published binary).
 - **Serving**: `/` serves the React `index.html`; assets, icons and `theme.js` are served without credentials (they contain no data). The
   Content Security Policy is v1's policy for this UI (`script-src 'self'`, inline styles allowed as React needs them, no framing).
 - **Authentication** (unchanged rules):

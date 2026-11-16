@@ -94,7 +94,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         var output = Publish("SapLens.Api", "linux-x64");
         Assert.False(Directory.Exists(Path.Combine(output, "wwwroot")), "the UI must be embedded, not loose files");
         Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), UiAssets.Marker));
-        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), "SapLens.Api.wwwroot.assets.")); // the React build output
+        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), "SapLensUi/assets")); // the React build output
 
         var elsewhere = Directory.CreateDirectory(Path.Combine(_root, "unrelated-cwd")).FullName;
         var token = HostSettings.NewToken();
@@ -138,8 +138,8 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         Assert.True(File.Exists(Path.Combine(output, "SapLens.Api.exe")));
         Assert.False(Directory.Exists(Path.Combine(output, "wwwroot")));
         Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), UiAssets.Marker));
-        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), "Microsoft.Extensions.FileProviders.Embedded.Manifest.xml"));
-        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), "SapLens.Api.wwwroot.assets.")); // the React build output
+        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), "SapLensUi/index.html"));
+        Assert.True(Contains(Path.Combine(output, "SapLens.Api.dll"), "SapLensUi/assets")); // the React build output
         Assert.True(File.Exists(Path.Combine(output, "Microsoft.Extensions.Hosting.WindowsServices.dll"))); // runs as a Windows service
     }
 
@@ -234,7 +234,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         // The single-file bundle stores SapLens.Api.dll uncompressed: its embedded UI files are present byte for byte, as are the WebView2 loader and the
         // runtime (no installed .NET needed).
         Assert.True(Contains(exe, UiAssets.Marker));
-        Assert.True(Contains(exe, "SapLens.Api.wwwroot.assets.")); // the React build output inside the bundled SapLens.Api.dll
+        Assert.True(Contains(exe, "SapLensUi/assets")); // the React build output inside the bundled SapLens.Api.dll
         Assert.True(Contains(exe, "WebView2Loader.dll"));
         Assert.True(Contains(exe, "System.Private.CoreLib.dll"));
         Assert.True(new FileInfo(exe).Length > 50_000_000);

@@ -6,10 +6,10 @@ using SapLens.Api;
 
 namespace SapLens.Tests;
 
-/// <summary>Build integration of the embedded React UI and the release workflow. Regression coverage for the Windows release failure in which
-/// every host-starting test failed with "The user interface is incomplete in this build": (1) the embedded-files manifest was not regenerated when
-/// the frontend dist changed, because the dist files were added after Microsoft.Extensions.FileProviders.Embedded hashed its inputs, and (2) the
-/// release scripts ran `dotnet test --no-build` on a test project the solution build did not include.</summary>
+/// <summary>Build integration of the embedded React UI and the release workflow. Regression coverage for the Windows release failures in which every
+/// host-starting test failed with "The user interface is incomplete in this build": the UI was served through the embedded-files manifest, which
+/// splits paths on the build machine's separator only and was not regenerated on every change; and the release scripts ran `dotnet test --no-build`
+/// on a test project the solution build did not include. The UI is now addressed by explicit resource names (SapLensUi/&lt;path&gt;).</summary>
 public sealed class BuildIntegrationTests
 {
     private static DirectoryInfo SolutionRoot()
@@ -54,24 +54,65 @@ public sealed class BuildIntegrationTests
         Assert.Contains(UiAssets.Marker, reader.ReadToEnd());
     }
 
-    /// <summary>Every file of the embedded-files manifest must sit in a directory element: a file name containing a separator means the build passed a
-    /// path with the other OS's separator to GenerateEmbeddedResourcesManifest (it splits on Path.DirectorySeparatorChar only) and the file is
-    /// invisible to the provider. This is the Windows release failure ("missing index.html, theme.js, sap-lens.png").</summary>
-    internal static void AssertNestedManifest(XDocument manifest)
+    /// <summary>The UI layout a provider exposes: every required file at the root, React assets in the nested "assets" directory, and every file of
+    /// the frontend build resolvable. This is the Windows release failure ("missing index.html, theme.js, sap-lens.png").</summary>
+    internal static void AssertUiLayout(EmbeddedUiFileProvider provider, IEnumerable<string>? distFiles = null)
     {
-        var flat = manifest.Descendants("File").Select(f => (string)f.Attribute("Name")!).Where(n => n.Contains('/') || n.Contains('\\')).ToList();
-        Assert.True(flat.Count == 0, "Embedded files with a separator in their name (not under a directory): " + string.Join(", ", flat.Take(10)));
-        var root = manifest.Root!.Element("FileSystem")!.Elements("Directory").SingleOrDefault(d => (string?)d.Attribute("Name") == "wwwroot");
-        Assert.NotNull(root);
-        foreach (var name in UiAssets.Required) Assert.Contains(root!.Elements("File"), f => (string)f.Attribute("Name")! == name);
+        foreach (var name in UiAssets.Required) Assert.True(provider.GetFileInfo(name).Exists, name);
+        var root = provider.GetDirectoryContents("").ToList();
+        Assert.Contains(root, f => f.IsDirectory && f.Name == "assets");
+        Assert.Contains(root, f => !f.IsDirectory && f.Name == "index.html");
+        foreach (var relative in distFiles ?? []) Assert.True(provider.GetFileInfo(relative).Exists, "Not embedded: " + relative);
     }
 
     [Fact]
-    public void The_built_assembly_embeds_the_ui_under_wwwroot_with_nested_directories()
+    public void The_built_assembly_names_every_ui_resource_SapLensUi_and_serves_the_nested_layout()
     {
-        using var stream = typeof(UiAssets).Assembly.GetManifestResourceStream("Microsoft.Extensions.FileProviders.Embedded.Manifest.xml");
-        Assert.NotNull(stream);
-        AssertNestedManifest(XDocument.Load(stream!));
+        var names = typeof(UiAssets).Assembly.GetManifestResourceNames();
+        Assert.DoesNotContain(names, n => n.StartsWith("SapLens.Api.wwwroot", StringComparison.Ordinal));   // no UI under SDK-generated names
+        Assert.Contains("SapLensUi/index.html", names);
+        AssertUiLayout(new EmbeddedUiFileProvider(typeof(UiAssets).Assembly));
+    }
+
+    private static EmbeddedUiFileProvider Fake(params string[] names) =>
+        new(names, name => new MemoryStream(Encoding.UTF8.GetBytes(name)), DateTimeOffset.UnixEpoch);
+
+    [Fact]
+    public void Resource_names_with_Windows_separators_resolve_like_Linux_names()
+    {
+        // RecursiveDir is "assets\" on Windows and "assets/" on Linux; both builds must serve the same paths.
+        foreach (var separator in new[] { '/', '\\' })
+        {
+            var provider = Fake("SapLensUi/index.html", "SapLensUi/theme.js", "SapLensUi/sap-lens.png", "SapLensUi/login.html", "SapLensUi/login.css",
+                $"SapLensUi/assets{separator}index-1a2b.js", $"SapLensUi/assets{separator}icons{separator}x.svg", "V1Reference.registry.json", "Other/thing.txt");
+            AssertUiLayout(provider, ["assets/index-1a2b.js", "assets/icons/x.svg"]);
+            Assert.True(provider.GetFileInfo("/assets/index-1a2b.js").Exists);
+            Assert.True(provider.GetFileInfo("assets\\icons\\x.svg").Exists);
+            using var reader = new StreamReader(provider.GetFileInfo("assets/index-1a2b.js").CreateReadStream());
+            Assert.Equal($"SapLensUi/assets{separator}index-1a2b.js", reader.ReadToEnd());     // the stream is the actual resource
+            Assert.Equal(["icons", "index-1a2b.js"], provider.GetDirectoryContents("assets").Select(f => f.Name));
+            Assert.False(provider.GetFileInfo("registry.json").Exists);                        // other resources are never served
+            Assert.Equal(7, provider.Files.Count());
+        }
+    }
+
+    [Theory]
+    [InlineData("../SapLensUi/index.html")]
+    [InlineData("assets/../index.html")]
+    [InlineData("./index.html")]
+    [InlineData("assets//index-1a2b.js")]
+    [InlineData("C:/index.html")]
+    [InlineData("assets")]
+    public void Paths_outside_the_ui_root_or_not_files_are_not_found(string path)
+    {
+        var provider = Fake("SapLensUi/index.html", "SapLensUi/assets/index-1a2b.js");
+        Assert.False(provider.GetFileInfo(path).Exists);
+    }
+
+    [Fact]
+    public void Two_resources_for_the_same_path_are_refused()
+    {
+        Assert.Throws<InvalidOperationException>(() => Fake("SapLensUi/assets/x.js", "SapLensUi/assets\\x.js"));
     }
 
     [Fact]
@@ -135,27 +176,38 @@ public sealed class BuildIntegrationTests
 
             var (code, log) = Build(frontend, artifacts);
             Assert.True(code == 0, log);
-            string Manifest() => File.ReadAllText(Directory.EnumerateFiles(artifacts, "Microsoft.Extensions.FileProviders.Embedded.Manifest.xml", SearchOption.AllDirectories).Single());
-            byte[] Assembly() => File.ReadAllBytes(Directory.EnumerateFiles(Path.Combine(artifacts, "bin"), "SapLens.Api.dll", SearchOption.AllDirectories).Single());
-            static bool Has(byte[] bytes, string text) => bytes.AsSpan().IndexOf(Encoding.UTF8.GetBytes(text)) >= 0;
-            Assert.Contains("first-1a2b.js", Manifest());
-            Assert.Contains("theme.js", Manifest());
-            AssertNestedManifest(XDocument.Parse(Manifest()));   // clean build
+            var built = Directory.EnumerateFiles(Path.Combine(artifacts, "bin"), "SapLens.Api.dll", SearchOption.AllDirectories).Single();
+            // The provider over the freshly built assembly, loaded in its own collectible context (resources only, no code runs).
+            List<string> Served()
+            {
+                var context = new System.Runtime.Loader.AssemblyLoadContext("ui-check", isCollectible: true);
+                try
+                {
+                    using var stream = new MemoryStream(File.ReadAllBytes(built));
+                    var assembly = context.LoadFromStream(stream);
+                    var provider = new EmbeddedUiFileProvider(assembly);
+                    AssertUiLayout(provider);
+                    return [.. provider.Files.Order(StringComparer.Ordinal)];
+                }
+                finally { context.Unload(); }
+            }
+            Assert.Equal(["assets/first-1a2b.js", "index.html", "login.css", "login.html", "sap-lens.png", "theme.js"], Served());   // clean build
 
-            // A new frontend build replaces the hashed asset. The incremental build must follow: the manifest and the resources name the new file only.
+            // A new frontend build replaces the hashed asset. The incremental build must follow: the new file only.
             File.Delete(Path.Combine(dist, "assets", "first-1a2b.js"));
             File.WriteAllText(Path.Combine(dist, "assets", "second-3c4d.js"), "/* second */");
             (code, log) = Build(frontend, artifacts);
             Assert.True(code == 0, log);
-            var manifest = Manifest();
-            Assert.Contains("second-3c4d.js", manifest);
-            Assert.DoesNotContain("first-1a2b.js", manifest);
-            AssertNestedManifest(XDocument.Parse(manifest));     // repeat (incremental) build
-            var assets = XDocument.Parse(manifest).Descendants("Directory").Single(d => (string?)d.Attribute("Name") == "assets");
-            Assert.Contains(assets.Elements("File"), f => (string)f.Attribute("Name")! == "second-3c4d.js");
-            var dll = Assembly();
-            Assert.True(Has(dll, "wwwroot.assets.second-3c4d.js"), "the new asset is not embedded");
-            Assert.False(Has(dll, "wwwroot.assets.first-1a2b.js"), "a removed asset is still embedded");
+            Assert.Equal(["assets/second-3c4d.js", "index.html", "login.css", "login.html", "sap-lens.png", "theme.js"], Served());   // repeat build
+
+            // A file is only removed: nothing became newer, and the assembly must still be rebuilt without it.
+            File.WriteAllText(Path.Combine(dist, "assets", "third-5e6f.js"), "/* third */");
+            (code, log) = Build(frontend, artifacts);
+            Assert.True(code == 0, log);
+            File.Delete(Path.Combine(dist, "assets", "second-3c4d.js"));
+            (code, log) = Build(frontend, artifacts);
+            Assert.True(code == 0, log);
+            Assert.Equal(["assets/third-5e6f.js", "index.html", "login.css", "login.html", "sap-lens.png", "theme.js"], Served());
         }
         finally
         {

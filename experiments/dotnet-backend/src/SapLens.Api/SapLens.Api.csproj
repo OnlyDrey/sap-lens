@@ -5,8 +5,10 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- The production React UI (frontend/, the same sources as origin/work) and the server's sign-in page are compiled into this assembly, so every host
-         (Server, Desktop single-file, tests) serves the same files regardless of working directory or publish layout. -->
-    <GenerateEmbeddedFilesManifest>true</GenerateEmbeddedFilesManifest>
+         (Server, Desktop single-file, tests) serves the same files regardless of working directory or publish layout. Each file is a manifest resource
+         named "SapLensUi/<relative path>" (explicit LogicalName), served by UiAssets/EmbeddedUiFileProvider. The embedded-files manifest
+         (GenerateEmbeddedFilesManifest) is not used: it splits paths on the build machine's separator only and can stay stale across incremental
+         builds, which broke Windows release builds. -->
     <!-- Overridable only so the build-integration tests can embed a synthetic dist from a temporary folder. -->
     <SapLensFrontendRoot Condition="'$(SapLensFrontendRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../../../frontend'))</SapLensFrontendRoot>
     <SapLensFrontendDist>$(SapLensFrontendRoot)/dist</SapLensFrontendDist>
@@ -14,14 +16,13 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.15" />
-    <PackageReference Include="Microsoft.Extensions.FileProviders.Embedded" Version="10.0.15" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.15" />
     <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.15" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Remove="wwwroot\**" />
-    <EmbeddedResource Include="wwwroot\**" />
+    <EmbeddedResource Include="wwwroot\**" LogicalName="SapLensUi/%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Reference data exported from Python v1 by tools/export_v1_reference.py; read by the v1 compatibility API, not served as files. -->
     <EmbeddedResource Include="V1Reference\*.json;V1Reference\*.xlsx" LogicalName="V1Reference.%(Filename)%(Extension)" ExcludeFromManifest="true" />
   </ItemGroup>
@@ -35,18 +36,20 @@
     <Exec Command="npm run build" WorkingDirectory="$(SapLensFrontendRoot)" />
   </Target>
 
-  <!-- Must run before _CalculateEmbeddedFilesManifestInputs (Microsoft.Extensions.FileProviders.Embedded, a dependency of PrepareResourceNames that
-       runs before AssignTargetPaths): that target hashes the embedded files to decide whether the embedded-files manifest is regenerated. Added
-       later, the React files were missing from the hash, so an obj folder whose manifest was first written without them never regenerated it and
-       the build kept reporting index.html, theme.js and sap-lens.png as missing. -->
-  <Target Name="SapLensEmbedFrontend" BeforeTargets="_CalculateEmbeddedFilesManifestInputs;AssignTargetPaths" DependsOnTargets="SapLensBuildFrontend">
+  <!-- Adds frontend/dist to the embedded resources before resource names are assigned. RecursiveDir uses the build machine's separator; the provider
+       normalizes it, so Windows and Linux builds embed the same layout. The list of embedded UI names is a CoreCompile input: adding or removing a UI file
+       always rebuilds the assembly, also in incremental builds where no file became newer. -->
+  <Target Name="SapLensEmbedFrontend" BeforeTargets="AssignTargetPaths;PrepareResourceNames" DependsOnTargets="SapLensBuildFrontend">
     <Error Condition="!Exists('$(SapLensFrontendDist)/index.html')" Text="frontend/dist/index.html is missing after the frontend build." />
     <ItemGroup>
       <_SapLensFrontendFiles Include="$(SapLensFrontendDist)/**/*" />
-      <!-- The Link must use the OS directory separator (RecursiveDir already does): GenerateEmbeddedResourcesManifest splits TargetPath on
-           Path.DirectorySeparatorChar only. With "wwwroot/" on Windows every React file became a root-level entry literally named
-           "wwwroot/index.html", invisible to ManifestEmbeddedFileProvider(..., "wwwroot"); Linux was unaffected. -->
-      <EmbeddedResource Include="@(_SapLensFrontendFiles)" Link="wwwroot$([System.IO.Path]::DirectorySeparatorChar)%(RecursiveDir)%(Filename)%(Extension)" />
+      <EmbeddedResource Include="@(_SapLensFrontendFiles)" LogicalName="SapLensUi/%(RecursiveDir)%(Filename)%(Extension)" />
+      <_SapLensUiNames Include="@(EmbeddedResource->'%(LogicalName)')" Condition="$([System.String]::Copy('%(EmbeddedResource.LogicalName)').StartsWith('SapLensUi/'))" />
+    </ItemGroup>
+    <WriteLinesToFile File="$(IntermediateOutputPath)SapLensUi.files" Lines="@(_SapLensUiNames)" Overwrite="true" WriteOnlyWhenDifferent="true" />
+    <ItemGroup>
+      <CustomAdditionalCompileInputs Include="$(IntermediateOutputPath)SapLensUi.files" />
+      <FileWrites Include="$(IntermediateOutputPath)SapLensUi.files" />
     </ItemGroup>
   </Target>
 

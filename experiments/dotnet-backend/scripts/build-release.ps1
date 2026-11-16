@@ -67,10 +67,9 @@ function Test-Contains([string]$Path, [string]$Text) {
 foreach ($check in 'server-win-x64\SapLens.Api.dll', 'desktop-win-x64\SapLens2Prototype.exe') {
     $file = Join-Path $Output $check
     if (-not (Test-Contains $file "+$sha")) { throw "Build identity $sha missing in $check." }
-    if (-not (Test-Contains $file 'SapLens.Api.wwwroot.assets.')) { throw "React UI missing in $check." }
-    # The embedded-files manifest must nest the UI under wwwroot; a separator in a file name makes it invisible to the provider.
-    if (-not (Test-Contains $file '<File Name="index.html">')) { throw "index.html missing from the embedded-files manifest of $check." }
-    if ((Test-Contains $file '<File Name="wwwroot/') -or (Test-Contains $file '<File Name="wwwroot\')) { throw "UI files embedded with a separator in their name in $check." }
+    # The UI is embedded as resources named SapLensUi/<path> (the separator after "assets" is the build machine's; the server normalizes it).
+    if (-not (Test-Contains $file 'SapLensUi/index.html')) { throw "index.html missing from the embedded UI of $check." }
+    if (-not ((Test-Contains $file 'SapLensUi/assets/') -or (Test-Contains $file 'SapLensUi/assets\'))) { throw "React UI assets missing in $check." }
 }
 $sums = Get-ChildItem $Output -Recurse -File | Sort-Object FullName | ForEach-Object {
     '{0}  ./{1}' -f (Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant(), $_.FullName.Substring($Output.Length).TrimStart('\').Replace('\', '/') }
