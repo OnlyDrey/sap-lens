@@ -82,7 +82,15 @@ const sections = [
   'Functional Groups',
   'User Management'
 ]
-const allNavigation=[0,3,1,2,8,11,5,9,10,4,7,12,6]
+/** Sidebar groups (section indexes into `sections`). About SAP Lens (6) is the sidebar footer. The order of this list is the visual, DOM and
+ *  arrow-key order; User Management (12) is listed only for administrators of a sign-in server. */
+const navigationGroups:{label:string;sections:number[]}[]=[
+  {label:'General',sections:[0,3]},
+  {label:'Data & Integrations',sections:[1,2,9,11]},
+  {label:'Security & Governance',sections:[12,8,10]},
+  {label:'System & Tools',sections:[4,5,7]},
+]
+const footerSection=6
 const fieldLabels: Record<string, string> = {
   FUNCTION_KEY: 'SAP module or area',
   AGR_NAME: 'Role name (required)',
@@ -126,7 +134,9 @@ export function SettingsView({
   onSaved: () => void
 }) {
   const auth=useAuthentication()
-  const navigationOrder=allNavigation.filter(index=>index!==12||auth.session&&auth.canAdmin)
+  const visibleSection=(index:number)=>index!==12||auth.session&&auth.canAdmin
+  const groups=navigationGroups.map(group=>({...group,sections:group.sections.filter(visibleSection)})).filter(group=>group.sections.length)
+  const navigationOrder=[...groups.flatMap(group=>group.sections),footerSection]
   const applicationData=useApplicationData()
   const [section, setSection] = useState(0)
   const [importSource, setImportSource] = useState<CSVSource>('roles')
@@ -475,6 +485,34 @@ export function SettingsView({
       }
     })
 
+  const renderTab=(index:number)=>{
+    const label=sections[index], Icon=sectionIcons[index], position=navigationOrder.indexOf(index)
+    return <button
+      key={index}
+      role="tab"
+      aria-label={label}
+      title={label}
+      id={`settings-tab-${index}`}
+      aria-selected={section === index}
+      aria-controls={`settings-panel-${index}`}
+      tabIndex={section === index ? 0 : -1}
+      onKeyDown={(event) => {
+        if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+          event.preventDefault()
+          const next = event.key === 'Home' ? navigationOrder[0] : event.key === 'End' ? navigationOrder[navigationOrder.length-1]
+            : navigationOrder[(position + (event.key === 'ArrowDown' ? 1 : navigationOrder.length - 1)) % navigationOrder.length]
+          setSection(next)
+          document.getElementById(`settings-tab-${next}`)?.focus()
+        }
+      }}
+      onClick={() => { setSection(index); setError(null); setMessage(null) }}
+      className={`settings-nav-item ${section === index ? 'active' : ''}`}
+    >
+      <Icon size={19} aria-hidden="true" />
+      <span>{label}</span>
+    </button>
+  }
+
   return (
     <section
       aria-label="SAP Lens settings"
@@ -482,67 +520,28 @@ export function SettingsView({
     >
       <aside className="settings-sidebar">
         <button
-          className={`${buttonClass} flex items-center gap-2 mb-6`}
+          className={`${buttonClass} settings-back`}
           onClick={() => show(false)}
           disabled={busy}
           aria-label="Back to SAP Lens"
         >
           <ArrowLeft size={16} /> Back to SAP Lens
         </button>
-        <p className="text-xs uppercase tracking-widest font-semibold px-3 mb-3 text-[var(--muted)]">
-          Administration
-        </p>
-        <nav
-          role="tablist"
-          aria-label="Settings sections"
-          aria-orientation="vertical"
-          className="flex flex-col gap-1"
-        >
-          {navigationOrder.map((index, position) => {
-            const label=sections[index]
-            const Icon = sectionIcons[index]
-            return (
-              <div key={label}>{[0,1,5].includes(index)&&<p className="settings-nav-category">{index===0?'GENERAL':index===1?'DATA & MODULES':'APPLICATION'}</p>}<button
-                role="tab"
-                aria-label={label}
-                title={label}
-                id={`settings-tab-${index}`}
-                aria-selected={section === index}
-                aria-controls={`settings-panel-${index}`}
-                tabIndex={section === index ? 0 : -1}
-                onKeyDown={(event) => {
-                  if (
-                    ['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)
-                  ) {
-                    event.preventDefault()
-                    const next =
-                      event.key === 'Home'
-                        ? navigationOrder[0]
-                        : event.key === 'End'
-                          ? navigationOrder[navigationOrder.length-1]
-                          : navigationOrder[(position + (event.key === 'ArrowDown' ? 1 : navigationOrder.length - 1)) % navigationOrder.length]
-                    setSection(next)
-                    document.getElementById(`settings-tab-${next}`)?.focus()
-                  }
-                }}
-                onClick={() => {
-                  setSection(index)
-                  setError(null)
-                  setMessage(null)
-                }}
-                className={`settings-nav-item ${section === index ? 'active' : ''}`}
-              >
-                <Icon size={19} aria-hidden="true" />
-                <span>{label}</span>
-              </button></div>
-            )
-          })}
+        {/* One tablist: the scrollable groups and the About footer share arrow-key navigation (navigationOrder). */}
+        <nav role="tablist" aria-label="Settings sections" aria-orientation="vertical" className="settings-nav">
+          <div className="settings-nav-scroll">
+            {groups.map(group=>(
+              <div key={group.label} className="settings-nav-group">
+                <p className="settings-nav-category" aria-hidden="true">{group.label}</p>
+                {group.sections.map(index=>renderTab(index))}
+              </div>
+            ))}
+          </div>
+          <div className="settings-nav-footer">
+            {renderTab(footerSection)}
+            <p className="settings-nav-note">One active SAP system. Settings stay on this computer.</p>
+          </div>
         </nav>
-        <p className="text-xs text-[var(--muted)] px-3 mt-auto pt-8">
-          One active SAP system.
-          <br />
-          Settings stay on this computer.
-        </p>
       </aside>
       <div className="settings-main">
         <div className="settings-scroll" ref={scrollPane}>

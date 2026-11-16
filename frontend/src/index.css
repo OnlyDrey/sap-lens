@@ -52,7 +52,7 @@
 }
 /* A single administration workspace; only its content pane scrolls. */
 .settings-workspace { display:flex; flex:1 1 0%; overflow:hidden; width:100%; min-height:0; color:var(--text); background:var(--bg); }
-.settings-sidebar { width:280px; flex-shrink:0; display:flex; flex-direction:column; padding:24px 16px; border-right:1px solid var(--border); background:var(--surface); overflow-y:auto; }
+.settings-sidebar { width:280px; flex-shrink:0; display:flex; flex-direction:column; min-height:0; padding:24px 16px 16px; border-right:1px solid var(--border); background:var(--surface); overflow:hidden; }
 .settings-nav-item { border:0; display:flex; align-items:center; gap:var(--space-3); min-height:var(--control-height); padding:10px 12px; border-radius:var(--radius-control); text-align:left; font-size:var(--font-label); font-weight:500; color:var(--text2); background:transparent; transition:background-color .12s,color .12s; }
 .settings-nav-item svg { flex-shrink:0; }
 /* One line per item in any installed font: selection (bold) or a wider brand font never changes an item's height. The sidebar fits the longest label in Montserrat at desktop widths; narrower layouts truncate with the full label as tooltip. */
@@ -470,7 +470,16 @@ button.manager-identity:focus-visible { outline:var(--focus-width) solid var(--f
 .compact-health { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-card); padding:12px; display:flex; flex-direction:column; gap:6px; min-width:0; }
 .compact-health span { font-size:12px; color:var(--muted); }
 .compact-health strong { font-size:20px; }
-.settings-nav-category { padding:14px 12px 5px; font-size:10px; letter-spacing:.08em; color:var(--muted); font-weight:700; }
+.settings-nav-category { padding:4px 12px; font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); font-weight:700; }
+/* Settings sidebar: Back stays at the top, About at the bottom; only the grouped sections in between scroll (one scrollbar). The scroll area keeps a
+   small inner padding so focus rings are never clipped. */
+.settings-back { flex:none; display:flex; align-items:center; gap:var(--space-2); margin-bottom:var(--space-4); }
+.settings-nav { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+.settings-nav-scroll { flex:1 1 auto; min-height:0; overflow-y:auto; overscroll-behavior:contain; display:flex; flex-direction:column; gap:var(--space-3); padding:4px; margin:-4px; scroll-padding:8px; }
+.settings-nav-group { display:flex; flex-direction:column; gap:2px; }
+.settings-nav-footer { flex:none; display:flex; flex-direction:column; gap:var(--space-2); margin-top:var(--space-3); padding-top:var(--space-3); border-top:1px solid var(--border); }
+.settings-nav-note { padding:0 12px; font-size:var(--font-meta); color:var(--muted); }
+@media(max-height:560px) { .settings-nav-note { display:none; } }
 .settings-nav-item { width:100%; }
 .settings-review-groups { background:var(--surface); color:var(--text); border:1px solid var(--border); padding:10px; border-radius:8px; }
 @media(max-width:1099px) {

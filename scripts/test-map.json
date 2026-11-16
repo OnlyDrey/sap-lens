@@ -172,6 +172,7 @@
     "navigation-modules",
     "scheduled-refresh",
     "settings-refinement",
+    "settings-navigation",
     "settings-runtime-theme",
     "ux"
    ]
