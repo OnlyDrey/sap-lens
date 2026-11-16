@@ -96,6 +96,49 @@ public sealed class SodGovernanceTests
         }
     }
 
+    /// <summary>What a decision is recorded against (routers.sod_governance._locate on sod_scope.model_for / review_model_for): key, evidence version and
+    /// evidence content address, against Fixtures/sod/governance/items.python.json (tools/sod_decision_items_reference.py). Assignment and activity
+    /// evidence are compared by address; acceptance and risk evidence is the enriched analysis finding, whose address is compared with the routes.</summary>
+    [Fact]
+    public void Located_decision_items_and_evidence_addresses_equal_python_v1()
+    {
+        var reference = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sod", "governance", "items.python.json")))!.AsObject();
+        var folder = Directory.CreateTempSubdirectory("saplens-items-").FullName;
+        IReadOnlyList<IReadOnlyDictionary<string, string>> Records(string source, SapLens.Domain.Csv.CsvSpec spec)
+        {
+            var path = Path.Combine(folder, source + ".csv");
+            File.Copy(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sod", "analysis", source + ".sod.txt"), path);
+            return [.. new SapLens.Domain.Csv.CsvImport(path, new SapLens.Domain.Csv.CsvProfile(), spec).Records()];
+        }
+        var catalogue = SapLens.Domain.Catalogue.CatalogueBuilder.Build(Records("roles", SapLens.Domain.Csv.CsvSpec.Roles));
+        var users = SapLens.Domain.Users.UserDirectoryBuilder.Build(Records("users", SapLens.Domain.Csv.CsvSpec.Users), catalogue);
+        var sod = SodSource.Build(Records("sod", SapLens.Domain.Csv.CsvSpec.Sod));
+        var asOf = DateOnly.ParseExact((string)reference["as_of"]!, "yyyy-MM-dd", CultureInfo.InvariantCulture);
+        var model = SodGovernance.Derive(SodAnalyzer.Analyze(catalogue, users, sod, asOf).Users.Select(SodGovernance.FindingJson));
+        var review = SodGovernance.ReviewModel(model, users.UserOrder.Select(key => (key, users.Users[key].Assignments.Select(a =>
+            new SodGovernance.SourceAssignment(a.RoleName, a.ValidFrom, a.ValidTo, a.UserGroup, a.MatchStatus, a.CatalogueRoles, a.Tcodes)))), "active", asOf);
+        Assert.Equal((int)reference["base_users"]!, model.Count);
+        Assert.Equal((int)reference["review_users"]!, review.Count);
+        var failures = new List<string>();
+        foreach (var item in reference["items"]!.AsArray().Select(i => i!.AsObject()))
+        {
+            var kind = (string)item["kind"]!;
+            var located = SodGovernance.Locate(kind == "assignment" ? review : model, kind, (string)item["user"]!, (string)item["key"]!, (string)item["ref"]!);
+            if (located is not { } found) { failures.Add($"{kind} {item["ref"]}: not located"); continue; }
+            if (found.Key != (string)item["key"]! || found.EvidenceVersion != (string)item["evidence_version"]!) failures.Add($"{kind} {item["ref"]}: key or version differs");
+            if (kind is "assignment" or "activity")
+            {
+                var address = SapLens.Domain.Json.CanonicalJson.Sha256(new JsonObject { ["version"] = 1, ["source"] = "sod-decision-evidence", ["kind"] = kind, ["evidence"] = found.Evidence.DeepClone() });
+                if (address != (string)item["address"]!) failures.Add($"{kind} {item["ref"]}: evidence differs {Short(found.Evidence)}");
+            }
+        }
+        Assert.True(failures.Count == 0, string.Join("\n", failures.Take(5)));
+        // An item whose role no longer matches its key, or an unknown user, is not located (v1: 409 "no longer supported").
+        var first = reference["items"]!.AsArray().First(i => (string)i!["kind"]! == "assignment")!;
+        Assert.Null(SodGovernance.Locate(review, "assignment", (string)first["user"]!, (string)first["key"]!, "OTHER_ROLE"));
+        Assert.Null(SodGovernance.Locate(review, "assignment", "NOBODY", (string)first["key"]!, (string)first["ref"]!));
+    }
+
     [Theory]
     [InlineData("assignment", "Keep", "ver", "ver", "2026-01-15", null, null, "Keep")]
     [InlineData("assignment", "Remove", "ver", "ver", "2026-01-15", null, null, "Removal required")]

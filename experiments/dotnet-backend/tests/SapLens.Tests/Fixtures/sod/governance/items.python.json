@@ -1,0 +1,671 @@
+{
+ "as_of": "2026-11-16",
+ "review_users": 234,
+ "base_users": 90,
+ "items": [
+  {
+   "kind": "assignment",
+   "user": "EDGE01",
+   "ref": "ZC:FI:WILD_SPECIFIC",
+   "key": "889933f9c680e16de5f30965c0ea45a9b15e55cea6e3e00093da1c84d6971017",
+   "evidence_version": "39adae03533491a7fe9b60e73eb8905a16c04f3fe46fd353708a9011a941ab64",
+   "address": "b2231fcf4a795c2a6399a3a7bbaddb482e33f7e4af607e2df102f93f05b98c59"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE01",
+   "ref": "zc:mm:dup a",
+   "key": "9b46d468cb4d8364a928ecb138fbb3d682a8eda10005f321ac164a20be282c10",
+   "evidence_version": "468b7bc08372289e4b2530bdec2049df0edfc42fc64be4652eb2cbda07d6bc45",
+   "address": "05356aba55a7e62158829c6f5e08fe59e0c92b35b207435207c7c97dc7a9bd2e"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE02",
+   "ref": "ZC:CONFLICT:AREA",
+   "key": "914133558784ad19eace83c243c6449bec463ea516dedb27215166725d98dc96",
+   "evidence_version": "2b15d7f4de53dcec046d6fc1ba47f8cc015f61364303e0b993a3b2fc6ca63caf",
+   "address": "ede739628d0944e95b24e04820f918b4dc8cbf825b53f2026a18a95f6e76e8fc"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE02",
+   "ref": "ZC:NOT:IN:CATALOGUE",
+   "key": "35406baebf4b7652e07fba13d3ed80ac46f888522b6d10aed815375cd04bef37",
+   "evidence_version": "099fb24ff61a556125331c40368faf294b5ba5c6e047ce7681eabaa0c9f5b1a2",
+   "address": "9527a9696afd366ebc5c1ca0abe0a40fe1220c24c9a74f449ccbba719469f198"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE02",
+   "ref": "ZO:MM:M1:PR_REL_ST_E2_03:ALL",
+   "key": "b9fefe1abc3c682aca82ab954710c9c1ace709926889617f5a26116e6798beb5",
+   "evidence_version": "1baf8f62d1de7f4d319de9c3ee482a81036e47e501ef01dd23d745edcc1c9e28",
+   "address": "8bc5ef636c91bf8293d6202ce875728ab731095129189625e1b413542be6366a"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00001",
+   "ref": "ZC:MM:ROLE_00218",
+   "key": "35bc22324fc0aaade4325772bf597f51f904bbcf08e3ed6e66657db63b5dd3f0",
+   "evidence_version": "987d26324aaef29e753d4adbaa537b030cfdfa433336a16de73d87be20156e4e",
+   "address": "5557ae145ab3d6b4d428aeb28ef017d06f4dc8d0a07089bfb67cf6a8bbd8d824"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00001",
+   "ref": "ACT_13_A",
+   "key": "6d98a6227ac6f29ab92bd772188e80ae20bfcf538df31198480d5daccb74fef4",
+   "evidence_version": "a7182e7a40ec3e398c1b3190ffc71aa39418bd07c99e006b04afdb63748c7e06",
+   "address": "9e8a81240bb493e4993a42ff569eb966700ed1c7c0c4ed9e49d3a550c588ecfa"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00001",
+   "ref": "ACT_13_B",
+   "key": "3fb4b652fe31cf26f42ea2aa3f7900d47fa179371b9093c1bde088aa67b175cc",
+   "evidence_version": "979d9a25a9ec472ade82aafbd1a061eed03eb35023ec7316ab78985ae3f963ed",
+   "address": "bea206f610f42099adfe0c53e23361944d46478730a718786988e07fb2bcd28e"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00001",
+   "ref": "R013",
+   "key": "6867c41fe92f4d38a34370c323b17c9fc2086a536b0a540ed54e7b463c8ea071",
+   "evidence_version": "ddebec488b44a7404c5ae6f5129671faeb6608bd664dfce6ec8f693def0a5a11",
+   "address": "6eac12e759560044a7863be7564d530ac40d9de75bcb568505796ec7ae85719a"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00001",
+   "ref": "R013",
+   "key": "6867c41fe92f4d38a34370c323b17c9fc2086a536b0a540ed54e7b463c8ea071",
+   "evidence_version": "ddebec488b44a7404c5ae6f5129671faeb6608bd664dfce6ec8f693def0a5a11",
+   "address": "6dec936b317577ce583ca5e4049a66b41887183d5e6a09d27fd8075d7a187d3a"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00002",
+   "ref": "ZC:FI:ROLE_00048",
+   "key": "801675b92bf821209e29b4b3998a9c74c272f808b0778a7eae162069a29fb389",
+   "evidence_version": "dcc7f3972229e937c333c2dab14fd65fea3316075689a8c7a63fee6dbe199c2d",
+   "address": "36787aad45e477f7d1475c868c794b096cc2d266044617dbc6f0afa8070b68cb"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00003",
+   "ref": "ZC:PM:ROLE_00213",
+   "key": "6ef20fb1a93ff7e8d0d5371c07ffbe67619f0ea120dde906f1608ab29fc90573",
+   "evidence_version": "58b4f3cf638682ce60d7a001ea1e3b86fac0f1c5d572e350291977f7d7c70166",
+   "address": "b98d2e26c19abff78dce4dd8f55c81cbc2e72ac04dc99264d0c2776a7d2b8efe"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00003",
+   "ref": "ZC:HR:ROLE_00043",
+   "key": "097f2439ed96a0551736f1d5c04d6c155c3dc8598f03a9142d4fe00da35fbc84",
+   "evidence_version": "1be9341d97f5063a12ba1e0d5d7b6952e282c01cd1b1543540cd017eaa3b3b4d",
+   "address": "a0a4c32275c1fcc3e54e8fd115da82e0fd284536af322f5bbcfeef687e78ee2b"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00003",
+   "ref": "ZC:SD:ROLE_00099",
+   "key": "f718c750f3d2a5fbf9acbdbde2ffb0288a02c64b727e1cd24e0502e06bda0a51",
+   "evidence_version": "219bac996eb49885d0f3508fb520f9dc2d13fe3886812d177ddd961df73582f5",
+   "address": "49189c8780eebb7387b9068e64f14bc935bc7f132de3656bedbf0b9f41c66ccc"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00004",
+   "ref": "ZC:NO:TCODES",
+   "key": "92ce68e655af659f8aec4139f91fffdff3362e2b90918c361ebadc1bda6d0aa0",
+   "evidence_version": "35a68fe05f33c533f4ff3d966ea98b522758ca83663201249f8278733fb97603",
+   "address": "d3825474c2c9f0c78684d83fe98a9f89f24ae298032d7e67dd258a7812e5caff"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00004",
+   "ref": "ZC:MM:ROLE_00122",
+   "key": "bc9109da0008b0a8ba09f7db2734c41bcb0c3fc2244e1e5cbb54db234d0e999e",
+   "evidence_version": "f53b58fbbdd3f70b11153dbcefb9f64c314d305aa7b65cb2ec9a789e2f9c9500",
+   "address": "8983c5a773e63d2e801f10b0beb390d57b4ea0abd89c7df87cf3f7090ece6d73"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00004",
+   "ref": "ZC:SD:ROLE_00039",
+   "key": "98a0e653496836768e52a4b950c568a828ab95cd8b43a625278e1eff3d6b2880",
+   "evidence_version": "d042f5c95728ca43fe71c6a984e2b3f94438f70729146bccc7dd1abf1ceddbc4",
+   "address": "4b2498f78de166f25ca9e636eb45487280db220638150c12310434c46c90a3ac"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00005",
+   "ref": "ZO:MM:M1:PR_REL_ST_E2_01:ALL",
+   "key": "0398a0f431a8ec480fe0f0f8313158b95aa1dcf31ac0491f8a77c50bee6cbac4",
+   "evidence_version": "6e260547985763c88963188ad7ee13dc65a263ec0fc22ed90dc2e22f8d484a15",
+   "address": "45d0a4c375cc883d52ee61a9acea1fb89a6f91e8755eec24bd2a3a0ec4b61867"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00005",
+   "ref": "ZO:MM:M1:PO_REL_ST_E0_06:ALL",
+   "key": "f64b25162c7f64413ae59745b0fbc82f9deea1b670f3516fce3e8dd851ebd0ea",
+   "evidence_version": "d4584f7bca3f8c61968ab34ea4ec9d1b8378e04af87e6da1872574e199b6510e",
+   "address": "ca7febc08a64fd5023dc048ea7ff8849a70225997206f9a35d8b3d44f5b934bf"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00005",
+   "ref": "ZC:HR:ROLE_00211",
+   "key": "f3023910ca777c806ce7a9bedf84c28e604a2f963bc24e20ccb2bbf6ac9a4864",
+   "evidence_version": "b2d8c84a00cc08c75db681a0f06dcecf880546794912e5139b1beb7eb9e9bdfc",
+   "address": "27674ec9b8f1c7a1cb6f6bd60aeb29c6986d240b9140f498fe4bbf3fff3de60c"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00005",
+   "ref": "ZC:FI:ROLE_00012",
+   "key": "b53190438e6f490ded480ef647fa5260b23c28ceeced76d2e58c3879a8e10fdc",
+   "evidence_version": "a36b36df6e473e0e89b120925db4b9ca0c64b04c490a40b1d2c5aecf88be77b8",
+   "address": "b4d60b22e8abc4adf7bf57498bd67e8722da08789f06dd1105e6af3855ddd764"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00005",
+   "ref": "ACT_26_A",
+   "key": "ff403bf1cd7ca9a1709dd80d4c2cf20899eefe8f9fcc33568ee1dbfd6674de73",
+   "evidence_version": "53f734316c6481396e34c1c8cf30c28aa524f363b24eb97a91abdd358545eecb",
+   "address": "f64bf3ac09de521a7269b9ebb9e0264c2392960533106acaf6fd01daa565867a"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00005",
+   "ref": "ACT_26_B",
+   "key": "0c509eac638ebfd77aa49f9ee535f99657e3a52b7bcf48c955b87ca4a18eae94",
+   "evidence_version": "b379ff4f6463975041382125d87519ac2508bbe1ef64d1beea765794a3c63985",
+   "address": "a1c1e91957eae2b8c0e8aaac99a77192c4b6c549ee43221d075b63e981ff153c"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00005",
+   "ref": "R026",
+   "key": "9e779652747d7decaa5911307bd32ed7f02f6346677811825e9bd407380de43e",
+   "evidence_version": "129a228d796eea68ac6aad4a87b349cdfae87c77177947d7911a43e15a781017",
+   "address": "52656731548a079dc6f8f896d353416d7121f94e0c3d1c74dbe2e7add5fcdefc"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00005",
+   "ref": "R026",
+   "key": "9e779652747d7decaa5911307bd32ed7f02f6346677811825e9bd407380de43e",
+   "evidence_version": "129a228d796eea68ac6aad4a87b349cdfae87c77177947d7911a43e15a781017",
+   "address": "ca3f7773a843e82d3f8dc91f4e063f361021b629aa8100c4d91e40451629bc24"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00006",
+   "ref": "ZO:MM:M1:PO_REL_ST_E0_05:ALL",
+   "key": "89c300c1cefd60519c22fcf986b0d30ba86071b306ab706d1993013163517b27",
+   "evidence_version": "e4924a593f14d27f6e03ba01ad0dba64c9fe77c8de293040f14c8b96f9dceb79",
+   "address": "6df14861a3fb38da460187e87f73a10ac10876e9e5a2631f21fab9c447f79e94"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00006",
+   "ref": "ZC:XX-UNKNOWN:ROLE_00022",
+   "key": "77da73d4dddad0cf203091b42f57c2fa5434bddec46d083fb58b086852c18711",
+   "evidence_version": "1e314ccac4af29c37af09a45da712bb960bddb5aac0536697b2503d2f2859e00",
+   "address": "5267aeddf1916e837dbbcc43968a5ed1086302503c3bb8f9497c375ecf6fe023"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00007",
+   "ref": "ZC:MM:ROLE_00194",
+   "key": "5f9d9b2b653e3c3f20dacfcfb44423369df212fbfdaa526d5525889341fbbe62",
+   "evidence_version": "74d491a11dc442fc63bad0e0b747354a1152c8169a028b559b699e890d7ea944",
+   "address": "5f071593dea3c21f8cf6aff634cd0a71d23c28bb8c9633f0db0faf683c013426"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00007",
+   "ref": "ZC:MM:ROLE_00182",
+   "key": "67b62f7baf89400fc42e857050ad4ca0967d1c91dd5f0a1ffce982453dddcc8d",
+   "evidence_version": "7b96756af3d3130abaef253d4432f4fae77c1a46ec21d98ae964cb992768ccfd",
+   "address": "6985b3582963747e65c7a0f0e05bef4feee9f93b3a18738913eb010377815c38"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00007",
+   "ref": "ACT_38_A",
+   "key": "970b48a9f3dc4a40233ea6749763dec0b1a506ea9f2a4da7a0e90e7dedc4dd5b",
+   "evidence_version": "a06e4c7892232402295a1ec750317a6020e1280afeda63cb34f8a1e6e311e822",
+   "address": "a99d2c8d3eb15128da2f05892601ded8555e6c8832d8448772692eedd9bcad61"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00007",
+   "ref": "ACT_38_B",
+   "key": "34591ca981047708f5a25ec46aa08313a0fe493fa45b032102a7713e32f933db",
+   "evidence_version": "91a96915dc06db379df636a53d765f11671c3f7fd85a7c9e6be3f54168e876f0",
+   "address": "967df858e72208a86747ab3a162360f79e6fbb14a33ed8ac28c307b45bdc0aa7"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00007",
+   "ref": "R038",
+   "key": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+   "evidence_version": "854ffc8309be1a09df3ff24024a85ddee92a86edf06074a6a49b0fd5f31f5fd5",
+   "address": "c8fbd56c723de7bf2dd7ff2843dcf607c0913f28475bd7411aa7e53f7244ba60"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00007",
+   "ref": "R038",
+   "key": "6a01013a1716403ddc84ea1d652b647c81c21cfc7724edb727f269d957e13680",
+   "evidence_version": "854ffc8309be1a09df3ff24024a85ddee92a86edf06074a6a49b0fd5f31f5fd5",
+   "address": "8357256dc05598efb1937c9508b9e2c5c41fcebb5e9e318d5099c1f14e82803f"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00008",
+   "ref": "ZC:BASIS:ROLE_00078",
+   "key": "20e11000d2305b619078522490ae98967fe7cb852be01f6b21b3168a3c6476a2",
+   "evidence_version": "46fea7451d1a369079ac2da9f4dd75a9313dbb1755f103fea0629dfa88fe460d",
+   "address": "6a5b12ec64cac8a9d90571c18efb0f3fdfa1729da75ba0bdf55743e0d2b41871"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00008",
+   "ref": "ZC:Finance:ROLE_00173",
+   "key": "f5f51b10f628bb48ffd7bdfb3dedc11be96bbe0729a33b174019b59cf9e4a226",
+   "evidence_version": "b251a3af865e8f1a399e3fca37dc05e07d29d54b729e8b357007a525354bab3a",
+   "address": "854377c32e52801c793a9e52b203950e4a8f937921cf3ae087b0873c830587a1"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00008",
+   "ref": "ACT_17_A",
+   "key": "1403024ef412a50606232a073aa5f2fef90f58b56d52f15bfeb3d291a99b819e",
+   "evidence_version": "5f7b3d238b5a70466cbd1dc9eae907436ae98a846de8af20f9882f7f006d99d7",
+   "address": "2fee49acf51bc739957bae051c5d1cf50c686041f8f0f3cfffa0ea4012b93121"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00008",
+   "ref": "ACT_17_B",
+   "key": "6c6445d23b0a47062d2a06d8366d0b201ecc712a722bc9912e0637f5464bd773",
+   "evidence_version": "023a0647129cce581137a5c613eaffebb89b7e572f7b31dfc116e175af56d108",
+   "address": "68911d191612ad57bccb8cc604bc559377f4b8212b4cc1778442ce3a67fa1411"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00008",
+   "ref": "R017",
+   "key": "5c60bdff87e15adb7c301b0f9d6eb4ae056018b6d17615df4594302d3665015f",
+   "evidence_version": "91cad9ff19f8499908c1e9e930c9a67287ab9f5d15db3ef8a6b55a4e11c4243b",
+   "address": "01a0fc68464d821306aa16af9067376e52488357d8b88e57a38329814cb9baee"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00008",
+   "ref": "R017",
+   "key": "5c60bdff87e15adb7c301b0f9d6eb4ae056018b6d17615df4594302d3665015f",
+   "evidence_version": "91cad9ff19f8499908c1e9e930c9a67287ab9f5d15db3ef8a6b55a4e11c4243b",
+   "address": "d1cb3992a8785b72509fd0ba7e3268a23512a23922655c849ea33d69a0399ab9"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00011",
+   "ref": "ZC:HR:ROLE_00127",
+   "key": "d912779255d9e34c5e6778acc7ba9430b49ce38622e0f86f8369cbc8a13917ec",
+   "evidence_version": "c11ee8fd0e1db0368cf576db32c11e47805473dfc331ba8dafe2b36db4cfd0a1",
+   "address": "96b35e1c07efee2fce3c3faa57f94801f4b73db503bb6f68ad2f4c6043dfadd3"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00011",
+   "ref": "ZC:SD:ROLE_00207",
+   "key": "a05509574f0f5786b0f917448cb7739ba50ff79c7e1ed33e9af93b7076af3e53",
+   "evidence_version": "cd728ae1832fb49fa19c27169a80210fee3b71c507dc877656fb799b31012ff7",
+   "address": "316573a426f194404ed76ff08ad2660fb90d33e5f5bcd2cba21272c30860e5c4"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00011",
+   "ref": "ZC:PM:ROLE_00057",
+   "key": "1be1bf7e0e776053f4c0d37263b85eb7abb288d7863277e49cdcd02063556b86",
+   "evidence_version": "bfd75dcad73fc89c12eec69e0bbbff7d1e2eb3a75fd93ba98e96ecccf5ebd01c",
+   "address": "47d2d41964abcdddfdf50b388c8cc22b0d50406ee160427ad7c8628df052aef4"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00011",
+   "ref": "ACT_17_A",
+   "key": "2e90409f6c300aaeb205e40832c58e4ac97203d792cf156cb0eb2c510a9b1d16",
+   "evidence_version": "fe755114276b60bad1e7dd13cd02e088d243d604f4dba134cbbff555aec21c3d",
+   "address": "c36bc84d92f996c6e673a89e28e6685764ae09eca5eae7ec22b95d9392cd93c8"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00011",
+   "ref": "ACT_17_B",
+   "key": "10b8c0e1d79f2c864e8bbfda5f97458f0c80f713584ca3b84a23df9f76e00530",
+   "evidence_version": "3b7e7f84fe8c95aa22c63f36c6311dec3a2c3d805b7bcc363728191ad400aaa2",
+   "address": "33adae38c78b31afd0cf718c26d7414e1e108a65f1b065cc555f7f2522482055"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00011",
+   "ref": "ACT_20_A",
+   "key": "0a8a700da4bbe7020d4e557e985cbf1ed043e4712112289acc365f851945c11e",
+   "evidence_version": "e0ee304f3f8c74bf95d58bdad8b853ddef14ba8ebec7bb367e9b944ea0aa8562",
+   "address": "0db72233afb8b2e1a395df9f84e115903d3113011cf2a8a45e0826b17f774f1c"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00011",
+   "ref": "ACT_20_B",
+   "key": "6f2e5b7e35be51ebcd247cdb4fb0e3c6c0a86802dc678571319d33e6ced861a8",
+   "evidence_version": "4c684f840bcebeee45dff9403eccc98a69c69b887b06f2b1ceed4c28fb25ea96",
+   "address": "f7e5fd5ca80438a2e2215619b3e9a908892c7571b88fc6d48b9dbb99160c2077"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00011",
+   "ref": "R017",
+   "key": "536432e66b30a80070dd297ec1d08af640c5eb9cb33d48540a503f7ad55572d2",
+   "evidence_version": "66614740592675ad4e7a9939196bf2237877a37206868da2ebaaca8702a11448",
+   "address": "6fb742a24a605988b0dd51bbe806169d7b3a88543a785ea49b87badefb22e34e"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00011",
+   "ref": "R020",
+   "key": "4699a4684f87c671dba148d9de2d297ff1e591afff27c21f81ecf7e64ea5f060",
+   "evidence_version": "b40e805da9f3ba6eed7bfe1f685c610571d5b1709a89df3ff32ac491eca20858",
+   "address": "5b393fe83df4f983297be92a857a2023cac624610035f553d45d050c087d1c2a"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00011",
+   "ref": "R017",
+   "key": "536432e66b30a80070dd297ec1d08af640c5eb9cb33d48540a503f7ad55572d2",
+   "evidence_version": "66614740592675ad4e7a9939196bf2237877a37206868da2ebaaca8702a11448",
+   "address": "8fd4f740a79ee291e0062f7e0f1e388bdfb56583b1a43b681b8cba146141473e"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00011",
+   "ref": "R020",
+   "key": "4699a4684f87c671dba148d9de2d297ff1e591afff27c21f81ecf7e64ea5f060",
+   "evidence_version": "b40e805da9f3ba6eed7bfe1f685c610571d5b1709a89df3ff32ac491eca20858",
+   "address": "a1fcca00ad787b829140e8e4406331c2190da67937d8adc1b680f6e1c9b4a5b8"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00012",
+   "ref": "ZC:MM:ROLE_00074",
+   "key": "63e7284e78ade29ba25ae191f255007ddb3c399b5e8d6209233ca0e388060e76",
+   "evidence_version": "4d1ef68eb3ad5885df4c99194c88210098191ed1030ada9ac8396e6e1422d5ba",
+   "address": "2119df436c1deb8ffae1cb4fa97feb8bb3d5c4c90faf8d9e1ad4a95948d7693d"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00012",
+   "ref": "ZC:MM:ROLE_00206",
+   "key": "d97fafe04968821982f67b2e30421f9065643a4f705c8175f91071f275b200f4",
+   "evidence_version": "77fb097f24f182e2051fd08fe3c063c7ae29da3ba0ae1a4f81fef7f27721b19c",
+   "address": "6674ef0a9af26adc2d3039a025f89f60506327818a9806ccddc8d5e4f5bee5cf"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00012",
+   "ref": "ZC:MM:ROLE_00146",
+   "key": "22cda6eb7b5ae2c5fe4503726b59a23f1d2e080ab797c1cf6ab3172638ab21aa",
+   "evidence_version": "a4ca84ce49690948727bd96a9bd0b68f0e120a0f0b6ca47bf8b872f2ef2d7c6b",
+   "address": "3013da227dd187cfaa7da968b37a682026bf7a3b5c0bdb4c383cbea47aed8090"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00012",
+   "ref": "ACT_3_A",
+   "key": "4823ae38b1a7f507c24d0fb66ac588a9e12c325529539c3e78b20baf5edee43a",
+   "evidence_version": "59db96d208325d83771be3ccc628effe1b06fd5f47e34f81a8099d661cecdae8",
+   "address": "15fd8c8221b32b51f37a24a43e4e77326f9f4216818ad6e155cbcabb7990ecc0"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00012",
+   "ref": "ACT_3_B",
+   "key": "da223d2d2ffaf5b433fd697c5333c79d4d6028dd38b987b8b11ff7584369f349",
+   "evidence_version": "395d2b7d0159a574541ad320e2ad3f713f3adb02bef8e6e04f08d2ea93c49132",
+   "address": "466612ce4fd1cf2480e5a92d0ec522be62e17f343a5ed5f207175b52f4e2c9c1"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00012",
+   "ref": "ACT_10_A",
+   "key": "52655f6f88baf9e80850332a0f8c67d3d05b67b95f5a8e597a539f125fcbf100",
+   "evidence_version": "a8cd8132581197fc5eb07010a502c4be4b880dcc646e07c8622d8c315047fdcb",
+   "address": "0d85aef8349581bb80f9871d5b5c183d06243e9cf8de66b3c2dd656113b20651"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00012",
+   "ref": "ACT_10_B",
+   "key": "15f7be12f293e2b420793fd859ed21a02cc5e8c3e7ba2cdfb5d5f73819169a34",
+   "evidence_version": "9fd777f3892fc8d3787e78b8faaed8f2368b8a74325b76bb3e0e27a3af9c22df",
+   "address": "512a92f1ed66116ece698ce51ddd7af8c7bad681ace7ab3bb352856d7370ca26"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00012",
+   "ref": "ACT_17_A",
+   "key": "b8cf17da9cd7743c2c9927b7d97d61ce17ece64d5291035fc93018096eb579c6",
+   "evidence_version": "d1e2471a9df6d6315430cd40d7e267c45b5c82115e6ef6306c9b9e03b381a405",
+   "address": "9f9d2dfbcfe468b3891058b58b83e1e9882f2fa79c373451bf9a2a198f6283c2"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00012",
+   "ref": "ACT_17_B",
+   "key": "dd52f9f2abc0d8ab655d557e14286dfc893973e00240159f53c6d48c61cd67d0",
+   "evidence_version": "814d00bf795eb4d860f374a7fa7f52ebb4f16fcdb9011616cba03b45ef795844",
+   "address": "eb62cc74489c6402750e4ac1e1fde5d1a044a5e171f03d3fefc9abfa4b7e2952"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00012",
+   "ref": "ACT_39_A",
+   "key": "7fe976135995694a33dc98c381e2902ab8b81503e2140c90e27e48eecf1f816c",
+   "evidence_version": "6346e79cd1e737829a86656f73434bcd2036d5168e3404b6513732ed4e093e76",
+   "address": "b1596a70ee421839e2c2c9192562bb83d931b27818354f1826bdb45cd6ce9bc9"
+  },
+  {
+   "kind": "activity",
+   "user": "USER00012",
+   "ref": "ACT_39_B",
+   "key": "2379dcd43d9e0cd06f3d258655ab365bb19bd85f522d4515171c3a856366453d",
+   "evidence_version": "5d6be25cb508ac65b7e87274f007635cd39345dc6c5a3ad57a54b490dc9d05b3",
+   "address": "c25b8c0cbb7a6f23b294092e824de8114812095a30e019ad0f57fae23a5025a9"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00012",
+   "ref": "R003",
+   "key": "b0e10755ebbd534d750723eb5666e948f509faa75dffd3fde3bc3f0caf75aa69",
+   "evidence_version": "c93265169791f4be5c22778e37ad5486a84ae61847f74a002be434924ffe3573",
+   "address": "092744f4e04e3e405d825a2b0be96ce5fbf0c9a562c665999800b3b7182d4c8d"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00012",
+   "ref": "R010",
+   "key": "7038c2d10c04890e9b53a07710bfc16a1c096343fdd2312df260a7de600eedc1",
+   "evidence_version": "c4f93742efd043dc699aec559c63debfb5272323b7b2b8f331cd0599c904e19b",
+   "address": "c9832b26b3fdbe7e882800f5a6641bcd6da10694d572ed522287330a4ba51556"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00012",
+   "ref": "R017",
+   "key": "8b4c3689c1a9d39d8c1c75702d3393119441aa65b303a54b3f9f64c3977661b1",
+   "evidence_version": "127d19b9192dc0775f796ceb607b72cd4869bc7635afe62286bcacdfab6ecb2c",
+   "address": "effef7add455220c90d99c5dcab606388e90f5f370d7df78598de7c1d6c38370"
+  },
+  {
+   "kind": "acceptance",
+   "user": "USER00012",
+   "ref": "R039",
+   "key": "af2e3a33244e6333973cd818f80890bbffc439a156d78ddb10c181650efa0d07",
+   "evidence_version": "4ed55fb32fc3c90a524666ef4f7f9edf7f878e504d0c723148448c2e2c6a0965",
+   "address": "ad18d8cb5191cc17fa254bccc4c37eed5aec0a8a4ed3820e91ceaf4e6335fd66"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00012",
+   "ref": "R003",
+   "key": "b0e10755ebbd534d750723eb5666e948f509faa75dffd3fde3bc3f0caf75aa69",
+   "evidence_version": "c93265169791f4be5c22778e37ad5486a84ae61847f74a002be434924ffe3573",
+   "address": "5f98cebb955467a0fbad53749291a8700f51e36b4e856391f41c3e50069fbd3c"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00012",
+   "ref": "R010",
+   "key": "7038c2d10c04890e9b53a07710bfc16a1c096343fdd2312df260a7de600eedc1",
+   "evidence_version": "c4f93742efd043dc699aec559c63debfb5272323b7b2b8f331cd0599c904e19b",
+   "address": "bd17b0ea45f79b1ccbbe0c14010b515e33a0e44b883db0807a61be6a953cbe26"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00012",
+   "ref": "R017",
+   "key": "8b4c3689c1a9d39d8c1c75702d3393119441aa65b303a54b3f9f64c3977661b1",
+   "evidence_version": "127d19b9192dc0775f796ceb607b72cd4869bc7635afe62286bcacdfab6ecb2c",
+   "address": "f1d5a48902318eb59ddf854acd3937c5df9c1e6a871726aaa59b84b3174541ce"
+  },
+  {
+   "kind": "risk",
+   "user": "USER00012",
+   "ref": "R039",
+   "key": "af2e3a33244e6333973cd818f80890bbffc439a156d78ddb10c181650efa0d07",
+   "evidence_version": "4ed55fb32fc3c90a524666ef4f7f9edf7f878e504d0c723148448c2e2c6a0965",
+   "address": "5d6be8e46d32abb73190d9b902a807b922cc9641121144a456d2bea555669351"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE01",
+   "ref": "ZC:FI:WILD_SPECIFIC",
+   "key": "889933f9c680e16de5f30965c0ea45a9b15e55cea6e3e00093da1c84d6971017",
+   "evidence_version": "39adae03533491a7fe9b60e73eb8905a16c04f3fe46fd353708a9011a941ab64",
+   "address": "b2231fcf4a795c2a6399a3a7bbaddb482e33f7e4af607e2df102f93f05b98c59"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE01",
+   "ref": "zc:mm:dup a",
+   "key": "9b46d468cb4d8364a928ecb138fbb3d682a8eda10005f321ac164a20be282c10",
+   "evidence_version": "468b7bc08372289e4b2530bdec2049df0edfc42fc64be4652eb2cbda07d6bc45",
+   "address": "05356aba55a7e62158829c6f5e08fe59e0c92b35b207435207c7c97dc7a9bd2e"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE02",
+   "ref": "ZC:CONFLICT:AREA",
+   "key": "914133558784ad19eace83c243c6449bec463ea516dedb27215166725d98dc96",
+   "evidence_version": "2b15d7f4de53dcec046d6fc1ba47f8cc015f61364303e0b993a3b2fc6ca63caf",
+   "address": "ede739628d0944e95b24e04820f918b4dc8cbf825b53f2026a18a95f6e76e8fc"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE02",
+   "ref": "ZC:NOT:IN:CATALOGUE",
+   "key": "35406baebf4b7652e07fba13d3ed80ac46f888522b6d10aed815375cd04bef37",
+   "evidence_version": "099fb24ff61a556125331c40368faf294b5ba5c6e047ce7681eabaa0c9f5b1a2",
+   "address": "9527a9696afd366ebc5c1ca0abe0a40fe1220c24c9a74f449ccbba719469f198"
+  },
+  {
+   "kind": "assignment",
+   "user": "EDGE02",
+   "ref": "ZO:MM:M1:PR_REL_ST_E2_03:ALL",
+   "key": "b9fefe1abc3c682aca82ab954710c9c1ace709926889617f5a26116e6798beb5",
+   "evidence_version": "1baf8f62d1de7f4d319de9c3ee482a81036e47e501ef01dd23d745edcc1c9e28",
+   "address": "8bc5ef636c91bf8293d6202ce875728ab731095129189625e1b413542be6366a"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00002",
+   "ref": "ZC:FI:ROLE_00048",
+   "key": "801675b92bf821209e29b4b3998a9c74c272f808b0778a7eae162069a29fb389",
+   "evidence_version": "dcc7f3972229e937c333c2dab14fd65fea3316075689a8c7a63fee6dbe199c2d",
+   "address": "36787aad45e477f7d1475c868c794b096cc2d266044617dbc6f0afa8070b68cb"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00003",
+   "ref": "ZC:PM:ROLE_00213",
+   "key": "6ef20fb1a93ff7e8d0d5371c07ffbe67619f0ea120dde906f1608ab29fc90573",
+   "evidence_version": "58b4f3cf638682ce60d7a001ea1e3b86fac0f1c5d572e350291977f7d7c70166",
+   "address": "b98d2e26c19abff78dce4dd8f55c81cbc2e72ac04dc99264d0c2776a7d2b8efe"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00003",
+   "ref": "ZC:HR:ROLE_00043",
+   "key": "097f2439ed96a0551736f1d5c04d6c155c3dc8598f03a9142d4fe00da35fbc84",
+   "evidence_version": "1be9341d97f5063a12ba1e0d5d7b6952e282c01cd1b1543540cd017eaa3b3b4d",
+   "address": "a0a4c32275c1fcc3e54e8fd115da82e0fd284536af322f5bbcfeef687e78ee2b"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00003",
+   "ref": "ZC:SD:ROLE_00099",
+   "key": "f718c750f3d2a5fbf9acbdbde2ffb0288a02c64b727e1cd24e0502e06bda0a51",
+   "evidence_version": "219bac996eb49885d0f3508fb520f9dc2d13fe3886812d177ddd961df73582f5",
+   "address": "49189c8780eebb7387b9068e64f14bc935bc7f132de3656bedbf0b9f41c66ccc"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00004",
+   "ref": "ZC:NO:TCODES",
+   "key": "92ce68e655af659f8aec4139f91fffdff3362e2b90918c361ebadc1bda6d0aa0",
+   "evidence_version": "35a68fe05f33c533f4ff3d966ea98b522758ca83663201249f8278733fb97603",
+   "address": "d3825474c2c9f0c78684d83fe98a9f89f24ae298032d7e67dd258a7812e5caff"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00004",
+   "ref": "ZC:MM:ROLE_00122",
+   "key": "bc9109da0008b0a8ba09f7db2734c41bcb0c3fc2244e1e5cbb54db234d0e999e",
+   "evidence_version": "f53b58fbbdd3f70b11153dbcefb9f64c314d305aa7b65cb2ec9a789e2f9c9500",
+   "address": "8983c5a773e63d2e801f10b0beb390d57b4ea0abd89c7df87cf3f7090ece6d73"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00004",
+   "ref": "ZC:SD:ROLE_00039",
+   "key": "98a0e653496836768e52a4b950c568a828ab95cd8b43a625278e1eff3d6b2880",
+   "evidence_version": "d042f5c95728ca43fe71c6a984e2b3f94438f70729146bccc7dd1abf1ceddbc4",
+   "address": "4b2498f78de166f25ca9e636eb45487280db220638150c12310434c46c90a3ac"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00006",
+   "ref": "ZO:MM:M1:PO_REL_ST_E0_05:ALL",
+   "key": "89c300c1cefd60519c22fcf986b0d30ba86071b306ab706d1993013163517b27",
+   "evidence_version": "e4924a593f14d27f6e03ba01ad0dba64c9fe77c8de293040f14c8b96f9dceb79",
+   "address": "6df14861a3fb38da460187e87f73a10ac10876e9e5a2631f21fab9c447f79e94"
+  },
+  {
+   "kind": "assignment",
+   "user": "USER00006",
+   "ref": "ZC:XX-UNKNOWN:ROLE_00022",
+   "key": "77da73d4dddad0cf203091b42f57c2fa5434bddec46d083fb58b086852c18711",
+   "evidence_version": "1e314ccac4af29c37af09a45da712bb960bddb5aac0536697b2503d2f2859e00",
+   "address": "5267aeddf1916e837dbbcc43968a5ed1086302503c3bb8f9497c375ecf6fe023"
+  }
+ ]
+}

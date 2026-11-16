@@ -59,6 +59,20 @@ public sealed class SodAssignment
     public SortedDictionary<string, SortedSet<string>> Supplies { get; } = new(StringComparer.Ordinal);
     public SortedSet<string> Risks { get; } = new(StringComparer.Ordinal);
     public string EvidenceVersion { get; set; } = "";
+    /// <summary>review_model_for: every catalogue transaction of the imported assignment (absent for conflict-only assignments outside the source cut).</summary>
+    public IReadOnlyList<string>? CatalogueTcodes { get; init; }
+
+    public SodAssignment With(IReadOnlyList<string> catalogueTcodes)
+    {
+        var copy = new SodAssignment
+        {
+            Id = Id, User = User, Role = Role, ValidFrom = ValidFrom, ValidTo = ValidTo, UserGroup = UserGroup, IntervalStatus = IntervalStatus, MatchingStatus = MatchingStatus,
+            EvidenceVersion = EvidenceVersion, CatalogueTcodes = catalogueTcodes,
+        };
+        copy.CatalogueRoles.UnionWith(CatalogueRoles); copy.SingleRoles.UnionWith(SingleRoles); copy.Risks.UnionWith(Risks);
+        foreach (var (k, v) in Supplies) copy.Supplies[k] = new SortedSet<string>(v, StringComparer.Ordinal);
+        return copy;
+    }
 }
 
 public sealed class SodUserEntry
@@ -198,6 +212,99 @@ public static class SodGovernance
             };
         }
         return new JsonObject { ["user"] = entry.User, ["activities"] = activities, ["assignments"] = assignments, ["groups"] = List(entry.Groups) };
+    }
+
+    /// <summary>listify(assignment): the evidence an assignment decision is recorded against.</summary>
+    public static JsonObject AssignmentEvidence(SodAssignment a)
+    {
+        JsonArray List(IEnumerable<string> values) => new([.. values.Select(v => (JsonNode?)JsonValue.Create(v))]);
+        var supplies = new JsonObject();
+        foreach (var (name, codes) in a.Supplies) supplies[name] = List(codes);
+        var json = new JsonObject
+        {
+            ["id"] = a.Id, ["user"] = a.User, ["role"] = a.Role, ["valid_from"] = a.ValidFrom, ["valid_to"] = a.ValidTo, ["user_group"] = a.UserGroup,
+            ["interval_status"] = a.IntervalStatus, ["matching_status"] = a.MatchingStatus, ["catalogue_roles"] = List(a.CatalogueRoles), ["single_roles"] = List(a.SingleRoles),
+            ["supplies"] = supplies, ["risks"] = List(a.Risks), ["evidence_version"] = a.EvidenceVersion,
+        };
+        if (a.CatalogueTcodes is not null) json["catalogue_tcodes"] = List(a.CatalogueTcodes);
+        return json;
+    }
+
+    /// <summary>activity_detail: the activity with its contributing assignments, duplicate coverage and sibling activities.</summary>
+    public static JsonObject? ActivityDetail(SodUserEntry entry, string keyOrName)
+    {
+        var activity = entry.Activities.GetValueOrDefault(keyOrName) ?? entry.Activities.Values.FirstOrDefault(a => a.Key == keyOrName);
+        if (activity is null) return null;
+        JsonArray List(IEnumerable<string> values) => new([.. values.Select(v => (JsonNode?)JsonValue.Create(v))]);
+        var assignments = new JsonArray();
+        foreach (var aid in activity.Assignments)
+        {
+            var a = entry.Assignments[aid];
+            assignments.Add(new JsonObject
+            {
+                ["id"] = aid, ["role"] = a.Role, ["valid_from"] = a.ValidFrom, ["valid_to"] = a.ValidTo, ["user_group"] = a.UserGroup, ["interval_status"] = a.IntervalStatus,
+                ["tcodes"] = List(a.Supplies.GetValueOrDefault(activity.Name) ?? []), ["other_activities"] = List(a.Supplies.Keys.Where(n => n != activity.Name)),
+                ["risks"] = List(a.Risks), ["catalogue_roles"] = List(a.CatalogueRoles), ["evidence_version"] = a.EvidenceVersion,
+            });
+        }
+        return new JsonObject
+        {
+            ["activity"] = activity.Name, ["key"] = activity.Key, ["risks"] = List(activity.Risks), ["slots"] = List(activity.Slots), ["tcodes"] = List(activity.Tcodes),
+            ["evidence_version"] = activity.EvidenceVersion, ["assignments"] = assignments, ["duplicate_coverage"] = assignments.Count > 1,
+        };
+    }
+
+    /// <summary>One imported assignment of the review source (user_access record), as review_model_for reads it.</summary>
+    public sealed record SourceAssignment(string RoleName, string? ValidFrom, string? ValidTo, string UserGroup, string? MatchStatus, IReadOnlyList<string> CatalogueRoles, IReadOnlyList<string> Tcodes);
+
+    /// <summary>review_model_for: the conflict model extended with every imported assignment of the validity (source-only, never an input to conflict
+    /// detection). The base model is not changed.</summary>
+    public static Dictionary<string, SodUserEntry> ReviewModel(IReadOnlyDictionary<string, SodUserEntry> model, IEnumerable<(string User, IEnumerable<SourceAssignment> Assignments)> source,
+        string validity, DateOnly asOf)
+    {
+        var result = new Dictionary<string, SodUserEntry>(StringComparer.Ordinal);
+        SodUserEntry Copy(SodUserEntry entry)
+        {
+            var copy = new SodUserEntry { User = entry.User, Account = entry.Account };
+            foreach (var (k, v) in entry.Findings) copy.Findings[k] = v;
+            foreach (var (k, v) in entry.Activities) copy.Activities[k] = v;
+            foreach (var (k, v) in entry.Assignments) copy.Assignments[k] = v;
+            copy.Groups.UnionWith(entry.Groups);
+            return copy;
+        }
+        foreach (var (user, entry) in model) result[user] = Copy(entry);
+        foreach (var (user, assignments) in source)
+            foreach (var row in assignments)
+            {
+                var status = Roles.SapDates.IntervalStatus(row.ValidFrom, row.ValidTo, asOf);
+                if (validity != "all" && status != validity) continue;
+                if (string.IsNullOrEmpty(row.RoleName)) continue;
+                if (!result.TryGetValue(user, out var entry)) result[user] = entry = new SodUserEntry { User = user };
+                var aid = AssignmentId(user, row.RoleName, row.ValidFrom, row.ValidTo, row.UserGroup);
+                if (!entry.Assignments.TryGetValue(aid, out var assignment))
+                {
+                    assignment = new SodAssignment
+                    {
+                        Id = aid, User = user, Role = row.RoleName, ValidFrom = row.ValidFrom, ValidTo = row.ValidTo, UserGroup = row.UserGroup, IntervalStatus = status,
+                        MatchingStatus = row.MatchStatus ?? "unknown", EvidenceVersion = AssignmentEvidenceVersion(aid, []),
+                    };
+                    assignment.CatalogueRoles.UnionWith(row.CatalogueRoles);
+                }
+                entry.Assignments[aid] = assignment.With(row.Tcodes.Count > 0 ? row.Tcodes : [.. assignment.Supplies.Values.SelectMany(c => c)]);
+                if (row.UserGroup.Length > 0) entry.Groups.Add(row.UserGroup);
+            }
+        return result;
+    }
+
+    /// <summary>routers.sod_governance._locate: the item in the current model (key, evidence version, evidence) or null when evidence no longer supports it.</summary>
+    public static (string Key, string EvidenceVersion, JsonNode Evidence)? Locate(IReadOnlyDictionary<string, SodUserEntry> model, string kind, string user, string key, string reference)
+    {
+        if (!model.TryGetValue(user, out var entry)) return null;
+        if (kind == "activity")
+            return entry.Activities.TryGetValue(reference, out var a) ? (a.Key, a.EvidenceVersion, ActivityDetail(entry, reference)!) : null;
+        if (kind == "assignment")
+            return entry.Assignments.TryGetValue(key, out var s) && s.Role == reference ? (s.Id, s.EvidenceVersion, AssignmentEvidence(s)) : null;
+        return entry.Findings.TryGetValue(reference, out var f) ? ((string)f["finding_id"]!, (string)f["evidence_version"]!, f.DeepClone()) : null;
     }
 
     /// <summary>sod_decisions.lifecycle. currentVersion is null when evidence no longer supports the item. Timestamps are compared as v1 compares
