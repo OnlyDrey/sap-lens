@@ -18,28 +18,43 @@ public static class V1Access
     private static DateOnly Today() => DateOnly.FromDateTime(DateTime.Now);
     private static IResult Detail(int status, string detail) => Results.Json(new { detail }, statusCode: status);
 
+    private static readonly string[] AssignmentColumns = ["USERNAME", "FIRST_NAME", "LAST_NAME", "EMAIL", "USER_GROUP", "ROLE_NAME", "ROLE_VALID_FROM", "ROLE_VALID_TO",
+        "ASSIGNMENT_STATUS", "PR_PO", "RELEASE_GROUP", "RELEASE_STRATEGY", "MATCHED_FILTER"];
+
+    /// <summary>audit_assignments: every imported assignment of a user, except expired ones unless expired assignments are shown or filtered.</summary>
+    private static IEnumerable<Assignment> AuditAssignments(SapUser user, bool showExpired, string status, DateOnly today) =>
+        user.Assignments.Where(a => showExpired || status == "expired" || SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today) != "expired");
+
+    /// <summary>routers/access.directory_filters: the shared filter set of the user listing, the selection and the export.</summary>
+    private static (IResult? Error, (UserLookupQuery Query, bool ShowExpired, string Status) Value) Parse(HttpContext http)
+    {
+        var q = http.Request.Query;
+        foreach (var unsupported in new[] { "usernames", "functional_groups", "managers", "missing_roles", "assignment_band" })
+            if (q[unsupported].Any(v => !string.IsNullOrEmpty(v)))
+                return (V1Compatibility.NotMigrated(http, $"{http.Request.Path.Value?[5..]}?{unsupported}=… (filter not migrated yet)"), default);
+        var sort = q["sort"].FirstOrDefault() ?? "username";
+        if (sort is "job_title" or "department") return (V1Compatibility.NotMigrated(http, $"{http.Request.Path.Value?[5..]}?sort={sort} (Employee Directory sort not migrated yet)"), default);
+        var status = q["status"].FirstOrDefault() ?? "";
+        var mode = q["transaction_mode"].FirstOrDefault() ?? "and";
+        var excludeMode = q["exclude_mode"].FirstOrDefault() ?? "any";
+        if (!Sorts.Contains(sort) || !Statuses.Contains(status) || mode is not ("and" or "or") || excludeMode is not ("any" or "all")) return (Detail(422, "Unsupported filter value."), default);
+        if (q["groups"].Count > 50 || q["roles"].Count > 50 || q["tcodes"].Count > 21 || q["exclude_tcodes"].Count > 21) return (Detail(422, "Too many filter values."), default);
+        var showExpired = Flag(q, "show_expired");
+        var query = new UserLookupQuery(q["search"].FirstOrDefault() ?? "", q["group"].FirstOrDefault() ?? "", [.. q["groups"].OfType<string>()], q["role"].FirstOrDefault() ?? "",
+            [.. q["roles"].OfType<string>()], q["tcode"].FirstOrDefault() ?? "", [.. q["tcodes"].OfType<string>()], mode, Flag(q, "exclude_transactions"),
+            [.. q["exclude_tcodes"].OfType<string>()], excludeMode, status, showExpired, sort, Flag(q, "descending"));
+        return (null, (query, showExpired, status));
+    }
+
     public static void Map(RouteGroupBuilder api)
     {
         api.MapGet("/access/users", async (HttpContext http, SnapshotService snapshots, CancellationToken ct) =>
         {
             var q = http.Request.Query;
-            foreach (var unsupported in new[] { "usernames", "functional_groups", "managers", "missing_roles", "assignment_band" })
-                if (q[unsupported].Any(v => !string.IsNullOrEmpty(v)))
-                    return V1Compatibility.NotMigrated(http, $"access/users?{unsupported}=… (filter not migrated yet)");
-            var sort = q["sort"].FirstOrDefault() ?? "username";
-            if (sort is "job_title" or "department") return V1Compatibility.NotMigrated(http, $"access/users?sort={sort} (Employee Directory not migrated yet)");
-            var status = q["status"].FirstOrDefault() ?? "";
-            var mode = q["transaction_mode"].FirstOrDefault() ?? "and";
-            var excludeMode = q["exclude_mode"].FirstOrDefault() ?? "any";
-            if (!Sorts.Contains(sort) || !Statuses.Contains(status) || mode is not ("and" or "or") || excludeMode is not ("any" or "all"))
-                return Detail(422, "Unsupported filter value.");
+            if (Parse(http) is { Error: { } error }) return error;
+            var (query, showExpired, status) = Parse(http).Value;
             if (!Paging(q, 50, out var offset, out var limit)) return Detail(422, "offset must be ≥ 0 and limit between 1 and 100.");
-            if (q["groups"].Count > 50 || q["roles"].Count > 50 || q["tcodes"].Count > 21 || q["exclude_tcodes"].Count > 21) return Detail(422, "Too many filter values.");
             var snapshot = await snapshots.GetAsync(ct);
-            var showExpired = Flag(q, "show_expired");
-            var query = new UserLookupQuery(q["search"].FirstOrDefault() ?? "", q["group"].FirstOrDefault() ?? "", [.. q["groups"].OfType<string>()], q["role"].FirstOrDefault() ?? "",
-                [.. q["roles"].OfType<string>()], q["tcode"].FirstOrDefault() ?? "", [.. q["tcodes"].OfType<string>()], mode, Flag(q, "exclude_transactions"),
-                [.. q["exclude_tcodes"].OfType<string>()], excludeMode, status, showExpired, sort, Flag(q, "descending"));
             var today = Today();
             var result = UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today);
             var anchor = q["anchor"].FirstOrDefault() ?? "";
@@ -58,8 +73,7 @@ public static class V1Access
                     },
                 });
             }
-            var includeExpired = showExpired || status == "expired";
-            var exportAssignments = result.Sum(u => snapshot.Users.Users[u.UserKey].Assignments.Count(a => includeExpired || SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today) != "expired"));
+            var exportAssignments = result.Sum(u => AuditAssignments(snapshot.Users.Users[u.UserKey], showExpired, status, today).Count());
             var groups = snapshot.Users.Users.Values.SelectMany(u => u.Groups).Where(g => g.Length > 0).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
             return Results.Ok(new
             {
@@ -72,6 +86,46 @@ public static class V1Access
                 },
                 as_of = today.ToString("yyyy-MM-dd"), data_revision = Revision(snapshot), groups, groups_total = snapshot.Users.GroupCount, export_assignments = exportAssignments,
             });
+        });
+
+        // Every username of the current filter result, in listing order (capped), so a selection across pages is an explicit list.
+        api.MapGet("/access/users-selection", async (HttpContext http, SnapshotService snapshots, CancellationToken ct) =>
+        {
+            if (Parse(http) is { Error: { } error }) return error;
+            var (query, _, _) = Parse(http).Value;
+            var snapshot = await snapshots.GetAsync(ct);
+            var result = UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, Today());
+            const int cap = 5000;
+            return Results.Ok(new { total = result.Count, usernames = result.Take(cap).Select(u => u.Username).ToList(), truncated = result.Count > cap, limit = cap, data_revision = Revision(snapshot) });
+        });
+
+        // csv_exports.assignment_response for the filtered users: every retained assignment (expired ones only when shown or filtered), MATCHED_FILTER per row.
+        api.MapGet("/access/exports/users", async (HttpContext http, SnapshotService snapshots, CancellationToken ct) =>
+        {
+            if (Parse(http) is { Error: { } error }) return error;
+            var (query, showExpired, status) = Parse(http).Value;
+            var snapshot = await snapshots.GetAsync(ct);
+            if (snapshot.Ids.Users is null) return Detail(409, "No validated User Access dataset is loaded.");
+            var today = Today();
+            var (result, evidence) = UserLookup.FindWithEvidence(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today);
+            var rows = result.SelectMany(u => AuditAssignments(snapshot.Users.Users[u.UserKey], showExpired, status, today)
+                .Select(a => (Assignment: a, Identity: u, Matched: evidence.TryGetValue(u.UserKey, out var hit) && hit.Any(e => e.Id == a.Id)))).ToList();
+            var csv = new System.Text.StringBuilder("\ufeff");
+            V1Csv.Line(csv, AssignmentColumns, cells: false);
+            static string Local(string? value) => SapDates.Parse(value) is { } d ? $"{d.Day:00}.{d.Month:00}.{d.Year:0000}" : "";
+            foreach (var (a, identity, matched) in rows)
+            {
+                var status2 = SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today);
+                V1Csv.Line(csv, [a.Username, identity.FirstName, identity.LastName, identity.Email, a.UserGroup, a.RoleName, Local(a.ValidFrom), Local(a.ValidTo),
+                    char.ToUpperInvariant(status2[0]) + status2[1..], a.Release?.DocumentType, a.Release?.ReleaseGroup, a.Release?.ReleaseStrategy, matched ? "Yes" : "No"], cells: true);
+            }
+            var day = today.ToString("yyyy-MM-dd");
+            http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"sap-lens-user-directory-review-{day}.csv\"";
+            http.Response.Headers["X-SAP-Lens-Data-Revision"] = Revision(snapshot);
+            http.Response.Headers["X-SAP-Lens-As-Of"] = day;
+            http.Response.Headers["X-SAP-Lens-Assignment-Count"] = rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            http.Response.Headers.CacheControl = "no-store";
+            return Results.Text(csv.ToString(), "text/csv; charset=utf-8");
         });
 
         api.MapGet("/access/users/{**username}", async (HttpContext http, string username, SnapshotService snapshots, CancellationToken ct) =>

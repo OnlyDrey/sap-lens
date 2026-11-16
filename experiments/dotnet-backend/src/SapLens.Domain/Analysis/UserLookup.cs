@@ -50,7 +50,11 @@ public static class UserLookup
             string.Join('/', statuses), lockStatus, entries.Where(a => a.Scope != "other").Select(a => RoleNames.Normalize(a.RoleName)).Distinct().Count());
     }
 
-    public static List<UserSummary> Find(UserDirectory state, bool catalogueAvailable, UserLookupQuery q, DateOnly today)
+    public static List<UserSummary> Find(UserDirectory state, bool catalogueAvailable, UserLookupQuery q, DateOnly today) =>
+        FindWithEvidence(state, catalogueAvailable, q, today).Result;
+
+    /// <summary>directory_selection: the matching users and, per user key, the assignments that matched the filters (export MATCHED_FILTER).</summary>
+    public static (List<UserSummary> Result, Dictionary<string, List<Assignment>> Evidence) FindWithEvidence(UserDirectory state, bool catalogueAvailable, UserLookupQuery q, DateOnly today)
     {
         var wanted = TransactionFilters.Normalize(q.Tcode.Length > 0 ? [q.Tcode, .. q.Tcodes ?? []] : q.Tcodes ?? []);
         var (include, includeMode, excluded, excludedMode) = TransactionFilters.LegacyGroups(wanted, q.TransactionMode, q.ExcludeTransactions);
@@ -119,6 +123,6 @@ public static class UserLookup
         });
         result.Sort(comparer);
         if (q.Descending) result.Reverse();
-        return result;
+        return (result, evidence);
     }
 }

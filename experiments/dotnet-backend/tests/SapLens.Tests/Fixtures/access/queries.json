@@ -1,0 +1,10 @@
+[
+ {"name": "default"},
+ {"name": "expired", "show_expired": true},
+ {"name": "group", "groups": ["GRP_LOG"], "show_expired": true},
+ {"name": "role", "roles": ["ZC:MM:ROLE_00218"]},
+ {"name": "tcode_or", "tcodes": ["T0154", "T0012"], "transaction_mode": "or", "show_expired": true},
+ {"name": "exclude", "exclude_tcodes": ["T0154"], "exclude_mode": "any"},
+ {"name": "status_expired", "status": "expired"},
+ {"name": "search_desc", "search": "user0001", "sort": "email", "descending": true, "show_expired": true}
+]

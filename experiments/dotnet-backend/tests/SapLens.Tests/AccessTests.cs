@@ -78,7 +78,7 @@ public sealed class AccessTests : IAsyncLifetime
     [InlineData("/api/access/users?assignment_band=31%2B")]
     [InlineData("/api/access/users?sort=job_title")]
     [InlineData("/api/access/users/USER0001?valid_from_min=2020-01-01")]
-    [InlineData("/api/access/exports/users")]
+    [InlineData("/api/access/exports/users?usernames=USER0001")]
     [InlineData("/api/access/release-roles")]
     public async Task Filters_and_routes_not_migrated_are_refused_with_501_instead_of_being_ignored(string path)
     {
