@@ -122,7 +122,7 @@ public sealed class PersistenceTests
             await c.OpenAsync();
             await using var cmd = c.CreateCommand();
             cmd.CommandText = "PRAGMA writable_schema = 0; DELETE FROM __EFMigrationsHistory; " +
-                              "DROP TABLE SavedFilters; DROP TABLE RefreshReports; DROP TABLE Settings; DROP TABLE Backups; DROP TABLE ReviewInvalidations; DROP TABLE ReviewDecisions; DROP TABLE DatasetRecords; DROP TABLE Datasets; DROP TABLE Jobs;";
+                              "DROP TABLE SodDocuments; DROP TABLE SavedFilters; DROP TABLE RefreshReports; DROP TABLE Settings; DROP TABLE Backups; DROP TABLE ReviewInvalidations; DROP TABLE ReviewDecisions; DROP TABLE DatasetRecords; DROP TABLE Datasets; DROP TABLE Jobs;";
             await cmd.ExecuteNonQueryAsync();
         }
         SqliteConnection.ClearAllPools();

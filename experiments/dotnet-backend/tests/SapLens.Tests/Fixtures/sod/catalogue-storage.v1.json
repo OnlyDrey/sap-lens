@@ -1,0 +1,81 @@
+{
+ "version": 1,
+ "revision": 4,
+ "entries": {
+  "F019": {
+   "metadata": {
+    "enabled": true,
+    "display_name": "Local F019",
+    "business_category": "",
+    "explanation_en": "",
+    "explanation_no": "",
+    "consequence_en": "",
+    "consequence_no": "",
+    "mitigating_controls_en": "",
+    "mitigating_controls_no": "",
+    "review_guidance_en": "",
+    "review_guidance_no": "",
+    "notes": "",
+    "description_review_status": "Reviewed",
+    "color": "#aa00cc"
+   },
+   "observed_definition": "c6e2d95b0ac853d56f31a3ec57f7a48c5a93c269cde328ad215629c8405e0f2d",
+   "reviewed_definition": "c6e2d95b0ac853d56f31a3ec57f7a48c5a93c269cde328ad215629c8405e0f2d",
+   "modified": "2026-01-02T03:04:05.123456+00:00"
+  },
+  "M002": {
+   "metadata": {
+    "enabled": false,
+    "display_name": "",
+    "business_category": "",
+    "explanation_en": "",
+    "explanation_no": "",
+    "consequence_en": "",
+    "consequence_no": "",
+    "mitigating_controls_en": "",
+    "mitigating_controls_no": "",
+    "review_guidance_en": "",
+    "review_guidance_no": "",
+    "notes": "",
+    "description_review_status": "Reviewed",
+    "color": ""
+   },
+   "observed_definition": "0000000000000000000000000000000000000000000000000000000000000000",
+   "reviewed_definition": "0000000000000000000000000000000000000000000000000000000000000000",
+   "modified": "2026-01-03T00:00:00+00:00"
+  },
+  "OLD1": {
+   "metadata": {
+    "enabled": true,
+    "display_name": "Retired risk note",
+    "business_category": "",
+    "explanation_en": "",
+    "explanation_no": "",
+    "consequence_en": "",
+    "consequence_no": "",
+    "mitigating_controls_en": "",
+    "mitigating_controls_no": "",
+    "review_guidance_en": "",
+    "review_guidance_no": "",
+    "notes": "",
+    "description_review_status": "Needs description review",
+    "color": ""
+   },
+   "observed_definition": "1111111111111111111111111111111111111111111111111111111111111111",
+   "modified": "2025-12-01T00:00:00+00:00"
+  }
+ },
+ "activities": {
+  "AP01": {
+   "metadata": {
+    "display_name": "Local AP01",
+    "business_category": "",
+    "explanation_en": "",
+    "review_guidance_en": "",
+    "notes": "",
+    "color": "#123abc"
+   },
+   "modified": "2026-01-04T00:00:00+00:00"
+  }
+ }
+}

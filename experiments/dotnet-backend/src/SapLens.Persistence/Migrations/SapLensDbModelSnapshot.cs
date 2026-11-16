@@ -412,6 +412,32 @@ namespace SapLens.Persistence.Migrations
                     b.ToTable("Settings");
                 });
 
+            modelBuilder.Entity("SapLens.Persistence.SodDocument", b =>
+                {
+                    b.Property<string>("Name")
+                        .HasMaxLength(32)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Json")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UpdatedBy")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("UpdatedUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Name");
+
+                    b.ToTable("SodDocuments");
+                });
+
             modelBuilder.Entity("SapLens.Persistence.DatasetRecord", b =>
                 {
                     b.HasOne("SapLens.Persistence.Dataset", null)

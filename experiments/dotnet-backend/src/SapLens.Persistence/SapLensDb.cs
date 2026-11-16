@@ -13,6 +13,7 @@ public sealed class SapLensDb(DbContextOptions<SapLensDb> options) : DbContext(o
     public DbSet<SettingsDocument> Settings => Set<SettingsDocument>();
     public DbSet<RefreshReport> RefreshReports => Set<RefreshReport>();
     public DbSet<SavedFilter> SavedFilters => Set<SavedFilter>();
+    public DbSet<SodDocument> SodDocuments => Set<SodDocument>();
 
     protected override void OnModelCreating(ModelBuilder model)
     {
@@ -48,6 +49,7 @@ public sealed class SapLensDb(DbContextOptions<SapLensDb> options) : DbContext(o
         model.Entity<BackupRecord>(e => e.HasIndex(x => new { x.Kind, x.CreatedUtc }));
         model.Entity<SettingsDocument>(e => { e.Property(x => x.Id).ValueGeneratedNever(); e.Property(x => x.Revision).IsConcurrencyToken(); });
         model.Entity<RefreshReport>(e => { e.Property(x => x.Id).HasMaxLength(32); e.HasIndex(x => x.TimestampUtc); });
+        model.Entity<SodDocument>(e => { e.HasKey(x => x.Name); e.Property(x => x.Name).HasMaxLength(32); e.Property(x => x.Revision).IsConcurrencyToken(); });
         model.Entity<SavedFilter>(e =>
         {
             e.Property(x => x.Id).HasMaxLength(64);

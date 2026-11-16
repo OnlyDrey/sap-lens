@@ -22,7 +22,7 @@
     <Content Remove="wwwroot\**" />
     <EmbeddedResource Include="wwwroot\**" />
     <!-- Reference data exported from Python v1 by tools/export_v1_reference.py; read by the v1 compatibility API, not served as files. -->
-    <EmbeddedResource Include="V1Reference\*.json" LogicalName="V1Reference.%(Filename)%(Extension)" ExcludeFromManifest="true" />
+    <EmbeddedResource Include="V1Reference\*.json;V1Reference\*.xlsx" LogicalName="V1Reference.%(Filename)%(Extension)" ExcludeFromManifest="true" />
   </ItemGroup>
 
   <!-- Frontend: built with the repository's own npm scripts when dist is missing, or always with -p:BuildFrontend=true (release builds). Node.js is a

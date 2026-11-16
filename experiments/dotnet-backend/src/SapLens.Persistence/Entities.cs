@@ -147,3 +147,13 @@ public sealed class SavedFilter
     public string CreatedBy { get; set; } = "";
     public string ModifiedBy { get; set; } = "";
 }
+
+/// <summary>A revisioned private JSON document (SoD catalogue annotations, SoD reference library), stored in the shape of the v1 file it replaces.</summary>
+public sealed class SodDocument
+{
+    public required string Name { get; set; }
+    public int Revision { get; set; }
+    public required string Json { get; set; }
+    public DateTime UpdatedUtc { get; set; }
+    public string UpdatedBy { get; set; } = "";
+}

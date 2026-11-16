@@ -6,7 +6,7 @@ touched; CI runs only on pushes to `main` (`validate.yml`), so experiment pushes
 ## Release decision: NO-GO (not a Release Candidate)
 
 SAP Lens 2 on .NET is **not** a Release Candidate. The architecture, security boundary, packaging and the migrated areas are sound and tested, but
-functional parity is far from complete: **51 of 144** API routes the React UI references are served ([ROUTE_AUDIT.md](ROUTE_AUDIT.md)); account
+functional parity is far from complete: **62 of 144** API routes the React UI references are served ([ROUTE_AUDIT.md](ROUTE_AUDIT.md)); account
 review, SoD governance, accounts and roles, Employee Directory, backups and reports are not migrated. A release without them would remove audit
 functionality users rely on. Windows runtime acceptance has not been performed for the current build.
 
@@ -14,7 +14,7 @@ functionality users rely on. Windows runtime acceptance has not been performed f
 
 | Phase | Status | Evidence | What blocks exit |
 | --- | --- | --- | --- |
-| 3 Integration and stabilization | **In progress; exit criteria not met** | Route audit generated from code (no undocumented 501: every unmigrated route answers `501 not_migrated`, contract-tested); React UI verified against .NET in Chromium for sign-in, Data Sources import, Role Lookup, User Access, Compare Users [M]; Data Health findings equal Python v1 `calculations()` on the small synthetic set (11 of 11) [M]; Dashboard KPIs and distributions identical to Python v1 `overview()` on the 20 000-user set [M]; Saved Filters and Access Packages migrated with the v1 test cases ported [T]; v1 accounts, sessions and roles migrated (Accounts mode is the Server default), React activation, sign-in, User Management and viewer restrictions verified in Chromium [M]; Employee Directory on the versioned dataset pipeline [T][M]; Account Review on the hash-chained decision store with per-user attribution [T][M]; 160 automated tests [T] | 93 routes not migrated; browser tests exist only as ad-hoc scripts in `tools/` and scratch, not a suite |
+| 3 Integration and stabilization | **In progress; exit criteria not met** | Route audit generated from code (no undocumented 501: every unmigrated route answers `501 not_migrated`, contract-tested); React UI verified against .NET in Chromium for sign-in, Data Sources import, Role Lookup, User Access, Compare Users [M]; Data Health findings equal Python v1 `calculations()` on the small synthetic set (11 of 11) [M]; Dashboard KPIs and distributions identical to Python v1 `overview()` on the 20 000-user set [M]; Saved Filters and Access Packages migrated with the v1 test cases ported [T]; v1 accounts, sessions and roles migrated (Accounts mode is the Server default), React activation, sign-in, User Management and viewer restrictions verified in Chromium [M]; Employee Directory on the versioned dataset pipeline [T][M]; Account Review on the hash-chained decision store with per-user attribution [T][M]; SoD source metadata and risk catalogue with Python-identical fingerprints and catalogue output [T][M]; 169 automated tests [T] | 82 routes not migrated; browser tests exist only as ad-hoc scripts in `tools/` and scratch, not a suite |
 | 4 Platform and distribution | **Partial** | Reproducible release build (`scripts/build-release.sh`, `.ps1`): React build, tests, self-contained Server win-x64 and linux-x64, Desktop win-x64, build identity stamped (`+<sha>`) and verified, `SHA256SUMS`, `manifest.json` [M on Linux]; Windows service and systemd hosting in code; install/upgrade commands documented | No Windows run of the current build; installer and upgrade/rollback scripts are documented commands, not tested tooling; Desktop installer not built |
 | 5 Full regression and hardening | **Not started as a phase** | Existing suites: equivalence 68/68 small and large (domain), benchmarks, security and TLS tests, multi-process SQLite tests [T][M] | Depends on Phase 3 parity; the v1 Playwright suite cannot pass until the UI's areas are migrated |
 | 6 Release Candidate and acceptance | **Not started** | Windows acceptance commands and checklists exist ([UI_INTEGRATION.md](UI_INTEGRATION.md), [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md), [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md)) | No RC exists (see decision); no Windows or mobile acceptance run |
@@ -36,24 +36,18 @@ one test process refused each other's imports (409). It is now a per-host single
 
 ## Checkpoint: SoD governance (next task)
 
-SoD is 62 v1 routes over about 5 300 lines of Python (`sod_*.py`, `routers/sod*.py`); nothing of it is served yet beyond the analyzer the
-equivalence harness covers. Exact order, each a validated commit:
+Done: steps 1 and 2 (optional source columns with v1 content hash; risk and activity catalogue with byte-identical definition fingerprints, metadata
+lookup, reference status/reset/template). Golden fixtures in `tests/SapLens.Tests/Fixtures/sod` are produced by `tools/sod_fingerprints_reference.py`
+and `tools/sod_catalogue_reference.py` from Python v1.
 
-1. **Source fidelity first.** `Sources.Read("sod")` keeps only the 10 core headers; v1 also stores the optional columns (`RISK_NAME`,
-   `RISK_DESCRIPTION`, `RISK_IMPACT`, `BUSINESS_PROCESS` and the activity columns, see `RISK_METADATA` in `sod_import.py`) that feed
-   `sod_metadata.lookup`. Keep them in the dataset records without changing the core content hash (verify against v1 `build_sod`).
-2. **Catalogue store** (`sod_catalogue.py`): local risk and activity metadata with a revision, `observed_definition`/`reviewed_definition`
-   fingerprints (`definition_version` = SHA-256 of `json.dumps(definition, sort_keys=True, ensure_ascii=False, separators=(',', ':'))`;
-   must stay byte-identical so a migrated `sod-catalogue.json` keeps its review status), retained historical definitions from earlier SoD
-   datasets (the .NET dataset history replaces v1's content-addressed snapshots). Routes: `catalogue`, `catalogue/{id}`, `catalogue/{id}` POST,
-   `catalogue/bulk`, `catalogue/export`, `catalogue-activities` (list, detail, POST), `appearance`.
-3. **Reference library** (`sod_reference.py`) and `metadata` (`sod_metadata.py` lookup and coverage indicators).
-4. **Scope and analysis** (`sod_scope.py`, `routers/sod_analysis.py`): filters, evidence, export, on the existing `SodAnalyzer`.
-5. **Decisions and reviews** (`sod_decisions.py`, `sod_reviews.py`) on the hash-chained review store (subject types per v1; never rewrite).
-6. **Periods** (`sod_periods.py`): frozen snapshots, transitions, approval gates; then **governance** (`sod_governance.py`, 21 routes:
-   acceptance, remediation, explorer, matrices) and **reports** (`sod_reports.py`, PDF/DOCX/CSV from the frozen model).
+Next, in order, each a validated commit:
 
-Data compatibility to keep in view: v1 `sod-catalogue.json`, SoD decision and period files must import with fingerprints preserved.
+1. Reference workbook upload (`sod_reference.parse`/`install`: XLSX via System.IO.Compression and the sheet XML, the same column names and validation)
+   and a migration command that imports v1 `sod-catalogue.json` and `sod-reference.json` into the SoD documents (validate, then one transaction).
+2. **Scope and analysis** (`sod_scope.py`, `routers/sod_analysis.py`): filters, evidence, export, on the existing `SodAnalyzer`; then `overview`.
+3. **Decisions and reviews** (`sod_decisions.py`, `sod_reviews.py`) on the hash-chained review store (subject types per v1; never rewrite).
+4. **Periods** (`sod_periods.py`): frozen snapshots, transitions, approval gates; then **governance** (`sod_governance.py`, 21 routes: acceptance,
+   remediation, explorer, matrices) and **reports** (`sod_reports.py`, PDF/DOCX/CSV from the frozen model).
 
 ## Remaining work, in dependency order
 
