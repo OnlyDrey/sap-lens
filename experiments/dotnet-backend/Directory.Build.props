@@ -7,7 +7,26 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <Deterministic>true</Deterministic>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <!-- Experiment only: never packaged with or versioned like the production SAP Lens. -->
-    <Version>0.0.0-experiment</Version>
   </PropertyGroup>
+
+  <!-- Product version of SAP Lens 2 (Server and Desktop): product-version.json next to this file is the only source (see
+       docs/experiments/dotnet-backend/VERSIONING.md). It is independent of SAP Lens v1 (backend/resources/product-version.json) and changes only by an
+       explicit, approved edit; builds never increment it. Build identity is separate: the release scripts pass -p:SourceRevisionId=<commit>, which the
+       SDK appends to the informational version (2.0.0-alpha.1+<commit>); build time and artifact hashes live in build-manifest.json.
+       FileVersion follows the v1 contract (MAJOR.MINOR.PATCH plus the alpha/beta/rc number, 0 for a stable release). -->
+  <PropertyGroup>
+    <SapLensVersionFile>$(MSBuildThisFileDirectory)product-version.json</SapLensVersionFile>
+    <SapLensVersion>$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(SapLensVersionFile)')), '(?s)^.*"version"\s*:\s*"([^"]*)".*$', '$1'))</SapLensVersion>
+    <SapLensVersionValid>$([System.Text.RegularExpressions.Regex]::IsMatch('$(SapLensVersion)', '^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})(-(alpha|beta|rc)\.[1-9]\d{0,4})?$'))</SapLensVersionValid>
+    <SapLensBaseVersion>$([System.Text.RegularExpressions.Regex]::Replace('$(SapLensVersion)', '^(\d+\.\d+\.\d+).*$', '$1'))</SapLensBaseVersion>
+    <SapLensPrerelease Condition="$(SapLensVersion.Contains('-'))">$([System.Text.RegularExpressions.Regex]::Replace('$(SapLensVersion)', '^.*\.(\d+)$', '$1'))</SapLensPrerelease>
+    <SapLensPrerelease Condition="!$(SapLensVersion.Contains('-'))">0</SapLensPrerelease>
+    <Version>$(SapLensVersion)</Version>
+    <FileVersion>$(SapLensBaseVersion).$(SapLensPrerelease)</FileVersion>
+    <AssemblyVersion>$(SapLensBaseVersion).0</AssemblyVersion>
+    <Product>SAP Lens 2</Product>
+  </PropertyGroup>
+  <Target Name="SapLensValidateVersion" BeforeTargets="CoreCompile" Condition="'$(SapLensVersionValid)' != 'True'">
+    <Error Text="$(SapLensVersionFile): version '$(SapLensVersion)' must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-alpha.N|-beta.N|-rc.N." />
+  </Target>
 </Project>

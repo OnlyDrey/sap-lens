@@ -16,7 +16,7 @@ public static class ServerConfiguration
     public static string? Informational(string[] args)
     {
         if (args.Any(a => a is "--help" or "-h")) return Help;
-        if (args.Contains("--version")) return $"SAP Lens 2 server {V1Compatibility.Version}" + (V1Compatibility.SourceSha is { } sha ? $" (commit {sha})" : "");
+        if (args.Contains("--version")) return ProductIdentity.Describe("server");
         return null;
     }
 

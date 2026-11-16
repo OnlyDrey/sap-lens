@@ -24,6 +24,7 @@ Evidence tags used in every document: **[M]** measured on Linux x64 in this envi
 | [PERFORMANCE_BENCHMARK.md](PERFORMANCE_BENCHMARK.md) | Algorithm and service benchmarks, concurrency under import, memory, sizes |
 | [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md) | Desktop (WebView2) and Server builds, run commands, packaging assessment |
 | [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md) | Server configuration reference (every option, environment variable, default and refusal), trusted-LAN HTTPS, authentication review, firewall, Windows service and systemd deployment |
+| [VERSIONING.md](VERSIONING.md) | Product version (`2.0.0-alpha.N`, independent of v1), channel and build identity; where each appears; release policy |
 | [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md) | Windows test VM runbook: native release build, test launcher (`scripts/start-server-test.ps1`), manual start, HTTPS and TLS checks, firewall, logs, restart, and the acceptance levels (build is not runtime acceptance) |
 | [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | How v1 data, decisions and evidence would move, with rollback |
 

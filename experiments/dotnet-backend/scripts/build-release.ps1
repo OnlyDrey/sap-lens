@@ -50,7 +50,12 @@ $sha = (& git -C $root rev-parse HEAD).Trim()
 $committed = (& git -C $root log -1 --format=%cI).Trim()
 $dirty = [bool](& git -C $root status --porcelain -- . ..\..\frontend)
 if ($dirty) { Write-Warning 'The working tree has uncommitted changes; the manifest records source_dirty=true.' }
-$version = ([xml](Get-Content (Join-Path $root 'Directory.Build.props') -Raw)).Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1
+# Product version: product-version.json is the only source (docs/experiments/dotnet-backend/VERSIONING.md); a build never changes it.
+$version = (Get-Content (Join-Path $root 'product-version.json') -Raw | ConvertFrom-Json).version
+if ($version -notmatch '^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})(-(alpha|beta|rc)\.([1-9]\d{0,4}))?$') { throw "product-version.json: '$version' is not MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N]." }
+$channel = if ($Matches[5]) { $Matches[5] } else { 'stable' }
+$fileVersion = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $(if ($Matches[6]) { [int]$Matches[6] } else { 0 }))
+$uiVersion = (Get-Content (Join-Path $root '..\..\backend\resources\product-version.json') -Raw | ConvertFrom-Json).version   # recorded, never used as this version
 $built = [DateTime]::UtcNow
 $release = Join-Path $Output ('SAP-Lens-2-{0}-{1}-{2}-{3}' -f $version, $built.ToString('yyyyMMdd-HHmmss'), $sha.Substring(0, 7), $platform)
 if (Test-Path -LiteralPath $release) { throw "Release folder $release exists; an existing release is never overwritten." }
@@ -98,7 +103,7 @@ foreach ($part in 'server', 'desktop') {
 }
 foreach ($check in 'server\SapLens.Api.exe', 'desktop\SapLens2Prototype.exe') {
     $file = Join-Path $release $check
-    if (-not (Test-Contains $file "+$sha")) { throw "Build identity $sha missing in $check." }
+    if (-not (Test-Contains $file "$version+$sha")) { throw "Product version and build identity $version+$sha missing in $check." }
     # The UI is embedded as resources named SapLensUi/<path> (the separator after "assets" is the build machine's; the server normalizes it).
     if (-not (Test-Contains $file 'SapLensUi/index.html')) { throw "index.html missing from the embedded UI of $check." }
     if (-not ((Test-Contains $file 'SapLensUi/assets/') -or (Test-Contains $file 'SapLensUi/assets\'))) { throw "React UI assets missing in $check." }
@@ -120,7 +125,8 @@ function Get-Artifacts([string]$Folder, [string[]]$Exclude) {
     }
 }
 $manifest = [ordered]@{
-    schema = 1; product = 'SAP Lens 2 (.NET experiment)'; version = $version; source_sha = $sha; source_dirty = $dirty; source_committed_at = $committed
+    schema = 1; product = 'SAP Lens 2'; version = $version; channel = $channel; file_version = $fileVersion; ui_source_version = $uiVersion
+    source_sha = $sha; source_dirty = $dirty; source_committed_at = $committed
     branch = (& git -C $root rev-parse --abbrev-ref HEAD).Trim(); build_timestamp_utc = $built.ToString('yyyy-MM-ddTHH:mm:ssZ'); target_platform = $platform
     dotnet_sdk = $sdk; node = $nodeVersion
     publish = [ordered]@{ self_contained = $true; single_file = $true; trimmed = $false; native_aot = $false; compressed = $false

@@ -334,7 +334,7 @@ Describe 'Release verification' {
                 $file = Get-Item (Join-Path $Path $relative)
                 [ordered]@{ path = $relative; bytes = $file.Length; sha256 = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
             }
-            $manifest = [ordered]@{ source_sha = 'abc'; build_timestamp_utc = '2026-11-16T10:00:00Z'; target_platform = 'win-x64'
+            $manifest = [ordered]@{ version = '2.0.0-alpha.1'; file_version = @(2, 0, 0, 1); source_sha = 'abc'; build_timestamp_utc = '2026-11-16T10:00:00Z'; target_platform = 'win-x64'
                 executables = [ordered]@{ server = 'server/SapLens.Api.exe'; desktop = 'desktop/SapLens2Prototype.exe' }; artifacts = @($artifacts) }
             [System.IO.File]::WriteAllText((Join-Path $Path 'build-manifest.json'), ($manifest | ConvertTo-Json -Depth 5))
             $sums = foreach ($relative in @('build-manifest.json') + @($artifacts | ForEach-Object { $_.path })) {
@@ -348,10 +348,17 @@ Describe 'Release verification' {
     }
 
     It 'accepts an intact release' {
-        $path = Join-Path $TestDrive 'intact'; New-VerifiableRelease $path
+        $path = Join-Path $TestDrive 'SAP-Lens-2-2.0.0-alpha.1-20261116-100000-abc1234-win-x64'; New-VerifiableRelease $path
         $run = Invoke-Verify $path
         $run.Code | Should -Be 0
         $run.Output | Should -Match 'Release verified: 4 artifacts'
+    }
+
+    It 'refuses a folder name that carries another version' {
+        $path = Join-Path $TestDrive 'SAP-Lens-2-2.0.0-alpha.2-20261116-100000-abc1234-win-x64'; New-VerifiableRelease $path
+        $run = Invoke-Verify $path
+        $run.Code | Should -Be 1
+        $run.Output | Should -Match 'does not carry version 2.0.0-alpha.1'
     }
 
     It 'detects <Name>' -ForEach @(
@@ -359,6 +366,8 @@ Describe 'Release verification' {
         @{ Name = 'a missing native library'; Change = { param($p) Remove-Item (Join-Path $p 'server/e_sqlite3.dll') }; Message = 'missing: server/e_sqlite3.dll' }
         @{ Name = 'an added file'; Change = { param($p) Set-Content (Join-Path $p 'server/appsettings.json') '{}' }; Message = 'not in the manifest: server/appsettings.json' }
         @{ Name = 'an edited manifest'; Change = { param($p) Add-Content (Join-Path $p 'build-manifest.json') ' ' }; Message = 'SHA256SUMS checksum differs: build-manifest.json' }
+        @{ Name = 'a file version that does not follow from the version'; Change = { param($p) $m = Get-Content (Join-Path $p 'build-manifest.json') -Raw | ConvertFrom-Json; $m.file_version = @(2, 0, 0, 7); [System.IO.File]::WriteAllText((Join-Path $p 'build-manifest.json'), ($m | ConvertTo-Json -Depth 5)) }; Message = 'does not follow from version 2.0.0-alpha.1' }
+        @{ Name = 'an invalid version'; Change = { param($p) $m = Get-Content (Join-Path $p 'build-manifest.json') -Raw | ConvertFrom-Json; $m.version = '0.0.0-experiment'; [System.IO.File]::WriteAllText((Join-Path $p 'build-manifest.json'), ($m | ConvertTo-Json -Depth 5)) }; Message = "manifest version '0.0.0-experiment' is not" }
     ) {
         $path = Join-Path $TestDrive ([guid]::NewGuid().ToString('n')); New-VerifiableRelease $path
         & $Change $path

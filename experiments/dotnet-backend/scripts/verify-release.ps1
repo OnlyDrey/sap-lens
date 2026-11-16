@@ -15,6 +15,14 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) { [Console]::Err
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 function Hash([string]$Path) { (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant() }
 
+# Product version: a valid version, the same in the folder name, and a file version that follows from it.
+if ("$($manifest.version)" -notmatch '^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc)\.(\d+))?$') { $problems.Add("manifest version '$($manifest.version)' is not MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N]") }
+else {
+    $expected = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $(if ($Matches[6]) { [int]$Matches[6] } else { 0 }))
+    if ($manifest.PSObject.Properties.Name -contains 'file_version' -and ((@($manifest.file_version) -join '.') -ne ($expected -join '.'))) { $problems.Add("manifest file_version $(@($manifest.file_version) -join '.') does not follow from version $($manifest.version)") }
+    $folder = Split-Path -Leaf $root
+    if ($folder -like 'SAP-Lens-2-*' -and $folder -notlike "SAP-Lens-2-$($manifest.version)-*") { $problems.Add("folder name $folder does not carry version $($manifest.version)") }
+}
 $listed = @{}
 foreach ($artifact in @($manifest.artifacts)) {
     $listed[$artifact.path] = $true

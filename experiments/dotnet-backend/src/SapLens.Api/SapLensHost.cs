@@ -80,6 +80,8 @@ public static class SapLensHost
         app.UseDefaultFiles(new DefaultFilesOptions { FileProvider = ui });
         app.UseStaticFiles(new StaticFileOptions { FileProvider = ui, OnPrepareResponse = c => c.Context.Response.Headers.CacheControl = "no-cache" });
         app.MapOpenApi("/openapi/{documentName}.json");
+        // Product identity of this host (the embedded React build's v1 identity file is not served; see UiAssets).
+        app.MapGet("/" + UiAssets.ProductIdentityFile, () => Results.Content(ProductIdentity.ToJson().ToJsonString(), "application/json"));
         Endpoints.Map(app);
         V1Compatibility.Map(app);
         MapSession(app, settings);

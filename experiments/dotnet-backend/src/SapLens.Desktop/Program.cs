@@ -24,7 +24,8 @@ internal static class Program
         using var logs = new FileLoggerProvider(Path.Combine(root, "logs"), selfCheck ? "self-check" : "desktop");
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
         var log = factory.CreateLogger("SapLens.Desktop");
-        log.LogInformation("Desktop starting (version {Version}, self-check {SelfCheck})", typeof(Program).Assembly.GetName().Version, selfCheck);
+        log.LogInformation("Desktop starting ({Product} {Version}, commit {Commit}, file version {FileVersion}, self-check {SelfCheck})", SapLens.Api.ProductIdentity.Product,
+            SapLens.Api.ProductIdentity.Version, SapLens.Api.ProductIdentity.Commit ?? "not recorded", string.Join('.', SapLens.Api.ProductIdentity.FileVersion), selfCheck);
 
         using var single = new Mutex(true, @"Local\SapLens2Prototype", out var first);
         if (!first)

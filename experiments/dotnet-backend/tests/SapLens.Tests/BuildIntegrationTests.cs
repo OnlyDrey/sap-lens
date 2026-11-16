@@ -47,9 +47,11 @@ public sealed class BuildIntegrationTests
         var provider = UiAssets.Create();
         var missing = Directory.EnumerateFiles(dist, "*", SearchOption.AllDirectories)
             .Select(f => Path.GetRelativePath(dist, f).Replace('\\', '/'))
-            .Where(relative => !provider.GetFileInfo(relative).Exists)
+            .Where(relative => relative != UiAssets.ProductIdentityFile && !provider.GetFileInfo(relative).Exists)
             .ToList();
         Assert.True(missing.Count == 0, "Not embedded in SapLens.Api.dll: " + string.Join(", ", missing));
+        // The React build's product-version.json carries SAP Lens v1's identity; this host serves its own at that path (VERSIONING.md).
+        Assert.False(provider.GetFileInfo(UiAssets.ProductIdentityFile).Exists);
         using var reader = new StreamReader(provider.GetFileInfo("index.html").CreateReadStream());
         Assert.Contains(UiAssets.Marker, reader.ReadToEnd());
     }

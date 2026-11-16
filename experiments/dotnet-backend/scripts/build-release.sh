@@ -19,7 +19,10 @@ fi
 sha="$(git -C "$root" rev-parse HEAD)"
 dirty="$(git -C "$root" status --porcelain -- . ../../frontend | head -1)"
 if [ -n "$dirty" ]; then echo "warning: the working tree has uncommitted changes; the manifest records source_dirty=true" >&2; fi
-version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$root/Directory.Build.props" | head -1)"
+# Product version: product-version.json is the only source (docs/experiments/dotnet-backend/VERSIONING.md); a build never changes it.
+version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$root/product-version.json")"
+echo "$version" | grep -Eq '^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})(-(alpha|beta|rc)\.[1-9][0-9]{0,4})?$' \
+  || { echo "product-version.json: '$version' is not MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N]" >&2; exit 2; }
 now="$(date -u +%s)"; stamp="$(date -u -d "@$now" +%Y%m%d-%H%M%S)"; built="$(date -u -d "@$now" +%Y-%m-%dT%H:%M:%SZ)"; shown="$(date -u -d "@$now" '+%Y-%m-%d %H:%M:%S')"
 win="$output/SAP-Lens-2-$version-$stamp-${sha:0:7}-win-x64"; linux="$output/SAP-Lens-2-$version-$stamp-${sha:0:7}-linux-x64"
 for release in "$win" "$linux"; do [ ! -e "$release" ] || { echo "$release exists; an existing release is never overwritten" >&2; exit 1; }; done
@@ -48,8 +51,8 @@ sed -e "s/{{VERSION}}/$version/" -e "s/{{SHA}}/$sha/" -e "s/{{BUILT}}/$shown/" -
   "$root/scripts/release-README.txt" | sed 's/$/\r/' > "$win/README.txt"
 
 # Artifact validation, manifests and checksums (same schema as build-release.ps1).
-python3 - "$win" "$linux" "$sha" "${dirty:+true}" "$version" "$built" <<'PY'
-import hashlib, json, subprocess, sys
+python3 - "$win" "$linux" "$sha" "${dirty:+true}" "$version" "$built" "$root/../.." <<'PY'
+import hashlib, json, re, subprocess, sys
 from pathlib import Path
 win, linux, sha, dirty, version, built = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4] == 'true', sys.argv[5], sys.argv[6]
 def run(*cmd): return subprocess.run(cmd, capture_output=True, text=True).stdout.strip()
@@ -62,7 +65,7 @@ for release, parts in expected.items():
         check(files(release / part) == sorted(names), f'{release.name}/{part} holds {files(release / part)}, expected {sorted(names)}')
 for exe in (win / 'server/SapLens.Api.exe', win / 'desktop/SapLens2Prototype.exe', linux / 'server/SapLens.Api'):
     data = exe.read_bytes()
-    check(f'+{sha}'.encode() in data, f'build identity missing in {exe.name}')
+    check(f'{version}+{sha}'.encode() in data, f'product version and build identity {version}+{sha} missing in {exe.name}')
     check(b'SapLensUi/index.html' in data, f'index.html missing from the embedded UI of {exe.name}')
     check(b'SapLensUi/assets/' in data or b'SapLensUi/assets\\' in data, f'React UI assets missing in {exe.name}')
 check(b'Microsoft.Extensions.Hosting.WindowsServices.dll' in (win / 'server/SapLens.Api.exe').read_bytes(), 'Windows service host missing')
@@ -70,7 +73,10 @@ def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 for release, platform in ((win, 'win-x64'), (linux, 'linux-x64')):
     executables = {'server': 'server/SapLens.Api.exe', 'desktop': 'desktop/SapLens2Prototype.exe'} if platform == 'win-x64' else {'server': 'server/SapLens.Api'}
     artifacts = [dict(path=p, bytes=(release / p).stat().st_size, sha256=digest(release / p)) for p in files(release)]
-    manifest = dict(schema=1, product='SAP Lens 2 (.NET experiment)', version=version, source_sha=sha, source_dirty=dirty,
+    match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?', version)
+    ui_version = json.loads((Path(sys.argv[7]) / 'backend/resources/product-version.json').read_text())['version']   # recorded, never used as this version
+    manifest = dict(schema=1, product='SAP Lens 2', version=version, channel=match[4] or 'stable', file_version=[int(match[1]), int(match[2]), int(match[3]), int(match[5] or 0)],
+                    ui_source_version=ui_version, source_sha=sha, source_dirty=dirty,
                     source_committed_at=run('git', 'log', '-1', '--format=%cI'), branch=run('git', 'rev-parse', '--abbrev-ref', 'HEAD'), build_timestamp_utc=built,
                     target_platform=platform, dotnet_sdk=run('dotnet', '--version'), node=run('node', '--version'),
                     publish=dict(self_contained=True, single_file=True, trimmed=False, native_aot=False, compressed=False,

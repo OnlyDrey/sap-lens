@@ -12,6 +12,7 @@ public static class UiAssets
     /// <summary>The React mount point in frontend/index.html: proves "/" is the SAP Lens application, not an error page.</summary>
     public const string Marker = "<div id=\"root\">";
     public const string ResourcePrefix = "SapLensUi/";
+    public const string ProductIdentityFile = "product-version.json";
     public static readonly string[] Required = ["index.html", "theme.js", "sap-lens.png", "login.html", "login.css"];
 
     public static IFileProvider Create() => Validate(new EmbeddedUiFileProvider(typeof(UiAssets).Assembly));
@@ -46,6 +47,8 @@ public sealed class EmbeddedUiFileProvider : IFileProvider
             var normalized = name.Replace('\\', '/');
             if (!normalized.StartsWith(UiAssets.ResourcePrefix, StringComparison.Ordinal)) continue;
             var relative = Normalize(normalized[UiAssets.ResourcePrefix.Length..]);
+            // The React build emits SAP Lens v1's product identity; this host answers /product-version.json with its own (ProductIdentity).
+            if (relative == UiAssets.ProductIdentityFile) continue;
             if (relative is not null && !_files.TryAdd(relative, name))
                 throw new InvalidOperationException($"The user interface contains the file '{relative}' twice in this build.");
         }

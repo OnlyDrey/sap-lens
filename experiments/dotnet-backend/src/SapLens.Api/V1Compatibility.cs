@@ -21,10 +21,10 @@ public static class V1Compatibility
     public static readonly string Boot = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
     private static readonly Lazy<JsonObject> Registry = new(() => Load("registry.json"));
     private static readonly Lazy<JsonObject> DefaultSettings = new(() => Load("default-settings.json"));
-    private static readonly string Informational = typeof(V1Compatibility).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
-    public static readonly string Version = Informational.Split('+')[0];
+    /// <summary>The SAP Lens 2 product version (see ProductIdentity; never v1's).</summary>
+    public static readonly string Version = ProductIdentity.Version;
     /// <summary>The commit the build was made from (release scripts pass -p:SourceRevisionId); null for builds without it.</summary>
-    public static readonly string? SourceSha = Informational.Contains('+') ? Informational.Split('+')[1] : null;
+    public static readonly string? SourceSha = ProductIdentity.Commit;
 
     /// <summary>A fresh copy of v1's default settings document.</summary>
     public static JsonObject DefaultSettingsDocument() => DefaultSettings.Value.DeepClone().AsObject();
@@ -91,7 +91,8 @@ public static class V1Compatibility
         api.MapGet("/version", () => new { app = "SAP Lens", version = Version, mode = "dotnet-preview" });
         api.MapGet("/application-info", () => new
         {
-            version = Version, mode = "dotnet-preview", source_sha = SourceSha, file_version = (string?)null, python = (string?)null,
+            version = Version, mode = "dotnet-preview", source_sha = SourceSha, file_version = ProductIdentity.FileVersion, python = (string?)null,
+            product = ProductIdentity.Product, channel = ProductIdentity.Channel,
             runtime = $".NET {Environment.Version}", platform = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
         });
         api.MapGet("/runtime", (HttpContext http, HostSettings settings) => new
