@@ -65,6 +65,59 @@ public sealed class NetworkPolicyTests : IDisposable
         settings.Validate();
     }
 
+    [Fact]
+    public void Help_documents_every_supported_option_and_reads_no_configuration()
+    {
+        var help = ServerConfiguration.Informational(["--data-dir", Path.Combine(_root, "never"), "--help"])!;
+        foreach (var option in ServerConfiguration.ValueOptions.Concat(ServerConfiguration.FlagOptions)) Assert.Contains(option + " ", help);
+        foreach (var variable in new[] { "SAP_LENS_V2_DATA_DIR", "SAP_LENS_V2_LISTEN", "SAP_LENS_V2_PORT", "SAP_LENS_V2_NETWORK", "SAP_LENS_V2_ALLOWED_HOSTS", "SAP_LENS_V2_CERT",
+                     "SAP_LENS_V2_CERT_KEY", "SAP_LENS_V2_CERT_PASSWORD_FILE", "SAP_LENS_V2_CERT_PASSWORD", "SAP_LENS_V2_AUTH", "SAP_LENS_V2_TOKEN", "SAP_LENS_V2_PRINCIPAL" })
+            Assert.Contains(variable, help);
+        Assert.Equal(help, ServerConfiguration.Informational(["-h"]));
+        Assert.StartsWith("SAP Lens 2 server ", ServerConfiguration.Informational(["--version"]));
+        Assert.Null(ServerConfiguration.Informational(["--data-dir", _root]));
+        Assert.False(Directory.Exists(Path.Combine(_root, "never")));
+        Assert.Throws<InvalidOperationException>(() => ServerConfiguration.Parse(["--data-dir", _root, "--helpme"], Env()));   // still fail-closed
+    }
+
+    [Fact]
+    public async Task Server_process_answers_help_and_version_with_exit_code_0_and_keeps_refusing_invalid_configuration()
+    {
+        var never = Path.Combine(_root, "never");
+        async Task<(int Code, string Out, string Error)> Run(params string[] args)
+        {
+            var start = new System.Diagnostics.ProcessStartInfo(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
+            {
+                RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, WorkingDirectory = _root,
+            };
+            start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "SapLens.Api.dll"));
+            foreach (var arg in args) start.ArgumentList.Add(arg);
+            start.Environment["SAP_LENS_V2_CERT_PASSWORD"] = "synthetic-secret-value";
+            start.Environment["SAP_LENS_V2_TOKEN"] = "synthetic-token-value-synthetic-token-value";
+            using var process = System.Diagnostics.Process.Start(start)!;
+            var output = process.StandardOutput.ReadToEndAsync();
+            var error = process.StandardError.ReadToEndAsync();
+            await process.WaitForExitAsync(new CancellationTokenSource(TimeSpan.FromSeconds(60)).Token);
+            return (process.ExitCode, await output, await error);
+        }
+        var help = await Run("--help", "--data-dir", never);
+        Assert.Equal(0, help.Code);
+        Assert.Contains("--cert-password-file", help.Out);
+        Assert.DoesNotContain("synthetic-secret-value", help.Out + help.Error);
+        Assert.DoesNotContain("synthetic-token-value", help.Out + help.Error);
+        var version = await Run("--version");
+        Assert.Equal(0, version.Code);
+        Assert.StartsWith("SAP Lens 2 server ", version.Out);
+        Assert.False(Directory.Exists(never));
+        var unknown = await Run("--data-dir", never, "--bogus");
+        Assert.Equal(3, unknown.Code);
+        Assert.Contains("startup refused: Unknown option '--bogus'.", unknown.Error);
+        var missing = await Run();
+        Assert.Equal(3, missing.Code);
+        Assert.Contains("--data-dir (or SAP_LENS_V2_DATA_DIR) is required.", missing.Error);
+        Assert.False(Directory.Exists(never));
+    }
+
     [Theory]
     [InlineData("--listen", "server.lan")]
     [InlineData("--port", "70000")]

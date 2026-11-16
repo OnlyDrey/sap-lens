@@ -2,6 +2,11 @@ using SapLens.Api;
 
 // Server entry point (Windows and Linux). Defaults to http://127.0.0.1:18790. LAN access only with --network, one private --listen address,
 // --allowed-hosts and an HTTPS certificate. Runs as a console process, a Windows service or a systemd notify service. See ServerConfiguration.
+if (ServerConfiguration.Informational(args) is { } information)
+{
+    Console.Out.WriteLine(information);
+    return 0;
+}
 try
 {
     var settings = ServerConfiguration.Parse(args, Environment.GetEnvironmentVariable);

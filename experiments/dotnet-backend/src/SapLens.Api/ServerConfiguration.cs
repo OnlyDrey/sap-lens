@@ -11,6 +11,41 @@ public static class ServerConfiguration
     public static readonly string[] ValueOptions = ["--data-dir", "--listen", "--port", "--allowed-hosts", "--cert", "--cert-key", "--cert-password-file", "--auth"];
     public static readonly string[] FlagOptions = ["--network", "--no-worker"];
 
+    /// <summary>--help (-h) and --version: answered before any configuration is read, so they create no directory or token, open no certificate and
+    /// never print a secret. Any other argument keeps the fail-closed parsing below.</summary>
+    public static string? Informational(string[] args)
+    {
+        if (args.Any(a => a is "--help" or "-h")) return Help;
+        if (args.Contains("--version")) return $"SAP Lens 2 server {V1Compatibility.Version}" + (V1Compatibility.SourceSha is { } sha ? $" (commit {sha})" : "");
+        return null;
+    }
+
+    public const string Help = """
+        SAP Lens 2 server (.NET prototype)
+
+        Usage: SapLens.Api --data-dir <absolute path> [options]
+
+        Options (each also read from the environment variable shown; a command-line option wins):
+          --data-dir <path>            SAP_LENS_V2_DATA_DIR        Required. Absolute, local path (no network share). Created if missing.
+          --listen <ip>                SAP_LENS_V2_LISTEN          IP address to bind. Default 127.0.0.1. Non-loopback needs --network.
+          --port <1-65535>             SAP_LENS_V2_PORT            Default 18790.
+          --network                    SAP_LENS_V2_NETWORK=true    Allow LAN access: one private --listen address, --cert and --allowed-hosts.
+          --allowed-hosts <a,b>        SAP_LENS_V2_ALLOWED_HOSTS   Host names or addresses clients use (no wildcards). Required with --network.
+          --cert <file>                SAP_LENS_V2_CERT            .pfx/.p12 or PEM certificate; enables HTTPS. Required with --network.
+          --cert-key <file>            SAP_LENS_V2_CERT_KEY        PEM private key file (PEM certificates only).
+          --cert-password-file <file>  SAP_LENS_V2_CERT_PASSWORD_FILE  File holding the certificate password.
+                                       SAP_LENS_V2_CERT_PASSWORD   Password from the environment, used only without a password file.
+          --auth <mode>                SAP_LENS_V2_AUTH            accounts (default) or shared-token.
+          --no-worker                                              Do not run the background import worker.
+                                       SAP_LENS_V2_TOKEN           API access token (at least 32 characters); otherwise <data-dir>/api-token.
+                                       SAP_LENS_V2_PRINCIPAL       Name recorded for API clients using the token. Default server-operator.
+          --help, -h                                               Show this text and exit.
+          --version                                                Show the version and exit.
+
+        Secrets are never accepted as options: --cert-password and --token are refused.
+        Unknown options, missing values and invalid settings stop startup with exit code 3 and "startup refused: <reason>".
+        """;
+
     public static HostSettings Parse(string[] args, Func<string, string?> environment)
     {
         var options = new Dictionary<string, string>(StringComparer.Ordinal);
