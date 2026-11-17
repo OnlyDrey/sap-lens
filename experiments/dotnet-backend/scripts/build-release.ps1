@@ -8,7 +8,7 @@
   3. Publishes both self-contained single-file executables (no trimming, Native AOT or compression) into a new versioned release folder:
 
        <Output>\SAP-Lens-2-<version>-<yyyyMMdd-HHmmss>-<commit>-win-x64\
-         server\SapLens.Api.exe          Server (console or Windows service), plus e_sqlite3.dll (SQLite native library, loaded from beside the exe)
+         server\SapLens.Api.exe          Server (console or Windows service), plus e_sqlite3.dll and libSkiaSharp.dll (SQLite and image/PDF native libraries, loaded from beside the exe)
          desktop\SapLens2Prototype.exe   Desktop (WebView2, loopback only)
          symbols\server\, symbols\desktop\   .pdb files for diagnostics (not needed at runtime)
          build-manifest.json             commit, version, build time, platform, publish settings, size and SHA-256 of every artifact
@@ -96,7 +96,7 @@ function Test-Contains([string]$Path, [string]$Text) {
     }
     return $false
 }
-$expected = @{ server = @('SapLens.Api.exe', 'e_sqlite3.dll'); desktop = @('SapLens2Prototype.exe') }
+$expected = @{ server = @('SapLens.Api.exe', 'e_sqlite3.dll', 'libSkiaSharp.dll'); desktop = @('SapLens2Prototype.exe') }
 foreach ($part in 'server', 'desktop') {
     $actual = @(Get-ChildItem (Join-Path $release $part) -Recurse -File | ForEach-Object { $_.FullName.Substring((Join-Path $release $part).Length + 1) } | Sort-Object)
     if (($actual -join '|') -ne (($expected[$part] | Sort-Object) -join '|')) { throw "Unexpected files in ${part}: $($actual -join ', ') (expected $($expected[$part] -join ', '))." }
@@ -130,7 +130,7 @@ $manifest = [ordered]@{
     branch = (& git -C $root rev-parse --abbrev-ref HEAD).Trim(); build_timestamp_utc = $built.ToString('yyyy-MM-ddTHH:mm:ssZ'); target_platform = $platform
     dotnet_sdk = $sdk; node = $nodeVersion
     publish = [ordered]@{ self_contained = $true; single_file = $true; trimmed = $false; native_aot = $false; compressed = $false
-        server_native_libraries = 'beside the executable (e_sqlite3.dll)'; desktop_native_libraries = 'bundled, extracted to a temporary folder at start' }
+        server_native_libraries = 'beside the executable (e_sqlite3.dll, libSkiaSharp.dll)'; desktop_native_libraries = 'bundled, extracted to a temporary folder at start' }
     executables = [ordered]@{ server = 'server/SapLens.Api.exe'; desktop = 'desktop/SapLens2Prototype.exe' }
     artifacts = @(Get-Artifacts $release @('build-manifest.json', 'SHA256SUMS'))
 }

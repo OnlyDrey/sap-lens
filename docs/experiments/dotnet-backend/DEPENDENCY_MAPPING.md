@@ -17,9 +17,9 @@ actually implemented.
 | argon2-cffi | Server password hashing (Argon2id) | 2 | No in-box Argon2. Options: Konscious.Security.Cryptography.Argon2 or libsodium binding (third-party, native or managed); or PBKDF2 (in-box) for new hashes with Argon2 verification during migration | Not implemented |
 | cryptography | AES-256-GCM portable backups | 1 | `System.Security.Cryptography.AesGcm` (in-box) | Not implemented (SQLite online backup only) |
 | tzdata | IANA zones for schedules on Windows | 1 | .NET uses ICU / Windows zone data; `TimeZoneInfo.FindSystemTimeZoneById` accepts IANA ids on Windows with ICU | Not needed by the prototype |
-| python-docx, lxml | SoD DOCX reports | 2/3 | DocumentFormat.OpenXml (Microsoft, MIT) for DOCX; or keep Python as an isolated report renderer fed by the frozen JSON model | Not implemented |
-| reportlab | SoD PDF reports | 2/3 | QuestPDF (community licence terms apply) or PdfSharp/MigraDoc (MIT); or isolated Python renderer | Not implemented |
-| Pillow | Logo/branding image validation | 2 | SixLabors.ImageSharp (licence terms) or format sniffing + size limits only | Not implemented |
+| python-docx, lxml | SoD DOCX reports | 2/3 | DocumentFormat.OpenXml 3.3.0 (MIT), see [REPORTING_ARCHITECTURE.md](REPORTING_ARCHITECTURE.md) | Renderer implemented (`SapLens.Documents`); report routes wait for SoD scope |
+| reportlab | SoD PDF reports | 2/3 | SkiaSharp 3.119.1 PDF backend (MIT) with bundled Bitstream Vera; QuestPDF (revenue-based licence) and PDFsharp (vulnerable Pkcs dependency in 6.2.4, AGPL from 6.5.0) rejected | Renderer implemented; report routes wait for SoD scope |
+| Pillow | Logo/branding image validation | 2 | SkiaSharp 3.119.1 + NativeAssets.Linux.NoDependencies (MIT); ImageSharp rejected (licence) | Implemented (MIG-001) |
 | pywebview | Desktop window | 1 | WebView2 WinForms control (Microsoft.Web.WebView2) | Implemented (Windows-only, built not run) |
 | opentelemetry-api | Transitive pin only | 1 | Not required; ASP.NET Core exposes OpenTelemetry natively if wanted | n/a |
 | PyInstaller (build) | Desktop one-file, Server one-dir | 1 | `dotnet publish --self-contained` (single-file for Desktop) | Implemented |
@@ -37,5 +37,5 @@ actually implemented.
 
 ## Licensing notes to settle before adoption
 
-QuestPDF and ImageSharp have commercial-use terms; OpenXML SDK, PdfSharp and Konscious Argon2 are MIT. No third-party package beyond
+QuestPDF and ImageSharp have commercial-use terms; PDFsharp moved to AGPL-3.0 in 6.5.0. OpenXML SDK, SkiaSharp and Konscious Argon2 are MIT. No third-party package beyond
 Microsoft's EF Core, ASP.NET Core, Data.Sqlite, WebView2 and xUnit was added to the prototype.

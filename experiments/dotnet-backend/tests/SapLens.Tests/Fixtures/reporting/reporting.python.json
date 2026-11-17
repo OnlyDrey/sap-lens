@@ -1,0 +1,8933 @@
+{
+"images": {
+"animated.gif|logo": {
+"error": "Use PNG, JPEG or WebP; SVG is not accepted.",
+"ok": false
+},
+"animated.gif|report": {
+"error": "Use a PNG or JPEG image; SVG and WebP are not accepted.",
+"ok": false
+},
+"animated.webp|logo": {
+"error": "Animated logos are not accepted.",
+"ok": false
+},
+"animated.webp|report": {
+"error": "Use a PNG or JPEG image; SVG and WebP are not accepted.",
+"ok": false
+},
+"big-file.png|logo": {
+"error": "Logo must be at most 2 MB.",
+"ok": false
+},
+"big-file.png|report": {
+"error": "Logo must be at most 1 MB.",
+"ok": false
+},
+"corrupt.jpg|logo": {
+"error": "Logo could not be decoded safely. Choose a valid PNG, JPEG or WebP.",
+"ok": false
+},
+"corrupt.jpg|report": {
+"error": "Logo could not be decoded safely. Choose a valid PNG, JPEG or WebP.",
+"ok": false
+},
+"huge.png|logo": {
+"error": "Logo dimensions must be between 1 and 4096 pixels.",
+"ok": false
+},
+"huge.png|report": {
+"error": "Logo dimensions must be between 32 and 4096 pixels.",
+"ok": false
+},
+"logo.webp|logo": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+500,
+500
+]
+},
+"logo.webp|report": {
+"error": "Use a PNG or JPEG image; SVG and WebP are not accepted.",
+"ok": false
+},
+"meta.png|logo": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+100,
+100
+]
+},
+"meta.png|report": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+100,
+100
+]
+},
+"photo.jpg|logo": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+1024,
+576
+]
+},
+"photo.jpg|report": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+1024,
+576
+]
+},
+"small.png|logo": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+40,
+40
+]
+},
+"small.png|report": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+40,
+40
+]
+},
+"tiny.png|logo": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+8,
+8
+]
+},
+"tiny.png|report": {
+"error": "Logo dimensions must be between 32 and 4096 pixels.",
+"ok": false
+},
+"truncated.png|logo": {
+"error": "Logo could not be decoded safely. Choose a valid PNG, JPEG or WebP.",
+"ok": false
+},
+"truncated.png|report": {
+"error": "Logo could not be decoded safely. Choose a valid PNG, JPEG or WebP.",
+"ok": false
+},
+"vector.svg|logo": {
+"error": "Logo could not be decoded safely. Choose a valid PNG, JPEG or WebP.",
+"ok": false
+},
+"vector.svg|report": {
+"error": "Logo could not be decoded safely. Choose a valid PNG, JPEG or WebP.",
+"ok": false
+},
+"wide.png|logo": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+1024,
+68
+]
+},
+"wide.png|report": {
+"format": "PNG",
+"info": [],
+"mode": "RGBA",
+"ok": true,
+"size": [
+1024,
+68
+]
+}
+},
+"reports": {
+"empty": {
+"docx": {
+"author": "Åse Nørgaard",
+"header": [
+"Example Æøå AS · SAP Lens"
+],
+"images": 0,
+"paragraphs": [
+"SoD Review Report – Q4 2026",
+"Example Æøå AS",
+"SAP S/4HANA · PRD / 100",
+"Q4 2026 review",
+"01.10.2026 - 31.12.2026",
+"Reviewed · v1.2",
+"Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"Prepared by: Åse Nørgaard",
+"Report date: 16.11.2026",
+"Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"Snapshot reference: 0123456789ab · Report model reference: fedcba987654",
+"Executive Summary",
+"Document integrity",
+"Snapshot SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report model SHA-256: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+],
+"reproducible": true,
+"status": 200,
+"tables": [],
+"title": "SoD Review Report – Q4 2026"
+},
+"model": {
+"document_version": "v1.2",
+"limitation": "Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"logo_id": null,
+"model_checksum": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"organization": {
+"client": "100",
+"name": "Example Æøå AS",
+"platform": "SAP S/4HANA",
+"system_id": "PRD"
+},
+"period": {
+"end": "2026-12-31",
+"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+"name": "Q4 2026 review",
+"start": "2026-10-01"
+},
+"prepared_by": "Åse Nørgaard",
+"report_date": "2026-11-16T09:30:00+00:00",
+"sections": [
+{
+"paragraphs": [],
+"tables": [],
+"title": "Executive Summary"
+}
+],
+"snapshot_checksum": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"status": "Reviewed",
+"status_statement": "Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"title": "SoD Review Report – Q4 2026"
+},
+"pdf": {
+"author": "Åse Nørgaard",
+"pages": 2,
+"status": 200,
+"title": "SoD Review Report – Q4 2026",
+"words": [
+"SoD",
+"Review",
+"Report",
+"–",
+"Q4",
+"2026",
+"Example",
+"Æøå",
+"AS",
+"SAP",
+"S/4HANA",
+"·",
+"PRD",
+"/",
+"100",
+"Q4",
+"2026",
+"review",
+"01.10.2026",
+"-",
+"31.12.2026",
+"Reviewed",
+"·",
+"v1.2",
+"Reviewed:",
+"review",
+"decisions",
+"are",
+"recorded",
+"with",
+"identity",
+"provenance.",
+"SAP",
+"Lens",
+"does",
+"not",
+"authenticate",
+"Desktop/legacy",
+"profile",
+"names;",
+"server",
+"session",
+"events",
+"retain",
+"account",
+"attribution.",
+"Review",
+"completion",
+"is",
+"not",
+"approval.",
+"Prepared",
+"by:",
+"Åse",
+"Nørgaard",
+"Report",
+"date:",
+"16.11.2026",
+"Potential",
+"conflicts",
+"are",
+"based",
+"on",
+"role-derived",
+"transaction",
+"evidence,",
+"not",
+"verified",
+"effective",
+"SAP",
+"authorization.",
+"Desktop/legacy",
+"identities",
+"are",
+"self-reported;",
+"session-authenticated",
+"events",
+"retain",
+"account",
+"provenance.",
+"These",
+"records",
+"are",
+"not",
+"verified",
+"digital",
+"signatures.",
+"Snapshot",
+"reference:",
+"0123456789ab",
+"·",
+"Report",
+"model",
+"reference:",
+"fedcba987654",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"1",
+"Executive",
+"Summary",
+"Document",
+"integrity",
+"Snapshot",
+"SHA-256:",
+"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report",
+"model",
+"SHA-256:",
+"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"2"
+]
+}
+},
+"large": {
+"docx": {
+"author": "Åse Nørgaard",
+"header": [
+"Example Æøå AS · SAP Lens"
+],
+"images": 0,
+"paragraphs": [
+"SoD Review Report – Q4 2026",
+"Example Æøå AS",
+"SAP S/4HANA · PRD / 100",
+"Q4 2026 review",
+"01.10.2026 - 31.12.2026",
+"Reviewed · v1.2",
+"Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"Prepared by: Åse Nørgaard",
+"Report date: 16.11.2026",
+"Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"Snapshot reference: 0123456789ab · Report model reference: fedcba987654",
+"Outstanding Risks and Actions",
+"All open items.",
+"Document integrity",
+"Snapshot SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report model SHA-256: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+],
+"reproducible": true,
+"status": 200,
+"tables": [
+[
+[
+"User",
+"Activity",
+"Risk",
+"Decision"
+],
+[
+"USER0000",
+"Create vendor 0",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0001",
+"Create vendor 1",
+"R001",
+"Pending"
+],
+[
+"USER0002",
+"Create vendor 2",
+"R002",
+"Pending"
+],
+[
+"USER0003",
+"Create vendor 3",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0004",
+"Create vendor 4",
+"R004",
+"Pending"
+],
+[
+"USER0005",
+"Create vendor 5",
+"R005",
+"Pending"
+],
+[
+"USER0006",
+"Create vendor 6",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0007",
+"Create vendor 7",
+"R007",
+"Pending"
+],
+[
+"USER0008",
+"Create vendor 8",
+"R008",
+"Pending"
+],
+[
+"USER0009",
+"Create vendor 9",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0010",
+"Create vendor 10",
+"R010",
+"Pending"
+],
+[
+"USER0011",
+"Create vendor 11",
+"R011",
+"Pending"
+],
+[
+"USER0012",
+"Create vendor 12",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0013",
+"Create vendor 13",
+"R013",
+"Pending"
+],
+[
+"USER0014",
+"Create vendor 14",
+"R014",
+"Pending"
+],
+[
+"USER0015",
+"Create vendor 15",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0016",
+"Create vendor 16",
+"R016",
+"Pending"
+],
+[
+"USER0017",
+"Create vendor 17",
+"R000",
+"Pending"
+],
+[
+"USER0018",
+"Create vendor 18",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0019",
+"Create vendor 19",
+"R002",
+"Pending"
+],
+[
+"USER0020",
+"Create vendor 20",
+"R003",
+"Pending"
+],
+[
+"USER0021",
+"Create vendor 21",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0022",
+"Create vendor 22",
+"R005",
+"Pending"
+],
+[
+"USER0023",
+"Create vendor 23",
+"R006",
+"Pending"
+],
+[
+"USER0024",
+"Create vendor 24",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0025",
+"Create vendor 25",
+"R008",
+"Pending"
+],
+[
+"USER0026",
+"Create vendor 26",
+"R009",
+"Pending"
+],
+[
+"USER0027",
+"Create vendor 27",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0028",
+"Create vendor 28",
+"R011",
+"Pending"
+],
+[
+"USER0029",
+"Create vendor 29",
+"R012",
+"Pending"
+],
+[
+"USER0030",
+"Create vendor 30",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0031",
+"Create vendor 31",
+"R014",
+"Pending"
+],
+[
+"USER0032",
+"Create vendor 32",
+"R015",
+"Pending"
+],
+[
+"USER0033",
+"Create vendor 33",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0034",
+"Create vendor 34",
+"R000",
+"Pending"
+],
+[
+"USER0035",
+"Create vendor 35",
+"R001",
+"Pending"
+],
+[
+"USER0036",
+"Create vendor 36",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0037",
+"Create vendor 37",
+"R003",
+"Pending"
+],
+[
+"USER0038",
+"Create vendor 38",
+"R004",
+"Pending"
+],
+[
+"USER0039",
+"Create vendor 39",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0040",
+"Create vendor 40",
+"R006",
+"Pending"
+],
+[
+"USER0041",
+"Create vendor 41",
+"R007",
+"Pending"
+],
+[
+"USER0042",
+"Create vendor 42",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0043",
+"Create vendor 43",
+"R009",
+"Pending"
+],
+[
+"USER0044",
+"Create vendor 44",
+"R010",
+"Pending"
+],
+[
+"USER0045",
+"Create vendor 45",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0046",
+"Create vendor 46",
+"R012",
+"Pending"
+],
+[
+"USER0047",
+"Create vendor 47",
+"R013",
+"Pending"
+],
+[
+"USER0048",
+"Create vendor 48",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0049",
+"Create vendor 49",
+"R015",
+"Pending"
+],
+[
+"USER0050",
+"Create vendor 50",
+"R016",
+"Pending"
+],
+[
+"USER0051",
+"Create vendor 51",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0052",
+"Create vendor 52",
+"R001",
+"Pending"
+],
+[
+"USER0053",
+"Create vendor 53",
+"R002",
+"Pending"
+],
+[
+"USER0054",
+"Create vendor 54",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0055",
+"Create vendor 55",
+"R004",
+"Pending"
+],
+[
+"USER0056",
+"Create vendor 56",
+"R005",
+"Pending"
+],
+[
+"USER0057",
+"Create vendor 57",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0058",
+"Create vendor 58",
+"R007",
+"Pending"
+],
+[
+"USER0059",
+"Create vendor 59",
+"R008",
+"Pending"
+],
+[
+"USER0060",
+"Create vendor 60",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0061",
+"Create vendor 61",
+"R010",
+"Pending"
+],
+[
+"USER0062",
+"Create vendor 62",
+"R011",
+"Pending"
+],
+[
+"USER0063",
+"Create vendor 63",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0064",
+"Create vendor 64",
+"R013",
+"Pending"
+],
+[
+"USER0065",
+"Create vendor 65",
+"R014",
+"Pending"
+],
+[
+"USER0066",
+"Create vendor 66",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0067",
+"Create vendor 67",
+"R016",
+"Pending"
+],
+[
+"USER0068",
+"Create vendor 68",
+"R000",
+"Pending"
+],
+[
+"USER0069",
+"Create vendor 69",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0070",
+"Create vendor 70",
+"R002",
+"Pending"
+],
+[
+"USER0071",
+"Create vendor 71",
+"R003",
+"Pending"
+],
+[
+"USER0072",
+"Create vendor 72",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0073",
+"Create vendor 73",
+"R005",
+"Pending"
+],
+[
+"USER0074",
+"Create vendor 74",
+"R006",
+"Pending"
+],
+[
+"USER0075",
+"Create vendor 75",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0076",
+"Create vendor 76",
+"R008",
+"Pending"
+],
+[
+"USER0077",
+"Create vendor 77",
+"R009",
+"Pending"
+],
+[
+"USER0078",
+"Create vendor 78",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0079",
+"Create vendor 79",
+"R011",
+"Pending"
+],
+[
+"USER0080",
+"Create vendor 80",
+"R012",
+"Pending"
+],
+[
+"USER0081",
+"Create vendor 81",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0082",
+"Create vendor 82",
+"R014",
+"Pending"
+],
+[
+"USER0083",
+"Create vendor 83",
+"R015",
+"Pending"
+],
+[
+"USER0084",
+"Create vendor 84",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0085",
+"Create vendor 85",
+"R000",
+"Pending"
+],
+[
+"USER0086",
+"Create vendor 86",
+"R001",
+"Pending"
+],
+[
+"USER0087",
+"Create vendor 87",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0088",
+"Create vendor 88",
+"R003",
+"Pending"
+],
+[
+"USER0089",
+"Create vendor 89",
+"R004",
+"Pending"
+],
+[
+"USER0090",
+"Create vendor 90",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0091",
+"Create vendor 91",
+"R006",
+"Pending"
+],
+[
+"USER0092",
+"Create vendor 92",
+"R007",
+"Pending"
+],
+[
+"USER0093",
+"Create vendor 93",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0094",
+"Create vendor 94",
+"R009",
+"Pending"
+],
+[
+"USER0095",
+"Create vendor 95",
+"R010",
+"Pending"
+],
+[
+"USER0096",
+"Create vendor 96",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0097",
+"Create vendor 97",
+"R012",
+"Pending"
+],
+[
+"USER0098",
+"Create vendor 98",
+"R013",
+"Pending"
+],
+[
+"USER0099",
+"Create vendor 99",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0100",
+"Create vendor 100",
+"R015",
+"Pending"
+],
+[
+"USER0101",
+"Create vendor 101",
+"R016",
+"Pending"
+],
+[
+"USER0102",
+"Create vendor 102",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0103",
+"Create vendor 103",
+"R001",
+"Pending"
+],
+[
+"USER0104",
+"Create vendor 104",
+"R002",
+"Pending"
+],
+[
+"USER0105",
+"Create vendor 105",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0106",
+"Create vendor 106",
+"R004",
+"Pending"
+],
+[
+"USER0107",
+"Create vendor 107",
+"R005",
+"Pending"
+],
+[
+"USER0108",
+"Create vendor 108",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0109",
+"Create vendor 109",
+"R007",
+"Pending"
+],
+[
+"USER0110",
+"Create vendor 110",
+"R008",
+"Pending"
+],
+[
+"USER0111",
+"Create vendor 111",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0112",
+"Create vendor 112",
+"R010",
+"Pending"
+],
+[
+"USER0113",
+"Create vendor 113",
+"R011",
+"Pending"
+],
+[
+"USER0114",
+"Create vendor 114",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0115",
+"Create vendor 115",
+"R013",
+"Pending"
+],
+[
+"USER0116",
+"Create vendor 116",
+"R014",
+"Pending"
+],
+[
+"USER0117",
+"Create vendor 117",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0118",
+"Create vendor 118",
+"R016",
+"Pending"
+],
+[
+"USER0119",
+"Create vendor 119",
+"R000",
+"Pending"
+],
+[
+"USER0120",
+"Create vendor 120",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0121",
+"Create vendor 121",
+"R002",
+"Pending"
+],
+[
+"USER0122",
+"Create vendor 122",
+"R003",
+"Pending"
+],
+[
+"USER0123",
+"Create vendor 123",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0124",
+"Create vendor 124",
+"R005",
+"Pending"
+],
+[
+"USER0125",
+"Create vendor 125",
+"R006",
+"Pending"
+],
+[
+"USER0126",
+"Create vendor 126",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0127",
+"Create vendor 127",
+"R008",
+"Pending"
+],
+[
+"USER0128",
+"Create vendor 128",
+"R009",
+"Pending"
+],
+[
+"USER0129",
+"Create vendor 129",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0130",
+"Create vendor 130",
+"R011",
+"Pending"
+],
+[
+"USER0131",
+"Create vendor 131",
+"R012",
+"Pending"
+],
+[
+"USER0132",
+"Create vendor 132",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0133",
+"Create vendor 133",
+"R014",
+"Pending"
+],
+[
+"USER0134",
+"Create vendor 134",
+"R015",
+"Pending"
+],
+[
+"USER0135",
+"Create vendor 135",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0136",
+"Create vendor 136",
+"R000",
+"Pending"
+],
+[
+"USER0137",
+"Create vendor 137",
+"R001",
+"Pending"
+],
+[
+"USER0138",
+"Create vendor 138",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0139",
+"Create vendor 139",
+"R003",
+"Pending"
+],
+[
+"USER0140",
+"Create vendor 140",
+"R004",
+"Pending"
+],
+[
+"USER0141",
+"Create vendor 141",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0142",
+"Create vendor 142",
+"R006",
+"Pending"
+],
+[
+"USER0143",
+"Create vendor 143",
+"R007",
+"Pending"
+],
+[
+"USER0144",
+"Create vendor 144",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0145",
+"Create vendor 145",
+"R009",
+"Pending"
+],
+[
+"USER0146",
+"Create vendor 146",
+"R010",
+"Pending"
+],
+[
+"USER0147",
+"Create vendor 147",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0148",
+"Create vendor 148",
+"R012",
+"Pending"
+],
+[
+"USER0149",
+"Create vendor 149",
+"R013",
+"Pending"
+],
+[
+"USER0150",
+"Create vendor 150",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0151",
+"Create vendor 151",
+"R015",
+"Pending"
+],
+[
+"USER0152",
+"Create vendor 152",
+"R016",
+"Pending"
+],
+[
+"USER0153",
+"Create vendor 153",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0154",
+"Create vendor 154",
+"R001",
+"Pending"
+],
+[
+"USER0155",
+"Create vendor 155",
+"R002",
+"Pending"
+],
+[
+"USER0156",
+"Create vendor 156",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0157",
+"Create vendor 157",
+"R004",
+"Pending"
+],
+[
+"USER0158",
+"Create vendor 158",
+"R005",
+"Pending"
+],
+[
+"USER0159",
+"Create vendor 159",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0160",
+"Create vendor 160",
+"R007",
+"Pending"
+],
+[
+"USER0161",
+"Create vendor 161",
+"R008",
+"Pending"
+],
+[
+"USER0162",
+"Create vendor 162",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0163",
+"Create vendor 163",
+"R010",
+"Pending"
+],
+[
+"USER0164",
+"Create vendor 164",
+"R011",
+"Pending"
+],
+[
+"USER0165",
+"Create vendor 165",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0166",
+"Create vendor 166",
+"R013",
+"Pending"
+],
+[
+"USER0167",
+"Create vendor 167",
+"R014",
+"Pending"
+],
+[
+"USER0168",
+"Create vendor 168",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0169",
+"Create vendor 169",
+"R016",
+"Pending"
+],
+[
+"USER0170",
+"Create vendor 170",
+"R000",
+"Pending"
+],
+[
+"USER0171",
+"Create vendor 171",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0172",
+"Create vendor 172",
+"R002",
+"Pending"
+],
+[
+"USER0173",
+"Create vendor 173",
+"R003",
+"Pending"
+],
+[
+"USER0174",
+"Create vendor 174",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0175",
+"Create vendor 175",
+"R005",
+"Pending"
+],
+[
+"USER0176",
+"Create vendor 176",
+"R006",
+"Pending"
+],
+[
+"USER0177",
+"Create vendor 177",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0178",
+"Create vendor 178",
+"R008",
+"Pending"
+],
+[
+"USER0179",
+"Create vendor 179",
+"R009",
+"Pending"
+],
+[
+"USER0180",
+"Create vendor 180",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0181",
+"Create vendor 181",
+"R011",
+"Pending"
+],
+[
+"USER0182",
+"Create vendor 182",
+"R012",
+"Pending"
+],
+[
+"USER0183",
+"Create vendor 183",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0184",
+"Create vendor 184",
+"R014",
+"Pending"
+],
+[
+"USER0185",
+"Create vendor 185",
+"R015",
+"Pending"
+],
+[
+"USER0186",
+"Create vendor 186",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0187",
+"Create vendor 187",
+"R000",
+"Pending"
+],
+[
+"USER0188",
+"Create vendor 188",
+"R001",
+"Pending"
+],
+[
+"USER0189",
+"Create vendor 189",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0190",
+"Create vendor 190",
+"R003",
+"Pending"
+],
+[
+"USER0191",
+"Create vendor 191",
+"R004",
+"Pending"
+],
+[
+"USER0192",
+"Create vendor 192",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0193",
+"Create vendor 193",
+"R006",
+"Pending"
+],
+[
+"USER0194",
+"Create vendor 194",
+"R007",
+"Pending"
+],
+[
+"USER0195",
+"Create vendor 195",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0196",
+"Create vendor 196",
+"R009",
+"Pending"
+],
+[
+"USER0197",
+"Create vendor 197",
+"R010",
+"Pending"
+],
+[
+"USER0198",
+"Create vendor 198",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0199",
+"Create vendor 199",
+"R012",
+"Pending"
+],
+[
+"USER0200",
+"Create vendor 200",
+"R013",
+"Pending"
+],
+[
+"USER0201",
+"Create vendor 201",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0202",
+"Create vendor 202",
+"R015",
+"Pending"
+],
+[
+"USER0203",
+"Create vendor 203",
+"R016",
+"Pending"
+],
+[
+"USER0204",
+"Create vendor 204",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0205",
+"Create vendor 205",
+"R001",
+"Pending"
+],
+[
+"USER0206",
+"Create vendor 206",
+"R002",
+"Pending"
+],
+[
+"USER0207",
+"Create vendor 207",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0208",
+"Create vendor 208",
+"R004",
+"Pending"
+],
+[
+"USER0209",
+"Create vendor 209",
+"R005",
+"Pending"
+],
+[
+"USER0210",
+"Create vendor 210",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0211",
+"Create vendor 211",
+"R007",
+"Pending"
+],
+[
+"USER0212",
+"Create vendor 212",
+"R008",
+"Pending"
+],
+[
+"USER0213",
+"Create vendor 213",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0214",
+"Create vendor 214",
+"R010",
+"Pending"
+],
+[
+"USER0215",
+"Create vendor 215",
+"R011",
+"Pending"
+],
+[
+"USER0216",
+"Create vendor 216",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0217",
+"Create vendor 217",
+"R013",
+"Pending"
+],
+[
+"USER0218",
+"Create vendor 218",
+"R014",
+"Pending"
+],
+[
+"USER0219",
+"Create vendor 219",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0220",
+"Create vendor 220",
+"R016",
+"Pending"
+],
+[
+"USER0221",
+"Create vendor 221",
+"R000",
+"Pending"
+],
+[
+"USER0222",
+"Create vendor 222",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0223",
+"Create vendor 223",
+"R002",
+"Pending"
+],
+[
+"USER0224",
+"Create vendor 224",
+"R003",
+"Pending"
+],
+[
+"USER0225",
+"Create vendor 225",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0226",
+"Create vendor 226",
+"R005",
+"Pending"
+],
+[
+"USER0227",
+"Create vendor 227",
+"R006",
+"Pending"
+],
+[
+"USER0228",
+"Create vendor 228",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0229",
+"Create vendor 229",
+"R008",
+"Pending"
+],
+[
+"USER0230",
+"Create vendor 230",
+"R009",
+"Pending"
+],
+[
+"USER0231",
+"Create vendor 231",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0232",
+"Create vendor 232",
+"R011",
+"Pending"
+],
+[
+"USER0233",
+"Create vendor 233",
+"R012",
+"Pending"
+],
+[
+"USER0234",
+"Create vendor 234",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0235",
+"Create vendor 235",
+"R014",
+"Pending"
+],
+[
+"USER0236",
+"Create vendor 236",
+"R015",
+"Pending"
+],
+[
+"USER0237",
+"Create vendor 237",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0238",
+"Create vendor 238",
+"R000",
+"Pending"
+],
+[
+"USER0239",
+"Create vendor 239",
+"R001",
+"Pending"
+],
+[
+"USER0240",
+"Create vendor 240",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0241",
+"Create vendor 241",
+"R003",
+"Pending"
+],
+[
+"USER0242",
+"Create vendor 242",
+"R004",
+"Pending"
+],
+[
+"USER0243",
+"Create vendor 243",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0244",
+"Create vendor 244",
+"R006",
+"Pending"
+],
+[
+"USER0245",
+"Create vendor 245",
+"R007",
+"Pending"
+],
+[
+"USER0246",
+"Create vendor 246",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0247",
+"Create vendor 247",
+"R009",
+"Pending"
+],
+[
+"USER0248",
+"Create vendor 248",
+"R010",
+"Pending"
+],
+[
+"USER0249",
+"Create vendor 249",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0250",
+"Create vendor 250",
+"R012",
+"Pending"
+],
+[
+"USER0251",
+"Create vendor 251",
+"R013",
+"Pending"
+],
+[
+"USER0252",
+"Create vendor 252",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0253",
+"Create vendor 253",
+"R015",
+"Pending"
+],
+[
+"USER0254",
+"Create vendor 254",
+"R016",
+"Pending"
+],
+[
+"USER0255",
+"Create vendor 255",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0256",
+"Create vendor 256",
+"R001",
+"Pending"
+],
+[
+"USER0257",
+"Create vendor 257",
+"R002",
+"Pending"
+],
+[
+"USER0258",
+"Create vendor 258",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0259",
+"Create vendor 259",
+"R004",
+"Pending"
+],
+[
+"USER0260",
+"Create vendor 260",
+"R005",
+"Pending"
+],
+[
+"USER0261",
+"Create vendor 261",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0262",
+"Create vendor 262",
+"R007",
+"Pending"
+],
+[
+"USER0263",
+"Create vendor 263",
+"R008",
+"Pending"
+],
+[
+"USER0264",
+"Create vendor 264",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0265",
+"Create vendor 265",
+"R010",
+"Pending"
+],
+[
+"USER0266",
+"Create vendor 266",
+"R011",
+"Pending"
+],
+[
+"USER0267",
+"Create vendor 267",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0268",
+"Create vendor 268",
+"R013",
+"Pending"
+],
+[
+"USER0269",
+"Create vendor 269",
+"R014",
+"Pending"
+],
+[
+"USER0270",
+"Create vendor 270",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0271",
+"Create vendor 271",
+"R016",
+"Pending"
+],
+[
+"USER0272",
+"Create vendor 272",
+"R000",
+"Pending"
+],
+[
+"USER0273",
+"Create vendor 273",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0274",
+"Create vendor 274",
+"R002",
+"Pending"
+],
+[
+"USER0275",
+"Create vendor 275",
+"R003",
+"Pending"
+],
+[
+"USER0276",
+"Create vendor 276",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0277",
+"Create vendor 277",
+"R005",
+"Pending"
+],
+[
+"USER0278",
+"Create vendor 278",
+"R006",
+"Pending"
+],
+[
+"USER0279",
+"Create vendor 279",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0280",
+"Create vendor 280",
+"R008",
+"Pending"
+],
+[
+"USER0281",
+"Create vendor 281",
+"R009",
+"Pending"
+],
+[
+"USER0282",
+"Create vendor 282",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0283",
+"Create vendor 283",
+"R011",
+"Pending"
+],
+[
+"USER0284",
+"Create vendor 284",
+"R012",
+"Pending"
+],
+[
+"USER0285",
+"Create vendor 285",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0286",
+"Create vendor 286",
+"R014",
+"Pending"
+],
+[
+"USER0287",
+"Create vendor 287",
+"R015",
+"Pending"
+],
+[
+"USER0288",
+"Create vendor 288",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0289",
+"Create vendor 289",
+"R000",
+"Pending"
+],
+[
+"USER0290",
+"Create vendor 290",
+"R001",
+"Pending"
+],
+[
+"USER0291",
+"Create vendor 291",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0292",
+"Create vendor 292",
+"R003",
+"Pending"
+],
+[
+"USER0293",
+"Create vendor 293",
+"R004",
+"Pending"
+],
+[
+"USER0294",
+"Create vendor 294",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0295",
+"Create vendor 295",
+"R006",
+"Pending"
+],
+[
+"USER0296",
+"Create vendor 296",
+"R007",
+"Pending"
+],
+[
+"USER0297",
+"Create vendor 297",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0298",
+"Create vendor 298",
+"R009",
+"Pending"
+],
+[
+"USER0299",
+"Create vendor 299",
+"R010",
+"Pending"
+],
+[
+"USER0300",
+"Create vendor 300",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0301",
+"Create vendor 301",
+"R012",
+"Pending"
+],
+[
+"USER0302",
+"Create vendor 302",
+"R013",
+"Pending"
+],
+[
+"USER0303",
+"Create vendor 303",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0304",
+"Create vendor 304",
+"R015",
+"Pending"
+],
+[
+"USER0305",
+"Create vendor 305",
+"R016",
+"Pending"
+],
+[
+"USER0306",
+"Create vendor 306",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0307",
+"Create vendor 307",
+"R001",
+"Pending"
+],
+[
+"USER0308",
+"Create vendor 308",
+"R002",
+"Pending"
+],
+[
+"USER0309",
+"Create vendor 309",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0310",
+"Create vendor 310",
+"R004",
+"Pending"
+],
+[
+"USER0311",
+"Create vendor 311",
+"R005",
+"Pending"
+],
+[
+"USER0312",
+"Create vendor 312",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0313",
+"Create vendor 313",
+"R007",
+"Pending"
+],
+[
+"USER0314",
+"Create vendor 314",
+"R008",
+"Pending"
+],
+[
+"USER0315",
+"Create vendor 315",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0316",
+"Create vendor 316",
+"R010",
+"Pending"
+],
+[
+"USER0317",
+"Create vendor 317",
+"R011",
+"Pending"
+],
+[
+"USER0318",
+"Create vendor 318",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0319",
+"Create vendor 319",
+"R013",
+"Pending"
+],
+[
+"USER0320",
+"Create vendor 320",
+"R014",
+"Pending"
+],
+[
+"USER0321",
+"Create vendor 321",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0322",
+"Create vendor 322",
+"R016",
+"Pending"
+],
+[
+"USER0323",
+"Create vendor 323",
+"R000",
+"Pending"
+],
+[
+"USER0324",
+"Create vendor 324",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0325",
+"Create vendor 325",
+"R002",
+"Pending"
+],
+[
+"USER0326",
+"Create vendor 326",
+"R003",
+"Pending"
+],
+[
+"USER0327",
+"Create vendor 327",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0328",
+"Create vendor 328",
+"R005",
+"Pending"
+],
+[
+"USER0329",
+"Create vendor 329",
+"R006",
+"Pending"
+],
+[
+"USER0330",
+"Create vendor 330",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0331",
+"Create vendor 331",
+"R008",
+"Pending"
+],
+[
+"USER0332",
+"Create vendor 332",
+"R009",
+"Pending"
+],
+[
+"USER0333",
+"Create vendor 333",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0334",
+"Create vendor 334",
+"R011",
+"Pending"
+],
+[
+"USER0335",
+"Create vendor 335",
+"R012",
+"Pending"
+],
+[
+"USER0336",
+"Create vendor 336",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0337",
+"Create vendor 337",
+"R014",
+"Pending"
+],
+[
+"USER0338",
+"Create vendor 338",
+"R015",
+"Pending"
+],
+[
+"USER0339",
+"Create vendor 339",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0340",
+"Create vendor 340",
+"R000",
+"Pending"
+],
+[
+"USER0341",
+"Create vendor 341",
+"R001",
+"Pending"
+],
+[
+"USER0342",
+"Create vendor 342",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0343",
+"Create vendor 343",
+"R003",
+"Pending"
+],
+[
+"USER0344",
+"Create vendor 344",
+"R004",
+"Pending"
+],
+[
+"USER0345",
+"Create vendor 345",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0346",
+"Create vendor 346",
+"R006",
+"Pending"
+],
+[
+"USER0347",
+"Create vendor 347",
+"R007",
+"Pending"
+],
+[
+"USER0348",
+"Create vendor 348",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0349",
+"Create vendor 349",
+"R009",
+"Pending"
+],
+[
+"USER0350",
+"Create vendor 350",
+"R010",
+"Pending"
+],
+[
+"USER0351",
+"Create vendor 351",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0352",
+"Create vendor 352",
+"R012",
+"Pending"
+],
+[
+"USER0353",
+"Create vendor 353",
+"R013",
+"Pending"
+],
+[
+"USER0354",
+"Create vendor 354",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0355",
+"Create vendor 355",
+"R015",
+"Pending"
+],
+[
+"USER0356",
+"Create vendor 356",
+"R016",
+"Pending"
+],
+[
+"USER0357",
+"Create vendor 357",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0358",
+"Create vendor 358",
+"R001",
+"Pending"
+],
+[
+"USER0359",
+"Create vendor 359",
+"R002",
+"Pending"
+],
+[
+"USER0360",
+"Create vendor 360",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0361",
+"Create vendor 361",
+"R004",
+"Pending"
+],
+[
+"USER0362",
+"Create vendor 362",
+"R005",
+"Pending"
+],
+[
+"USER0363",
+"Create vendor 363",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0364",
+"Create vendor 364",
+"R007",
+"Pending"
+],
+[
+"USER0365",
+"Create vendor 365",
+"R008",
+"Pending"
+],
+[
+"USER0366",
+"Create vendor 366",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0367",
+"Create vendor 367",
+"R010",
+"Pending"
+],
+[
+"USER0368",
+"Create vendor 368",
+"R011",
+"Pending"
+],
+[
+"USER0369",
+"Create vendor 369",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0370",
+"Create vendor 370",
+"R013",
+"Pending"
+],
+[
+"USER0371",
+"Create vendor 371",
+"R014",
+"Pending"
+],
+[
+"USER0372",
+"Create vendor 372",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0373",
+"Create vendor 373",
+"R016",
+"Pending"
+],
+[
+"USER0374",
+"Create vendor 374",
+"R000",
+"Pending"
+],
+[
+"USER0375",
+"Create vendor 375",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0376",
+"Create vendor 376",
+"R002",
+"Pending"
+],
+[
+"USER0377",
+"Create vendor 377",
+"R003",
+"Pending"
+],
+[
+"USER0378",
+"Create vendor 378",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0379",
+"Create vendor 379",
+"R005",
+"Pending"
+],
+[
+"USER0380",
+"Create vendor 380",
+"R006",
+"Pending"
+],
+[
+"USER0381",
+"Create vendor 381",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0382",
+"Create vendor 382",
+"R008",
+"Pending"
+],
+[
+"USER0383",
+"Create vendor 383",
+"R009",
+"Pending"
+],
+[
+"USER0384",
+"Create vendor 384",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0385",
+"Create vendor 385",
+"R011",
+"Pending"
+],
+[
+"USER0386",
+"Create vendor 386",
+"R012",
+"Pending"
+],
+[
+"USER0387",
+"Create vendor 387",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0388",
+"Create vendor 388",
+"R014",
+"Pending"
+],
+[
+"USER0389",
+"Create vendor 389",
+"R015",
+"Pending"
+],
+[
+"USER0390",
+"Create vendor 390",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0391",
+"Create vendor 391",
+"R000",
+"Pending"
+],
+[
+"USER0392",
+"Create vendor 392",
+"R001",
+"Pending"
+],
+[
+"USER0393",
+"Create vendor 393",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0394",
+"Create vendor 394",
+"R003",
+"Pending"
+],
+[
+"USER0395",
+"Create vendor 395",
+"R004",
+"Pending"
+],
+[
+"USER0396",
+"Create vendor 396",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0397",
+"Create vendor 397",
+"R006",
+"Pending"
+],
+[
+"USER0398",
+"Create vendor 398",
+"R007",
+"Pending"
+],
+[
+"USER0399",
+"Create vendor 399",
+"R008",
+"Accepted with controls"
+]
+]
+],
+"title": "SoD Review Report – Q4 2026"
+},
+"model": {
+"document_version": "v1.2",
+"limitation": "Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"logo_id": null,
+"model_checksum": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"organization": {
+"client": "100",
+"name": "Example Æøå AS",
+"platform": "SAP S/4HANA",
+"system_id": "PRD"
+},
+"period": {
+"end": "2026-12-31",
+"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+"name": "Q4 2026 review",
+"start": "2026-10-01"
+},
+"prepared_by": "Åse Nørgaard",
+"report_date": "2026-11-16T09:30:00+00:00",
+"sections": [
+{
+"paragraphs": [
+"All open items."
+],
+"tables": [
+[
+[
+"User",
+"Activity",
+"Risk",
+"Decision"
+],
+[
+"USER0000",
+"Create vendor 0",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0001",
+"Create vendor 1",
+"R001",
+"Pending"
+],
+[
+"USER0002",
+"Create vendor 2",
+"R002",
+"Pending"
+],
+[
+"USER0003",
+"Create vendor 3",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0004",
+"Create vendor 4",
+"R004",
+"Pending"
+],
+[
+"USER0005",
+"Create vendor 5",
+"R005",
+"Pending"
+],
+[
+"USER0006",
+"Create vendor 6",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0007",
+"Create vendor 7",
+"R007",
+"Pending"
+],
+[
+"USER0008",
+"Create vendor 8",
+"R008",
+"Pending"
+],
+[
+"USER0009",
+"Create vendor 9",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0010",
+"Create vendor 10",
+"R010",
+"Pending"
+],
+[
+"USER0011",
+"Create vendor 11",
+"R011",
+"Pending"
+],
+[
+"USER0012",
+"Create vendor 12",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0013",
+"Create vendor 13",
+"R013",
+"Pending"
+],
+[
+"USER0014",
+"Create vendor 14",
+"R014",
+"Pending"
+],
+[
+"USER0015",
+"Create vendor 15",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0016",
+"Create vendor 16",
+"R016",
+"Pending"
+],
+[
+"USER0017",
+"Create vendor 17",
+"R000",
+"Pending"
+],
+[
+"USER0018",
+"Create vendor 18",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0019",
+"Create vendor 19",
+"R002",
+"Pending"
+],
+[
+"USER0020",
+"Create vendor 20",
+"R003",
+"Pending"
+],
+[
+"USER0021",
+"Create vendor 21",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0022",
+"Create vendor 22",
+"R005",
+"Pending"
+],
+[
+"USER0023",
+"Create vendor 23",
+"R006",
+"Pending"
+],
+[
+"USER0024",
+"Create vendor 24",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0025",
+"Create vendor 25",
+"R008",
+"Pending"
+],
+[
+"USER0026",
+"Create vendor 26",
+"R009",
+"Pending"
+],
+[
+"USER0027",
+"Create vendor 27",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0028",
+"Create vendor 28",
+"R011",
+"Pending"
+],
+[
+"USER0029",
+"Create vendor 29",
+"R012",
+"Pending"
+],
+[
+"USER0030",
+"Create vendor 30",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0031",
+"Create vendor 31",
+"R014",
+"Pending"
+],
+[
+"USER0032",
+"Create vendor 32",
+"R015",
+"Pending"
+],
+[
+"USER0033",
+"Create vendor 33",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0034",
+"Create vendor 34",
+"R000",
+"Pending"
+],
+[
+"USER0035",
+"Create vendor 35",
+"R001",
+"Pending"
+],
+[
+"USER0036",
+"Create vendor 36",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0037",
+"Create vendor 37",
+"R003",
+"Pending"
+],
+[
+"USER0038",
+"Create vendor 38",
+"R004",
+"Pending"
+],
+[
+"USER0039",
+"Create vendor 39",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0040",
+"Create vendor 40",
+"R006",
+"Pending"
+],
+[
+"USER0041",
+"Create vendor 41",
+"R007",
+"Pending"
+],
+[
+"USER0042",
+"Create vendor 42",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0043",
+"Create vendor 43",
+"R009",
+"Pending"
+],
+[
+"USER0044",
+"Create vendor 44",
+"R010",
+"Pending"
+],
+[
+"USER0045",
+"Create vendor 45",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0046",
+"Create vendor 46",
+"R012",
+"Pending"
+],
+[
+"USER0047",
+"Create vendor 47",
+"R013",
+"Pending"
+],
+[
+"USER0048",
+"Create vendor 48",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0049",
+"Create vendor 49",
+"R015",
+"Pending"
+],
+[
+"USER0050",
+"Create vendor 50",
+"R016",
+"Pending"
+],
+[
+"USER0051",
+"Create vendor 51",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0052",
+"Create vendor 52",
+"R001",
+"Pending"
+],
+[
+"USER0053",
+"Create vendor 53",
+"R002",
+"Pending"
+],
+[
+"USER0054",
+"Create vendor 54",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0055",
+"Create vendor 55",
+"R004",
+"Pending"
+],
+[
+"USER0056",
+"Create vendor 56",
+"R005",
+"Pending"
+],
+[
+"USER0057",
+"Create vendor 57",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0058",
+"Create vendor 58",
+"R007",
+"Pending"
+],
+[
+"USER0059",
+"Create vendor 59",
+"R008",
+"Pending"
+],
+[
+"USER0060",
+"Create vendor 60",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0061",
+"Create vendor 61",
+"R010",
+"Pending"
+],
+[
+"USER0062",
+"Create vendor 62",
+"R011",
+"Pending"
+],
+[
+"USER0063",
+"Create vendor 63",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0064",
+"Create vendor 64",
+"R013",
+"Pending"
+],
+[
+"USER0065",
+"Create vendor 65",
+"R014",
+"Pending"
+],
+[
+"USER0066",
+"Create vendor 66",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0067",
+"Create vendor 67",
+"R016",
+"Pending"
+],
+[
+"USER0068",
+"Create vendor 68",
+"R000",
+"Pending"
+],
+[
+"USER0069",
+"Create vendor 69",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0070",
+"Create vendor 70",
+"R002",
+"Pending"
+],
+[
+"USER0071",
+"Create vendor 71",
+"R003",
+"Pending"
+],
+[
+"USER0072",
+"Create vendor 72",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0073",
+"Create vendor 73",
+"R005",
+"Pending"
+],
+[
+"USER0074",
+"Create vendor 74",
+"R006",
+"Pending"
+],
+[
+"USER0075",
+"Create vendor 75",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0076",
+"Create vendor 76",
+"R008",
+"Pending"
+],
+[
+"USER0077",
+"Create vendor 77",
+"R009",
+"Pending"
+],
+[
+"USER0078",
+"Create vendor 78",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0079",
+"Create vendor 79",
+"R011",
+"Pending"
+],
+[
+"USER0080",
+"Create vendor 80",
+"R012",
+"Pending"
+],
+[
+"USER0081",
+"Create vendor 81",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0082",
+"Create vendor 82",
+"R014",
+"Pending"
+],
+[
+"USER0083",
+"Create vendor 83",
+"R015",
+"Pending"
+],
+[
+"USER0084",
+"Create vendor 84",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0085",
+"Create vendor 85",
+"R000",
+"Pending"
+],
+[
+"USER0086",
+"Create vendor 86",
+"R001",
+"Pending"
+],
+[
+"USER0087",
+"Create vendor 87",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0088",
+"Create vendor 88",
+"R003",
+"Pending"
+],
+[
+"USER0089",
+"Create vendor 89",
+"R004",
+"Pending"
+],
+[
+"USER0090",
+"Create vendor 90",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0091",
+"Create vendor 91",
+"R006",
+"Pending"
+],
+[
+"USER0092",
+"Create vendor 92",
+"R007",
+"Pending"
+],
+[
+"USER0093",
+"Create vendor 93",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0094",
+"Create vendor 94",
+"R009",
+"Pending"
+],
+[
+"USER0095",
+"Create vendor 95",
+"R010",
+"Pending"
+],
+[
+"USER0096",
+"Create vendor 96",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0097",
+"Create vendor 97",
+"R012",
+"Pending"
+],
+[
+"USER0098",
+"Create vendor 98",
+"R013",
+"Pending"
+],
+[
+"USER0099",
+"Create vendor 99",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0100",
+"Create vendor 100",
+"R015",
+"Pending"
+],
+[
+"USER0101",
+"Create vendor 101",
+"R016",
+"Pending"
+],
+[
+"USER0102",
+"Create vendor 102",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0103",
+"Create vendor 103",
+"R001",
+"Pending"
+],
+[
+"USER0104",
+"Create vendor 104",
+"R002",
+"Pending"
+],
+[
+"USER0105",
+"Create vendor 105",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0106",
+"Create vendor 106",
+"R004",
+"Pending"
+],
+[
+"USER0107",
+"Create vendor 107",
+"R005",
+"Pending"
+],
+[
+"USER0108",
+"Create vendor 108",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0109",
+"Create vendor 109",
+"R007",
+"Pending"
+],
+[
+"USER0110",
+"Create vendor 110",
+"R008",
+"Pending"
+],
+[
+"USER0111",
+"Create vendor 111",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0112",
+"Create vendor 112",
+"R010",
+"Pending"
+],
+[
+"USER0113",
+"Create vendor 113",
+"R011",
+"Pending"
+],
+[
+"USER0114",
+"Create vendor 114",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0115",
+"Create vendor 115",
+"R013",
+"Pending"
+],
+[
+"USER0116",
+"Create vendor 116",
+"R014",
+"Pending"
+],
+[
+"USER0117",
+"Create vendor 117",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0118",
+"Create vendor 118",
+"R016",
+"Pending"
+],
+[
+"USER0119",
+"Create vendor 119",
+"R000",
+"Pending"
+],
+[
+"USER0120",
+"Create vendor 120",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0121",
+"Create vendor 121",
+"R002",
+"Pending"
+],
+[
+"USER0122",
+"Create vendor 122",
+"R003",
+"Pending"
+],
+[
+"USER0123",
+"Create vendor 123",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0124",
+"Create vendor 124",
+"R005",
+"Pending"
+],
+[
+"USER0125",
+"Create vendor 125",
+"R006",
+"Pending"
+],
+[
+"USER0126",
+"Create vendor 126",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0127",
+"Create vendor 127",
+"R008",
+"Pending"
+],
+[
+"USER0128",
+"Create vendor 128",
+"R009",
+"Pending"
+],
+[
+"USER0129",
+"Create vendor 129",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0130",
+"Create vendor 130",
+"R011",
+"Pending"
+],
+[
+"USER0131",
+"Create vendor 131",
+"R012",
+"Pending"
+],
+[
+"USER0132",
+"Create vendor 132",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0133",
+"Create vendor 133",
+"R014",
+"Pending"
+],
+[
+"USER0134",
+"Create vendor 134",
+"R015",
+"Pending"
+],
+[
+"USER0135",
+"Create vendor 135",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0136",
+"Create vendor 136",
+"R000",
+"Pending"
+],
+[
+"USER0137",
+"Create vendor 137",
+"R001",
+"Pending"
+],
+[
+"USER0138",
+"Create vendor 138",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0139",
+"Create vendor 139",
+"R003",
+"Pending"
+],
+[
+"USER0140",
+"Create vendor 140",
+"R004",
+"Pending"
+],
+[
+"USER0141",
+"Create vendor 141",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0142",
+"Create vendor 142",
+"R006",
+"Pending"
+],
+[
+"USER0143",
+"Create vendor 143",
+"R007",
+"Pending"
+],
+[
+"USER0144",
+"Create vendor 144",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0145",
+"Create vendor 145",
+"R009",
+"Pending"
+],
+[
+"USER0146",
+"Create vendor 146",
+"R010",
+"Pending"
+],
+[
+"USER0147",
+"Create vendor 147",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0148",
+"Create vendor 148",
+"R012",
+"Pending"
+],
+[
+"USER0149",
+"Create vendor 149",
+"R013",
+"Pending"
+],
+[
+"USER0150",
+"Create vendor 150",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0151",
+"Create vendor 151",
+"R015",
+"Pending"
+],
+[
+"USER0152",
+"Create vendor 152",
+"R016",
+"Pending"
+],
+[
+"USER0153",
+"Create vendor 153",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0154",
+"Create vendor 154",
+"R001",
+"Pending"
+],
+[
+"USER0155",
+"Create vendor 155",
+"R002",
+"Pending"
+],
+[
+"USER0156",
+"Create vendor 156",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0157",
+"Create vendor 157",
+"R004",
+"Pending"
+],
+[
+"USER0158",
+"Create vendor 158",
+"R005",
+"Pending"
+],
+[
+"USER0159",
+"Create vendor 159",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0160",
+"Create vendor 160",
+"R007",
+"Pending"
+],
+[
+"USER0161",
+"Create vendor 161",
+"R008",
+"Pending"
+],
+[
+"USER0162",
+"Create vendor 162",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0163",
+"Create vendor 163",
+"R010",
+"Pending"
+],
+[
+"USER0164",
+"Create vendor 164",
+"R011",
+"Pending"
+],
+[
+"USER0165",
+"Create vendor 165",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0166",
+"Create vendor 166",
+"R013",
+"Pending"
+],
+[
+"USER0167",
+"Create vendor 167",
+"R014",
+"Pending"
+],
+[
+"USER0168",
+"Create vendor 168",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0169",
+"Create vendor 169",
+"R016",
+"Pending"
+],
+[
+"USER0170",
+"Create vendor 170",
+"R000",
+"Pending"
+],
+[
+"USER0171",
+"Create vendor 171",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0172",
+"Create vendor 172",
+"R002",
+"Pending"
+],
+[
+"USER0173",
+"Create vendor 173",
+"R003",
+"Pending"
+],
+[
+"USER0174",
+"Create vendor 174",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0175",
+"Create vendor 175",
+"R005",
+"Pending"
+],
+[
+"USER0176",
+"Create vendor 176",
+"R006",
+"Pending"
+],
+[
+"USER0177",
+"Create vendor 177",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0178",
+"Create vendor 178",
+"R008",
+"Pending"
+],
+[
+"USER0179",
+"Create vendor 179",
+"R009",
+"Pending"
+],
+[
+"USER0180",
+"Create vendor 180",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0181",
+"Create vendor 181",
+"R011",
+"Pending"
+],
+[
+"USER0182",
+"Create vendor 182",
+"R012",
+"Pending"
+],
+[
+"USER0183",
+"Create vendor 183",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0184",
+"Create vendor 184",
+"R014",
+"Pending"
+],
+[
+"USER0185",
+"Create vendor 185",
+"R015",
+"Pending"
+],
+[
+"USER0186",
+"Create vendor 186",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0187",
+"Create vendor 187",
+"R000",
+"Pending"
+],
+[
+"USER0188",
+"Create vendor 188",
+"R001",
+"Pending"
+],
+[
+"USER0189",
+"Create vendor 189",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0190",
+"Create vendor 190",
+"R003",
+"Pending"
+],
+[
+"USER0191",
+"Create vendor 191",
+"R004",
+"Pending"
+],
+[
+"USER0192",
+"Create vendor 192",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0193",
+"Create vendor 193",
+"R006",
+"Pending"
+],
+[
+"USER0194",
+"Create vendor 194",
+"R007",
+"Pending"
+],
+[
+"USER0195",
+"Create vendor 195",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0196",
+"Create vendor 196",
+"R009",
+"Pending"
+],
+[
+"USER0197",
+"Create vendor 197",
+"R010",
+"Pending"
+],
+[
+"USER0198",
+"Create vendor 198",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0199",
+"Create vendor 199",
+"R012",
+"Pending"
+],
+[
+"USER0200",
+"Create vendor 200",
+"R013",
+"Pending"
+],
+[
+"USER0201",
+"Create vendor 201",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0202",
+"Create vendor 202",
+"R015",
+"Pending"
+],
+[
+"USER0203",
+"Create vendor 203",
+"R016",
+"Pending"
+],
+[
+"USER0204",
+"Create vendor 204",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0205",
+"Create vendor 205",
+"R001",
+"Pending"
+],
+[
+"USER0206",
+"Create vendor 206",
+"R002",
+"Pending"
+],
+[
+"USER0207",
+"Create vendor 207",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0208",
+"Create vendor 208",
+"R004",
+"Pending"
+],
+[
+"USER0209",
+"Create vendor 209",
+"R005",
+"Pending"
+],
+[
+"USER0210",
+"Create vendor 210",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0211",
+"Create vendor 211",
+"R007",
+"Pending"
+],
+[
+"USER0212",
+"Create vendor 212",
+"R008",
+"Pending"
+],
+[
+"USER0213",
+"Create vendor 213",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0214",
+"Create vendor 214",
+"R010",
+"Pending"
+],
+[
+"USER0215",
+"Create vendor 215",
+"R011",
+"Pending"
+],
+[
+"USER0216",
+"Create vendor 216",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0217",
+"Create vendor 217",
+"R013",
+"Pending"
+],
+[
+"USER0218",
+"Create vendor 218",
+"R014",
+"Pending"
+],
+[
+"USER0219",
+"Create vendor 219",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0220",
+"Create vendor 220",
+"R016",
+"Pending"
+],
+[
+"USER0221",
+"Create vendor 221",
+"R000",
+"Pending"
+],
+[
+"USER0222",
+"Create vendor 222",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0223",
+"Create vendor 223",
+"R002",
+"Pending"
+],
+[
+"USER0224",
+"Create vendor 224",
+"R003",
+"Pending"
+],
+[
+"USER0225",
+"Create vendor 225",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0226",
+"Create vendor 226",
+"R005",
+"Pending"
+],
+[
+"USER0227",
+"Create vendor 227",
+"R006",
+"Pending"
+],
+[
+"USER0228",
+"Create vendor 228",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0229",
+"Create vendor 229",
+"R008",
+"Pending"
+],
+[
+"USER0230",
+"Create vendor 230",
+"R009",
+"Pending"
+],
+[
+"USER0231",
+"Create vendor 231",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0232",
+"Create vendor 232",
+"R011",
+"Pending"
+],
+[
+"USER0233",
+"Create vendor 233",
+"R012",
+"Pending"
+],
+[
+"USER0234",
+"Create vendor 234",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0235",
+"Create vendor 235",
+"R014",
+"Pending"
+],
+[
+"USER0236",
+"Create vendor 236",
+"R015",
+"Pending"
+],
+[
+"USER0237",
+"Create vendor 237",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0238",
+"Create vendor 238",
+"R000",
+"Pending"
+],
+[
+"USER0239",
+"Create vendor 239",
+"R001",
+"Pending"
+],
+[
+"USER0240",
+"Create vendor 240",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0241",
+"Create vendor 241",
+"R003",
+"Pending"
+],
+[
+"USER0242",
+"Create vendor 242",
+"R004",
+"Pending"
+],
+[
+"USER0243",
+"Create vendor 243",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0244",
+"Create vendor 244",
+"R006",
+"Pending"
+],
+[
+"USER0245",
+"Create vendor 245",
+"R007",
+"Pending"
+],
+[
+"USER0246",
+"Create vendor 246",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0247",
+"Create vendor 247",
+"R009",
+"Pending"
+],
+[
+"USER0248",
+"Create vendor 248",
+"R010",
+"Pending"
+],
+[
+"USER0249",
+"Create vendor 249",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0250",
+"Create vendor 250",
+"R012",
+"Pending"
+],
+[
+"USER0251",
+"Create vendor 251",
+"R013",
+"Pending"
+],
+[
+"USER0252",
+"Create vendor 252",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0253",
+"Create vendor 253",
+"R015",
+"Pending"
+],
+[
+"USER0254",
+"Create vendor 254",
+"R016",
+"Pending"
+],
+[
+"USER0255",
+"Create vendor 255",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0256",
+"Create vendor 256",
+"R001",
+"Pending"
+],
+[
+"USER0257",
+"Create vendor 257",
+"R002",
+"Pending"
+],
+[
+"USER0258",
+"Create vendor 258",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0259",
+"Create vendor 259",
+"R004",
+"Pending"
+],
+[
+"USER0260",
+"Create vendor 260",
+"R005",
+"Pending"
+],
+[
+"USER0261",
+"Create vendor 261",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0262",
+"Create vendor 262",
+"R007",
+"Pending"
+],
+[
+"USER0263",
+"Create vendor 263",
+"R008",
+"Pending"
+],
+[
+"USER0264",
+"Create vendor 264",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0265",
+"Create vendor 265",
+"R010",
+"Pending"
+],
+[
+"USER0266",
+"Create vendor 266",
+"R011",
+"Pending"
+],
+[
+"USER0267",
+"Create vendor 267",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0268",
+"Create vendor 268",
+"R013",
+"Pending"
+],
+[
+"USER0269",
+"Create vendor 269",
+"R014",
+"Pending"
+],
+[
+"USER0270",
+"Create vendor 270",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0271",
+"Create vendor 271",
+"R016",
+"Pending"
+],
+[
+"USER0272",
+"Create vendor 272",
+"R000",
+"Pending"
+],
+[
+"USER0273",
+"Create vendor 273",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0274",
+"Create vendor 274",
+"R002",
+"Pending"
+],
+[
+"USER0275",
+"Create vendor 275",
+"R003",
+"Pending"
+],
+[
+"USER0276",
+"Create vendor 276",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0277",
+"Create vendor 277",
+"R005",
+"Pending"
+],
+[
+"USER0278",
+"Create vendor 278",
+"R006",
+"Pending"
+],
+[
+"USER0279",
+"Create vendor 279",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0280",
+"Create vendor 280",
+"R008",
+"Pending"
+],
+[
+"USER0281",
+"Create vendor 281",
+"R009",
+"Pending"
+],
+[
+"USER0282",
+"Create vendor 282",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0283",
+"Create vendor 283",
+"R011",
+"Pending"
+],
+[
+"USER0284",
+"Create vendor 284",
+"R012",
+"Pending"
+],
+[
+"USER0285",
+"Create vendor 285",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0286",
+"Create vendor 286",
+"R014",
+"Pending"
+],
+[
+"USER0287",
+"Create vendor 287",
+"R015",
+"Pending"
+],
+[
+"USER0288",
+"Create vendor 288",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0289",
+"Create vendor 289",
+"R000",
+"Pending"
+],
+[
+"USER0290",
+"Create vendor 290",
+"R001",
+"Pending"
+],
+[
+"USER0291",
+"Create vendor 291",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0292",
+"Create vendor 292",
+"R003",
+"Pending"
+],
+[
+"USER0293",
+"Create vendor 293",
+"R004",
+"Pending"
+],
+[
+"USER0294",
+"Create vendor 294",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0295",
+"Create vendor 295",
+"R006",
+"Pending"
+],
+[
+"USER0296",
+"Create vendor 296",
+"R007",
+"Pending"
+],
+[
+"USER0297",
+"Create vendor 297",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0298",
+"Create vendor 298",
+"R009",
+"Pending"
+],
+[
+"USER0299",
+"Create vendor 299",
+"R010",
+"Pending"
+],
+[
+"USER0300",
+"Create vendor 300",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0301",
+"Create vendor 301",
+"R012",
+"Pending"
+],
+[
+"USER0302",
+"Create vendor 302",
+"R013",
+"Pending"
+],
+[
+"USER0303",
+"Create vendor 303",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0304",
+"Create vendor 304",
+"R015",
+"Pending"
+],
+[
+"USER0305",
+"Create vendor 305",
+"R016",
+"Pending"
+],
+[
+"USER0306",
+"Create vendor 306",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0307",
+"Create vendor 307",
+"R001",
+"Pending"
+],
+[
+"USER0308",
+"Create vendor 308",
+"R002",
+"Pending"
+],
+[
+"USER0309",
+"Create vendor 309",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0310",
+"Create vendor 310",
+"R004",
+"Pending"
+],
+[
+"USER0311",
+"Create vendor 311",
+"R005",
+"Pending"
+],
+[
+"USER0312",
+"Create vendor 312",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0313",
+"Create vendor 313",
+"R007",
+"Pending"
+],
+[
+"USER0314",
+"Create vendor 314",
+"R008",
+"Pending"
+],
+[
+"USER0315",
+"Create vendor 315",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0316",
+"Create vendor 316",
+"R010",
+"Pending"
+],
+[
+"USER0317",
+"Create vendor 317",
+"R011",
+"Pending"
+],
+[
+"USER0318",
+"Create vendor 318",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0319",
+"Create vendor 319",
+"R013",
+"Pending"
+],
+[
+"USER0320",
+"Create vendor 320",
+"R014",
+"Pending"
+],
+[
+"USER0321",
+"Create vendor 321",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0322",
+"Create vendor 322",
+"R016",
+"Pending"
+],
+[
+"USER0323",
+"Create vendor 323",
+"R000",
+"Pending"
+],
+[
+"USER0324",
+"Create vendor 324",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0325",
+"Create vendor 325",
+"R002",
+"Pending"
+],
+[
+"USER0326",
+"Create vendor 326",
+"R003",
+"Pending"
+],
+[
+"USER0327",
+"Create vendor 327",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0328",
+"Create vendor 328",
+"R005",
+"Pending"
+],
+[
+"USER0329",
+"Create vendor 329",
+"R006",
+"Pending"
+],
+[
+"USER0330",
+"Create vendor 330",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0331",
+"Create vendor 331",
+"R008",
+"Pending"
+],
+[
+"USER0332",
+"Create vendor 332",
+"R009",
+"Pending"
+],
+[
+"USER0333",
+"Create vendor 333",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0334",
+"Create vendor 334",
+"R011",
+"Pending"
+],
+[
+"USER0335",
+"Create vendor 335",
+"R012",
+"Pending"
+],
+[
+"USER0336",
+"Create vendor 336",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0337",
+"Create vendor 337",
+"R014",
+"Pending"
+],
+[
+"USER0338",
+"Create vendor 338",
+"R015",
+"Pending"
+],
+[
+"USER0339",
+"Create vendor 339",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0340",
+"Create vendor 340",
+"R000",
+"Pending"
+],
+[
+"USER0341",
+"Create vendor 341",
+"R001",
+"Pending"
+],
+[
+"USER0342",
+"Create vendor 342",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0343",
+"Create vendor 343",
+"R003",
+"Pending"
+],
+[
+"USER0344",
+"Create vendor 344",
+"R004",
+"Pending"
+],
+[
+"USER0345",
+"Create vendor 345",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0346",
+"Create vendor 346",
+"R006",
+"Pending"
+],
+[
+"USER0347",
+"Create vendor 347",
+"R007",
+"Pending"
+],
+[
+"USER0348",
+"Create vendor 348",
+"R008",
+"Accepted with controls"
+],
+[
+"USER0349",
+"Create vendor 349",
+"R009",
+"Pending"
+],
+[
+"USER0350",
+"Create vendor 350",
+"R010",
+"Pending"
+],
+[
+"USER0351",
+"Create vendor 351",
+"R011",
+"Accepted with controls"
+],
+[
+"USER0352",
+"Create vendor 352",
+"R012",
+"Pending"
+],
+[
+"USER0353",
+"Create vendor 353",
+"R013",
+"Pending"
+],
+[
+"USER0354",
+"Create vendor 354",
+"R014",
+"Accepted with controls"
+],
+[
+"USER0355",
+"Create vendor 355",
+"R015",
+"Pending"
+],
+[
+"USER0356",
+"Create vendor 356",
+"R016",
+"Pending"
+],
+[
+"USER0357",
+"Create vendor 357",
+"R000",
+"Accepted with controls"
+],
+[
+"USER0358",
+"Create vendor 358",
+"R001",
+"Pending"
+],
+[
+"USER0359",
+"Create vendor 359",
+"R002",
+"Pending"
+],
+[
+"USER0360",
+"Create vendor 360",
+"R003",
+"Accepted with controls"
+],
+[
+"USER0361",
+"Create vendor 361",
+"R004",
+"Pending"
+],
+[
+"USER0362",
+"Create vendor 362",
+"R005",
+"Pending"
+],
+[
+"USER0363",
+"Create vendor 363",
+"R006",
+"Accepted with controls"
+],
+[
+"USER0364",
+"Create vendor 364",
+"R007",
+"Pending"
+],
+[
+"USER0365",
+"Create vendor 365",
+"R008",
+"Pending"
+],
+[
+"USER0366",
+"Create vendor 366",
+"R009",
+"Accepted with controls"
+],
+[
+"USER0367",
+"Create vendor 367",
+"R010",
+"Pending"
+],
+[
+"USER0368",
+"Create vendor 368",
+"R011",
+"Pending"
+],
+[
+"USER0369",
+"Create vendor 369",
+"R012",
+"Accepted with controls"
+],
+[
+"USER0370",
+"Create vendor 370",
+"R013",
+"Pending"
+],
+[
+"USER0371",
+"Create vendor 371",
+"R014",
+"Pending"
+],
+[
+"USER0372",
+"Create vendor 372",
+"R015",
+"Accepted with controls"
+],
+[
+"USER0373",
+"Create vendor 373",
+"R016",
+"Pending"
+],
+[
+"USER0374",
+"Create vendor 374",
+"R000",
+"Pending"
+],
+[
+"USER0375",
+"Create vendor 375",
+"R001",
+"Accepted with controls"
+],
+[
+"USER0376",
+"Create vendor 376",
+"R002",
+"Pending"
+],
+[
+"USER0377",
+"Create vendor 377",
+"R003",
+"Pending"
+],
+[
+"USER0378",
+"Create vendor 378",
+"R004",
+"Accepted with controls"
+],
+[
+"USER0379",
+"Create vendor 379",
+"R005",
+"Pending"
+],
+[
+"USER0380",
+"Create vendor 380",
+"R006",
+"Pending"
+],
+[
+"USER0381",
+"Create vendor 381",
+"R007",
+"Accepted with controls"
+],
+[
+"USER0382",
+"Create vendor 382",
+"R008",
+"Pending"
+],
+[
+"USER0383",
+"Create vendor 383",
+"R009",
+"Pending"
+],
+[
+"USER0384",
+"Create vendor 384",
+"R010",
+"Accepted with controls"
+],
+[
+"USER0385",
+"Create vendor 385",
+"R011",
+"Pending"
+],
+[
+"USER0386",
+"Create vendor 386",
+"R012",
+"Pending"
+],
+[
+"USER0387",
+"Create vendor 387",
+"R013",
+"Accepted with controls"
+],
+[
+"USER0388",
+"Create vendor 388",
+"R014",
+"Pending"
+],
+[
+"USER0389",
+"Create vendor 389",
+"R015",
+"Pending"
+],
+[
+"USER0390",
+"Create vendor 390",
+"R016",
+"Accepted with controls"
+],
+[
+"USER0391",
+"Create vendor 391",
+"R000",
+"Pending"
+],
+[
+"USER0392",
+"Create vendor 392",
+"R001",
+"Pending"
+],
+[
+"USER0393",
+"Create vendor 393",
+"R002",
+"Accepted with controls"
+],
+[
+"USER0394",
+"Create vendor 394",
+"R003",
+"Pending"
+],
+[
+"USER0395",
+"Create vendor 395",
+"R004",
+"Pending"
+],
+[
+"USER0396",
+"Create vendor 396",
+"R005",
+"Accepted with controls"
+],
+[
+"USER0397",
+"Create vendor 397",
+"R006",
+"Pending"
+],
+[
+"USER0398",
+"Create vendor 398",
+"R007",
+"Pending"
+],
+[
+"USER0399",
+"Create vendor 399",
+"R008",
+"Accepted with controls"
+]
+]
+],
+"title": "Outstanding Risks and Actions"
+}
+],
+"snapshot_checksum": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"status": "Reviewed",
+"status_statement": "Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"title": "SoD Review Report – Q4 2026"
+},
+"pdf": {
+"author": "Åse Nørgaard",
+"pages": 13,
+"status": 200,
+"title": "SoD Review Report – Q4 2026",
+"words": [
+"SoD",
+"Review",
+"Report",
+"–",
+"Q4",
+"2026",
+"Example",
+"Æøå",
+"AS",
+"SAP",
+"S/4HANA",
+"·",
+"PRD",
+"/",
+"100",
+"Q4",
+"2026",
+"review",
+"01.10.2026",
+"-",
+"31.12.2026",
+"Reviewed",
+"·",
+"v1.2",
+"Reviewed:",
+"review",
+"decisions",
+"are",
+"recorded",
+"with",
+"identity",
+"provenance.",
+"SAP",
+"Lens",
+"does",
+"not",
+"authenticate",
+"Desktop/legacy",
+"profile",
+"names;",
+"server",
+"session",
+"events",
+"retain",
+"account",
+"attribution.",
+"Review",
+"completion",
+"is",
+"not",
+"approval.",
+"Prepared",
+"by:",
+"Åse",
+"Nørgaard",
+"Report",
+"date:",
+"16.11.2026",
+"Potential",
+"conflicts",
+"are",
+"based",
+"on",
+"role-derived",
+"transaction",
+"evidence,",
+"not",
+"verified",
+"effective",
+"SAP",
+"authorization.",
+"Desktop/legacy",
+"identities",
+"are",
+"self-reported;",
+"session-authenticated",
+"events",
+"retain",
+"account",
+"provenance.",
+"These",
+"records",
+"are",
+"not",
+"verified",
+"digital",
+"signatures.",
+"Snapshot",
+"reference:",
+"0123456789ab",
+"·",
+"Report",
+"model",
+"reference:",
+"fedcba987654",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"1",
+"Outstanding",
+"Risks",
+"and",
+"Actions",
+"All",
+"open",
+"items.",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0000",
+"Create",
+"vendor",
+"0",
+"R000",
+"Accepted",
+"with",
+"controls",
+"USER0001",
+"Create",
+"vendor",
+"1",
+"R001",
+"Pending",
+"USER0002",
+"Create",
+"vendor",
+"2",
+"R002",
+"Pending",
+"USER0003",
+"Create",
+"vendor",
+"3",
+"R003",
+"Accepted",
+"with",
+"controls",
+"USER0004",
+"Create",
+"vendor",
+"4",
+"R004",
+"Pending",
+"USER0005",
+"Create",
+"vendor",
+"5",
+"R005",
+"Pending",
+"USER0006",
+"Create",
+"vendor",
+"6",
+"R006",
+"Accepted",
+"with",
+"controls",
+"USER0007",
+"Create",
+"vendor",
+"7",
+"R007",
+"Pending",
+"USER0008",
+"Create",
+"vendor",
+"8",
+"R008",
+"Pending",
+"USER0009",
+"Create",
+"vendor",
+"9",
+"R009",
+"Accepted",
+"with",
+"controls",
+"USER0010",
+"Create",
+"vendor",
+"10",
+"R010",
+"Pending",
+"USER0011",
+"Create",
+"vendor",
+"11",
+"R011",
+"Pending",
+"USER0012",
+"Create",
+"vendor",
+"12",
+"R012",
+"Accepted",
+"with",
+"controls",
+"USER0013",
+"Create",
+"vendor",
+"13",
+"R013",
+"Pending",
+"USER0014",
+"Create",
+"vendor",
+"14",
+"R014",
+"Pending",
+"USER0015",
+"Create",
+"vendor",
+"15",
+"R015",
+"Accepted",
+"with",
+"controls",
+"USER0016",
+"Create",
+"vendor",
+"16",
+"R016",
+"Pending",
+"USER0017",
+"Create",
+"vendor",
+"17",
+"R000",
+"Pending",
+"USER0018",
+"Create",
+"vendor",
+"18",
+"R001",
+"Accepted",
+"with",
+"controls",
+"USER0019",
+"Create",
+"vendor",
+"19",
+"R002",
+"Pending",
+"USER0020",
+"Create",
+"vendor",
+"20",
+"R003",
+"Pending",
+"USER0021",
+"Create",
+"vendor",
+"21",
+"R004",
+"Accepted",
+"with",
+"controls",
+"USER0022",
+"Create",
+"vendor",
+"22",
+"R005",
+"Pending",
+"USER0023",
+"Create",
+"vendor",
+"23",
+"R006",
+"Pending",
+"USER0024",
+"Create",
+"vendor",
+"24",
+"R007",
+"Accepted",
+"with",
+"controls",
+"USER0025",
+"Create",
+"vendor",
+"25",
+"R008",
+"Pending",
+"USER0026",
+"Create",
+"vendor",
+"26",
+"R009",
+"Pending",
+"USER0027",
+"Create",
+"vendor",
+"27",
+"R010",
+"Accepted",
+"with",
+"controls",
+"USER0028",
+"Create",
+"vendor",
+"28",
+"R011",
+"Pending",
+"USER0029",
+"Create",
+"vendor",
+"29",
+"R012",
+"Pending",
+"USER0030",
+"Create",
+"vendor",
+"30",
+"R013",
+"Accepted",
+"with",
+"controls",
+"USER0031",
+"Create",
+"vendor",
+"31",
+"R014",
+"Pending",
+"USER0032",
+"Create",
+"vendor",
+"32",
+"R015",
+"Pending",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"2",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0033",
+"Create",
+"vendor",
+"33",
+"R016",
+"Accepted",
+"with",
+"controls",
+"USER0034",
+"Create",
+"vendor",
+"34",
+"R000",
+"Pending",
+"USER0035",
+"Create",
+"vendor",
+"35",
+"R001",
+"Pending",
+"USER0036",
+"Create",
+"vendor",
+"36",
+"R002",
+"Accepted",
+"with",
+"controls",
+"USER0037",
+"Create",
+"vendor",
+"37",
+"R003",
+"Pending",
+"USER0038",
+"Create",
+"vendor",
+"38",
+"R004",
+"Pending",
+"USER0039",
+"Create",
+"vendor",
+"39",
+"R005",
+"Accepted",
+"with",
+"controls",
+"USER0040",
+"Create",
+"vendor",
+"40",
+"R006",
+"Pending",
+"USER0041",
+"Create",
+"vendor",
+"41",
+"R007",
+"Pending",
+"USER0042",
+"Create",
+"vendor",
+"42",
+"R008",
+"Accepted",
+"with",
+"controls",
+"USER0043",
+"Create",
+"vendor",
+"43",
+"R009",
+"Pending",
+"USER0044",
+"Create",
+"vendor",
+"44",
+"R010",
+"Pending",
+"USER0045",
+"Create",
+"vendor",
+"45",
+"R011",
+"Accepted",
+"with",
+"controls",
+"USER0046",
+"Create",
+"vendor",
+"46",
+"R012",
+"Pending",
+"USER0047",
+"Create",
+"vendor",
+"47",
+"R013",
+"Pending",
+"USER0048",
+"Create",
+"vendor",
+"48",
+"R014",
+"Accepted",
+"with",
+"controls",
+"USER0049",
+"Create",
+"vendor",
+"49",
+"R015",
+"Pending",
+"USER0050",
+"Create",
+"vendor",
+"50",
+"R016",
+"Pending",
+"USER0051",
+"Create",
+"vendor",
+"51",
+"R000",
+"Accepted",
+"with",
+"controls",
+"USER0052",
+"Create",
+"vendor",
+"52",
+"R001",
+"Pending",
+"USER0053",
+"Create",
+"vendor",
+"53",
+"R002",
+"Pending",
+"USER0054",
+"Create",
+"vendor",
+"54",
+"R003",
+"Accepted",
+"with",
+"controls",
+"USER0055",
+"Create",
+"vendor",
+"55",
+"R004",
+"Pending",
+"USER0056",
+"Create",
+"vendor",
+"56",
+"R005",
+"Pending",
+"USER0057",
+"Create",
+"vendor",
+"57",
+"R006",
+"Accepted",
+"with",
+"controls",
+"USER0058",
+"Create",
+"vendor",
+"58",
+"R007",
+"Pending",
+"USER0059",
+"Create",
+"vendor",
+"59",
+"R008",
+"Pending",
+"USER0060",
+"Create",
+"vendor",
+"60",
+"R009",
+"Accepted",
+"with",
+"controls",
+"USER0061",
+"Create",
+"vendor",
+"61",
+"R010",
+"Pending",
+"USER0062",
+"Create",
+"vendor",
+"62",
+"R011",
+"Pending",
+"USER0063",
+"Create",
+"vendor",
+"63",
+"R012",
+"Accepted",
+"with",
+"controls",
+"USER0064",
+"Create",
+"vendor",
+"64",
+"R013",
+"Pending",
+"USER0065",
+"Create",
+"vendor",
+"65",
+"R014",
+"Pending",
+"USER0066",
+"Create",
+"vendor",
+"66",
+"R015",
+"Accepted",
+"with",
+"controls",
+"USER0067",
+"Create",
+"vendor",
+"67",
+"R016",
+"Pending",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"3",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0068",
+"Create",
+"vendor",
+"68",
+"R000",
+"Pending",
+"USER0069",
+"Create",
+"vendor",
+"69",
+"R001",
+"Accepted",
+"with",
+"controls",
+"USER0070",
+"Create",
+"vendor",
+"70",
+"R002",
+"Pending",
+"USER0071",
+"Create",
+"vendor",
+"71",
+"R003",
+"Pending",
+"USER0072",
+"Create",
+"vendor",
+"72",
+"R004",
+"Accepted",
+"with",
+"controls",
+"USER0073",
+"Create",
+"vendor",
+"73",
+"R005",
+"Pending",
+"USER0074",
+"Create",
+"vendor",
+"74",
+"R006",
+"Pending",
+"USER0075",
+"Create",
+"vendor",
+"75",
+"R007",
+"Accepted",
+"with",
+"controls",
+"USER0076",
+"Create",
+"vendor",
+"76",
+"R008",
+"Pending",
+"USER0077",
+"Create",
+"vendor",
+"77",
+"R009",
+"Pending",
+"USER0078",
+"Create",
+"vendor",
+"78",
+"R010",
+"Accepted",
+"with",
+"controls",
+"USER0079",
+"Create",
+"vendor",
+"79",
+"R011",
+"Pending",
+"USER0080",
+"Create",
+"vendor",
+"80",
+"R012",
+"Pending",
+"USER0081",
+"Create",
+"vendor",
+"81",
+"R013",
+"Accepted",
+"with",
+"controls",
+"USER0082",
+"Create",
+"vendor",
+"82",
+"R014",
+"Pending",
+"USER0083",
+"Create",
+"vendor",
+"83",
+"R015",
+"Pending",
+"USER0084",
+"Create",
+"vendor",
+"84",
+"R016",
+"Accepted",
+"with",
+"controls",
+"USER0085",
+"Create",
+"vendor",
+"85",
+"R000",
+"Pending",
+"USER0086",
+"Create",
+"vendor",
+"86",
+"R001",
+"Pending",
+"USER0087",
+"Create",
+"vendor",
+"87",
+"R002",
+"Accepted",
+"with",
+"controls",
+"USER0088",
+"Create",
+"vendor",
+"88",
+"R003",
+"Pending",
+"USER0089",
+"Create",
+"vendor",
+"89",
+"R004",
+"Pending",
+"USER0090",
+"Create",
+"vendor",
+"90",
+"R005",
+"Accepted",
+"with",
+"controls",
+"USER0091",
+"Create",
+"vendor",
+"91",
+"R006",
+"Pending",
+"USER0092",
+"Create",
+"vendor",
+"92",
+"R007",
+"Pending",
+"USER0093",
+"Create",
+"vendor",
+"93",
+"R008",
+"Accepted",
+"with",
+"controls",
+"USER0094",
+"Create",
+"vendor",
+"94",
+"R009",
+"Pending",
+"USER0095",
+"Create",
+"vendor",
+"95",
+"R010",
+"Pending",
+"USER0096",
+"Create",
+"vendor",
+"96",
+"R011",
+"Accepted",
+"with",
+"controls",
+"USER0097",
+"Create",
+"vendor",
+"97",
+"R012",
+"Pending",
+"USER0098",
+"Create",
+"vendor",
+"98",
+"R013",
+"Pending",
+"USER0099",
+"Create",
+"vendor",
+"99",
+"R014",
+"Accepted",
+"with",
+"controls",
+"USER0100",
+"Create",
+"vendor",
+"100",
+"R015",
+"Pending",
+"USER0101",
+"Create",
+"vendor",
+"101",
+"R016",
+"Pending",
+"USER0102",
+"Create",
+"vendor",
+"102",
+"R000",
+"Accepted",
+"with",
+"controls",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"4",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0103",
+"Create",
+"vendor",
+"103",
+"R001",
+"Pending",
+"USER0104",
+"Create",
+"vendor",
+"104",
+"R002",
+"Pending",
+"USER0105",
+"Create",
+"vendor",
+"105",
+"R003",
+"Accepted",
+"with",
+"controls",
+"USER0106",
+"Create",
+"vendor",
+"106",
+"R004",
+"Pending",
+"USER0107",
+"Create",
+"vendor",
+"107",
+"R005",
+"Pending",
+"USER0108",
+"Create",
+"vendor",
+"108",
+"R006",
+"Accepted",
+"with",
+"controls",
+"USER0109",
+"Create",
+"vendor",
+"109",
+"R007",
+"Pending",
+"USER0110",
+"Create",
+"vendor",
+"110",
+"R008",
+"Pending",
+"USER0111",
+"Create",
+"vendor",
+"111",
+"R009",
+"Accepted",
+"with",
+"controls",
+"USER0112",
+"Create",
+"vendor",
+"112",
+"R010",
+"Pending",
+"USER0113",
+"Create",
+"vendor",
+"113",
+"R011",
+"Pending",
+"USER0114",
+"Create",
+"vendor",
+"114",
+"R012",
+"Accepted",
+"with",
+"controls",
+"USER0115",
+"Create",
+"vendor",
+"115",
+"R013",
+"Pending",
+"USER0116",
+"Create",
+"vendor",
+"116",
+"R014",
+"Pending",
+"USER0117",
+"Create",
+"vendor",
+"117",
+"R015",
+"Accepted",
+"with",
+"controls",
+"USER0118",
+"Create",
+"vendor",
+"118",
+"R016",
+"Pending",
+"USER0119",
+"Create",
+"vendor",
+"119",
+"R000",
+"Pending",
+"USER0120",
+"Create",
+"vendor",
+"120",
+"R001",
+"Accepted",
+"with",
+"controls",
+"USER0121",
+"Create",
+"vendor",
+"121",
+"R002",
+"Pending",
+"USER0122",
+"Create",
+"vendor",
+"122",
+"R003",
+"Pending",
+"USER0123",
+"Create",
+"vendor",
+"123",
+"R004",
+"Accepted",
+"with",
+"controls",
+"USER0124",
+"Create",
+"vendor",
+"124",
+"R005",
+"Pending",
+"USER0125",
+"Create",
+"vendor",
+"125",
+"R006",
+"Pending",
+"USER0126",
+"Create",
+"vendor",
+"126",
+"R007",
+"Accepted",
+"with",
+"controls",
+"USER0127",
+"Create",
+"vendor",
+"127",
+"R008",
+"Pending",
+"USER0128",
+"Create",
+"vendor",
+"128",
+"R009",
+"Pending",
+"USER0129",
+"Create",
+"vendor",
+"129",
+"R010",
+"Accepted",
+"with",
+"controls",
+"USER0130",
+"Create",
+"vendor",
+"130",
+"R011",
+"Pending",
+"USER0131",
+"Create",
+"vendor",
+"131",
+"R012",
+"Pending",
+"USER0132",
+"Create",
+"vendor",
+"132",
+"R013",
+"Accepted",
+"with",
+"controls",
+"USER0133",
+"Create",
+"vendor",
+"133",
+"R014",
+"Pending",
+"USER0134",
+"Create",
+"vendor",
+"134",
+"R015",
+"Pending",
+"USER0135",
+"Create",
+"vendor",
+"135",
+"R016",
+"Accepted",
+"with",
+"controls",
+"USER0136",
+"Create",
+"vendor",
+"136",
+"R000",
+"Pending",
+"USER0137",
+"Create",
+"vendor",
+"137",
+"R001",
+"Pending",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"5",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0138",
+"Create",
+"vendor",
+"138",
+"R002",
+"Accepted",
+"with",
+"controls",
+"USER0139",
+"Create",
+"vendor",
+"139",
+"R003",
+"Pending",
+"USER0140",
+"Create",
+"vendor",
+"140",
+"R004",
+"Pending",
+"USER0141",
+"Create",
+"vendor",
+"141",
+"R005",
+"Accepted",
+"with",
+"controls",
+"USER0142",
+"Create",
+"vendor",
+"142",
+"R006",
+"Pending",
+"USER0143",
+"Create",
+"vendor",
+"143",
+"R007",
+"Pending",
+"USER0144",
+"Create",
+"vendor",
+"144",
+"R008",
+"Accepted",
+"with",
+"controls",
+"USER0145",
+"Create",
+"vendor",
+"145",
+"R009",
+"Pending",
+"USER0146",
+"Create",
+"vendor",
+"146",
+"R010",
+"Pending",
+"USER0147",
+"Create",
+"vendor",
+"147",
+"R011",
+"Accepted",
+"with",
+"controls",
+"USER0148",
+"Create",
+"vendor",
+"148",
+"R012",
+"Pending",
+"USER0149",
+"Create",
+"vendor",
+"149",
+"R013",
+"Pending",
+"USER0150",
+"Create",
+"vendor",
+"150",
+"R014",
+"Accepted",
+"with",
+"controls",
+"USER0151",
+"Create",
+"vendor",
+"151",
+"R015",
+"Pending",
+"USER0152",
+"Create",
+"vendor",
+"152",
+"R016",
+"Pending",
+"USER0153",
+"Create",
+"vendor",
+"153",
+"R000",
+"Accepted",
+"with",
+"controls",
+"USER0154",
+"Create",
+"vendor",
+"154",
+"R001",
+"Pending",
+"USER0155",
+"Create",
+"vendor",
+"155",
+"R002",
+"Pending",
+"USER0156",
+"Create",
+"vendor",
+"156",
+"R003",
+"Accepted",
+"with",
+"controls",
+"USER0157",
+"Create",
+"vendor",
+"157",
+"R004",
+"Pending",
+"USER0158",
+"Create",
+"vendor",
+"158",
+"R005",
+"Pending",
+"USER0159",
+"Create",
+"vendor",
+"159",
+"R006",
+"Accepted",
+"with",
+"controls",
+"USER0160",
+"Create",
+"vendor",
+"160",
+"R007",
+"Pending",
+"USER0161",
+"Create",
+"vendor",
+"161",
+"R008",
+"Pending",
+"USER0162",
+"Create",
+"vendor",
+"162",
+"R009",
+"Accepted",
+"with",
+"controls",
+"USER0163",
+"Create",
+"vendor",
+"163",
+"R010",
+"Pending",
+"USER0164",
+"Create",
+"vendor",
+"164",
+"R011",
+"Pending",
+"USER0165",
+"Create",
+"vendor",
+"165",
+"R012",
+"Accepted",
+"with",
+"controls",
+"USER0166",
+"Create",
+"vendor",
+"166",
+"R013",
+"Pending",
+"USER0167",
+"Create",
+"vendor",
+"167",
+"R014",
+"Pending",
+"USER0168",
+"Create",
+"vendor",
+"168",
+"R015",
+"Accepted",
+"with",
+"controls",
+"USER0169",
+"Create",
+"vendor",
+"169",
+"R016",
+"Pending",
+"USER0170",
+"Create",
+"vendor",
+"170",
+"R000",
+"Pending",
+"USER0171",
+"Create",
+"vendor",
+"171",
+"R001",
+"Accepted",
+"with",
+"controls",
+"USER0172",
+"Create",
+"vendor",
+"172",
+"R002",
+"Pending",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"6",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0173",
+"Create",
+"vendor",
+"173",
+"R003",
+"Pending",
+"USER0174",
+"Create",
+"vendor",
+"174",
+"R004",
+"Accepted",
+"with",
+"controls",
+"USER0175",
+"Create",
+"vendor",
+"175",
+"R005",
+"Pending",
+"USER0176",
+"Create",
+"vendor",
+"176",
+"R006",
+"Pending",
+"USER0177",
+"Create",
+"vendor",
+"177",
+"R007",
+"Accepted",
+"with",
+"controls",
+"USER0178",
+"Create",
+"vendor",
+"178",
+"R008",
+"Pending",
+"USER0179",
+"Create",
+"vendor",
+"179",
+"R009",
+"Pending",
+"USER0180",
+"Create",
+"vendor",
+"180",
+"R010",
+"Accepted",
+"with",
+"controls",
+"USER0181",
+"Create",
+"vendor",
+"181",
+"R011",
+"Pending",
+"USER0182",
+"Create",
+"vendor",
+"182",
+"R012",
+"Pending",
+"USER0183",
+"Create",
+"vendor",
+"183",
+"R013",
+"Accepted",
+"with",
+"controls",
+"USER0184",
+"Create",
+"vendor",
+"184",
+"R014",
+"Pending",
+"USER0185",
+"Create",
+"vendor",
+"185",
+"R015",
+"Pending",
+"USER0186",
+"Create",
+"vendor",
+"186",
+"R016",
+"Accepted",
+"with",
+"controls",
+"USER0187",
+"Create",
+"vendor",
+"187",
+"R000",
+"Pending",
+"USER0188",
+"Create",
+"vendor",
+"188",
+"R001",
+"Pending",
+"USER0189",
+"Create",
+"vendor",
+"189",
+"R002",
+"Accepted",
+"with",
+"controls",
+"USER0190",
+"Create",
+"vendor",
+"190",
+"R003",
+"Pending",
+"USER0191",
+"Create",
+"vendor",
+"191",
+"R004",
+"Pending",
+"USER0192",
+"Create",
+"vendor",
+"192",
+"R005",
+"Accepted",
+"with",
+"controls",
+"USER0193",
+"Create",
+"vendor",
+"193",
+"R006",
+"Pending",
+"USER0194",
+"Create",
+"vendor",
+"194",
+"R007",
+"Pending",
+"USER0195",
+"Create",
+"vendor",
+"195",
+"R008",
+"Accepted",
+"with",
+"controls",
+"USER0196",
+"Create",
+"vendor",
+"196",
+"R009",
+"Pending",
+"USER0197",
+"Create",
+"vendor",
+"197",
+"R010",
+"Pending",
+"USER0198",
+"Create",
+"vendor",
+"198",
+"R011",
+"Accepted",
+"with",
+"controls",
+"USER0199",
+"Create",
+"vendor",
+"199",
+"R012",
+"Pending",
+"USER0200",
+"Create",
+"vendor",
+"200",
+"R013",
+"Pending",
+"USER0201",
+"Create",
+"vendor",
+"201",
+"R014",
+"Accepted",
+"with",
+"controls",
+"USER0202",
+"Create",
+"vendor",
+"202",
+"R015",
+"Pending",
+"USER0203",
+"Create",
+"vendor",
+"203",
+"R016",
+"Pending",
+"USER0204",
+"Create",
+"vendor",
+"204",
+"R000",
+"Accepted",
+"with",
+"controls",
+"USER0205",
+"Create",
+"vendor",
+"205",
+"R001",
+"Pending",
+"USER0206",
+"Create",
+"vendor",
+"206",
+"R002",
+"Pending",
+"USER0207",
+"Create",
+"vendor",
+"207",
+"R003",
+"Accepted",
+"with",
+"controls",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"7",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0208",
+"Create",
+"vendor",
+"208",
+"R004",
+"Pending",
+"USER0209",
+"Create",
+"vendor",
+"209",
+"R005",
+"Pending",
+"USER0210",
+"Create",
+"vendor",
+"210",
+"R006",
+"Accepted",
+"with",
+"controls",
+"USER0211",
+"Create",
+"vendor",
+"211",
+"R007",
+"Pending",
+"USER0212",
+"Create",
+"vendor",
+"212",
+"R008",
+"Pending",
+"USER0213",
+"Create",
+"vendor",
+"213",
+"R009",
+"Accepted",
+"with",
+"controls",
+"USER0214",
+"Create",
+"vendor",
+"214",
+"R010",
+"Pending",
+"USER0215",
+"Create",
+"vendor",
+"215",
+"R011",
+"Pending",
+"USER0216",
+"Create",
+"vendor",
+"216",
+"R012",
+"Accepted",
+"with",
+"controls",
+"USER0217",
+"Create",
+"vendor",
+"217",
+"R013",
+"Pending",
+"USER0218",
+"Create",
+"vendor",
+"218",
+"R014",
+"Pending",
+"USER0219",
+"Create",
+"vendor",
+"219",
+"R015",
+"Accepted",
+"with",
+"controls",
+"USER0220",
+"Create",
+"vendor",
+"220",
+"R016",
+"Pending",
+"USER0221",
+"Create",
+"vendor",
+"221",
+"R000",
+"Pending",
+"USER0222",
+"Create",
+"vendor",
+"222",
+"R001",
+"Accepted",
+"with",
+"controls",
+"USER0223",
+"Create",
+"vendor",
+"223",
+"R002",
+"Pending",
+"USER0224",
+"Create",
+"vendor",
+"224",
+"R003",
+"Pending",
+"USER0225",
+"Create",
+"vendor",
+"225",
+"R004",
+"Accepted",
+"with",
+"controls",
+"USER0226",
+"Create",
+"vendor",
+"226",
+"R005",
+"Pending",
+"USER0227",
+"Create",
+"vendor",
+"227",
+"R006",
+"Pending",
+"USER0228",
+"Create",
+"vendor",
+"228",
+"R007",
+"Accepted",
+"with",
+"controls",
+"USER0229",
+"Create",
+"vendor",
+"229",
+"R008",
+"Pending",
+"USER0230",
+"Create",
+"vendor",
+"230",
+"R009",
+"Pending",
+"USER0231",
+"Create",
+"vendor",
+"231",
+"R010",
+"Accepted",
+"with",
+"controls",
+"USER0232",
+"Create",
+"vendor",
+"232",
+"R011",
+"Pending",
+"USER0233",
+"Create",
+"vendor",
+"233",
+"R012",
+"Pending",
+"USER0234",
+"Create",
+"vendor",
+"234",
+"R013",
+"Accepted",
+"with",
+"controls",
+"USER0235",
+"Create",
+"vendor",
+"235",
+"R014",
+"Pending",
+"USER0236",
+"Create",
+"vendor",
+"236",
+"R015",
+"Pending",
+"USER0237",
+"Create",
+"vendor",
+"237",
+"R016",
+"Accepted",
+"with",
+"controls",
+"USER0238",
+"Create",
+"vendor",
+"238",
+"R000",
+"Pending",
+"USER0239",
+"Create",
+"vendor",
+"239",
+"R001",
+"Pending",
+"USER0240",
+"Create",
+"vendor",
+"240",
+"R002",
+"Accepted",
+"with",
+"controls",
+"USER0241",
+"Create",
+"vendor",
+"241",
+"R003",
+"Pending",
+"USER0242",
+"Create",
+"vendor",
+"242",
+"R004",
+"Pending",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"8",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0243",
+"Create",
+"vendor",
+"243",
+"R005",
+"Accepted",
+"with",
+"controls",
+"USER0244",
+"Create",
+"vendor",
+"244",
+"R006",
+"Pending",
+"USER0245",
+"Create",
+"vendor",
+"245",
+"R007",
+"Pending",
+"USER0246",
+"Create",
+"vendor",
+"246",
+"R008",
+"Accepted",
+"with",
+"controls",
+"USER0247",
+"Create",
+"vendor",
+"247",
+"R009",
+"Pending",
+"USER0248",
+"Create",
+"vendor",
+"248",
+"R010",
+"Pending",
+"USER0249",
+"Create",
+"vendor",
+"249",
+"R011",
+"Accepted",
+"with",
+"controls",
+"USER0250",
+"Create",
+"vendor",
+"250",
+"R012",
+"Pending",
+"USER0251",
+"Create",
+"vendor",
+"251",
+"R013",
+"Pending",
+"USER0252",
+"Create",
+"vendor",
+"252",
+"R014",
+"Accepted",
+"with",
+"controls",
+"USER0253",
+"Create",
+"vendor",
+"253",
+"R015",
+"Pending",
+"USER0254",
+"Create",
+"vendor",
+"254",
+"R016",
+"Pending",
+"USER0255",
+"Create",
+"vendor",
+"255",
+"R000",
+"Accepted",
+"with",
+"controls",
+"USER0256",
+"Create",
+"vendor",
+"256",
+"R001",
+"Pending",
+"USER0257",
+"Create",
+"vendor",
+"257",
+"R002",
+"Pending",
+"USER0258",
+"Create",
+"vendor",
+"258",
+"R003",
+"Accepted",
+"with",
+"controls",
+"USER0259",
+"Create",
+"vendor",
+"259",
+"R004",
+"Pending",
+"USER0260",
+"Create",
+"vendor",
+"260",
+"R005",
+"Pending",
+"USER0261",
+"Create",
+"vendor",
+"261",
+"R006",
+"Accepted",
+"with",
+"controls",
+"USER0262",
+"Create",
+"vendor",
+"262",
+"R007",
+"Pending",
+"USER0263",
+"Create",
+"vendor",
+"263",
+"R008",
+"Pending",
+"USER0264",
+"Create",
+"vendor",
+"264",
+"R009",
+"Accepted",
+"with",
+"controls",
+"USER0265",
+"Create",
+"vendor",
+"265",
+"R010",
+"Pending",
+"USER0266",
+"Create",
+"vendor",
+"266",
+"R011",
+"Pending",
+"USER0267",
+"Create",
+"vendor",
+"267",
+"R012",
+"Accepted",
+"with",
+"controls",
+"USER0268",
+"Create",
+"vendor",
+"268",
+"R013",
+"Pending",
+"USER0269",
+"Create",
+"vendor",
+"269",
+"R014",
+"Pending",
+"USER0270",
+"Create",
+"vendor",
+"270",
+"R015",
+"Accepted",
+"with",
+"controls",
+"USER0271",
+"Create",
+"vendor",
+"271",
+"R016",
+"Pending",
+"USER0272",
+"Create",
+"vendor",
+"272",
+"R000",
+"Pending",
+"USER0273",
+"Create",
+"vendor",
+"273",
+"R001",
+"Accepted",
+"with",
+"controls",
+"USER0274",
+"Create",
+"vendor",
+"274",
+"R002",
+"Pending",
+"USER0275",
+"Create",
+"vendor",
+"275",
+"R003",
+"Pending",
+"USER0276",
+"Create",
+"vendor",
+"276",
+"R004",
+"Accepted",
+"with",
+"controls",
+"USER0277",
+"Create",
+"vendor",
+"277",
+"R005",
+"Pending",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"9",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0278",
+"Create",
+"vendor",
+"278",
+"R006",
+"Pending",
+"USER0279",
+"Create",
+"vendor",
+"279",
+"R007",
+"Accepted",
+"with",
+"controls",
+"USER0280",
+"Create",
+"vendor",
+"280",
+"R008",
+"Pending",
+"USER0281",
+"Create",
+"vendor",
+"281",
+"R009",
+"Pending",
+"USER0282",
+"Create",
+"vendor",
+"282",
+"R010",
+"Accepted",
+"with",
+"controls",
+"USER0283",
+"Create",
+"vendor",
+"283",
+"R011",
+"Pending",
+"USER0284",
+"Create",
+"vendor",
+"284",
+"R012",
+"Pending",
+"USER0285",
+"Create",
+"vendor",
+"285",
+"R013",
+"Accepted",
+"with",
+"controls",
+"USER0286",
+"Create",
+"vendor",
+"286",
+"R014",
+"Pending",
+"USER0287",
+"Create",
+"vendor",
+"287",
+"R015",
+"Pending",
+"USER0288",
+"Create",
+"vendor",
+"288",
+"R016",
+"Accepted",
+"with",
+"controls",
+"USER0289",
+"Create",
+"vendor",
+"289",
+"R000",
+"Pending",
+"USER0290",
+"Create",
+"vendor",
+"290",
+"R001",
+"Pending",
+"USER0291",
+"Create",
+"vendor",
+"291",
+"R002",
+"Accepted",
+"with",
+"controls",
+"USER0292",
+"Create",
+"vendor",
+"292",
+"R003",
+"Pending",
+"USER0293",
+"Create",
+"vendor",
+"293",
+"R004",
+"Pending",
+"USER0294",
+"Create",
+"vendor",
+"294",
+"R005",
+"Accepted",
+"with",
+"controls",
+"USER0295",
+"Create",
+"vendor",
+"295",
+"R006",
+"Pending",
+"USER0296",
+"Create",
+"vendor",
+"296",
+"R007",
+"Pending",
+"USER0297",
+"Create",
+"vendor",
+"297",
+"R008",
+"Accepted",
+"with",
+"controls",
+"USER0298",
+"Create",
+"vendor",
+"298",
+"R009",
+"Pending",
+"USER0299",
+"Create",
+"vendor",
+"299",
+"R010",
+"Pending",
+"USER0300",
+"Create",
+"vendor",
+"300",
+"R011",
+"Accepted",
+"with",
+"controls",
+"USER0301",
+"Create",
+"vendor",
+"301",
+"R012",
+"Pending",
+"USER0302",
+"Create",
+"vendor",
+"302",
+"R013",
+"Pending",
+"USER0303",
+"Create",
+"vendor",
+"303",
+"R014",
+"Accepted",
+"with",
+"controls",
+"USER0304",
+"Create",
+"vendor",
+"304",
+"R015",
+"Pending",
+"USER0305",
+"Create",
+"vendor",
+"305",
+"R016",
+"Pending",
+"USER0306",
+"Create",
+"vendor",
+"306",
+"R000",
+"Accepted",
+"with",
+"controls",
+"USER0307",
+"Create",
+"vendor",
+"307",
+"R001",
+"Pending",
+"USER0308",
+"Create",
+"vendor",
+"308",
+"R002",
+"Pending",
+"USER0309",
+"Create",
+"vendor",
+"309",
+"R003",
+"Accepted",
+"with",
+"controls",
+"USER0310",
+"Create",
+"vendor",
+"310",
+"R004",
+"Pending",
+"USER0311",
+"Create",
+"vendor",
+"311",
+"R005",
+"Pending",
+"USER0312",
+"Create",
+"vendor",
+"312",
+"R006",
+"Accepted",
+"with",
+"controls",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"10",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0313",
+"Create",
+"vendor",
+"313",
+"R007",
+"Pending",
+"USER0314",
+"Create",
+"vendor",
+"314",
+"R008",
+"Pending",
+"USER0315",
+"Create",
+"vendor",
+"315",
+"R009",
+"Accepted",
+"with",
+"controls",
+"USER0316",
+"Create",
+"vendor",
+"316",
+"R010",
+"Pending",
+"USER0317",
+"Create",
+"vendor",
+"317",
+"R011",
+"Pending",
+"USER0318",
+"Create",
+"vendor",
+"318",
+"R012",
+"Accepted",
+"with",
+"controls",
+"USER0319",
+"Create",
+"vendor",
+"319",
+"R013",
+"Pending",
+"USER0320",
+"Create",
+"vendor",
+"320",
+"R014",
+"Pending",
+"USER0321",
+"Create",
+"vendor",
+"321",
+"R015",
+"Accepted",
+"with",
+"controls",
+"USER0322",
+"Create",
+"vendor",
+"322",
+"R016",
+"Pending",
+"USER0323",
+"Create",
+"vendor",
+"323",
+"R000",
+"Pending",
+"USER0324",
+"Create",
+"vendor",
+"324",
+"R001",
+"Accepted",
+"with",
+"controls",
+"USER0325",
+"Create",
+"vendor",
+"325",
+"R002",
+"Pending",
+"USER0326",
+"Create",
+"vendor",
+"326",
+"R003",
+"Pending",
+"USER0327",
+"Create",
+"vendor",
+"327",
+"R004",
+"Accepted",
+"with",
+"controls",
+"USER0328",
+"Create",
+"vendor",
+"328",
+"R005",
+"Pending",
+"USER0329",
+"Create",
+"vendor",
+"329",
+"R006",
+"Pending",
+"USER0330",
+"Create",
+"vendor",
+"330",
+"R007",
+"Accepted",
+"with",
+"controls",
+"USER0331",
+"Create",
+"vendor",
+"331",
+"R008",
+"Pending",
+"USER0332",
+"Create",
+"vendor",
+"332",
+"R009",
+"Pending",
+"USER0333",
+"Create",
+"vendor",
+"333",
+"R010",
+"Accepted",
+"with",
+"controls",
+"USER0334",
+"Create",
+"vendor",
+"334",
+"R011",
+"Pending",
+"USER0335",
+"Create",
+"vendor",
+"335",
+"R012",
+"Pending",
+"USER0336",
+"Create",
+"vendor",
+"336",
+"R013",
+"Accepted",
+"with",
+"controls",
+"USER0337",
+"Create",
+"vendor",
+"337",
+"R014",
+"Pending",
+"USER0338",
+"Create",
+"vendor",
+"338",
+"R015",
+"Pending",
+"USER0339",
+"Create",
+"vendor",
+"339",
+"R016",
+"Accepted",
+"with",
+"controls",
+"USER0340",
+"Create",
+"vendor",
+"340",
+"R000",
+"Pending",
+"USER0341",
+"Create",
+"vendor",
+"341",
+"R001",
+"Pending",
+"USER0342",
+"Create",
+"vendor",
+"342",
+"R002",
+"Accepted",
+"with",
+"controls",
+"USER0343",
+"Create",
+"vendor",
+"343",
+"R003",
+"Pending",
+"USER0344",
+"Create",
+"vendor",
+"344",
+"R004",
+"Pending",
+"USER0345",
+"Create",
+"vendor",
+"345",
+"R005",
+"Accepted",
+"with",
+"controls",
+"USER0346",
+"Create",
+"vendor",
+"346",
+"R006",
+"Pending",
+"USER0347",
+"Create",
+"vendor",
+"347",
+"R007",
+"Pending",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"11",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0348",
+"Create",
+"vendor",
+"348",
+"R008",
+"Accepted",
+"with",
+"controls",
+"USER0349",
+"Create",
+"vendor",
+"349",
+"R009",
+"Pending",
+"USER0350",
+"Create",
+"vendor",
+"350",
+"R010",
+"Pending",
+"USER0351",
+"Create",
+"vendor",
+"351",
+"R011",
+"Accepted",
+"with",
+"controls",
+"USER0352",
+"Create",
+"vendor",
+"352",
+"R012",
+"Pending",
+"USER0353",
+"Create",
+"vendor",
+"353",
+"R013",
+"Pending",
+"USER0354",
+"Create",
+"vendor",
+"354",
+"R014",
+"Accepted",
+"with",
+"controls",
+"USER0355",
+"Create",
+"vendor",
+"355",
+"R015",
+"Pending",
+"USER0356",
+"Create",
+"vendor",
+"356",
+"R016",
+"Pending",
+"USER0357",
+"Create",
+"vendor",
+"357",
+"R000",
+"Accepted",
+"with",
+"controls",
+"USER0358",
+"Create",
+"vendor",
+"358",
+"R001",
+"Pending",
+"USER0359",
+"Create",
+"vendor",
+"359",
+"R002",
+"Pending",
+"USER0360",
+"Create",
+"vendor",
+"360",
+"R003",
+"Accepted",
+"with",
+"controls",
+"USER0361",
+"Create",
+"vendor",
+"361",
+"R004",
+"Pending",
+"USER0362",
+"Create",
+"vendor",
+"362",
+"R005",
+"Pending",
+"USER0363",
+"Create",
+"vendor",
+"363",
+"R006",
+"Accepted",
+"with",
+"controls",
+"USER0364",
+"Create",
+"vendor",
+"364",
+"R007",
+"Pending",
+"USER0365",
+"Create",
+"vendor",
+"365",
+"R008",
+"Pending",
+"USER0366",
+"Create",
+"vendor",
+"366",
+"R009",
+"Accepted",
+"with",
+"controls",
+"USER0367",
+"Create",
+"vendor",
+"367",
+"R010",
+"Pending",
+"USER0368",
+"Create",
+"vendor",
+"368",
+"R011",
+"Pending",
+"USER0369",
+"Create",
+"vendor",
+"369",
+"R012",
+"Accepted",
+"with",
+"controls",
+"USER0370",
+"Create",
+"vendor",
+"370",
+"R013",
+"Pending",
+"USER0371",
+"Create",
+"vendor",
+"371",
+"R014",
+"Pending",
+"USER0372",
+"Create",
+"vendor",
+"372",
+"R015",
+"Accepted",
+"with",
+"controls",
+"USER0373",
+"Create",
+"vendor",
+"373",
+"R016",
+"Pending",
+"USER0374",
+"Create",
+"vendor",
+"374",
+"R000",
+"Pending",
+"USER0375",
+"Create",
+"vendor",
+"375",
+"R001",
+"Accepted",
+"with",
+"controls",
+"USER0376",
+"Create",
+"vendor",
+"376",
+"R002",
+"Pending",
+"USER0377",
+"Create",
+"vendor",
+"377",
+"R003",
+"Pending",
+"USER0378",
+"Create",
+"vendor",
+"378",
+"R004",
+"Accepted",
+"with",
+"controls",
+"USER0379",
+"Create",
+"vendor",
+"379",
+"R005",
+"Pending",
+"USER0380",
+"Create",
+"vendor",
+"380",
+"R006",
+"Pending",
+"USER0381",
+"Create",
+"vendor",
+"381",
+"R007",
+"Accepted",
+"with",
+"controls",
+"USER0382",
+"Create",
+"vendor",
+"382",
+"R008",
+"Pending",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"12",
+"User",
+"Activity",
+"Risk",
+"Decision",
+"USER0383",
+"Create",
+"vendor",
+"383",
+"R009",
+"Pending",
+"USER0384",
+"Create",
+"vendor",
+"384",
+"R010",
+"Accepted",
+"with",
+"controls",
+"USER0385",
+"Create",
+"vendor",
+"385",
+"R011",
+"Pending",
+"USER0386",
+"Create",
+"vendor",
+"386",
+"R012",
+"Pending",
+"USER0387",
+"Create",
+"vendor",
+"387",
+"R013",
+"Accepted",
+"with",
+"controls",
+"USER0388",
+"Create",
+"vendor",
+"388",
+"R014",
+"Pending",
+"USER0389",
+"Create",
+"vendor",
+"389",
+"R015",
+"Pending",
+"USER0390",
+"Create",
+"vendor",
+"390",
+"R016",
+"Accepted",
+"with",
+"controls",
+"USER0391",
+"Create",
+"vendor",
+"391",
+"R000",
+"Pending",
+"USER0392",
+"Create",
+"vendor",
+"392",
+"R001",
+"Pending",
+"USER0393",
+"Create",
+"vendor",
+"393",
+"R002",
+"Accepted",
+"with",
+"controls",
+"USER0394",
+"Create",
+"vendor",
+"394",
+"R003",
+"Pending",
+"USER0395",
+"Create",
+"vendor",
+"395",
+"R004",
+"Pending",
+"USER0396",
+"Create",
+"vendor",
+"396",
+"R005",
+"Accepted",
+"with",
+"controls",
+"USER0397",
+"Create",
+"vendor",
+"397",
+"R006",
+"Pending",
+"USER0398",
+"Create",
+"vendor",
+"398",
+"R007",
+"Pending",
+"USER0399",
+"Create",
+"vendor",
+"399",
+"R008",
+"Accepted",
+"with",
+"controls",
+"Document",
+"integrity",
+"Snapshot",
+"SHA-256:",
+"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report",
+"model",
+"SHA-256:",
+"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"13"
+]
+}
+},
+"standard": {
+"docx": {
+"author": "Åse Nørgaard",
+"header": [
+"Example Æøå AS · SAP Lens"
+],
+"images": 1,
+"paragraphs": [
+"SoD Review Report – Q4 2026",
+"Example Æøå AS",
+"SAP S/4HANA · PRD / 100",
+"Q4 2026 review",
+"01.10.2026 - 31.12.2026",
+"Reviewed · v1.2",
+"Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"Prepared by: Åse Nørgaard",
+"Report date: 16.11.2026",
+"Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"Snapshot reference: 0123456789ab · Report model reference: fedcba987654",
+"Executive Summary",
+"Executive Summary paragraph one.",
+"Line one\nline two «quoted» – dash",
+"Scope and Evaluation Period",
+"Scope and Evaluation Period paragraph one.",
+"Line one\nline two «quoted» – dash",
+"Overall Findings and Risk Exposure",
+"Overall Findings and Risk Exposure paragraph one.",
+"Line one\nline two «quoted» – dash",
+"Review Progress: Activity Decisions",
+"Review Progress: Activity Decisions paragraph one.",
+"Line one\nline two «quoted» – dash",
+"Document integrity",
+"Snapshot SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report model SHA-256: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+],
+"reproducible": true,
+"status": 200,
+"tables": [
+[
+[
+"Term",
+"Meaning"
+],
+[
+"Segregation of duties (SoD)",
+"A control principle: no single person should hold access that lets them both start and approve, or both execute and conceal, a sensitive business step."
+],
+[
+"Potential conflict",
+"A user holds two kinds of access that the risk rules define as incompatible. It is based on the roles assigned to the user, not on proof that the access was misused."
+],
+[
+"Role",
+"A named bundle of SAP access rights that is assigned to a user. Roles supply the access behind each activity."
+],
+[
+"Activity",
+"A business capability, such as creating or approving a payment, that is made possible by one or more SAP transaction codes."
+],
+[
+"Transaction code",
+"The short SAP code for a screen or function. Transaction codes are listed in the technical appendices, not in the main report."
+],
+[
+"Risk acceptance",
+"A separate business decision to tolerate a detected conflict, normally with a justification and compensating controls."
+]
+]
+],
+"title": "SoD Review Report – Q4 2026"
+},
+"model": {
+"document_version": "v1.2",
+"limitation": "Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"logo_id": "llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllll",
+"model_checksum": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"organization": {
+"client": "100",
+"name": "Example Æøå AS",
+"platform": "SAP S/4HANA",
+"system_id": "PRD"
+},
+"period": {
+"end": "2026-12-31",
+"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+"name": "Q4 2026 review",
+"start": "2026-10-01"
+},
+"prepared_by": "Åse Nørgaard",
+"report_date": "2026-11-16T09:30:00+00:00",
+"sections": [
+{
+"paragraphs": [
+"Executive Summary paragraph one.",
+"Line one\nline two «quoted» – dash"
+],
+"tables": [
+[
+[
+"Term",
+"Meaning"
+],
+[
+"Segregation of duties (SoD)",
+"A control principle: no single person should hold access that lets them both start and approve, or both execute and conceal, a sensitive business step."
+],
+[
+"Potential conflict",
+"A user holds two kinds of access that the risk rules define as incompatible. It is based on the roles assigned to the user, not on proof that the access was misused."
+],
+[
+"Role",
+"A named bundle of SAP access rights that is assigned to a user. Roles supply the access behind each activity."
+],
+[
+"Activity",
+"A business capability, such as creating or approving a payment, that is made possible by one or more SAP transaction codes."
+],
+[
+"Transaction code",
+"The short SAP code for a screen or function. Transaction codes are listed in the technical appendices, not in the main report."
+],
+[
+"Risk acceptance",
+"A separate business decision to tolerate a detected conflict, normally with a justification and compensating controls."
+]
+]
+],
+"title": "Executive Summary"
+},
+{
+"paragraphs": [
+"Scope and Evaluation Period paragraph one.",
+"Line one\nline two «quoted» – dash"
+],
+"tables": [],
+"title": "Scope and Evaluation Period"
+},
+{
+"paragraphs": [
+"Overall Findings and Risk Exposure paragraph one.",
+"Line one\nline two «quoted» – dash"
+],
+"tables": [],
+"title": "Overall Findings and Risk Exposure"
+},
+{
+"paragraphs": [
+"Review Progress: Activity Decisions paragraph one.",
+"Line one\nline two «quoted» – dash"
+],
+"tables": [],
+"title": "Review Progress: Activity Decisions"
+}
+],
+"snapshot_checksum": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"status": "Reviewed",
+"status_statement": "Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"title": "SoD Review Report – Q4 2026"
+},
+"pdf": {
+"author": "Åse Nørgaard",
+"pages": 2,
+"status": 200,
+"title": "SoD Review Report – Q4 2026",
+"words": [
+"SoD",
+"Review",
+"Report",
+"–",
+"Q4",
+"2026",
+"Example",
+"Æøå",
+"AS",
+"SAP",
+"S/4HANA",
+"·",
+"PRD",
+"/",
+"100",
+"Q4",
+"2026",
+"review",
+"01.10.2026",
+"-",
+"31.12.2026",
+"Reviewed",
+"·",
+"v1.2",
+"Reviewed:",
+"review",
+"decisions",
+"are",
+"recorded",
+"with",
+"identity",
+"provenance.",
+"SAP",
+"Lens",
+"does",
+"not",
+"authenticate",
+"Desktop/legacy",
+"profile",
+"names;",
+"server",
+"session",
+"events",
+"retain",
+"account",
+"attribution.",
+"Review",
+"completion",
+"is",
+"not",
+"approval.",
+"Prepared",
+"by:",
+"Åse",
+"Nørgaard",
+"Report",
+"date:",
+"16.11.2026",
+"Potential",
+"conflicts",
+"are",
+"based",
+"on",
+"role-derived",
+"transaction",
+"evidence,",
+"not",
+"verified",
+"effective",
+"SAP",
+"authorization.",
+"Desktop/legacy",
+"identities",
+"are",
+"self-reported;",
+"session-authenticated",
+"events",
+"retain",
+"account",
+"provenance.",
+"These",
+"records",
+"are",
+"not",
+"verified",
+"digital",
+"signatures.",
+"Snapshot",
+"reference:",
+"0123456789ab",
+"·",
+"Report",
+"model",
+"reference:",
+"fedcba987654",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"1",
+"Executive",
+"Summary",
+"Executive",
+"Summary",
+"paragraph",
+"one.",
+"Line",
+"one",
+"line",
+"two",
+"«quoted»",
+"–",
+"dash",
+"Term",
+"Meaning",
+"Segregation",
+"of",
+"duties",
+"(SoD)",
+"A",
+"control",
+"principle:",
+"no",
+"single",
+"person",
+"should",
+"hold",
+"access",
+"that",
+"lets",
+"them",
+"both",
+"start",
+"and",
+"approve,",
+"or",
+"both",
+"execute",
+"and",
+"conceal,",
+"a",
+"sensitive",
+"business",
+"step.",
+"Potential",
+"conflict",
+"A",
+"user",
+"holds",
+"two",
+"kinds",
+"of",
+"access",
+"that",
+"the",
+"risk",
+"rules",
+"define",
+"as",
+"incompatible.",
+"It",
+"is",
+"based",
+"on",
+"the",
+"roles",
+"assigned",
+"to",
+"the",
+"user,",
+"not",
+"on",
+"proof",
+"that",
+"the",
+"access",
+"was",
+"misused.",
+"Role",
+"A",
+"named",
+"bundle",
+"of",
+"SAP",
+"access",
+"rights",
+"that",
+"is",
+"assigned",
+"to",
+"a",
+"user.",
+"Roles",
+"supply",
+"the",
+"access",
+"behind",
+"each",
+"activity.",
+"Activity",
+"A",
+"business",
+"capability,",
+"such",
+"as",
+"creating",
+"or",
+"approving",
+"a",
+"payment,",
+"that",
+"is",
+"made",
+"possible",
+"by",
+"one",
+"or",
+"more",
+"SAP",
+"transaction",
+"codes.",
+"Transaction",
+"code",
+"The",
+"short",
+"SAP",
+"code",
+"for",
+"a",
+"screen",
+"or",
+"function.",
+"Transaction",
+"codes",
+"are",
+"listed",
+"in",
+"the",
+"technical",
+"appendices,",
+"not",
+"in",
+"the",
+"main",
+"report.",
+"Risk",
+"acceptance",
+"A",
+"separate",
+"business",
+"decision",
+"to",
+"tolerate",
+"a",
+"detected",
+"conflict,",
+"normally",
+"with",
+"a",
+"justification",
+"and",
+"compensating",
+"controls.",
+"Scope",
+"and",
+"Evaluation",
+"Period",
+"Scope",
+"and",
+"Evaluation",
+"Period",
+"paragraph",
+"one.",
+"Line",
+"one",
+"line",
+"two",
+"«quoted»",
+"–",
+"dash",
+"Overall",
+"Findings",
+"and",
+"Risk",
+"Exposure",
+"Overall",
+"Findings",
+"and",
+"Risk",
+"Exposure",
+"paragraph",
+"one.",
+"Line",
+"one",
+"line",
+"two",
+"«quoted»",
+"–",
+"dash",
+"Review",
+"Progress:",
+"Activity",
+"Decisions",
+"Review",
+"Progress:",
+"Activity",
+"Decisions",
+"paragraph",
+"one.",
+"Line",
+"one",
+"line",
+"two",
+"«quoted»",
+"–",
+"dash",
+"Document",
+"integrity",
+"Snapshot",
+"SHA-256:",
+"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report",
+"model",
+"SHA-256:",
+"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"2"
+]
+}
+},
+"unicode": {
+"docx": {
+"author": "Åse Nørgaard",
+"header": [
+"Example Æøå AS · SAP Lens"
+],
+"images": 0,
+"paragraphs": [
+"SoD Review Report – Q4 2026",
+"Example Æøå AS",
+"SAP S/4HANA · PRD / 100",
+"Q4 2026 review",
+"01.10.2026 - 31.12.2026",
+"Reviewed · v1.2",
+"Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"Prepared by: Åse Nørgaard",
+"Report date: 16.11.2026",
+"Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"Snapshot reference: 0123456789ab · Report model reference: fedcba987654",
+"Ünïcödé ÆØÅ æøå ß €",
+"Søknad om tilgang: “ok” — 100 % © ®",
+"Document integrity",
+"Snapshot SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report model SHA-256: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+],
+"reproducible": true,
+"status": 200,
+"tables": [
+[
+[
+"Navn",
+"Merknad"
+],
+[
+"Bjørn",
+"Kåre & Co <tag>"
+]
+]
+],
+"title": "SoD Review Report – Q4 2026"
+},
+"model": {
+"document_version": "v1.2",
+"limitation": "Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"logo_id": null,
+"model_checksum": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"organization": {
+"client": "100",
+"name": "Example Æøå AS",
+"platform": "SAP S/4HANA",
+"system_id": "PRD"
+},
+"period": {
+"end": "2026-12-31",
+"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+"name": "Q4 2026 review",
+"start": "2026-10-01"
+},
+"prepared_by": "Åse Nørgaard",
+"report_date": "2026-11-16T09:30:00+00:00",
+"sections": [
+{
+"paragraphs": [
+"Søknad om tilgang: “ok” — 100 % © ®"
+],
+"tables": [
+[
+[
+"Navn",
+"Merknad"
+],
+[
+"Bjørn",
+"Kåre & Co <tag>"
+]
+]
+],
+"title": "Ünïcödé ÆØÅ æøå ß €"
+}
+],
+"snapshot_checksum": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"status": "Reviewed",
+"status_statement": "Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"title": "SoD Review Report – Q4 2026"
+},
+"pdf": {
+"author": "Åse Nørgaard",
+"pages": 2,
+"status": 200,
+"title": "SoD Review Report – Q4 2026",
+"words": [
+"SoD",
+"Review",
+"Report",
+"–",
+"Q4",
+"2026",
+"Example",
+"Æøå",
+"AS",
+"SAP",
+"S/4HANA",
+"·",
+"PRD",
+"/",
+"100",
+"Q4",
+"2026",
+"review",
+"01.10.2026",
+"-",
+"31.12.2026",
+"Reviewed",
+"·",
+"v1.2",
+"Reviewed:",
+"review",
+"decisions",
+"are",
+"recorded",
+"with",
+"identity",
+"provenance.",
+"SAP",
+"Lens",
+"does",
+"not",
+"authenticate",
+"Desktop/legacy",
+"profile",
+"names;",
+"server",
+"session",
+"events",
+"retain",
+"account",
+"attribution.",
+"Review",
+"completion",
+"is",
+"not",
+"approval.",
+"Prepared",
+"by:",
+"Åse",
+"Nørgaard",
+"Report",
+"date:",
+"16.11.2026",
+"Potential",
+"conflicts",
+"are",
+"based",
+"on",
+"role-derived",
+"transaction",
+"evidence,",
+"not",
+"verified",
+"effective",
+"SAP",
+"authorization.",
+"Desktop/legacy",
+"identities",
+"are",
+"self-reported;",
+"session-authenticated",
+"events",
+"retain",
+"account",
+"provenance.",
+"These",
+"records",
+"are",
+"not",
+"verified",
+"digital",
+"signatures.",
+"Snapshot",
+"reference:",
+"0123456789ab",
+"·",
+"Report",
+"model",
+"reference:",
+"fedcba987654",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"1",
+"Ünïcödé",
+"ÆØÅ",
+"æøå",
+"ß",
+"€",
+"Søknad",
+"om",
+"tilgang:",
+"“ok”",
+"—",
+"100",
+"%",
+"©",
+"®",
+"Navn",
+"Merknad",
+"Bjørn",
+"Kåre",
+"&",
+"Co",
+"<tag>",
+"Document",
+"integrity",
+"Snapshot",
+"SHA-256:",
+"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report",
+"model",
+"SHA-256:",
+"fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"SAP",
+"Lens",
+"·",
+"v1.2",
+"2"
+]
+}
+},
+"unsupported": {
+"docx": {
+"author": "Åse Nørgaard",
+"header": [
+"Example Æøå AS · SAP Lens"
+],
+"images": 0,
+"paragraphs": [
+"SoD Review Report – Q4 2026",
+"Example Æøå AS",
+"SAP S/4HANA · PRD / 100",
+"Q4 2026 review",
+"01.10.2026 - 31.12.2026",
+"Reviewed · v1.2",
+"Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"Prepared by: Åse Nørgaard",
+"Report date: 16.11.2026",
+"Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"Snapshot reference: 0123456789ab · Report model reference: fedcba987654",
+"Emoji",
+"Done ✅ 漢字",
+"Document integrity",
+"Snapshot SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"Report model SHA-256: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210"
+],
+"reproducible": true,
+"status": 200,
+"tables": [],
+"title": "SoD Review Report – Q4 2026"
+},
+"model": {
+"document_version": "v1.2",
+"limitation": "Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.",
+"logo_id": null,
+"model_checksum": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+"organization": {
+"client": "100",
+"name": "Example Æøå AS",
+"platform": "SAP S/4HANA",
+"system_id": "PRD"
+},
+"period": {
+"end": "2026-12-31",
+"id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+"name": "Q4 2026 review",
+"start": "2026-10-01"
+},
+"prepared_by": "Åse Nørgaard",
+"report_date": "2026-11-16T09:30:00+00:00",
+"sections": [
+{
+"paragraphs": [
+"Done ✅ 漢字"
+],
+"tables": [],
+"title": "Emoji"
+}
+],
+"snapshot_checksum": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+"status": "Reviewed",
+"status_statement": "Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+"title": "SoD Review Report – Q4 2026"
+},
+"pdf": {
+"detail": "Some report characters are outside the bundled PDF font coverage. Use editable DOCX for this content or replace unsupported symbols explicitly.",
+"status": 422
+}
+}
+}
+}

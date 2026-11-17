@@ -114,7 +114,7 @@ public sealed class ConfigurationTests : IAsyncLifetime
             (Variant(p => p["settings"]!["employee_snapshot_id"] = "abc"), HttpStatusCode.BadRequest),
             (Variant(p => p["settings"]!["data_lifecycle"]!["history"] = new JsonArray(new JsonObject { ["id"] = "x" })), HttpStatusCode.BadRequest),
             (Variant(p => p["settings"]!["logo_id"] = new string('a', 64)), HttpStatusCode.BadRequest),
-            (Variant(p => p["logo_base64"] = Convert.ToBase64String([137, 80, 78, 71])), HttpStatusCode.NotImplemented),
+            (Variant(p => p["logo_base64"] = Convert.ToBase64String([137, 80, 78, 71])), HttpStatusCode.BadRequest),   // corrupt image: v1 refuses the package
             (Variant(p => p["format"] = "Other"), HttpStatusCode.UnprocessableEntity),
             (Variant(p => p["package_version"] = 2), HttpStatusCode.UnprocessableEntity),
             (Variant(p => p["extra"] = true), HttpStatusCode.UnprocessableEntity),

@@ -46,6 +46,7 @@ public static class SapLensHost
         builder.Services.AddSingleton<DataLoadGate>();
         builder.Services.AddSingleton<RefreshScheduleState>();
         builder.Services.AddSingleton<FunctionalGroupStore>();
+        builder.Services.AddSingleton<LogoStore>();
         // The scheduled refresh imports through the job worker; without a worker (--no-worker) nothing would process it.
         if (settings.WorkerEnabled) builder.Services.AddHostedService<RefreshScheduler>();
         builder.Services.AddSingleton<RequestBoundaryTokenCheck>();

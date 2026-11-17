@@ -9,7 +9,7 @@ namespace SapLens.Api;
 
 /// <summary>Port of configuration_routes.py (export, import, reset), portable_config.py and review_identity.py (the Desktop reviewer profile).
 /// Portable packages never carry data, paths or dataset references. Custom logos are not migrated (branding): a package that carries one is refused
-/// with 501 instead of being applied without its logo.</summary>
+/// with its logo sanitized and staged (MIG-001).</summary>
 public static class V1Configuration
 {
     public const string ProfileDocument = "reviewer-profile";
@@ -19,7 +19,7 @@ public static class V1Configuration
     private static IResult Json(JsonNode node) => Results.Content(node.ToJsonString(), "application/json");
 
     /// <summary>portable_config.export_configuration. Without include_private only the theme survives on top of the defaults.</summary>
-    public static JsonObject Export(JsonObject current, bool includePrivate)
+    public static JsonObject Export(JsonObject current, bool includePrivate, LogoStore? logos = null)
     {
         var defaults = V1Compatibility.DefaultSettingsDocument();
         JsonObject exported;
@@ -35,13 +35,14 @@ public static class V1Configuration
         exported["employee_snapshot_id"] = null;
         exported["data_lifecycle"] = defaults["data_lifecycle"]?.DeepClone();
         exported["revision"] = 0;
-        // No logo store in this build: there is never an image to include, so the reference is dropped exactly as v1 does for a missing logo file.
-        exported["logo_id"] = null;
-        return new JsonObject { ["format"] = "SAP Lens configuration", ["package_version"] = 1, ["settings"] = exported, ["logo_base64"] = null };
+        // The logo travels only in a private export, as its validated image; a missing or altered file drops the reference (v1).
+        var image = includePrivate ? logos?.Read((string?)current["logo_id"]) : null;
+        exported["logo_id"] = image is null ? null : current["logo_id"]?.DeepClone();
+        return new JsonObject { ["format"] = "SAP Lens configuration", ["package_version"] = 1, ["settings"] = exported, ["logo_base64"] = image is null ? null : Convert.ToBase64String(image) };
     }
 
     /// <summary>portable_config.read_portable plus the import route: validates the package and returns the settings to apply, or the refusal.</summary>
-    public static (JsonObject? Settings, IResult? Error) ReadPortable(JsonNode? body, JsonObject current)
+    public static (JsonObject? Settings, IResult? Error) ReadPortable(JsonNode? body, JsonObject current, LogoStore? logos = null)
     {
         const string invalid = "Invalid configuration package or logo; nothing was applied.";
         if (body is not JsonObject package) return (null, Detail(422, "A configuration package is required."));
@@ -63,15 +64,22 @@ public static class V1Configuration
         if (NonEmpty("sources") || NonEmpty("history") || NonEmpty("history_metadata") || NonEmpty("sod_history")) return (null, Detail(400, invalid));
         if (V1Settings.PathFields.Any(f => settings[f] is JsonValue p && p.GetValueKind() == JsonValueKind.String && ((string)p!).Length > 0)
             || settings["employee_snapshot_id"] is JsonValue s && s.GetValueKind() != JsonValueKind.Null) return (null, Detail(400, invalid));
+        string? stagedLogo = null;
         if (logo is not null && ((string)logo!).Length > 0)
-            return (null, V1Compatibility.NotMigrated(null, "configuration/import (package with a custom logo; custom logos are not migrated)"));
-        if (settings["logo_id"] is JsonValue id && id.GetValueKind() == JsonValueKind.String && ((string)id!).Length > 0) return (null, Detail(400, invalid));
+        {
+            // read_portable: the logo is decoded, sanitized and staged; the package's own logo_id is replaced by the staged one.
+            if (logos is null) return (null, Detail(400, invalid));
+            try { stagedLogo = (string?)logos.Stage(Convert.FromBase64String((string)logo!))["logo_id"]; }
+            catch (Exception error) when (error is FormatException or SapLens.Documents.ImageRejectedException or IOException or UnauthorizedAccessException) { return (null, Detail(400, invalid)); }
+        }
+        else if (settings["logo_id"] is JsonValue id && id.GetValueKind() == JsonValueKind.String && ((string)id!).Length > 0) return (null, Detail(400, invalid));
 
         // Missing fields take v1 defaults (the package is a full AppConfig); local, server-managed state is kept.
         var candidate = defaults;
         foreach (var (key, value) in settings) candidate[key] = value?.DeepClone();
         foreach (var key in new[] { "desktop", "data_csv_path", "user_csv_path", "sod_csv_path", "employee_csv_path", "employee_snapshot_id", "data_lifecycle", "revision", "schema_version" })
             candidate[key] = current[key]?.DeepClone();
+        if (stagedLogo is not null) candidate["logo_id"] = stagedLogo;
         return (candidate, null);
     }
 
@@ -134,15 +142,15 @@ public static class V1Configuration
 
     public static void Map(RouteGroupBuilder api)
     {
-        api.MapPost("/configuration/export", async (V1Settings store, HttpContext http, CancellationToken ct) =>
+        api.MapPost("/configuration/export", async (V1Settings store, LogoStore logos, HttpContext http, CancellationToken ct) =>
         {
             var raw = http.Request.Query["include_private"].ToString();
             if (raw.Length > 0 && !bool.TryParse(raw, out _) && raw is not ("0" or "1")) return Detail(422, "include_private must be a boolean.");
             var includePrivate = raw is "1" || (bool.TryParse(raw, out var flag) && flag);
-            return Json(Export(await store.GetAsync(ct), includePrivate));
+            return Json(Export(await store.GetAsync(ct), includePrivate, logos));
         });
 
-        api.MapPost("/configuration/import", async (HttpContext http, V1Settings store, IDbContextFactory<SapLensDb> factory, CancellationToken ct) =>
+        api.MapPost("/configuration/import", async (HttpContext http, V1Settings store, LogoStore logos, IDbContextFactory<SapLensDb> factory, CancellationToken ct) =>
         {
             var limit = http.Features.Get<IHttpMaxRequestBodySizeFeature>();
             if (limit is { IsReadOnly: false }) limit.MaxRequestBodySize = 4_000_000;
@@ -150,7 +158,7 @@ public static class V1Configuration
             try { body = await JsonNode.ParseAsync(http.Request.Body, cancellationToken: ct); }
             catch (JsonException) { return Detail(422, "The configuration package is not valid JSON."); }
             var current = await store.GetAsync(ct);
-            var (candidate, error) = ReadPortable(body, current);
+            var (candidate, error) = ReadPortable(body, current, logos);
             return error ?? await ApplyAsync(http, store, factory, current, candidate!, unloadData: false, ct);
         });
 

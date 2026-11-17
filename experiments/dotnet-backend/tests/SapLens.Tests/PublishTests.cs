@@ -143,7 +143,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         var output = Publish("SapLens.Api", "win-x64");
         // Everything managed (the server, the embedded React UI, ASP.NET Core, the Windows service host) is inside SapLens.Api.exe; the only other
         // runtime file is SQLite's native library, deliberately not self-extracted to %TEMP%. Symbols are collected separately by the release scripts.
-        Assert.Equal(["SapLens.Api.exe", "e_sqlite3.dll"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));
+        Assert.Equal(["SapLens.Api.exe", "e_sqlite3.dll", "libSkiaSharp.dll"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));
         var exe = Path.Combine(output, "SapLens.Api.exe");
         Assert.True(Contains(exe, UiAssets.Marker));
         Assert.True(Contains(exe, "SapLensUi/index.html"));
@@ -160,7 +160,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         // The Windows exe cannot run here; this is the same bundling mode on linux-x64 (managed code in one file, the native SQLite library beside it).
         if (!OperatingSystem.IsLinux()) return;
         var output = Publish("SapLens.Api", "linux-x64", "PublishSingleFile=true", "IncludeNativeLibrariesForSelfExtract=false");
-        Assert.Equal(["SapLens.Api", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));
+        Assert.Equal(["SapLens.Api", "libSkiaSharp.so", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));
         var extract = Directory.CreateDirectory(Path.Combine(_root, "extract")).FullName;
         async Task<(int Code, string Out, string Error)> Run(params string[] args)
         {
@@ -207,7 +207,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
             Assert.Equal(HttpStatusCode.OK, (await http.SendAsync(authorized)).StatusCode);       // SQLite through the native library beside the exe
             Assert.True(File.Exists(Path.Combine(_root, "single-file-data", "sap-lens-v2.sqlite3")));
             Assert.Empty(Directory.GetFileSystemEntries(extract));                                // nothing extracted
-            Assert.Equal(["SapLens.Api", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // nothing written next to the exe
+            Assert.Equal(["SapLens.Api", "libSkiaSharp.so", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // nothing written next to the exe
         }
         finally
         {

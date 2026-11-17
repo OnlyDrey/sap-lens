@@ -40,6 +40,9 @@ public static partial class V1DataSources
             if (body["refresh_schedule"] is JsonObject schedule && V1RefreshSchedule.Parse(schedule.DeepClone().AsObject()).Schedule is { Enabled: true } enabled)
                 try { SapLens.Domain.Scheduling.CronSchedule.Check(enabled.Expression, enabled.Timezone, DateTimeOffset.UtcNow); }
                 catch (ArgumentException error) { return Detail(422, error.Message); }
+            if (body["logo_id"] is JsonValue logoId && logoId.GetValueKind() == System.Text.Json.JsonValueKind.String && (string?)logoId != (string?)current["logo_id"]
+                && http.RequestServices.GetRequiredService<LogoStore>().Read((string?)logoId) is null)
+                return Detail(400, "Configuration could not be applied. Validate profiles, file access, logo and current revision; previous settings remain intact.");
             if ((int)current["revision"]! != revision) return Detail(409, "Settings changed. Reload before applying your edits.");
             void Apply(JsonObject settings)
             {

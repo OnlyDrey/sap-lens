@@ -2,7 +2,7 @@
 # Repeatable release build on Linux: React UI, .NET build and tests, then two versioned release folders under OUTPUT_DIR (default artifacts/release):
 #   SAP-Lens-2-<version>-<UTC time>-<commit>-win-x64/   the same layout as build-release.ps1 (server/, desktop/, symbols/, build-manifest.json, README.txt,
 #                                                       SHA256SUMS), cross-published
-#   SAP-Lens-2-<version>-<UTC time>-<commit>-linux-x64/ server/SapLens.Api (single file) and libe_sqlite3.so, symbols/, build-manifest.json, SHA256SUMS
+#   SAP-Lens-2-<version>-<UTC time>-<commit>-linux-x64/ server/SapLens.Api (single file), libe_sqlite3.so and libSkiaSharp.so, symbols/, build-manifest.json, SHA256SUMS
 # Self-contained single-file executables; no trimming, Native AOT or compression. Nothing is installed or started.
 #   scripts/build-release.sh [OUTPUT_DIR] [--skip-tests] [--skip-publish-tests] [--allow-unsupported-node]
 set -euo pipefail
@@ -59,7 +59,7 @@ def run(*cmd): return subprocess.run(cmd, capture_output=True, text=True).stdout
 def files(folder): return sorted(str(f.relative_to(folder)).replace('\\', '/') for f in folder.rglob('*') if f.is_file())
 def check(cond, message):
     if not cond: sys.exit(f'release validation failed: {message}')
-expected = {win: {'server': ['SapLens.Api.exe', 'e_sqlite3.dll'], 'desktop': ['SapLens2Prototype.exe']}, linux: {'server': ['SapLens.Api', 'libe_sqlite3.so']}}
+expected = {win: {'server': ['SapLens.Api.exe', 'e_sqlite3.dll', 'libSkiaSharp.dll'], 'desktop': ['SapLens2Prototype.exe']}, linux: {'server': ['SapLens.Api', 'libSkiaSharp.so', 'libe_sqlite3.so']}}
 for release, parts in expected.items():
     for part, names in parts.items():
         check(files(release / part) == sorted(names), f'{release.name}/{part} holds {files(release / part)}, expected {sorted(names)}')

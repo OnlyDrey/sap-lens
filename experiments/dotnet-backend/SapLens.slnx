@@ -4,6 +4,7 @@
     <Project Path="src/SapLens.Application/SapLens.Application.csproj" />
     <Project Path="src/SapLens.Cli/SapLens.Cli.csproj" />
     <Project Path="src/SapLens.Desktop/SapLens.Desktop.csproj" />
+    <Project Path="src/SapLens.Documents/SapLens.Documents.csproj" />
     <Project Path="src/SapLens.Domain/SapLens.Domain.csproj" />
     <Project Path="src/SapLens.Persistence/SapLens.Persistence.csproj" />
   </Folder>

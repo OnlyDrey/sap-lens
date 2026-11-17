@@ -81,6 +81,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\SapLens.Application\SapLens.Application.csproj" />
+    <ProjectReference Include="..\SapLens.Documents\SapLens.Documents.csproj" />
   </ItemGroup>
 
 </Project>
