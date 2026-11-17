@@ -369,7 +369,7 @@ public sealed class LanHttpsTests : IAsyncDisposable
 
             async Task<HttpStatusCode> CookiePost(string? requestOrigin, string? fetchSite)
             {
-                using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/backups");
+                using var request = new HttpRequestMessage(HttpMethod.Post, "/api/v1/jobs/999999/cancel");
                 request.Headers.Add("Cookie", pair);
                 if (requestOrigin is not null) request.Headers.Add("Origin", requestOrigin);
                 if (fetchSite is not null) request.Headers.Add("Sec-Fetch-Site", fetchSite);
@@ -385,7 +385,7 @@ public sealed class LanHttpsTests : IAsyncDisposable
             Assert.Equal(HttpStatusCode.Forbidden, await CookiePost(null, null));
             Assert.Equal(HttpStatusCode.Forbidden, await CookiePost("https://evil.example", null));
             Assert.Equal(HttpStatusCode.Forbidden, await CookiePost(null, "cross-site"));
-            Assert.Equal(HttpStatusCode.OK, await CookiePost(origin, null));
+            Assert.Equal(HttpStatusCode.NotFound, await CookiePost(origin, null));                 // past the boundary: the handler finds no such job
             using (var plainCookie = new HttpRequestMessage(HttpMethod.Get, "/api/v1/session"))
             {
                 plainCookie.Headers.Add("Cookie", SessionStore.CookieName + "=" + pair.Split('=', 2)[1]); // the non-__Host name is not accepted over HTTPS

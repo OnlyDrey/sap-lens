@@ -1,5 +1,4 @@
 using SapLens.Domain.Catalogue;
-using SapLens.Domain.Text;
 
 namespace SapLens.Domain.Analysis;
 

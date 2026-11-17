@@ -1,6 +1,5 @@
 using System.IO.Compression;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using Microsoft.Data.Sqlite;
@@ -25,7 +24,6 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
     public static string ProductVersion { get; set; } = "2.0.0";
 
     private string Data => options.DataDirectory;
-    public static string ArchivesOf(string data) => Path.Combine(data, "backups", "archives");
     private static string OperationFile(string data) => Path.Combine(data, "backups", "operation.json");
     private static string RestoreRoot(string data) => Path.Combine(data, "restore");
     private static string PendingFile(string data) => Path.Combine(RestoreRoot(data), "pending.json");
@@ -60,7 +58,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
 
     // ---- creating archives
 
-    private static string Sha(string path) { using var s = File.OpenRead(path); return Convert.ToHexStringLower(SHA256.HashData(s)); }
+    private static string Sha(string path) => SapLens.Domain.Json.Digests.File(path);
 
     private static void OnlineCopy(string source, string target)
     {

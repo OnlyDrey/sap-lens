@@ -58,7 +58,7 @@ type check]
 - EF Core migrations generated with `dotnet ef`, applied by `DatabaseMaintenance.InitializeAsync` at startup, never by hand.
 - Existing database with pending migrations: an **online backup of kind `migration` is taken and integrity-checked first**, then migrations
   run, then the backup is recorded. Migration backups are retained until an administrator confirms the upgrade
-  (`POST /api/v1/admin/backups/{id}/confirm-upgrade`). [T]
+  (Settings, Storage: `POST /api/storage/migration/confirm`; also `POST /api/v1/admin/backups/{id}/confirm-upgrade`). [T]
 - Database with migrations unknown to this build (written by a newer version): left byte-for-byte unchanged, readiness reports not ready,
   no backup is written. [T]
 - After initialization `PRAGMA integrity_check` and `PRAGMA foreign_key_check` must pass, otherwise the service stays not ready.
@@ -67,9 +67,11 @@ type check]
 
 - SQLite Online Backup API (`SqliteConnection.BackupDatabase`) into a `.partial` file, integrity-checked, then renamed and hashed. Readers
   and writers continue during the copy. [T]
-- Retention (`BackupRetention.Expired`, pure and tested): automatic backups 90 days; manual backups until a person deletes them; migration
-  backups until administrator confirmation. [T]
-- Not implemented: scheduling of automatic backups, encryption of portable backups (v1 uses AES-256-GCM; `AesGcm` is in-box), restore.
+- Retention (`DataRetention`, backup category): automatic backups older than the approved period (default 90 days) after a one-time
+  administrator approval; manual backups until a person deletes them; migration backups until an administrator deletes them after confirming
+  the upgrade (never by retention). [T]
+- Application backups, their schedule and restore: encrypted SLBAK3 archives of the database, account store and branding (`ApplicationBackups`,
+  `BackupCrypto`), restored at the next start with rollback. See [MIGRATION_MATRIX.md](MIGRATION_MATRIX.md) (MIG-005). [T]
 
 ## Storage cost
 

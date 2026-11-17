@@ -51,8 +51,8 @@ public static partial class V1DataMigration
     private static string PendingActivation(string data) => Path.Combine(Root(data), "pending-activation.json");
     private static string PendingRollback(string data) => Path.Combine(Root(data), "pending-rollback.json");
     private static string Stamp(DateTimeOffset now) => now.UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'");
-    private static string Sha(string path) { using var s = File.OpenRead(path); return Convert.ToHexStringLower(SHA256.HashData(s)); }
-    private static string Sha(byte[] bytes) => Convert.ToHexStringLower(SHA256.HashData(bytes));
+    private static string Sha(string path) => Digests.File(path);
+    private static string Sha(byte[] bytes) => Digests.Bytes(bytes);
     private static void Save(string path, JsonNode value) { Directory.CreateDirectory(Path.GetDirectoryName(path)!); BackupKeys.WriteAtomic(path, value.ToJsonString(new JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping })); }
     private static JsonObject Load(string path) => JsonNode.Parse(File.ReadAllText(path)) as JsonObject ?? throw new MigrationException("A migration record is unreadable.");
 

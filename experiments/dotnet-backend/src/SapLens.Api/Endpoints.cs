@@ -171,7 +171,14 @@ public static class Endpoints
             var chain = await reviews.VerifyChainAsync(ct);
             return new { database_ok = db.Ok, problems = db.Problems, review_chain_ok = chain.Ok, review_chain_broken_at = chain.BrokenAt, review_decisions = chain.Count };
         }).WithName("VerifyIntegrity");
-        admin.MapPost("/backups", async (DatabaseMaintenance maintenance, CancellationToken ct) => await maintenance.BackupAsync(BackupKind.Manual, "manual backup", true, ct)).WithName("CreateBackup");
+        // The same encrypted, verified archive as Settings, Backups (never a plaintext database copy), with the same boundary (a Server needs an
+        // administrator account); 409 without a configured host backup key.
+        admin.MapPost("/backups", async (HttpContext http, SapLens.Application.Backups.ApplicationBackups backups, CancellationToken ct) =>
+        {
+            if (V1Backups.Guard(http) is { } refused) return refused;
+            try { return Results.Content((await backups.CreateAsync(BackupKind.Manual, "", Actors.Name(http), ct)).ToJsonString(), "application/json"); }
+            catch (SapLens.Application.Backups.BackupException error) { return Results.Json(new { detail = error.Message }, statusCode: error.Status); }
+        }).WithName("CreateBackup");
         admin.MapGet("/backups", async (IDbContextFactory<SapLensDb> factory, CancellationToken ct) =>
         {
             await using var db = await factory.CreateDbContextAsync(ct);

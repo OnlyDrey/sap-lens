@@ -38,7 +38,7 @@ public static partial class PositionChanges
     private static double BlankShare(IReadOnlyList<IReadOnlyDictionary<string, string>> rows, string field) =>
         rows.Count(r => Get(r, field).Trim().Length == 0) / (double)Math.Max(1, rows.Count);
 
-    private static string Sha(string text) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(text)));
+    private static string Sha(string text) => Json.Digests.Text(text);
 
     /// <summary>detect: (events, notices) for two directories.</summary>
     public static (List<JsonObject> Events, List<string> Notices) Detect(EmployeeDirectory? previous, EmployeeDirectory? current, string detectedAt)

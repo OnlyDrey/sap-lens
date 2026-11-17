@@ -3,11 +3,9 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using SapLens.Application;
-using SapLens.Application.Accounts;
 using SapLens.Domain.Directory;
 using SapLens.Domain.Json;
 using SapLens.Domain.Roles;
-using SapLens.Domain.Text;
 using SapLens.Domain.Users;
 using SapLens.Persistence;
 

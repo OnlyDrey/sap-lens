@@ -74,7 +74,7 @@ public sealed class ApiTests : IAsyncLifetime
         using var rebinding = new HttpRequestMessage(HttpMethod.Get, "/api/v1/roles");
         rebinding.Headers.Host = "attacker.example";
         Assert.Equal((HttpStatusCode)421, (await _client.SendAsync(rebinding)).StatusCode);
-        using var crossOrigin = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/backups");
+        using var crossOrigin = new HttpRequestMessage(HttpMethod.Post, "/api/v1/jobs/999999/cancel");
         crossOrigin.Headers.Add("Origin", "http://evil.example");
         Assert.Equal(HttpStatusCode.Forbidden, (await _client.SendAsync(crossOrigin)).StatusCode);
     }

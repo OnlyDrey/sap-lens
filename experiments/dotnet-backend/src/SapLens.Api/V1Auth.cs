@@ -31,10 +31,10 @@ public static partial class V1Auth
 {
     public const string SessionCookie = "sap-lens-session", CsrfCookie = "sap-lens-csrf", CsrfHeader = "X-SAP-Lens-CSRF";
     public static readonly HashSet<string> PublicPaths = ["/api/auth/state", "/api/auth/login", "/api/auth/reset", "/api/auth/activate", "/api/auth/recover"];
-    private static readonly string[] AdminRead = ["/api/backups", "/api/storage", "/api/retention", "/api/diagnostics", "/api/configuration", "/api/settings"];
+    private static readonly string[] AdminRead = ["/api/v1/admin", "/api/backups", "/api/storage", "/api/retention", "/api/diagnostics", "/api/configuration", "/api/settings"];
     private static readonly string[] AdminWrite = ["/api/settings", "/api/configuration", "/api/refresh", "/api/server/", "/api/data-sources", "/api/sources", "/api/branding", "/api/storage",
         "/api/retention", "/api/backups", "/api/import", "/api/sod/configuration", "/api/sod/reference", "/api/sod/periods", "/api/saved-filters", "/api/functional-groups",
-        "/api/user-import", "/api/employees", "/api/data/cancel", "/api/refresh-schedule", "/api/sod/catalogue"];
+        "/api/user-import", "/api/employees", "/api/data/cancel", "/api/refresh-schedule", "/api/sod/catalogue", "/api/sod/reports/branding"];
     private static readonly HashSet<string> ReadOnlyPosts = ["/api/sod/reports/preview", "/api/sod/reports/pdf", "/api/sod/reports/docx", "/api/sod/reports/remediation/preview",
         "/api/sod/reports/remediation/pdf", "/api/sod/reports/remediation/csv", "/api/sod/simulate"];
     private static readonly HashSet<string> ReviewerPosts = ["/api/sod/decisions/activity", "/api/sod/decisions/assignment", "/api/sod/decisions/assignment/bulk",
@@ -53,6 +53,9 @@ public static partial class V1Auth
         if (path.StartsWith("/api/auth/users", StringComparison.Ordinal) || path.StartsWith("/api/auth/migration", StringComparison.Ordinal) || path is "/api/auth/audit" or "/api/auth/policy") return "accounts";
         if (path.StartsWith("/api/auth/", StringComparison.Ordinal)) return "profile";
         if (method is "GET" or "HEAD") return AdminRead.Any(p => path.StartsWith(p, StringComparison.Ordinal)) ? "admin" : "read";
+        // v1 answered "unknown" for every PUT, PATCH and DELETE, so in Server account mode no session could save the retention policy, the SoD reference
+        // library, report branding or a functional group rename. Here they are administrator writes on the administrator paths only; other methods and paths stay denied.
+        if (method is "PUT" or "PATCH" or "DELETE") return AdminWrite.Any(p => path.StartsWith(p, StringComparison.Ordinal)) ? "admin" : "unknown";
         if (method != "POST") return "unknown";
         if (path == "/api/compare" || ReadOnlyPosts.Contains(path)) return path == "/api/compare" ? "read" : "export";
         if (PeriodTransition().IsMatch(path)) return "approve";

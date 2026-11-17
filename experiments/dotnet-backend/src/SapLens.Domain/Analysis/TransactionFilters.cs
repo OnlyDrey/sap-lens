@@ -1,5 +1,4 @@
 using SapLens.Domain.Roles;
-using SapLens.Domain.Text;
 
 namespace SapLens.Domain.Analysis;
 

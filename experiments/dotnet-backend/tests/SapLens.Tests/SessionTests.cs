@@ -58,14 +58,14 @@ public sealed class SessionTests : IAsyncLifetime
         withCookie.Headers.Add("Cookie", pair);
         Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(withCookie)).StatusCode);
 
-        // State change by cookie without a same-origin signal is refused; with Origin it reaches validation (400 for an empty body).
-        using var noSignal = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/backups");
+        // State change by cookie without a same-origin signal is refused; with Origin it reaches the handler (404: no such job).
+        using var noSignal = new HttpRequestMessage(HttpMethod.Post, "/api/v1/jobs/999999/cancel");
         noSignal.Headers.Add("Cookie", pair);
         Assert.Equal(HttpStatusCode.Forbidden, (await client.SendAsync(noSignal)).StatusCode);
-        using var sameOrigin = new HttpRequestMessage(HttpMethod.Post, "/api/v1/admin/backups");
+        using var sameOrigin = new HttpRequestMessage(HttpMethod.Post, "/api/v1/jobs/999999/cancel");
         sameOrigin.Headers.Add("Cookie", pair);
         sameOrigin.Headers.Add("Origin", client.BaseAddress!.GetLeftPart(UriPartial.Authority));
-        Assert.Equal(HttpStatusCode.OK, (await client.SendAsync(sameOrigin)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await client.SendAsync(sameOrigin)).StatusCode);
 
         using var forged = new HttpRequestMessage(HttpMethod.Get, "/api/v1/session");
         forged.Headers.Add("Cookie", SessionStore.CookieName + "=forged-value");

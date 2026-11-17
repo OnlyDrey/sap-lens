@@ -83,12 +83,7 @@ public static class V1Retention
         return Results.Json(new { detail = "There is no review cleanup to undo: SAP Lens 2 keeps completed review periods as immutable audit evidence." }, statusCode: 409);
     }
 
-    private static IResult? Guard(HttpContext http)
-    {
-        var host = http.RequestServices.GetRequiredService<HostSettings>();
-        if (host.Mode != HostMode.Server || host.Authentication == AuthenticationMode.Accounts && Actors.Current(http).Role == "administrator") return null;
-        return Results.Json(new { detail = "Application backups require an authenticated administrator account. Other deployments can use stopped host maintenance." }, statusCode: 403);
-    }
+    private static IResult? Guard(HttpContext http) => V1Backups.Guard(http);
 
     private static IResult Invalid(string where, string field, string type, string message) =>
         Results.Json(new { detail = new[] { new { type, loc = new[] { where, field }, msg = message } } }, statusCode: 422);

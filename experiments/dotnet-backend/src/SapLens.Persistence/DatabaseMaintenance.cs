@@ -104,18 +104,3 @@ public sealed class DatabaseMaintenance(DatabaseOptions options, IDbContextFacto
         return record;
     }
 }
-
-/// <summary>Retention policy (unchanged from SAP Lens 1): automatic backups 90 days, manual backups until deleted by a person, migration backups until an
-/// administrator confirms the upgrade. Pure, so the policy is testable without files.</summary>
-public static class BackupRetention
-{
-    public static readonly TimeSpan AutomaticRetention = TimeSpan.FromDays(90);
-
-    public static IReadOnlyList<BackupRecord> Expired(IEnumerable<BackupRecord> backups, DateTime nowUtc) =>
-        backups.Where(b => b.DeletedUtc is null && b.Kind switch
-        {
-            BackupKind.Automatic => nowUtc - b.CreatedUtc > AutomaticRetention,
-            BackupKind.Migration => b.AdminConfirmedUtc is not null,
-            _ => false, // manual: only an explicit delete removes it
-        }).ToList();
-}

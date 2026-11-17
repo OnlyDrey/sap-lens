@@ -16,7 +16,7 @@ public static class V1Diagnostics
 
     private static string? Iso(DateTime? value) => value is { } v ? DateTime.SpecifyKind(v, DateTimeKind.Utc).ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'") : null;
 
-    public static async Task<JsonObject> SnapshotAsync(IServiceProvider services, HttpContext http, bool @private, CancellationToken ct)
+    public static async Task<JsonObject> SnapshotAsync(IServiceProvider services, bool @private, CancellationToken ct)
     {
         var host = services.GetRequiredService<HostSettings>();
         var settings = await services.GetRequiredService<V1Settings>().GetAsync(ct);
@@ -134,8 +134,8 @@ public static class V1Diagnostics
     public static void Map(RouteGroupBuilder api)
     {
         api.MapGet("/diagnostics", async (HttpContext http, HostSettings host, CancellationToken ct) =>
-            Results.Content((await SnapshotAsync(http.RequestServices, http, @private: host.Mode != HostMode.Server, ct)).ToJsonString(), "application/json"));
+            Results.Content((await SnapshotAsync(http.RequestServices, @private: host.Mode != HostMode.Server, ct)).ToJsonString(), "application/json"));
         api.MapGet("/diagnostics/export", async (HttpContext http, CancellationToken ct) =>
-            Results.Content((await SnapshotAsync(http.RequestServices, http, @private: false, ct)).ToJsonString(), "application/json"));
+            Results.Content((await SnapshotAsync(http.RequestServices, @private: false, ct)).ToJsonString(), "application/json"));
     }
 }

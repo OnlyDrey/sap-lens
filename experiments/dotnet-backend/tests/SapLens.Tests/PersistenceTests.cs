@@ -71,15 +71,19 @@ public sealed class PersistenceTests
     }
 
     [Fact]
-    public void Retention_keeps_manual_backups_and_unconfirmed_migration_backups()
+    public async Task Backup_retention_offers_only_old_automatic_archives()
     {
-        var now = new DateTime(2026, 11, 15, 0, 0, 0, DateTimeKind.Utc);
+        await using var env = await CoreEnv.StartAsync();
+        var now = env.Clock.GetUtcNow().UtcDateTime;
         BackupRecord B(string kind, int ageDays, bool confirmed = false) => new()
         {
-            Kind = kind, FileName = kind + ageDays, Sha256 = "", CreatedUtc = now.AddDays(-ageDays), AdminConfirmedUtc = confirmed ? now : null,
+            Kind = kind, FileName = $"archives/{Guid.NewGuid():N}.slbak", Sha256 = new string('0', 64), CreatedUtc = now.AddDays(-ageDays), AdminConfirmedUtc = confirmed ? now : null,
         };
-        var expired = BackupRetention.Expired([B("automatic", 89), B("automatic", 91), B("manual", 900), B("migration", 900), B("migration", 1, confirmed: true)], now);
-        Assert.Equal(["automatic91", "migration1"], expired.Select(b => b.FileName));
+        await env.QueryAsync(db => { db.Backups.AddRange(B("automatic", 89), B("automatic", 91), B("manual", 900), B("migration", 900), B("migration", 1, confirmed: true)); return db.SaveChangesAsync(); });
+        var plan = await new SapLens.Application.Retention.DataRetention(env.Options, env.Factory, env.Clock).PreviewAsync("backup", default);
+        Assert.Equal(1, (int)plan["count"]!);                                       // the 91-day automatic archive; a confirmed migration backup is kept too
+        Assert.Equal(91, (int)plan["sample"]![0]!["age_days"]!);
+        Assert.Equal((2, 1, 2), ((int)plan["counts"]!["automatic"]!, (int)plan["counts"]!["manual"]!, (int)plan["counts"]!["migration"]!));
     }
 
     [Theory]
@@ -133,7 +137,8 @@ public sealed class PersistenceTests
         var migration = Assert.Single(backups);
         Assert.Equal(BackupKind.Migration, migration.Kind);
         Assert.Null(migration.AdminConfirmedUtc);
-        Assert.Empty(BackupRetention.Expired(backups, DateTime.UtcNow.AddYears(5)));
+        var plan = await new SapLens.Application.Retention.DataRetention(env.Options, env.Factory, new ManualClock(DateTimeOffset.UtcNow.AddYears(5))).PreviewAsync("backup", default);
+        Assert.Equal((0, 1), ((int)plan["count"]!, (int)plan["counts"]!["migration"]!));        // never a retention candidate
         Assert.True(File.Exists(Path.Combine(env.Options.BackupDirectory, migration.FileName)));
     }
 

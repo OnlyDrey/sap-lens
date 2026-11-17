@@ -113,12 +113,7 @@ public static class V1Storage
         return (new Confirmation(id, c.GetValue<bool>()), null);
     }
 
-    private static IResult? Guard(HttpContext http)
-    {
-        var host = http.RequestServices.GetRequiredService<HostSettings>();
-        if (host.Mode != HostMode.Server || host.Authentication == AuthenticationMode.Accounts && Actors.Current(http).Role == "administrator") return null;
-        return Detail("Application backups require an authenticated administrator account. Other deployments can use stopped host maintenance.", 403);
-    }
+    private static IResult? Guard(HttpContext http) => V1Backups.Guard(http);
 
     private static IResult Detail(string message, int status) => Results.Json(new { detail = message }, statusCode: status);
     private static IResult Json(JsonNode value) => Results.Content(value.ToJsonString(), "application/json");

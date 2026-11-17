@@ -2,7 +2,6 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using SapLens.Application;
 using SapLens.Domain.Directory;
-using Microsoft.Extensions.Logging;
 using SapLens.Domain.Roles;
 using SapLens.Domain.Users;
 

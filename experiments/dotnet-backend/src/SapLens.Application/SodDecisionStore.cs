@@ -49,7 +49,7 @@ public sealed partial class SodDecisionStore(WriteCoordinator writer, IDbContext
     }
 
     /// <summary>_clean: refuse control characters other than newline, carriage return and tab; strip surrounding whitespace.</summary>
-    private static string Clean(string? value, string field)
+    private static string Clean(string? value)
     {
         var text = value ?? "";
         if (text.Any(c => c < 32 && c is not ('\n' or '\r' or '\t'))) throw new SodDecisionException(422, "Text contains unsupported control characters.");
@@ -95,10 +95,10 @@ public sealed partial class SodDecisionStore(WriteCoordinator writer, IDbContext
         var now = clock.GetUtcNow();
         if (request.Expires is { } expires && DateOnly.ParseExact(expires, "yyyy-MM-dd", CultureInfo.InvariantCulture) < DateOnly.FromDateTime(now.LocalDateTime))
             throw new SodDecisionException(422, "The expiration date cannot be in the past.");
-        var reviewer = Clean(request.Reviewer, "reviewer");
-        var approver = Clean(request.Approver, "approver");
-        var justification = Clean(request.Justification, "justification");
-        var controls = Clean(request.Controls, "controls");
+        var reviewer = Clean(request.Reviewer);
+        var approver = Clean(request.Approver);
+        var justification = Clean(request.Justification);
+        var controls = Clean(request.Controls);
         return writer.WriteAsync(async (db, ct) =>
         {
             if (guard is not null) await guard(ct);
@@ -119,7 +119,7 @@ public sealed partial class SodDecisionStore(WriteCoordinator writer, IDbContext
                 if (count >= MaxEvents) throw new SodDecisionException(409, "SoD decision history capacity is reached for an item. Existing events are retained.");
                 if (count == 0) newKeys++;
                 var previous = history.Count == 0 ? "" : (string)JsonNode.Parse(history[0])!["decision"]!;
-                var e = new SodDecisionEvent(Guid.NewGuid().ToString("N"), request.Kind, context, stamp, item.Key, Clean(item.User, "user"), Clean(item.Ref, "ref"), request.Decision,
+                var e = new SodDecisionEvent(Guid.NewGuid().ToString("N"), request.Kind, context, stamp, item.Key, Clean(item.User), Clean(item.Ref), request.Decision,
                     reviewer, justification, item.EvidenceVersion, identity, request.BulkOperationId, previous, approver, controls, request.Expires, request.SourceVersions,
                     request.ActorIdentity);
                 Validate(e);
@@ -188,8 +188,8 @@ public sealed partial class SodDecisionStore(WriteCoordinator writer, IDbContext
         CheckContext(context);
         var cleaned = new JsonObject();
         foreach (var field in ActionValueFields)
-            cleaned[field] = field == "due_date" ? values[field]?.DeepClone() : Clean((string?)values[field] ?? "", field);
-        var by = Clean(actor, "actor");
+            cleaned[field] = field == "due_date" ? values[field]?.DeepClone() : Clean((string?)values[field] ?? "");
+        var by = Clean(actor);
         return writer.WriteAsync(async (db, ct) =>
         {
             var revisionRow = await db.SodDocuments.FirstOrDefaultAsync(d => d.Name == RevisionDocument, ct);

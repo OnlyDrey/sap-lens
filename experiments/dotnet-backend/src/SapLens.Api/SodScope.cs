@@ -5,7 +5,6 @@ using SapLens.Application;
 using SapLens.Domain.Json;
 using SapLens.Domain.Roles;
 using SapLens.Domain.Sod;
-using SapLens.Domain.Text;
 using SapLens.Domain.Users;
 using SapLens.Persistence;
 

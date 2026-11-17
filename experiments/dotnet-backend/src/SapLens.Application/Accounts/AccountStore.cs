@@ -51,7 +51,7 @@ public sealed partial class AccountStore
         if (actor is null || !Permissions.TryGetValue(permission, out var roles) || !roles.Contains(actor.Role)) throw new AuthException("permission_denied", 403);
     }
 
-    public static string Digest(string value) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
+    public static string Digest(string value) => SapLens.Domain.Json.Digests.Text(value);
     public static string NewSecret() => Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     private void Safe()

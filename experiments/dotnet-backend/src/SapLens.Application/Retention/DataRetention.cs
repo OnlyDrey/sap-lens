@@ -105,7 +105,7 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
 
     // ---- plans (pure measurement)
 
-    private static string Digest(IEnumerable<string> ids, int period) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(string.Join('\n', ids) + "|" + period)));
+    private static string Digest(IEnumerable<string> ids, int period) => SapLens.Domain.Json.Digests.Text(string.Join('\n', ids) + "|" + period);
 
     /// <summary>Every 64-hex identifier named outside the source revisions themselves, plus the revisions review decisions and invalidations name.</summary>
     private static async Task<(HashSet<string> Hashes, HashSet<long> Ids)> ReferencesAsync(SapLensDb db, CancellationToken ct)
@@ -252,7 +252,7 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
         return result;
     }
 
-    private static string Sha(string path) { using var s = File.OpenRead(path); return Convert.ToHexStringLower(SHA256.HashData(s)); }
+    private static string Sha(string path) => SapLens.Domain.Json.Digests.File(path);
 
     public async Task<JsonObject> PreviewAsync(string category, CancellationToken ct)
     {

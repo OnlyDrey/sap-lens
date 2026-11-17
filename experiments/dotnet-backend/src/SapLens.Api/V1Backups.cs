@@ -121,8 +121,9 @@ public static class V1Backups
         });
     }
 
-    /// <summary>v1 admin(): Server deployments need an authenticated administrator account; Desktop is the local operator.</summary>
-    private static IResult? Guard(HttpContext http)
+    /// <summary>v1 admin() for backups, storage and retention: Server deployments need an authenticated administrator account (a shared access token is
+    /// refused); Desktop is the local operator.</summary>
+    internal static IResult? Guard(HttpContext http)
     {
         var host = http.RequestServices.GetRequiredService<HostSettings>();
         if (host.Mode != HostMode.Server) return null;

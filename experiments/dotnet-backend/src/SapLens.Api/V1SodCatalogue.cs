@@ -9,7 +9,6 @@ using Microsoft.EntityFrameworkCore;
 using SapLens.Application;
 using SapLens.Domain.Json;
 using SapLens.Domain.Sod;
-using SapLens.Domain.Text;
 using SapLens.Persistence;
 
 namespace SapLens.Api;

@@ -3,7 +3,6 @@ using System.Text;
 using SapLens.Application;
 using SapLens.Domain.Analysis;
 using SapLens.Domain.Roles;
-using SapLens.Domain.Text;
 using SapLens.Domain.Users;
 
 namespace SapLens.Api;

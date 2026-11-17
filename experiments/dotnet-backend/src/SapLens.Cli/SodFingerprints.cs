@@ -1,4 +1,3 @@
-using System.Text.Json;
 using SapLens.Application;
 using SapLens.Domain.Json;
 using SapLens.Domain.Sod;
