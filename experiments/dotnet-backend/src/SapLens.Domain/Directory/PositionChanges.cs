@@ -17,9 +17,8 @@ public static partial class PositionChanges
 
     [GeneratedRegex(@"\s+")] private static partial Regex Spaces();
 
-    /// <summary>normalize_text: NFKC (see BLK-GLOBALIZATION), collapsed whitespace, trimmed, case-folded (German sharp s to "ss").</summary>
-    public static string NormalizeText(string? value) =>
-        Spaces().Replace((value ?? "").Normalize(NormalizationForm.FormKC), " ").Trim().ToUpperInvariant().ToLowerInvariant().Replace("ß", "ss", StringComparison.Ordinal);
+    /// <summary>normalize_text: NFKC, collapsed whitespace, trimmed, str.casefold().</summary>
+    public static string NormalizeText(string? value) => Text.PythonText.Casefold(Spaces().Replace(Text.PythonText.Nfkc(value), " ").Trim());
 
     private static string Get(IReadOnlyDictionary<string, string> row, string field) => row.GetValueOrDefault(field, "") ?? "";
 

@@ -1,0 +1,122 @@
+{
+ "Straße": {
+  "casefold": "strasse",
+  "upper": "STRASSE",
+  "lower": "straße",
+  "nfkc": "Straße"
+ },
+ "ẞ": {
+  "casefold": "ss",
+  "upper": "ẞ",
+  "lower": "ß",
+  "nfkc": "ẞ"
+ },
+ "ﬁnance": {
+  "casefold": "finance",
+  "upper": "FINANCE",
+  "lower": "ﬁnance",
+  "nfkc": "finance"
+ },
+ "ＦＵＬＬ": {
+  "casefold": "ｆｕｌｌ",
+  "upper": "ＦＵＬＬ",
+  "lower": "ｆｕｌｌ",
+  "nfkc": "FULL"
+ },
+ "ŉ": {
+  "casefold": "ʼn",
+  "upper": "ʼN",
+  "lower": "ŉ",
+  "nfkc": "ʼn"
+ },
+ "İstanbul": {
+  "casefold": "i̇stanbul",
+  "upper": "İSTANBUL",
+  "lower": "i̇stanbul",
+  "nfkc": "İstanbul"
+ },
+ "ΣΊΣΥΦΟΣ": {
+  "casefold": "σίσυφοσ",
+  "upper": "ΣΊΣΥΦΟΣ",
+  "lower": "σίσυφος",
+  "nfkc": "ΣΊΣΥΦΟΣ"
+ },
+ "Σίσυφος": {
+  "casefold": "σίσυφοσ",
+  "upper": "ΣΊΣΥΦΟΣ",
+  "lower": "σίσυφος",
+  "nfkc": "Σίσυφος"
+ },
+ "ǅ": {
+  "casefold": "ǆ",
+  "upper": "Ǆ",
+  "lower": "ǆ",
+  "nfkc": "Dž"
+ },
+ "Ærøskøbing": {
+  "casefold": "ærøskøbing",
+  "upper": "ÆRØSKØBING",
+  "lower": "ærøskøbing",
+  "nfkc": "Ærøskøbing"
+ },
+ "ØYSTEIN": {
+  "casefold": "øystein",
+  "upper": "ØYSTEIN",
+  "lower": "øystein",
+  "nfkc": "ØYSTEIN"
+ },
+ "Å": {
+  "casefold": "å",
+  "upper": "Å",
+  "lower": "å",
+  "nfkc": "Å"
+ },
+ "ÆØÅ æøå": {
+  "casefold": "æøå æøå",
+  "upper": "ÆØÅ ÆØÅ",
+  "lower": "æøå æøå",
+  "nfkc": "ÆØÅ æøå"
+ },
+ "Ⅻ": {
+  "casefold": "ⅻ",
+  "upper": "Ⅻ",
+  "lower": "ⅻ",
+  "nfkc": "XII"
+ },
+ "ﬀ": {
+  "casefold": "ff",
+  "upper": "FF",
+  "lower": "ﬀ",
+  "nfkc": "ff"
+ },
+ " x": {
+  "casefold": " x",
+  "upper": " X",
+  "lower": " x",
+  "nfkc": " x"
+ },
+ "Kåre Ødegård": {
+  "casefold": "kåre ødegård",
+  "upper": "KÅRE ØDEGÅRD",
+  "lower": "kåre ødegård",
+  "nfkc": "Kåre Ødegård"
+ },
+ "Bjørn-Åge": {
+  "casefold": "bjørn-åge",
+  "upper": "BJØRN-ÅGE",
+  "lower": "bjørn-åge",
+  "nfkc": "Bjørn-Åge"
+ },
+ "ŊÁVDDIS": {
+  "casefold": "ŋávddis",
+  "upper": "ŊÁVDDIS",
+  "lower": "ŋávddis",
+  "nfkc": "ŊÁVDDIS"
+ },
+ "Ꮳ": {
+  "casefold": "Ꮳ",
+  "upper": "Ꮳ",
+  "lower": "ꮳ",
+  "nfkc": "Ꮳ"
+ }
+}

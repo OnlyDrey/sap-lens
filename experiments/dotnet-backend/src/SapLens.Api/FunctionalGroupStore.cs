@@ -50,13 +50,13 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
     }
 
     /// <summary>The canonical identity shared with Account Review decisions: sha256 of the upper-cased SAP user name as JSON.</summary>
-    public static string UserKey(string username) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(PythonJson(username.Trim().ToUpperInvariant()))));
+    public static string UserKey(string username) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(PythonJson(username.Trim().PyUpper()))));
 
     /// <summary>position_changes.normalize_text: NFKC, collapsed whitespace, trimmed, case-folded.</summary>
     public static string NormalizeText(string? value) => SapLens.Domain.Directory.PositionChanges.NormalizeText(value);
 
     /// <summary>str.casefold for names and Directory text: case-insensitive, with the German sharp s folded to "ss" as Python does.</summary>
-    public static string Fold(string value) => value.ToUpperInvariant().ToLowerInvariant().Replace("ß", "ss", StringComparison.Ordinal).Replace("ẞ", "ss", StringComparison.Ordinal);
+    public static string Fold(string value) => SapLens.Domain.Text.PythonText.Casefold(value);
 
     public static JsonObject Empty() => new() { ["format"] = Format, ["groups"] = new JsonObject(), ["users"] = new JsonObject(), ["history"] = new JsonArray(), ["rules"] = new JsonArray() };
 
@@ -361,7 +361,7 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
 
     /// <summary>{UPPER SAP USER: public classification} for every user with a record.</summary>
     public static Dictionary<string, JsonObject> ClassificationMap(JsonObject data) =>
-        data["users"]!.AsObject().Select(p => (string)p.Value!["username"]!).ToDictionary(n => n.Trim().ToUpperInvariant(), n => PublicUser(data, n));
+        data["users"]!.AsObject().Select(p => (string)p.Value!["username"]!).ToDictionary(n => n.Trim().PyUpper(), n => PublicUser(data, n));
 
     private void Event(JsonObject data, JsonObject user, string kind, string? before, string? after, string statusBefore, string statusAfter, string actor, string reason, string changeId = "")
     {
@@ -578,7 +578,7 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
             foreach (var (key, node) in users.ToList())
             {
                 var user = node!.AsObject();
-                if (!emailByUsername.TryGetValue(((string)user["username"]!).Trim().ToUpperInvariant(), out var email)) continue;
+                if (!emailByUsername.TryGetValue(((string)user["username"]!).Trim().PyUpper(), out var email)) continue;
                 var since = LastConfirmation(user);
                 foreach (var item in byEmail.GetValueOrDefault(email) ?? [])
                 {

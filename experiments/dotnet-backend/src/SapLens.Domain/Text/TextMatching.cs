@@ -7,8 +7,8 @@ public static class TextMatching
 {
     public static bool TextMatches(string? value, string? query)
     {
-        var text = (value ?? "").ToLowerInvariant();
-        var pattern = (query ?? "").Trim().ToLowerInvariant();
+        var text = (value ?? "").PyLower();
+        var pattern = (query ?? "").Trim().PyLower();
         if (!pattern.Contains('*')) return text.Contains(pattern, StringComparison.Ordinal);
         var parts = pattern.Split('*');
         if (!text.StartsWith(parts[0], StringComparison.Ordinal)) return false;

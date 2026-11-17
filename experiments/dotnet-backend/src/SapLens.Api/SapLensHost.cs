@@ -12,6 +12,7 @@ public static class SapLensHost
     public static WebApplication Build(HostSettings settings, string[]? args = null, Action<WebApplicationBuilder>? configure = null)
     {
         settings.Validate();
+        var icu = SapLens.Domain.Text.PythonText.VerifyRuntime();    // Unicode text handling needs ICU; refuse to start without it
         DatabaseOptions.ValidateLocal(settings.DataDirectory);
         RefuseInsideApplication(settings.DataDirectory);
         // A confirmed restore is applied before anything opens the database or the account store; it rolls back by itself on failure.
@@ -81,6 +82,7 @@ public static class SapLensHost
         var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SapLens.Startup");
         startup.LogInformation("Listening on {Address}:{Port} ({Scheme}), network access {Network}, allowed hosts {Hosts}", settings.ListenAddress, settings.Port,
             settings.Https ? "https" : "http", settings.NetworkAccess ? "enabled" : "disabled", settings.AllowedHosts.Count == 0 ? "loopback only" : string.Join(",", settings.AllowedHosts));
+        startup.LogInformation("Unicode: ICU {Icu}, casefold table Unicode {Unicode}", icu, SapLens.Domain.Text.PythonText.UnicodeVersion);
         if (restored is not null) startup.LogWarning("Pending restore: {Outcome}", restored);
         if (settings.TrustedProxies.Count > 0)
             startup.LogInformation("Trusted reverse proxies {Proxies} ({Hops} hop(s)): X-Forwarded-For, -Proto and -Host applied from these peers only", string.Join(",", settings.TrustedProxies), settings.TrustedProxyHops);

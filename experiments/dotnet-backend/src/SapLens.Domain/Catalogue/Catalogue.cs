@@ -129,7 +129,7 @@ public static class CatalogueBuilder
             foreach (var code in codes)
             {
                 transactionCodes.Add(code);
-                var key = code.ToUpperInvariant();
+                var key = code.PyUpper();
                 if (!catalogue.TcodeIndex.TryGetValue(key, out var holders)) catalogue.TcodeIndex[key] = holders = new HashSet<string>(StringComparer.Ordinal);
                 holders.Add(name);
             }

@@ -54,9 +54,9 @@ public static class V1AccountReview
         IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonObject>? classifications = null, IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonObject>? position = null,
         IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonObject>? managerChanges = null)
     {
-        var configured = groups.Select(g => g.Trim().ToUpperInvariant().ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
+        var configured = groups.Select(g => g.Trim().PyCasefold()).ToHashSet(StringComparer.Ordinal);
         var owners = directory is null ? null : EmployeeDirectory.SapEmailOwners(state.Users.Users.Values);
-        var sortedGroups = groups.Select(g => g.Trim().ToUpperInvariant().ToLowerInvariant()).Order(StringComparer.Ordinal).ToList();
+        var sortedGroups = groups.Select(g => g.Trim().PyCasefold()).Order(StringComparer.Ordinal).ToList();
         var result = new List<Dictionary<string, object?>>();
         foreach (var key in state.Users.UserOrder)
         {
@@ -71,11 +71,11 @@ public static class V1AccountReview
             if (ad == "Disabled" && locked == "Locked") findings.Add("ad_disabled_locked");
             if (directory is not null && matchStatus != "matched") findings.Add("directory_match");
             if (user.Accounts.Any(a => SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today) == "expired")) findings.Add("expired");
-            if (user.Accounts.Any(a => a.UserType.Trim().ToUpperInvariant() is "B" or "C" or "S" or "L")) findings.Add("technical");
-            var unlicensed = user.Groups.Any(g => configured.Contains(g.Trim().ToUpperInvariant().ToLowerInvariant()));
+            if (user.Accounts.Any(a => a.UserType.Trim().PyUpper() is "B" or "C" or "S" or "L")) findings.Add("technical");
+            var unlicensed = user.Groups.Any(g => configured.Contains(g.Trim().PyCasefold()));
             var identity = CanonicalJson.Sha256(new object[]
             {
-                user.Username.Trim().ToUpperInvariant(), user.Emails.Select(EmployeeDirectory.Normalized).Distinct().Order(StringComparer.Ordinal).ToList(),
+                user.Username.Trim().PyUpper(), user.Emails.Select(EmployeeDirectory.Normalized).Distinct().Order(StringComparer.Ordinal).ToList(),
                 user.Names.Select(n => new[] { n.First, n.Last }).OrderBy(n => n[0], StringComparer.Ordinal).ThenBy(n => n[1], StringComparer.Ordinal).ToList(),
             });
             // Canonical evidence: CSV row order and unrelated directory fields do not change the version.
@@ -97,7 +97,7 @@ public static class V1AccountReview
             var decision = stored is null ? null : DecisionView(stored.Latest);
             // MIG-004: a Functional Group membership that needs review (Directory Department or Job Title changed) is a review signal.
             System.Text.Json.Nodes.JsonObject? classified = null;
-            classifications?.TryGetValue(user.Username.Trim().ToUpperInvariant(), out classified);
+            classifications?.TryGetValue(user.Username.Trim().PyUpper(), out classified);
             var classificationReview = (string?)classified?["status"] == "Needs review";
             // MIG-003: the newest recent Department/Job Title and Manager change of the matched employee. A decision reviews the change it captured
             // (its event id); legacy decisions without an id review every change detected before them.
@@ -253,7 +253,7 @@ public static class V1AccountReview
             }).ToList();
             var hidden = showCompleted ? 0 : matching.Count(r => (string)r["workflow_status"]! == "completed");
             var visible = showCompleted ? matching : matching.Where(r => (string)r["workflow_status"]! != "completed").ToList();
-            static string Fold(object? value) => (value as string ?? "").ToUpperInvariant().ToLowerInvariant();
+            static string Fold(object? value) => SapLens.Domain.Text.PythonText.Casefold(value as string);
             IEnumerable<Dictionary<string, object?>> ordered = sort == "priority"
                 ? visible.OrderBy(r => (int)r["priority_order"]!).ThenBy(r => (r["position_change"] as Dictionary<string, object?>)?["detected_at"] as string ?? "", StringComparer.Ordinal).ThenBy(r => Fold(r["username"]), StringComparer.Ordinal)
                 : visible.OrderBy(r => Fold(r[sort]), StringComparer.Ordinal).ThenBy(r => Fold(r["username"]), StringComparer.Ordinal);
@@ -307,7 +307,7 @@ public static class V1AccountReview
                     .AsObject().ToDictionary(p => p.Key, p => (object?)(string?)p.Value);
 
             var (snapshot, _, items, _, _) = await CurrentAsync(services, ct);
-            var row = items.FirstOrDefault(r => ((string)r["username"]!).Trim().ToUpperInvariant() == username.Trim().ToUpperInvariant());
+            var row = items.FirstOrDefault(r => ((string)r["username"]!).Trim().PyUpper() == username.Trim().PyUpper());
             if (row is null) return Detail(404, "SAP user not found.");
             if ((string)row["evidence_version"]! != evidence) return Detail(409, "Identity evidence changed. Refresh the review before saving.");
             // Signed-in users always need the version they saw; any client that sends it gets the same protection.

@@ -51,7 +51,7 @@ public static class SodAnalyzer
                 foreach (var item in (List<object?>)mappings!)
                 {
                     var mapping = (Dictionary<string, object?>)item!;
-                    var code = ((string)mapping["tcode"]!).ToUpperInvariant();
+                    var code = ((string)mapping["tcode"]!).PyUpper();
                     if (!index.TryGetValue(code, out var list)) index[code] = list = [];
                     list.Add((id, slot, (string)mapping["activity"]!, (string)mapping["tcode"]!));
                 }
@@ -62,7 +62,7 @@ public static class SodAnalyzer
         {
             var grouped = new Dictionary<string, Dictionary<string, List<Dictionary<string, object?>>>>(StringComparer.Ordinal);
             foreach (var path in paths)
-                foreach (var (riskId, slot, activity, matrixTransaction) in index.GetValueOrDefault(((string)path["tcode"]!).ToUpperInvariant()) ?? [])
+                foreach (var (riskId, slot, activity, matrixTransaction) in index.GetValueOrDefault(((string)path["tcode"]!).PyUpper()) ?? [])
                 {
                     if (!grouped.TryGetValue(riskId, out var sides)) grouped[riskId] = sides = new() { ["ACTVT1"] = [], ["ACTVT2"] = [] };
                     sides[slot].Add(new Dictionary<string, object?>(path) { ["activity_slot"] = slot, ["activity"] = activity, ["matrix_transaction"] = matrixTransaction });

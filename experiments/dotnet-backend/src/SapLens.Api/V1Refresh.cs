@@ -229,7 +229,7 @@ public static class V1Refresh
             case System.Text.DecoderFallbackException: return ("encoding", "The CSV encoding is invalid. Review the source encoding and import format.");
             case CsvFormatException: return ("malformed_csv", "The CSV has malformed quoting or records. Correct the export and validate it again.");
             case DomainValidationException or ArgumentException or InvalidDataException:
-                var text = error.Message.ToLowerInvariant();
+                var text = error.Message.PyLower();
                 if (text.Contains("changed while being read")) return ("source_changed", "The CSV changed during validation. Wait for the external export to finish, then retry.");
                 if (text.Contains("row width") || text.Contains("malformed")) return ("malformed_csv", "CSV records do not match the expected structure. Review quoting, delimiters and row widths.");
                 if (new[] { "header", "mapped", "column" }.Any(text.Contains)) return ("headers", "Required headers or column mappings are invalid. Review this source’s CSV import format.");
@@ -264,7 +264,7 @@ public static partial class V1RefreshSchedule
         {
             // Pydantic's lax boolean: true/false, 0/1 and the usual words.
             var kind = e.GetValueKind();
-            var word = kind == JsonValueKind.String ? e.GetValue<string>().ToLowerInvariant() : kind == JsonValueKind.Number ? e.ToJsonString() : null;
+            var word = kind == JsonValueKind.String ? e.GetValue<string>().PyLower() : kind == JsonValueKind.Number ? e.ToJsonString() : null;
             if (kind is JsonValueKind.True or JsonValueKind.False) enabled = e.GetValue<bool>();
             else if (word is "1" or "true" or "t" or "yes" or "y" or "on") enabled = true;
             else if (word is "0" or "false" or "f" or "no" or "n" or "off") enabled = false;

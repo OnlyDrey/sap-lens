@@ -21,7 +21,7 @@ public static class UserLookup
         if (tcode.Length > 0)
         {
             var unique = new SortedDictionary<int, Assignment>();
-            var names = TransactionFilters.MatchingCodes(state.TcodeIndex, tcode.Trim().ToUpperInvariant()).SelectMany(code => state.TcodeIndex[code]).ToHashSet(StringComparer.Ordinal);
+            var names = TransactionFilters.MatchingCodes(state.TcodeIndex, tcode.Trim().PyUpper()).SelectMany(code => state.TcodeIndex[code]).ToHashSet(StringComparer.Ordinal);
             foreach (var name in names) foreach (var a in state.RoleIndex.GetValueOrDefault(name) ?? []) unique[a.Id] = a;
             return unique.Values;
         }

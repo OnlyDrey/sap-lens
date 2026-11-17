@@ -81,7 +81,7 @@ public static class UserDirectoryBuilder
             var roleStart = SapDates.Parse(row["ROLE_VALID_FROM"]); var roleEnd = SapDates.Parse(row["ROLE_VALID_TO"]);
             if ((start is { } s && end is { } e && s > e) || (roleStart is { } rs && roleEnd is { } re && rs > re))
                 throw new DomainValidationException("A validity interval ends before it starts; no data was applied.");
-            var lockText = row["USER_LOCKED"].Trim().ToUpperInvariant();
+            var lockText = row["USER_LOCKED"].Trim().PyUpper();
             bool? locked = lockText.Length == 0 ? null
                 : lockText is "0" or "FALSE" or "NO" or "N" or "UNLOCKED" ? false
                 : lockText is "X" or "TRUE" or "YES" or "Y" or "LOCKED" || (lockText.All(char.IsAsciiDigit) && lockText.Any(c => c != '0')) ? true : null;
@@ -118,7 +118,7 @@ public static class UserDirectoryBuilder
                 }
         }
         foreach (var name in state.RoleIndex.Keys)
-            foreach (var code in catalogue.Roles[name].SingleRoles.SelectMany(s => s.Tcodes).Select(t => t.Code.ToUpperInvariant()).Distinct())
+            foreach (var code in catalogue.Roles[name].SingleRoles.SelectMany(s => s.Tcodes).Select(t => t.Code.PyUpper()).Distinct())
             {
                 if (!state.TcodeIndex.TryGetValue(code, out var holders)) state.TcodeIndex[code] = holders = [];
                 holders.Add(name);

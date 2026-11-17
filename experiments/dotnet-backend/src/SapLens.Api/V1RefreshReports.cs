@@ -154,7 +154,7 @@ public static partial class V1RefreshReports
         new[] { "before", "after" }.SelectMany(side => (row[side] as JsonObject ?? []).Select(p => p.Key)).Distinct().Order(StringComparer.Ordinal);
 
     /// <summary>str.casefold for the identifiers and values of SAP exports.</summary>
-    private static string Fold(string text) => text.ToUpperInvariant().ToLowerInvariant();
+    private static string Fold(string text) => SapLens.Domain.Text.PythonText.Casefold(text);
 
     /// <summary>csv.writer(quoting=QUOTE_ALL): comma, every field quoted, quotes doubled, CRLF; each cell through spreadsheet_cell.</summary>
     private static void Line(StringBuilder csv, IEnumerable<string?> values) =>

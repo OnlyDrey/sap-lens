@@ -129,7 +129,7 @@ public static class V1SavedFilters
     private static IResult Json(JsonNode node) => Results.Content(node.ToJsonString(), "application/json");
 
     /// <summary>Python str.casefold() for the names people type; ToUpperInvariant then ToLowerInvariant also folds ß/ẞ and final sigma forms.</summary>
-    public static string Fold(string value) => value.ToUpperInvariant().ToLowerInvariant().Replace("ß", "ss", StringComparison.Ordinal);
+    public static string Fold(string value) => SapLens.Domain.Text.PythonText.Casefold(value);
 
     /// <summary>datetime.now(timezone.utc).isoformat(): microseconds, omitted when zero, and a +00:00 offset.</summary>
     private static string Stamp(TimeProvider clock)

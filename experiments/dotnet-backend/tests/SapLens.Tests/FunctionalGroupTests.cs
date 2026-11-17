@@ -101,7 +101,7 @@ public sealed class FunctionalGroupTests : IAsyncLifetime
 
     /// <summary>Blocked (BLK-GLOBALIZATION in MIGRATION_MATRIX.md): the server builds with InvariantGlobalization, where NFKC normalization of
     /// compatibility characters (ligatures, full-width letters, no-break space) is not available; v1 folds them. Enabling ICU is a packaging decision.</summary>
-    [Fact(Skip = "BLK-GLOBALIZATION: NFKC needs ICU; the server builds with InvariantGlobalization (decision pending)")]
+    [Fact]
     public void Compatibility_characters_fold_like_python_v1()
     {
         foreach (var (text, folded) in Reference["normalized"]!.AsObject()) Assert.Equal((string)folded!, FunctionalGroupStore.NormalizeText(text));

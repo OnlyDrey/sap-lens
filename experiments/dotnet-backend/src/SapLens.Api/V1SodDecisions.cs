@@ -250,7 +250,7 @@ public static partial class V1SodDecisions
         }
         var assignments = new JsonArray();
         var anyRemove = false;
-        foreach (var a in entry.Assignments.Values.OrderBy(x => x.Role.ToUpperInvariant().ToLowerInvariant(), StringComparer.Ordinal).ThenBy(x => x.Id, StringComparer.Ordinal))
+        foreach (var a in entry.Assignments.Values.OrderBy(x => x.Role.PyCasefold(), StringComparer.Ordinal).ThenBy(x => x.Id, StringComparer.Ordinal))
         {
             var item = state.Items["assignment"][a.Id];
             anyRemove |= item.Event?.Decision == "Remove";

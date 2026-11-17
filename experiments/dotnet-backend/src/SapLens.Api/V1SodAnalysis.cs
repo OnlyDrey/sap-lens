@@ -23,7 +23,7 @@ public static class V1SodAnalysis
 
     private static IResult Detail(int status, string detail) => Results.Json(new { detail }, statusCode: status);
     private static IResult Json(JsonNode node) => Results.Content(node.ToJsonString(), "application/json");
-    private static string Fold(string value) => value.ToUpperInvariant().ToLowerInvariant();
+    private static string Fold(string value) => SapLens.Domain.Text.PythonText.Casefold(value);
 
     /// <summary>analysis_query: the same names, enumerations and bounds as v1; an invalid value is a 422.</summary>
     public static (Query? Query, IResult? Error) Parse(IQueryCollection q)

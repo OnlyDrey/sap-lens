@@ -57,7 +57,7 @@ public static class V1ReleaseRoles
     /// <summary>user_access.release_area: the first character of a well-formed release group (E2 -> E).</summary>
     public static string? ReleaseArea(string? releaseGroup)
     {
-        var value = (releaseGroup ?? "").Trim().ToUpperInvariant();
+        var value = (releaseGroup ?? "").Trim().PyUpper();
         return value.Length > 0 && value.All(c => c is >= 'A' and <= 'Z' or >= '0' and <= '9') ? value[..1] : null;
     }
 
@@ -65,7 +65,7 @@ public static class V1ReleaseRoles
         values.Append(single).Where(v => !string.IsNullOrEmpty(v) && v.Trim().Length > 0 && v.Length <= 512).Select(v => v!.Trim()).ToHashSet(StringComparer.Ordinal);
 
     private static HashSet<string> Bounded(IEnumerable<string?> values) =>
-        values.Where(v => v is not null && v.Trim().Length > 0 && v.Length <= 100).Select(v => v!.Trim().ToUpperInvariant()).ToHashSet(StringComparer.Ordinal);
+        values.Where(v => v is not null && v.Trim().Length > 0 && v.Length <= 100).Select(v => v!.Trim().PyUpper()).ToHashSet(StringComparer.Ordinal);
 
     private static bool TextMatchesAny(string? value, string query)
     {

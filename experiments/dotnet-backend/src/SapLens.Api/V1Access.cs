@@ -169,7 +169,7 @@ public static class V1Access
                 view["role_description"] = role?.Text ?? "";
                 view["transaction_roles"] = a.Resolved && wanted.Count > 0
                     ? a.CatalogueRoles.Where(snapshot.Catalogue.Roles.ContainsKey).SelectMany(n => snapshot.Catalogue.Roles[n].SingleRoles)
-                        .Where(s => s.Tcodes.Any(t => wanted.Any(p => TransactionFilters.MatchingCodes(snapshot.Users.TcodeIndex, p).Contains(t.Code.ToUpperInvariant()))))
+                        .Where(s => s.Tcodes.Any(t => wanted.Any(p => TransactionFilters.MatchingCodes(snapshot.Users.TcodeIndex, p).Contains(t.Code.PyUpper()))))
                         .Select(s => s.ChildAgr).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList()
                     : [];
                 return view;
@@ -356,7 +356,7 @@ public static class V1Access
             var (title, department, status) = ("", "", directory is null ? "unavailable" : "unmatched");
             if (directory is not null && snapshot.Users.Users.TryGetValue(u.UserKey, out var sap) && directory.MatchSapIdentity(sap, owners!) is ("matched", { } employee))
                 (title, department, status) = (((string?)employee["title"] ?? "").Trim(), ((string?)employee["department"] ?? "").Trim(), "matched");
-            classes.TryGetValue(u.Username.Trim().ToUpperInvariant(), out var record);
+            classes.TryGetValue(u.Username.Trim().PyUpper(), out var record);
             return new()
             {
                 ["username"] = u.Username, ["user_key"] = u.UserKey, ["groups"] = u.Groups, ["first_name"] = u.FirstName, ["last_name"] = u.LastName, ["email"] = u.Email,
@@ -414,7 +414,7 @@ public static class V1Access
             if (sort is not ("job_title" or "department")) return kept;
             // Users without a Directory value come last in both directions (v1).
             var valued = kept.Select(u => (Value: sort == "job_title" ? Fields(u).Title : Fields(u).Department, User: u)).ToList();
-            var known = valued.Where(p => p.Value.Length > 0).OrderBy(p => p.Value.ToUpperInvariant().ToLowerInvariant(), StringComparer.Ordinal).ThenBy(p => p.User.UserKey, StringComparer.Ordinal).ToList();
+            var known = valued.Where(p => p.Value.Length > 0).OrderBy(p => p.Value.PyCasefold(), StringComparer.Ordinal).ThenBy(p => p.User.UserKey, StringComparer.Ordinal).ToList();
             if (descending) known.Reverse();
             return [.. known.Select(p => p.User), .. valued.Where(p => p.Value.Length == 0).Select(p => p.User).OrderBy(u => u.UserKey, StringComparer.Ordinal)];
         }

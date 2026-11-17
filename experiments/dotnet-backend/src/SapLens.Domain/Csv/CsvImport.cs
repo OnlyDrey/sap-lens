@@ -63,7 +63,7 @@ public sealed class CsvImport
         Report = new ImportReport { FileName = Path.GetFileName(path), ImportProfile = profile.Id, ImportVersion = profile.Version };
     }
 
-    public static string NormalizedHeader(string value) => new(value.ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+    public static string NormalizedHeader(string value) => new(value.PyLower().Where(char.IsLetterOrDigit).ToArray());
 
     /// <summary>Port of inspect_header: reads only the first 64 KiB, never the records. Duplicate or empty headers and an undetected required field are
     /// reported as issues (not errors), so the user can fix the mapping before importing.</summary>

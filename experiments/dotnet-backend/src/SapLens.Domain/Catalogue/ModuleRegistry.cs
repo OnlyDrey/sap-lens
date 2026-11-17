@@ -25,7 +25,7 @@ public static class ModuleRegistry
         .ToDictionary(x => x.Key, x => x.Id, StringComparer.Ordinal);
     private static readonly Dictionary<string, string> Names = Rows.ToDictionary(r => r.Id, r => r.Name, StringComparer.Ordinal);
 
-    public static string Normalize(string? value) => (value ?? "").Trim().ToUpperInvariant().Replace('_', '-').Replace(" ", "", StringComparison.Ordinal);
+    public static string Normalize(string? value) => (value ?? "").Trim().PyUpper().Replace('_', '-').Replace(" ", "", StringComparison.Ordinal);
     public static string? Resolve(string? value) => Lookup.GetValueOrDefault(Normalize(value));
     public static string Name(string id) => Names.GetValueOrDefault(id, id);
 }

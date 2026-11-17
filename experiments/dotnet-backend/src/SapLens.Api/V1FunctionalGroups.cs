@@ -74,14 +74,14 @@ public static class V1FunctionalGroups
             if (data["groups"]![gid] is not JsonObject group) return Detail(404, "Functional Group not found.");
             var (snapshot, directory) = await StateAsync(http, ct);
             var owners = directory is null ? null : EmployeeDirectory.SapEmailOwners(snapshot.Users.Users.Values);
-            var people = snapshot.Users.Users.Values.ToDictionary(u => u.Username.Trim().ToUpperInvariant(), u => u);
+            var people = snapshot.Users.Users.Values.ToDictionary(u => u.Username.Trim().PyUpper(), u => u);
             var needle = Fold((search ?? "").Trim());
             var rows = new List<JsonObject>();
             foreach (var (_, user) in data["users"]!.AsObject())
             {
                 if (user!["memberships"]![gid] is not JsonObject member) continue;
                 var username = (string)user["username"]!;
-                people.TryGetValue(username.Trim().ToUpperInvariant(), out var sap);
+                people.TryGetValue(username.Trim().PyUpper(), out var sap);
                 Dictionary<string, object?>? employee = null;
                 var identity = "not_in_import";
                 if (sap is not null)
@@ -289,7 +289,7 @@ public static class V1FunctionalGroups
     private static IResult Json(JsonNode value) => Results.Content(value.ToJsonString(), "application/json");
     private static IResult Detail(int status, object detail) => Results.Json(new { detail }, statusCode: status);
     private static IResult Errors(List<object> errors) => Results.Json(new { detail = errors }, statusCode: 422);
-    private static string Fold(string text) => text.ToUpperInvariant().ToLowerInvariant();
+    private static string Fold(string text) => SapLens.Domain.Text.PythonText.Casefold(text);
 
     private static async Task<(JsonObject? Body, IResult? Invalid)> Body(HttpContext http, string[] fields, CancellationToken ct)
     {
@@ -408,7 +408,7 @@ public static class V1FunctionalGroups
     }
 
     private static SapUser? Known(Snapshot snapshot, string username) =>
-        snapshot.Users.Users.Values.FirstOrDefault(u => u.Username.Trim().ToUpperInvariant() == username.Trim().ToUpperInvariant());
+        snapshot.Users.Users.Values.FirstOrDefault(u => u.Username.Trim().PyUpper() == username.Trim().PyUpper());
 
     /// <summary>sync_organizational_changes: applies stored Directory change events to classified users. Never fails a read.</summary>
     public static async Task SyncOrganizationalChangesAsync(IServiceProvider services, Snapshot snapshot, EmployeeDirectory? directory, CancellationToken ct)
@@ -421,11 +421,11 @@ public static class V1FunctionalGroups
             var changes = await services.GetRequiredService<PositionChangeStore>().ReadAsync(ct);
             if (changes["events"]!.AsArray().Count == 0 && changes["manager_events"]!.AsArray().Count == 0) return;
             var owners = EmployeeDirectory.SapEmailOwners(snapshot.Users.Users.Values);
-            var classified = data["users"]!.AsObject().Select(p => ((string)p.Value!["username"]!).Trim().ToUpperInvariant()).ToHashSet();
+            var classified = data["users"]!.AsObject().Select(p => ((string)p.Value!["username"]!).Trim().PyUpper()).ToHashSet();
             var emails = new Dictionary<string, string>();
             foreach (var user in snapshot.Users.Users.Values)
-                if (classified.Contains(user.Username.Trim().ToUpperInvariant()) && directory.MatchSapIdentity(user, owners) is ("matched", { } employee) && (string?)employee["email"] is { Length: > 0 } mail)
-                    emails[user.Username.Trim().ToUpperInvariant()] = PositionChanges.NormalizeText(mail);
+                if (classified.Contains(user.Username.Trim().PyUpper()) && directory.MatchSapIdentity(user, owners) is ("matched", { } employee) && (string?)employee["email"] is { Length: > 0 } mail)
+                    emails[user.Username.Trim().PyUpper()] = PositionChanges.NormalizeText(mail);
             await store.ApplyOrganizationalChangesAsync(emails, changes["events"]!.AsArray().OfType<JsonObject>(), changes["manager_events"]!.AsArray().OfType<JsonObject>(), ct);
         }
         catch (Exception error) when (error is not OperationCanceledException)
@@ -455,7 +455,7 @@ public static class V1FunctionalGroups
 
     /// <summary>group_keys: the id of every group the user belongs to, or "unassigned".</summary>
     public static IReadOnlyList<string> GroupKeys(IReadOnlyDictionary<string, JsonObject> classes, string username) =>
-        classes.TryGetValue(username.Trim().ToUpperInvariant(), out var record) && record["group_ids"]!.AsArray().Count > 0
+        classes.TryGetValue(username.Trim().PyUpper(), out var record) && record["group_ids"]!.AsArray().Count > 0
             ? record["group_ids"]!.AsArray().Select(n => (string)n!).ToList() : ["unassigned"];
 
     /// <summary>organization.options: Functional Group and manager choices with SAP user counts.</summary>
@@ -564,7 +564,7 @@ public static class V1FunctionalGroups
         foreach (var row in eligible)
         {
             if (!Applies(rule, row)) continue;
-            var groups = classes.TryGetValue(row.Username.Trim().ToUpperInvariant(), out var record) ? record["memberships"]!.AsArray().Select(m => m!["group"]!.DeepClone()).ToList() : [];
+            var groups = classes.TryGetValue(row.Username.Trim().PyUpper(), out var record) ? record["memberships"]!.AsArray().Select(m => m!["group"]!.DeepClone()).ToList() : [];
             var member = groups.Any(g => (string?)g!["id"] == (string?)rule["group_id"]);
             if (onlyNew && member) continue;
             if (needle.Length > 0 && !Fold(string.Join(' ', row.Username, row.FullName, row.Department, row.Title)).Contains(needle, StringComparison.Ordinal)) continue;
@@ -586,17 +586,17 @@ public static class V1FunctionalGroups
         var roles = new Dictionary<string, string>(StringComparer.Ordinal);
         foreach (var assignment in user.Assignments)
             if (SapDates.IntervalStatus(assignment.ValidFrom, assignment.ValidTo, today) == "active")
-                roles.TryAdd(string.Concat(assignment.RoleName.Where(c => !char.IsWhiteSpace(c))).ToUpperInvariant(), assignment.RoleName);
+                roles.TryAdd(string.Concat(assignment.RoleName.Where(c => !char.IsWhiteSpace(c))).PyUpper(), assignment.RoleName);
         return roles;
     }
 
     public static JsonObject Analyse(UserDirectory users, IReadOnlyList<string> members, JsonObject group, DateOnly today)
     {
-        var byName = users.Users.Values.ToDictionary(u => u.Username.Trim().ToUpperInvariant(), u => u);
+        var byName = users.Users.Values.ToDictionary(u => u.Username.Trim().PyUpper(), u => u);
         var eligible = new Dictionary<string, Dictionary<string, string>>();
         foreach (var name in members.OrderBy(Fold, StringComparer.Ordinal))
-            if (byName.TryGetValue(name.Trim().ToUpperInvariant(), out var user)) eligible[user.Username] = ActiveRoles(user, today);
-        var missing = members.Where(n => !byName.ContainsKey(n.Trim().ToUpperInvariant())).Order(StringComparer.Ordinal).ToList();
+            if (byName.TryGetValue(name.Trim().PyUpper(), out var user)) eligible[user.Username] = ActiveRoles(user, today);
+        var missing = members.Where(n => !byName.ContainsKey(n.Trim().PyUpper())).Order(StringComparer.Ordinal).ToList();
         var limitations = new JsonArray();
         if (missing.Count > 0) limitations.Add($"{missing.Count} classified member(s) are not in the SAP user import and were not compared.");
         if (eligible.Count < MinMembers) limitations.Add($"Only {eligible.Count} comparable member(s): at least {MinMembers} are needed before common and uncommon roles mean anything.");
@@ -626,7 +626,7 @@ public static class V1FunctionalGroups
         var compared = new JsonArray();
         foreach (var username in eligible.Keys.OrderBy(Fold, StringComparer.Ordinal))
         {
-            var record = byName[username.Trim().ToUpperInvariant()];
+            var record = byName[username.Trim().PyUpper()];
             var names = record.Names.FirstOrDefault(n => n.First.Length > 0 || n.Last.Length > 0);
             var statuses = record.Accounts.Select(a => SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today)).Distinct().Order(StringComparer.Ordinal);
             compared.Add(new JsonObject

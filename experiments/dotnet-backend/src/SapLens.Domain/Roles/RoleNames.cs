@@ -14,7 +14,7 @@ public static partial class RoleNames
         var builder = new StringBuilder(value?.Length ?? 0);
         foreach (var c in value ?? "")
             if (!char.IsWhiteSpace(c) && c is not ('\u001c' or '\u001d' or '\u001e' or '\u001f')) builder.Append(c);
-        return builder.ToString().ToUpperInvariant();
+        return builder.ToString().PyUpper();
     }
 
     public static string Scope(string? value)
@@ -35,5 +35,5 @@ public static partial class RoleNames
         return new ReleaseRole(true, g[2].Value, g[3].Value, g[4].Value, g[1].Value, g[5].Value);
     }
 
-    public static string NormalizeUsername(string? value) => (value ?? "").Trim().ToUpperInvariant();
+    public static string NormalizeUsername(string? value) => (value ?? "").Trim().PyUpper();
 }

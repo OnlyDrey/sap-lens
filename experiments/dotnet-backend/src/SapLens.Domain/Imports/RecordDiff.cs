@@ -29,10 +29,10 @@ public static class RecordDiff
             // Email is deliberately not a record identity. v1 tests the raw values (`row.get(DN) or row.get(SAM)`) and normalizes the chosen one.
             var dn = row.GetValueOrDefault("DistinguishedName", "");
             var value = dn.Length > 0 ? dn : row.GetValueOrDefault("SamAccountName", "");
-            return value.Length > 0 ? [dn.Length > 0 ? "dn" : "sam", value.Trim().ToUpperInvariant().ToLowerInvariant()] : null;
+            return value.Length > 0 ? [dn.Length > 0 ? "dn" : "sam", value.Trim().PyCasefold()] : null;
         }
         if (source == "sod") return SodFields.Select(f => row.GetValueOrDefault(f, "")).ToArray();
-        return (source == "roles" ? RoleFields : UserFields).Select(f => row.GetValueOrDefault(f, "").Trim().ToUpperInvariant()).ToArray();
+        return (source == "roles" ? RoleFields : UserFields).Select(f => row.GetValueOrDefault(f, "").Trim().PyUpper()).ToArray();
     }
 
     private static string Identity(IReadOnlyDictionary<string, string> row) =>

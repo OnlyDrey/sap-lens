@@ -54,7 +54,7 @@ public static class V1SodCatalogue
 
     private static IResult Detail(int status, string detail) => Results.Json(new { detail }, statusCode: status);
     private static IResult Json(JsonNode node) => Results.Content(node.ToJsonString(), "application/json");
-    private static string Fold(string? value) => (value ?? "").ToUpperInvariant().ToLowerInvariant();
+    private static string Fold(string? value) => (value ?? "").PyLower();
     private static string Stamp(TimeProvider clock) => clock.GetUtcNow().UtcDateTime.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'", CultureInfo.InvariantCulture);
     private static JsonNode ToNode(object? value) => JsonNode.Parse(CanonicalJson.Serialize(value))!;
 
@@ -341,7 +341,7 @@ public static class V1SodCatalogue
             value = value.Trim();
             if (name == "color")
             {
-                value = value.ToLowerInvariant();
+                value = value.PyLower();
                 if (value.Length > 0 && !System.Text.RegularExpressions.Regex.IsMatch(value, "^#[0-9a-f]{6}$")) { errors.Add(V1Validation.Error("value_error", name, "Value error, Color must be empty or a #rrggbb value.", path)); continue; }
             }
             result[name] = value;

@@ -5,7 +5,8 @@ WHICH EXECUTABLE
   desktop\SapLens2Prototype.exe  One user on this PC. Double-click; needs the Microsoft Edge WebView2 Runtime. Data and logs go to
                                  %LOCALAPPDATA%\SAP Lens 2 Prototype. It extracts its native libraries to a temporary folder at start.
   server\SapLens.Api.exe         Browser access from this PC or the LAN. Keep e_sqlite3.dll and libSkiaSharp.dll next to it. Console or Windows service.
-  No .NET installation is needed. symbols\ holds debugging symbols only.
+  No .NET installation is needed. Requires Windows 10 1903 / Windows Server 2019 or later (system ICU for Unicode text).
+  symbols\ holds debugging symbols only.
 
 SERVER QUICK START
   server\SapLens.Api.exe --help        all options and environment variables

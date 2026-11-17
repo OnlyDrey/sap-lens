@@ -103,8 +103,8 @@ public static class SodScope
 
     public static IResult Problem(int status, object detail) => Results.Json(new { detail }, statusCode: status);
 
-    public static bool Flag(string? value) => (value ?? "").ToLowerInvariant() is "true" or "1" or "yes" or "on";
-    private static bool? ParseBool(string? value) => value is null ? false : value.ToLowerInvariant() switch
+    public static bool Flag(string? value) => (value ?? "").PyLower() is "true" or "1" or "yes" or "on";
+    private static bool? ParseBool(string? value) => value is null ? false : value.PyLower() switch
     {
         "true" or "1" or "yes" or "on" or "t" or "y" => true, "false" or "0" or "no" or "off" or "f" or "n" => false, _ => null,
     };
@@ -444,8 +444,8 @@ public static class SodScope
         if (keep is null) return q;
         var universe = Model(await LoadAsync(services, q.Context, q.Validity, q.AsOf, ct)).Keys;
         var people = snapshot.Users.UserOrder.Select(k => snapshot.Users.Users[k]).ToList();
-        var known = people.Select(u => u.Username.Trim().ToUpperInvariant()).ToHashSet(Ordinal);
-        var extra = universe.Where(n => !known.Contains(n.Trim().ToUpperInvariant())).Select(n => new SapUser { Username = n });
+        var known = people.Select(u => u.Username.Trim().PyUpper()).ToHashSet(Ordinal);
+        var extra = universe.Where(n => !known.Contains(n.Trim().PyUpper())).Select(n => new SapUser { Username = n });
         var allowed = people.Concat(extra).Where(keep).Select(u => u.Username).ToList();
         if (q.L("usernames").Count > 0)
         {

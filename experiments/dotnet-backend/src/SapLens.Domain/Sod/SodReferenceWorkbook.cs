@@ -49,7 +49,7 @@ public static partial class SodReferenceWorkbook
             var files = archive.Entries;
             if (files.Count > 100 || files.Select(f => f.FullName).Distinct(StringComparer.Ordinal).Count() != files.Count || files.Sum(f => f.Length) > MaxExpanded)
                 throw new ReferenceWorkbookException("Workbook exceeds safe archive limits.");
-            if (files.Any(f => f.FullName.ToLowerInvariant().Contains("externallinks/") || f.FullName.ToLowerInvariant().Contains("vbaproject")))
+            if (files.Any(f => f.FullName.PyLower().Contains("externallinks/") || f.FullName.PyLower().Contains("vbaproject")))
                 throw new ReferenceWorkbookException("External links and macros are not supported.");
 
             XElement Xml(string name)
@@ -59,7 +59,7 @@ public static partial class SodReferenceWorkbook
                 using var memory = new MemoryStream();
                 stream.CopyTo(memory);
                 var data = memory.ToArray();
-                var upper = Encoding.Latin1.GetString(data).ToUpperInvariant();
+                var upper = Encoding.Latin1.GetString(data).PyUpper();
                 if (upper.Contains("<!DOCTYPE", StringComparison.Ordinal) || upper.Contains("<!ENTITY", StringComparison.Ordinal))
                     throw new ReferenceWorkbookException("XML declarations are not supported.");
                 using var reader = XmlReader.Create(new MemoryStream(data), new XmlReaderSettings { DtdProcessing = DtdProcessing.Prohibit, XmlResolver = null });

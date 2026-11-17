@@ -23,7 +23,7 @@ public static class ImportChecks
     };
     private const int GroupMinRows = 5;
 
-    private static string Norm(string? value) => (value ?? "").Trim().ToLowerInvariant();
+    private static string Norm(string? value) => (value ?? "").Trim().PyCasefold();
 
     public static Dictionary<string, int> Metrics(string source, IReadOnlyList<IReadOnlyDictionary<string, string>> rows)
     {

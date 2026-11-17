@@ -52,7 +52,7 @@ public static class V1DataHealth
         {
             var u = state.Users.Users[key];
             Dictionary<string, object?> Row() => new() { ["identifier"] = u.Username, ["username"] = u.Username, ["source"] = "users", ["destination"] = "user" };
-            if (u.Accounts.Any(a => (a.UserType ?? "").ToUpperInvariant() is not ("A" or "B" or "C" or "S" or "L"))) findings["unknown_type"].Add(Row());
+            if (u.Accounts.Any(a => (a.UserType ?? "").PyUpper() is not ("A" or "B" or "C" or "S" or "L"))) findings["unknown_type"].Add(Row());
             if (u.Names.Where(n => n.First.Length > 0 || n.Last.Length > 0).Distinct().Count() > 1 || u.Emails.Count > 1 || u.Accounts.Count > 1) findings["conflicting_identity"].Add(Row());
         }
         return findings;

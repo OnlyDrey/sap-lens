@@ -35,14 +35,14 @@ public static class RoleLookup
                 include.SelectMany(code => TransactionFilters.MatchingCodes(index, code)).Where(actual => index[actual].Contains(r.AgrName)).Distinct().Order(StringComparer.Ordinal).ToList()));
             if (!string.IsNullOrWhiteSpace(q.Search))
             {
-                var query = q.Search.Trim().ToLowerInvariant();
+                var query = q.Search.Trim().PyLower();
                 result = result.Where(r => TextMatching.TextMatches(r.AgrName, query) || TextMatching.TextMatches(r.Text, query));
             }
             return result.ToList();
         }
         if (!string.IsNullOrWhiteSpace(q.Tcode))
         {
-            var query = q.Tcode.Trim().ToUpperInvariant();
+            var query = q.Tcode.Trim().PyUpper();
             bool Hit(string code) => query.Contains('*') ? TextMatching.TextMatches(code, query) : code.StartsWith(query, StringComparison.Ordinal);
             var matching = index.Where(p => Hit(p.Key)).SelectMany(p => p.Value).ToHashSet(StringComparer.Ordinal);
             var found = new List<RoleSummary>();
@@ -51,15 +51,15 @@ public static class RoleLookup
                 var seen = new HashSet<string>(StringComparer.Ordinal);
                 var codes = new List<string>();
                 foreach (var tc in r.SingleRoles.SelectMany(s => s.Tcodes))
-                    if (!seen.Contains(tc.Code) && Hit(tc.Code.ToUpperInvariant())) { codes.Add(tc.Code); seen.Add(tc.Code); }
+                    if (!seen.Contains(tc.Code) && Hit(tc.Code.PyUpper())) { codes.Add(tc.Code); seen.Add(tc.Code); }
                 found.Add(Summary(r, codes));
             }
             // Python's sorted() is stable: ties keep catalogue order.
-            return found.OrderBy(x => (x.Text ?? x.AgrName).ToLowerInvariant(), StringComparer.Ordinal).ToList();
+            return found.OrderBy(x => (x.Text ?? x.AgrName).PyLower(), StringComparer.Ordinal).ToList();
         }
         if (!string.IsNullOrWhiteSpace(q.Search))
         {
-            var query = q.Search.Trim().ToLowerInvariant();
+            var query = q.Search.Trim().PyLower();
             roles = roles.Where(r => TextMatching.TextMatches(r.Text, query) || TextMatching.TextMatches(r.AgrName, query));
         }
         return roles.Select(r => Summary(r, [])).ToList();

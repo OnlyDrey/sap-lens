@@ -100,7 +100,7 @@ system-wide .NET.
 | Criterion | Windows Desktop | Windows Server | Linux Server |
 | --- | --- | --- | --- |
 | Build complexity | One `dotnet publish`; cross-compiles from Linux. Low. | Same. Low. | Same. Low. |
-| Runtime dependencies | WebView2 Runtime only | None | glibc, ICU optional (`InvariantGlobalization` on) |
+| Runtime dependencies | WebView2 Runtime; ICU from Windows 10 1903 or later | ICU from Windows Server 2019 or later | glibc and ICU (`libicu`, required) |
 | Size | 154 MB single exe (UI embedded) | 115 MB, 356 files | 114 MB, 353 files |
 | Startup reliability | Not measured on Windows [U]. Single-file extracts native libraries to a temp folder on first run unless `IncludeNativeLibrariesForSelfExtract` is avoided; a one-dir layout avoids extraction entirely | Not measured [U] | Cold start to ready 1.3 to 1.8 s, warm 1.2 to 1.4 s [M] |
 | Install / upgrade | Copy or MSIX/MSI (not built); data directory and schema migrations are independent of the binary, with a protected migration backup | Same; service registration via `UseWindowsService` + `sc.exe`/installer | Package + systemd unit |
@@ -108,6 +108,20 @@ system-wide .NET.
 | AV / App Control | **Unsigned binaries face the same App Control enforcement v1 and the Go experiment hit.** .NET does not change this. Signing all shipped PE files and an IT publisher rule remain mandatory. Single-file reduces the number of PE files to sign but self-extraction of native libraries can trigger AV heuristics; one-dir is the safer default under App Control | Same | n/a |
 | Signing | One exe (single-file) or every PE (one-dir) with Authenticode | Every PE | Optional (package signing) |
 | Runtime lifecycle | Self-contained: the runtime is patched only by shipping a new build. .NET 10 LTS support ends November 2028; plan monthly servicing rebuilds | Same | Same |
+
+## Unicode and ICU (runtime requirement)
+
+SAP Lens 2 builds with `InvariantGlobalization=false`: Unicode normalization (NFKC, used for Employee Directory and Functional Group text) and IANA time
+zones need ICU at runtime.
+
+- **Windows:** Windows 10 1903, Windows Server 2019 and later include ICU (`icu.dll`); nothing to install.
+- **Linux:** install the distribution's ICU package (`libicu` on Debian/Ubuntu, for example `libicu74`; `libicu` on RHEL-compatible systems).
+- **Startup check:** the server and the Desktop stop with `startup refused` and an explanation when ICU is missing or `DOTNET_SYSTEM_GLOBALIZATION_INVARIANT`
+  is set, instead of running with different text handling. The startup log names the ICU version.
+
+Case mapping does not depend on the installed ICU version: `str.casefold()`, `str.upper()` and `str.lower()` (full mappings, for example `ß` to `SS`) use
+tables generated from Python 3.12 (Unicode 15.0.0) by `experiments/dotnet-backend/tools/casefold_table.py`, so Norwegian and international names fold
+exactly as in SAP Lens 1. All sorting is ordinal (code point order, as in SAP Lens 1), never culture-dependent.
 
 ## Native AOT (evaluation only, not built)
 

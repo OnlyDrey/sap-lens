@@ -172,6 +172,6 @@ public static partial class AccessPackage
         var unique = new Dictionary<string, string[]>(StringComparer.Ordinal);
         foreach (var row in rows.Reverse())
             if (!string.IsNullOrEmpty(row.Name) && row.Exportable) unique[row.Name] = [row.Name, row.Description, row.Suffix, ValidationLabel[row.Validation]];
-        return [.. unique.Values.OrderBy(v => v[0].ToUpperInvariant().ToLowerInvariant(), StringComparer.Ordinal).ThenBy(v => v[0], StringComparer.Ordinal)];
+        return [.. unique.Values.OrderBy(v => v[0].PyCasefold(), StringComparer.Ordinal).ThenBy(v => v[0], StringComparer.Ordinal)];
     }
 }

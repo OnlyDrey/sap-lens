@@ -11,7 +11,7 @@ public static class TransactionFilters
         var list = values.ToList();
         if (list.Count > 21) throw new DomainValidationException("At most 20 saved transaction filters and one draft are supported.");
         if (list.Any(v => v.Length > 128)) throw new DomainValidationException("Transaction filters must not exceed 128 characters.");
-        return list.Select(v => v.Trim().ToUpperInvariant()).Where(v => v.Length > 0).Distinct().ToList();
+        return list.Select(v => v.Trim().PyUpper()).Where(v => v.Length > 0).Distinct().ToList();
     }
 
     public static IEnumerable<string> MatchingCodes<T>(IReadOnlyDictionary<string, T> index, string query) =>

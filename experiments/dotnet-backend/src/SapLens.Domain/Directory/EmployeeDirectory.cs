@@ -21,7 +21,7 @@ public sealed class EmployeeDirectory
     public Dictionary<string, Dictionary<string, List<int>>> Indexes { get; } = new(StringComparer.Ordinal);
 
     /// <summary>Python str.strip().casefold() for the identifiers in this file (emails, DNs, account names).</summary>
-    public static string Normalized(string? value) => (value ?? "").Trim().ToUpperInvariant().ToLowerInvariant();
+    public static string Normalized(string? value) => (value ?? "").Trim().PyCasefold();
 
     public EmployeeDirectory(IReadOnlyList<IReadOnlyDictionary<string, string>> rows, string fileName, string digest, string importedAt)
     {
