@@ -118,10 +118,13 @@ read -r -d '' bootstrap <<PWSH || true
 \$sha = @(& \$git @('rev-parse', \$(if (\$commit) { "\$commit^{commit}" } else { "origin/\$branch^{commit}" })))[0]
 Write-Host "locked commit \$sha (\$branch)"
 \$dir = Join-Path ([System.IO.Path]::GetTempPath()) ('saplens-deploy-' + \$sha.Substring(0, 12))
-\$deploy = Join-Path \$dir 'experiments/dotnet-backend/scripts/deploy'
+# The .NET project is experiments/dotnet-backend, or backend/ after the promotion; take the deployment scripts from whichever the commit has.
+\$source = @(& \$git @('ls-tree', '-d', '--name-only', \$sha, '--', 'experiments/dotnet-backend/scripts/deploy', 'backend/scripts/deploy'))[0]
+if (-not \$source) { throw "commit \$sha has no Windows deployment scripts" }
+\$deploy = Join-Path \$dir \$source
 if (-not (Test-Path -LiteralPath \$deploy)) {
   New-Item -ItemType Directory -Force \$dir | Out-Null
-  \$null = & \$git @('archive', '--format=zip', '-o', (Join-Path \$dir 'deploy.zip'), \$sha, 'experiments/dotnet-backend/scripts/deploy')
+  \$null = & \$git @('archive', '--format=zip', '-o', (Join-Path \$dir 'deploy.zip'), \$sha, \$source)
   Expand-Archive -LiteralPath (Join-Path \$dir 'deploy.zip') -DestinationPath \$dir -Force
 }
 # Commits before the rename to SAP Lens carry Deploy-SapLens2.ps1.

@@ -1,8 +1,15 @@
-# Versioning and release identity (SAP Lens 2)
+# Versioning and release identity (SAP Lens .NET, 2.x)
 
 SAP Lens 2 (the .NET Server and Desktop) has its own product version, independent of SAP Lens v1. Decision of 2026-11-16: SAP Lens 2 is the
 next major version of the product in pre-release, so it uses its own `2.0.0-alpha.N` line instead of sharing v1's version or keeping the
 former placeholder `0.0.0-experiment`.
+
+**Name (2026-11-17):** the product is branded **SAP Lens** everywhere a person sees it (assembly product, `--version`, window title, installers,
+OpenAPI title); the version alone says it is the 2.x line. Executables: `SapLens.exe` (Desktop), `SapLens.Api.exe` (Server); installers
+`SAP-Lens-<version>-Setup.exe` and `SAP-Lens-Server-<version>-Setup.exe`; service `SapLens`. Identifiers that existing data or installations depend on
+keep their earlier value: the backup archive's manifest product and key-derivation label (`SAP Lens 2 ...`), the `SapLens2` service until it is
+migrated ([WINDOWS_DEPLOYMENT.md](WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-saplens)), the `SAP Lens 2 Prototype` Desktop folder when it exists,
+and the `SAPLENS2_DEPLOY_CONFIG` variable (still read).
 
 ## Three different things
 
@@ -20,11 +27,11 @@ The Windows file version follows the v1 contract: `MAJOR.MINOR.PATCH.N` with the
 
 | Place | Value |
 | --- | --- |
-| Assemblies (Server, Desktop and all libraries; `Directory.Build.props`) | `AssemblyInformationalVersion` `2.0.0-alpha.1+<commit>`, `FileVersion` `2.0.0.1`, `AssemblyVersion` `2.0.0.0`, product `SAP Lens 2` |
-| `SapLens.Api --version` | `SAP Lens 2 server 2.0.0-alpha.1`, then channel, commit (or "not recorded (local build)"), file version and runtime |
+| Assemblies (Server, Desktop and all libraries; `Directory.Build.props`) | `AssemblyInformationalVersion` `2.0.0-alpha.1+<commit>`, `FileVersion` `2.0.0.1`, `AssemblyVersion` `2.0.0.0`, product `SAP Lens` |
+| `SapLens.Api --version` | `SAP Lens server 2.0.0-alpha.1`, then channel, commit (or "not recorded (local build)"), file version and runtime |
 | `GET /api/version`, `/api/application-info`, `/api/diagnostics` | `version` = product version; application-info also `channel`, `file_version`, `source_sha` |
 | `GET /product-version.json` | The .NET host's identity (`product`, `version`, `base_version`, `channel`, `file_version`, `source_sha`). The file the React build emits carries v1's identity and is not served by the .NET host |
-| Desktop log | `Desktop starting (SAP Lens 2 2.0.0-alpha.1, commit …, file version 2.0.0.1, …)` |
+| Desktop log | `Desktop starting (SAP Lens 2.0.0-alpha.1, commit …, file version 2.0.0.1, …)` |
 | Release folder | `SAP-Lens-2.0.0-alpha.1-<UTC time>-<commit>-win-x64` |
 | `build-manifest.json` | `product`, `version`, `channel`, `file_version`, `ui_source_version` (v1's version the embedded UI was built with, recorded only), `source_sha`, `source_dirty`, build time |
 

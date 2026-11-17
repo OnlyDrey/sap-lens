@@ -1,4 +1,4 @@
-# SAP Lens 2.0: .NET backend prototype
+# SAP Lens .NET backend (2.0.0 pre-release)
 
 Status: architecture experiment on branch `experiment/dotnet-backend`. Not a product release, not merged into `work` or `main`, and not a
 replacement of any production installer, launcher, workflow or version. Production code under `backend/`, `frontend/`, `scripts/` and
@@ -28,6 +28,8 @@ Evidence tags used in every document: **[M]** measured on Linux x64 in this envi
 | [VERSIONING.md](VERSIONING.md) | Product version (`2.0.0-alpha.N`, independent of v1), channel and build identity; where each appears; release policy |
 | [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md) | Windows test VM runbook: native release build, test launcher (`scripts/start-server-test.ps1`), manual start, HTTPS and TLS checks, firewall, logs, restart, and the acceptance levels (build is not runtime acceptance) |
 | [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | How v1 data, decisions and evidence move, with rollback |
+| [WINDOWS_DEPLOYMENT.md](WINDOWS_DEPLOYMENT.md) | SSH-driven Windows test deployment (build, verify, back up, switch, verify, roll back, recover), `SapLens2` to `SapLens` service migration, Desktop and Server installers, acceptance checklist |
+| [BACKEND_PROMOTION.md](BACKEND_PROMOTION.md) | Promotion of the .NET backend to `backend/` and retirement of the Python backend: gates, what is prepared, what is blocked |
 | [V1_MIGRATION.md](V1_MIGRATION.md) | Administrator procedure: SAP Lens 1 `.slbak` or data directory to SAP Lens 2 (Windows PowerShell), verification and rollback |
 
 ## Code
@@ -44,7 +46,8 @@ Everything lives in [`experiments/dotnet-backend`](../../../experiments/dotnet-b
 | `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
 | `tests/SapLens.Tests` | 300 xUnit tests: domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, v1 compatibility contracts (Data Sources, Access, Data Health, Dashboard, Saved Filters, Access Packages, accounts and sessions, Employee Directory, Account Review, SoD source metadata, catalogue, reference workbook and analysis), build integration (embedded UI, incremental embedding, release script order), publish acceptance (`Category=Publish`, slow) |
 | `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses, v1 reference-data export |
-| `scripts/` | `build-release.ps1` (Windows) and `build-release.sh` (Linux): UI build, .NET build and tests, self-contained single-file packages in a versioned release folder (`server/`, `desktop/`, `symbols/`, `build-manifest.json`, `README.txt`, `SHA256SUMS`); `verify-release.ps1`; `start-server-test.ps1` (test launcher); Pester tests in `scripts/tests` |
+| `installer/` | Inno Setup installers: `SapLens-Desktop.iss` (per user) and `SapLens-Server.iss` (machine), built by `scripts/build-installers.ps1` ([WINDOWS_DEPLOYMENT.md](WINDOWS_DEPLOYMENT.md#installers)) |
+| `scripts/` | `build-release.ps1` (Windows) and `build-release.sh` (Linux): UI build, .NET build and tests, self-contained single-file packages in a versioned release folder (`server/`, `desktop/`, `symbols/`, `build-manifest.json`, `README.txt`, `SHA256SUMS`); `verify-release.ps1`; `start-server-test.ps1` (test launcher); `deploy/` (SSH-driven Windows deployment); Pester and Bash tests in `scripts/tests` |
 
 ## Reproduce
 

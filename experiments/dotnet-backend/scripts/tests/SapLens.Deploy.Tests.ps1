@@ -148,6 +148,18 @@ Describe 'Source' {
         Resolve-SL2Commit $config 'experiment/dotnet-backend' '' | Should -Be ('e' * 40)
     }
 
+    It 'finds the .NET project under experiments\dotnet-backend today and under backend after the promotion' {
+        $tree = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
+        New-Item -ItemType Directory -Force (Join-Path $tree 'backend'), (Join-Path $tree 'experiments/dotnet-backend') | Out-Null
+        Set-Content (Join-Path $tree 'backend/requirements.txt') 'python backend'
+        { Get-SL2ProjectRoot $tree } | Should -Throw '*No .NET project*'
+        Set-Content (Join-Path $tree 'experiments/dotnet-backend/SapLens.slnx') '<Solution />'
+        Get-SL2ProjectRoot $tree | Should -Be ([System.IO.Path]::Combine($tree, 'experiments/dotnet-backend'))
+        Remove-Item -Recurse (Join-Path $tree 'experiments')
+        Set-Content (Join-Path $tree 'backend/SapLens.slnx') '<Solution />'
+        Get-SL2ProjectRoot $tree | Should -Be ([System.IO.Path]::Combine($tree, 'backend'))
+    }
+
     It 'refuses to reuse a modified build worktree' {
         $config = New-TestConfig
         $worktree = Join-Path (Join-Path $config.WorkRoot 'worktrees') ('b' * 12)

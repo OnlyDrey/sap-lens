@@ -263,6 +263,16 @@ function New-SL2Run($Config, [string]$Action) {
 
 # ---- source, build, validation
 
+# The .NET project inside a checkout: experiments\dotnet-backend today, backend\ after the promotion (BACKEND_PROMOTION.md). The Python backend has
+# no SapLens.slnx, so the choice is unambiguous.
+function Get-SL2ProjectRoot([string]$Worktree) {
+    foreach ($relative in 'experiments/dotnet-backend', 'backend') {
+        $candidate = Join-SL2 $Worktree $relative
+        if (Test-Path -LiteralPath (Join-SL2 $candidate 'SapLens.slnx')) { return $candidate }
+    }
+    Stop-SL2 "No .NET project (SapLens.slnx) in $Worktree under experiments\dotnet-backend or backend." 1
+}
+
 function Resolve-SL2Commit($Config, [string]$Branch, [string]$Commit) {
     if (-not $Branch) { $Branch = $Config.Branch }
     if ($Branch -in @('main', 'work')) { Stop-SL2 "Deployments are built from the development branch, not '$Branch'." }
@@ -301,7 +311,7 @@ function Get-SL2TestFilter([string]$Tests) {
 }
 
 function Invoke-SL2Build($Config, [string]$Worktree, [string]$Commit, [string]$Tests) {
-    $builder = Join-SL2 $Worktree 'experiments\dotnet-backend\scripts\build-release.ps1'
+    $builder = Join-SL2 (Get-SL2ProjectRoot $Worktree) 'scripts\build-release.ps1'
     $output = Join-SL2 (Join-SL2 $Config.WorkRoot 'builds') $Commit.Substring(0, 12)
     $arguments = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $builder, '-Output', $output)
     $filter = Get-SL2TestFilter $Tests
@@ -318,12 +328,12 @@ function Invoke-SL2Build($Config, [string]$Worktree, [string]$Commit, [string]$T
 
 # The release must be the requested commit and version, with every artifact matching its manifest and SHA256SUMS.
 function Test-SL2Release([string]$Release, [string]$Commit, [string]$Worktree) {
-    $verifier = Join-SL2 $Worktree 'experiments\dotnet-backend\scripts\verify-release.ps1'
+    $verifier = Join-SL2 (Get-SL2ProjectRoot $Worktree) 'scripts\verify-release.ps1'
     $shell = Get-SL2Shell
     $result = Invoke-SL2Process $shell @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $verifier, '-ReleasePath', $Release) (Join-SL2 $script:RunFolder 'verify.log')
     if ($result.ExitCode -ne 0) { Stop-SL2 "Release verification failed for $Release." 1 }
     $manifest = Get-Content -LiteralPath (Join-SL2 $Release 'build-manifest.json') -Raw | ConvertFrom-Json
-    $expected = (Get-Content -LiteralPath (Join-SL2 $Worktree 'experiments\dotnet-backend\product-version.json') -Raw | ConvertFrom-Json).version
+    $expected = (Get-Content -LiteralPath (Join-SL2 (Get-SL2ProjectRoot $Worktree) 'product-version.json') -Raw | ConvertFrom-Json).version
     if ($manifest.source_sha -ne $Commit) { Stop-SL2 "Release commit $($manifest.source_sha) is not the locked commit $Commit." 1 }
     if ($manifest.source_dirty) { Stop-SL2 'The release was built from a modified working tree.' 1 }
     if ($manifest.version -ne $expected) { Stop-SL2 "Release version $($manifest.version) is not product-version.json $expected." 1 }
