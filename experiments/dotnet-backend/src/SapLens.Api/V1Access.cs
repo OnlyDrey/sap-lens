@@ -62,9 +62,8 @@ public static class V1Access
             if (!Paging(q, 50, out var offset, out var limit)) return Detail(422, "offset must be ≥ 0 and limit between 1 and 100.");
             var snapshot = await snapshots.GetAsync(ct);
             var today = Today();
-            var result = UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today);
             var org = await OrganizationAsync(http, snapshot, ct);
-            result = org.Filter(result);
+            var result = org.Filter(UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today, org.DirectoryFields));
             var Row = org.Row;
             var anchor = q["anchor"].FirstOrDefault() ?? "";
             var pageItems = result.Skip(offset).Take(limit).ToList();
@@ -99,7 +98,8 @@ public static class V1Access
             if (Parse(http) is { Error: { } error }) return error;
             var (query, _, _) = Parse(http).Value;
             var snapshot = await snapshots.GetAsync(ct);
-            var result = (await OrganizationAsync(http, snapshot, ct)).Filter(UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, Today()));
+            var org = await OrganizationAsync(http, snapshot, ct);
+            var result = org.Filter(UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, Today(), org.DirectoryFields));
             const int cap = 5000;
             return Results.Ok(new { total = result.Count, usernames = result.Take(cap).Select(u => u.Username).ToList(), truncated = result.Count > cap, limit = cap, data_revision = Revision(snapshot) });
         });
@@ -112,8 +112,9 @@ public static class V1Access
             var snapshot = await snapshots.GetAsync(ct);
             if (snapshot.Ids.Users is null) return Detail(409, "No validated User Access dataset is loaded.");
             var today = Today();
-            var (found, evidence) = UserLookup.FindWithEvidence(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today);
-            var result = (await OrganizationAsync(http, snapshot, ct)).Filter(found);
+            var org = await OrganizationAsync(http, snapshot, ct);
+            var (found, evidence) = UserLookup.FindWithEvidence(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today, org.DirectoryFields);
+            var result = org.Filter(found);
             var rows = result.SelectMany(u => AuditAssignments(snapshot.Users.Users[u.UserKey], showExpired, status, today)
                 .Select(a => (Assignment: a, Identity: u, Matched: evidence.TryGetValue(u.UserKey, out var hit) && hit.Any(e => e.Id == a.Id)))).ToList();
             var csv = new System.Text.StringBuilder("\ufeff");
@@ -304,7 +305,8 @@ public static class V1Access
 
     /// <summary>The organizational context of a User Access request (MIG-004): the functional_groups / managers filter (organization.selection) and the
     /// row annotation (organization.annotate): Functional Group memberships and, for a user linked to exactly one Directory employee, job title and department.</summary>
-    private sealed record Organization(Func<List<UserSummary>, List<UserSummary>> Filter, Func<UserSummary, Dictionary<string, object?>> Row, Func<List<UserSummary>, JsonObject?> Feedback);
+    private sealed record Organization(Func<List<UserSummary>, List<UserSummary>> Filter, Func<UserSummary, Dictionary<string, object?>> Row, Func<List<UserSummary>, JsonObject?> Feedback,
+        Func<string, (string Title, string Department)> DirectoryFields);
 
     private static readonly System.Text.RegularExpressions.Regex Separators = new(@"[\s,;]+");
     private static readonly System.Text.RegularExpressions.Regex ValidUsername = new("^[^\\s@,;<>\"\\x00-\\x1f]{1,40}$");
@@ -397,9 +399,10 @@ public static class V1Access
         }
         var sort = q["sort"].FirstOrDefault() ?? "username";
         var descending = (q["descending"].FirstOrDefault() ?? "") is "true" or "True" or "1";
-        (string Title, string Department) Fields(UserSummary u)
+        (string Title, string Department) Fields(UserSummary u) => FieldsOf(u.UserKey);
+        (string Title, string Department) FieldsOf(string userKey)
         {
-            if (directory is not null && snapshot.Users.Users.TryGetValue(u.UserKey, out var sap) && directory.MatchSapIdentity(sap, owners!) is ("matched", { } employee))
+            if (directory is not null && snapshot.Users.Users.TryGetValue(userKey, out var sap) && directory.MatchSapIdentity(sap, owners!) is ("matched", { } employee))
                 return (((string?)employee["title"] ?? "").Trim(), ((string?)employee["department"] ?? "").Trim());
             return ("", "");
         }
@@ -430,7 +433,7 @@ public static class V1Access
                 ["limit"] = 500, ["exceeds_limit"] = parsed.Requested.Count > 500,
             };
         }
-        return new Organization(Filter, Row, Feedback);
+        return new Organization(Filter, Row, Feedback, FieldsOf);
     }
 
     /// <summary>source_info's report: v1's User Access import report (users.report without samples and file name) from the stored import report and the

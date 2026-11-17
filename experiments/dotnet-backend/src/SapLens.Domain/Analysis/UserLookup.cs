@@ -13,7 +13,7 @@ public sealed record UserSummary(string Username, string UserKey, IReadOnlyList<
 
 /// <summary>Port of the core of routers/access.directory_selection (User Access): search, SAP user groups (OR), roles (OR), transaction include
 /// and exclude groups, assignment validity, sorting. Not ported: username lists, missing-role, functional-group, manager and band filters and the
-/// employee-directory fields (no directory source in the prototype).</summary>
+/// Directory-dependent filters, which V1Access applies; the Directory job title and department reach the search through <c>directoryFields</c>.</summary>
 public static class UserLookup
 {
     public static IEnumerable<Assignment> MatchingEntries(UserDirectory state, string role = "", string tcode = "")
@@ -50,11 +50,12 @@ public static class UserLookup
             string.Join('/', statuses), lockStatus, entries.Where(a => a.Scope != "other").Select(a => RoleNames.Normalize(a.RoleName)).Distinct().Count());
     }
 
-    public static List<UserSummary> Find(UserDirectory state, bool catalogueAvailable, UserLookupQuery q, DateOnly today) =>
-        FindWithEvidence(state, catalogueAvailable, q, today).Result;
+    public static List<UserSummary> Find(UserDirectory state, bool catalogueAvailable, UserLookupQuery q, DateOnly today, Func<string, (string Title, string Department)>? directoryFields = null) =>
+        FindWithEvidence(state, catalogueAvailable, q, today, directoryFields).Result;
 
     /// <summary>directory_selection: the matching users and, per user key, the assignments that matched the filters (export MATCHED_FILTER).</summary>
-    public static (List<UserSummary> Result, Dictionary<string, List<Assignment>> Evidence) FindWithEvidence(UserDirectory state, bool catalogueAvailable, UserLookupQuery q, DateOnly today)
+    public static (List<UserSummary> Result, Dictionary<string, List<Assignment>> Evidence) FindWithEvidence(UserDirectory state, bool catalogueAvailable, UserLookupQuery q, DateOnly today,
+        Func<string, (string Title, string Department)>? directoryFields = null)
     {
         var wanted = TransactionFilters.Normalize(q.Tcode.Length > 0 ? [q.Tcode, .. q.Tcodes ?? []] : q.Tcodes ?? []);
         var (include, includeMode, excluded, excludedMode) = TransactionFilters.LegacyGroups(wanted, q.TransactionMode, q.ExcludeTransactions);
@@ -105,7 +106,12 @@ public static class UserLookup
             var user = state.Users[key];
             if (groupSet.Count > 0 && !groupSet.Overlaps(user.Groups)) continue;
             if ((roleList.Count > 0 || (include.Count > 0 && catalogueAvailable) || excluded.Count > 0 || q.Status.Length > 0) && !evidence.ContainsKey(key)) continue;
-            if (term.Length > 0 && !TextMatching.SearchFields(term, [user.Username, .. user.Groups, .. user.Emails, .. user.Names.Select(n => n.First + " " + n.Last), "", ""])) continue;
+            if (term.Length > 0)
+            {
+                // v1: the Directory job title and department of a matched employee take part in the free-text search.
+                var (title, department) = directoryFields?.Invoke(key) ?? ("", "");
+                if (!TextMatching.SearchFields(term, [user.Username, .. user.Groups, .. user.Emails, .. user.Names.Select(n => n.First + " " + n.Last), title, department])) continue;
+            }
             result.Add(Summary(user, evidence.GetValueOrDefault(key) ?? [], today));
         }
         IComparer<string> ordinal = StringComparer.Ordinal;

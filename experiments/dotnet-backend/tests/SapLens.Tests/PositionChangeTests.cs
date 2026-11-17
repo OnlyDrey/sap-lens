@@ -92,9 +92,15 @@ public sealed class PositionChangeTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync("/api/functional-groups/memberships", new { username = "USERP01", group_id = gid, reviewer = "Ada", expected_revision = 0 })).StatusCode);
         var before = await Row("USERP01");
         Assert.Null(before["position_change"]);
+        async Task<List<string>> Search(string term) => [.. JsonNode.Parse(await _client.GetStringAsync($"/api/access/users-selection?search={term}"))!["usernames"]!.AsArray().Select(u => (string)u!)];
+        Assert.DoesNotContain("USERP01", await Search("Sales"));
 
         await Select("employees", File.ReadAllText(Path.Combine(Fixtures, "changes_after.txt")));
         var row = await Row("USERP01");
+        // v1 directory_selection: the matched employee's Directory department and job title take part in the User Access free-text search.
+        Assert.Contains("USERP01", await Search("Sales"));
+        Assert.Contains("USERP01", await Search("Lead"));
+        Assert.Empty(await Search("NoSuchDepartment"));
         var change = row["position_change"]!.AsObject();
         Assert.True((bool)change["open"]!);
         Assert.Equal(["department", "title"], change["fields"]!.AsArray().Select(f => (string)f!));
