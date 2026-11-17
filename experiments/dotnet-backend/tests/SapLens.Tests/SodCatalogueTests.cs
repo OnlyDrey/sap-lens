@@ -215,6 +215,6 @@ public sealed class SodCatalogueTests : IAsyncLifetime
         Assert.Equal("admin", V1Auth.Permission("POST", "/api/sod/catalogue-activities/AP01"));
         Assert.Equal("read", V1Auth.Permission("GET", "/api/sod/catalogue"));
         Assert.Equal("admin", V1Auth.Permission("POST", "/api/sod/reference/upload"));
-        Assert.Equal("unknown", V1Auth.Permission("PUT", "/api/sod/reference")); // v1 maps every PUT to no permission: sessions cannot use it
+        Assert.Equal("admin", V1Auth.Permission("PUT", "/api/sod/reference"));   // v1 refused every PUT for sessions; SAP Lens 2 lets administrators save it
     }
 }
