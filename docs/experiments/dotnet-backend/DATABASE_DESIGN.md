@@ -31,6 +31,14 @@ test drops the trigger, edits a decision and shows the chain reports the exact b
 - Microsoft.Data.Sqlite, pooled, `Foreign Keys=True`, `Default Timeout` and an interceptor that sets `PRAGMA busy_timeout=15000` and
   `synchronous=NORMAL` on every opened connection; `journal_mode=WAL` is set once at initialization (persistent). [T]
 - Short-lived `DbContext` per operation (`IDbContextFactory`, pooled).
+- **A database file that is hashed, moved, replaced or deleted is opened without pooling.** A pooled connection keeps SQLite's file handle
+  open after its `DbContext` is disposed. Linux allows hashing and renaming such a file; Windows refuses (`The process cannot access the file
+  ... because it is being used by another process`). This broke every v1 migration run on Windows: the candidate was built and verified through
+  pooled contexts and then hashed with `File.OpenRead`, whose `FileShare.Read` conflicts with the open read-write handle. The migration now uses
+  `V1DataMigration.CandidateDb` (`Pooling=False`), so disposing the context closes the handle; `V1DataMigrationTests` assert through
+  `/proc/self/fd` that no file of the migration folder stays open after a run. Integrity checks, backups, the account store and the
+  maintenance commands already open their files without pooling or clear the pool first. Never use `SqliteConnection.ClearAllPools()` inside
+  a running server for this: it also drops the server's own idle connections. [T]
 - Explicit transactions for every write through `WriteCoordinator`: an in-process `SemaphoreSlim` (avoids busy-waiting between our own
   threads) **plus** a transaction that Microsoft.Data.Sqlite begins as `BEGIN IMMEDIATE`, so the cross-process guarantee comes from
   SQLite's file lock and never from the in-process lock alone.

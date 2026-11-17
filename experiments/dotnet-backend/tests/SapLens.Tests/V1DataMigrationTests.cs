@@ -88,10 +88,29 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
         Assert.True((string)preview["status"]! == "previewed", preview["blockers"]!.ToJsonString());
         var report = await V1DataMigration.RunAsync(Data, (string)preview["id"]!, (string)preview["digest"]!, "admin", Now);
         Assert.Equal("verified", (string)report["status"]!);
+        // The run holds no file of the migration folder open afterwards: Windows refuses to hash, move or delete a file another handle holds
+        // (the candidate database was left open by a pooled connection; see V1DataMigration.CandidateDb).
+        Assert.Empty(OpenFilesUnder(Path.Combine(Data, "migration")));
         V1DataMigration.RequestActivation(Data, (string)preview["id"]!, (string)preview["digest"]!, "admin", Now);
         await Start();
         Assert.Equal("activated", (string)V1DataMigration.Status(Data, (string)preview["id"]!)["status"]!);
         return (preview, report);
+    }
+
+    /// <summary>Files under <paramref name="folder"/> this process still has open. Linux lists every open descriptor in /proc/self/fd (SQLite keeps a
+    /// descriptor per open connection, pooled or not), so a leaked handle is visible here although Linux itself would still allow the hash and move.
+    /// Elsewhere the list is empty and the migration's own hash and move fail instead (as they did on Windows).</summary>
+    private static List<string> OpenFilesUnder(string folder)
+    {
+        if (!Directory.Exists("/proc/self/fd")) return [];
+        var prefix = Path.GetFullPath(folder) + Path.DirectorySeparatorChar;
+        var open = new List<string>();
+        foreach (var fd in Directory.GetFiles("/proc/self/fd"))
+        {
+            try { if (new FileInfo(fd).LinkTarget is { } target && target.StartsWith(prefix, StringComparison.Ordinal)) open.Add(target); }
+            catch (IOException) { }               // a descriptor closed while listing
+        }
+        return open;
     }
 
     /// <summary>Everything the fixture's v1 installation holds, read back through the SAP Lens 2 routes.</summary>
@@ -268,6 +287,7 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
         var id = (string)preview["id"]!;
         var digest = (string)preview["digest"]!;
         await V1DataMigration.RunAsync(Data, id, digest, "admin", Now);
+        Assert.Empty(OpenFilesUnder(Path.Combine(Data, "migration")));
 
         // A v1 change after the run (for example a new decision) is refused at activation, so nothing made in v1 meanwhile is lost.
         var settings = Path.Combine(Source, "saved-filters.json");
@@ -325,6 +345,9 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
         var preview = V1DataMigration.Preview(Source, Data, "", replaceExisting: false, Now);
         var report = await V1DataMigration.RunAsync(Data, (string)preview["id"]!, (string)preview["digest"]!, "admin", Now);
         Assert.Equal("verified", (string)report["status"]!);
+        // The run holds no file of the migration folder open afterwards: Windows refuses to hash, move or delete a file another handle holds
+        // (the candidate database was left open by a pooled connection; see V1DataMigration.CandidateDb).
+        Assert.Empty(OpenFilesUnder(Path.Combine(Data, "migration")));
         V1DataMigration.RequestActivation(Data, (string)preview["id"]!, (string)preview["digest"]!, "admin", Now);
         await Start();
         var page = await Get("/api/access/users?show_expired=true&search=SYNTH01234");

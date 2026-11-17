@@ -428,13 +428,22 @@ public static partial class V1DataMigration
 
     private static string AccountDigest(string username) => Sha(Encoding.UTF8.GetBytes(PythonJson.Dumps(JsonValue.Create(username.Trim().PyUpper()))));
 
-    private static async Task<JsonObject> BuildAsync(V1Data v1, string candidate, string actor, DateTimeOffset now, string backupName, string backupSha, long backupSize, CancellationToken ct)
+    /// <summary>A context on the candidate database whose connection is NOT pooled. The candidate is hashed, moved at activation and deleted on
+    /// failure; a pooled connection would keep SQLite's file handle open after the context is disposed, and Windows refuses to open (for the hash),
+    /// move or delete a file another handle holds with write access ("being used by another process"). Without pooling, disposing the context
+    /// closes the handle. Only this private file is affected: the server's pools and the active data are untouched (no ClearAllPools).</summary>
+    private static SapLensDb CandidateDb(string candidate)
     {
         var options = new DatabaseOptions { DataDirectory = candidate };
-        var builder = new DbContextOptionsBuilder<SapLensDb>();
-        options.Configure(builder);
+        var connection = new SqliteConnectionStringBuilder(options.ConnectionString) { Pooling = false }.ToString();
+        var builder = new DbContextOptionsBuilder<SapLensDb>().UseSqlite(connection).AddInterceptors(new SqlitePragmas(options.BusyTimeoutMs));
+        return new SapLensDb(builder.Options);
+    }
+
+    private static async Task<JsonObject> BuildAsync(V1Data v1, string candidate, string actor, DateTimeOffset now, string backupName, string backupSha, long backupSize, CancellationToken ct)
+    {
         var counts = new JsonObject();
-        await using (var db = new SapLensDb(builder.Options))
+        await using (var db = CandidateDb(candidate))
         {
             await db.Database.MigrateAsync(ct);
             await using var tx = await db.Database.BeginTransactionAsync(ct);
@@ -583,7 +592,6 @@ public static partial class V1DataMigration
             await tx.CommitAsync(ct);
             await db.Database.ExecuteSqlRawAsync("PRAGMA journal_mode = DELETE;", ct);
         }
-        SqliteConnection.ClearAllPools();
 
         // Files next to the database: accounts (sessions removed), branding, copied state files.
         if (v1.Accounts is not null)
@@ -615,10 +623,7 @@ public static partial class V1DataMigration
         var database = Path.Combine(candidate, ApplicationBackups.DatabaseEntry);
         var integrity = await DatabaseMaintenance.VerifyFileAsync(database, ct);
         if (!integrity.Ok) throw new MigrationException("The migrated database failed its integrity check: " + string.Join("; ", integrity.Problems.Take(3)));
-        var options = new DatabaseOptions { DataDirectory = candidate };
-        var builder = new DbContextOptionsBuilder<SapLensDb>();
-        options.Configure(builder);
-        await using var db = new SapLensDb(builder.Options);
+        await using var db = CandidateDb(candidate);
         var result = new JsonObject { ["integrity"] = "ok" };
         // Every source revision: record count and the content of each record as in v1.
         foreach (var r in v1.Revisions)
