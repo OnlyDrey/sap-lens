@@ -6,7 +6,6 @@ from datetime import date
 os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, data, queries_path, out = sys.argv[1:5]
 sys.path.insert(0, backend)
-from types import SimpleNamespace
 import cache
 from config_models import UserImportProfile
 from user_access import build_users

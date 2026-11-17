@@ -1,6 +1,6 @@
 """Python v1 reference archives for SLBAK2 decryption: seals a synthetic payload with v1 backup_crypto in host-key and passphrase mode.
 Usage: python -I tools/backup_v1_reference.py BACKEND_DIR OUT_DIR. Writes v1-host.slbak, v1-passphrase.slbak, payload.bin and keys.json (synthetic key/passphrase)."""
-import base64, json, os, sys, tempfile
+import json, os, sys, tempfile
 backend, out = sys.argv[1:3]
 sys.path.insert(0, backend)
 os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()

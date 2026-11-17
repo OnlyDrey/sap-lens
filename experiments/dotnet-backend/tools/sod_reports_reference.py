@@ -36,7 +36,6 @@ def record(kind, chosen, decision, **extra):
     for start in range(0, len(chosen), 100):
         chunk = []
         for item in chosen[start:start + 100]:
-            located = None
             entry = model[item['user']]
             if kind == 'activity': evidence = governance.activity_detail(entry, item['ref'])
             elif kind == 'assignment': evidence = governance.listify(dict(entry['assignments'][item['key']]))
