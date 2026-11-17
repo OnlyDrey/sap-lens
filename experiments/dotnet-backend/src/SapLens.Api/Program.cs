@@ -7,6 +7,7 @@ if (ServerConfiguration.Informational(args) is { } information)
     Console.Out.WriteLine(information);
     return 0;
 }
+if (MaintenanceCommands.Handles(args)) return MaintenanceCommands.Run(args);
 if (args.Contains("--migrate-v1"))
 {
     // SAP Lens 1 to SAP Lens 2 data migration, step by step; local, the server must not be running for activate/rollback to take effect at its next start.

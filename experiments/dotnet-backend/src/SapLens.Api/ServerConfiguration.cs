@@ -90,6 +90,9 @@ public static class ServerConfiguration
           --backup-key export <file>                               With --data-dir: write a recovery copy to a new private file (store it separately,
                                                                    then verify it in Settings > Backups), then exit.
           --backup-key status                                      With --data-dir: show whether a key is configured and its fingerprint.
+          --schema-info                                            With --data-dir: migrations this build knows and the database applied (read-only).
+          --backup-local <folder>                                  With --data-dir: a verified, host-key encrypted archive of the data (online copy).
+          --backup-verify <file>                                   With --data-dir: decrypt and validate an archive like a restore would.
           --migrate-v1 preview --source <dir|.slbak|.tar.gz>       With --data-dir: dry run of a SAP Lens 1 data migration (read-only for the source;
                                                                    add --replace-existing to allow replacing existing SAP Lens 2 data). Prints a digest.
                                                                    An encrypted .slbak asks for its passphrase, or for the recovery key of a
