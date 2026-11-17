@@ -24,9 +24,17 @@ if (args.Contains("--migrate-v1"))
             case "preview":
                 var source = Value("--source") ?? throw new InvalidOperationException("--source <SAP Lens 1 data directory or .slbak/.tar.gz> is required.");
                 var secret = "";
-                if (File.Exists(source) && !source.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+                if (File.Exists(source) && Value("--v1-key-file") is { } keyFile)
                 {
-                    Console.Error.Write("SAP Lens 1 backup passphrase or recovery key: ");
+                    // The escrowed SAP Lens 1 recovery key file (base64 text) for a host-key archive; read, never printed.
+                    if (!Path.IsPathFullyQualified(keyFile) || new FileInfo(keyFile).Length > 4096) throw new InvalidOperationException("--v1-key-file must be an absolute path to the SAP Lens 1 recovery key file.");
+                    secret = File.ReadAllText(keyFile).Trim();
+                }
+                else if (File.Exists(source) && !source.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+                {
+                    string mode;
+                    using (var probe = File.OpenRead(source)) mode = SapLens.Application.Backups.BackupArchive.V1KeyMode(probe);
+                    Console.Error.Write(mode == "passphrase" ? "SAP Lens 1 backup passphrase: " : "SAP Lens 1 recovery key (or use --v1-key-file <file>): ");
                     secret = ServerConfiguration.ReadSecret();
                     Console.Error.WriteLine();
                 }

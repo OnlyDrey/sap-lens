@@ -339,9 +339,20 @@ public static class BackupArchive
         throw new BackupException("The matching separately stored recovery key is required.", 422);
     }
 
+    public const long V1MigrationLimit = 1L << 30;
+
+    /// <summary>The key mode of a SAP Lens 1 archive ("passphrase" or "host-key") read from its header, so the right secret can be asked for.</summary>
+    public static string V1KeyMode(Stream source)
+    {
+        var (header, _) = Envelope(source, V1Magic);
+        return (string?)header["key_mode"] is "passphrase" or "host-key" ? (string)header["key_mode"]! : throw new BackupException("Unsupported SAP Lens 1 encrypted backup format.", 422);
+    }
+
     /// <summary>Decrypts a SAP Lens 1 SLBAK2 archive (one AES-256-GCM stream, tag at the end; scrypt N=32768 r=8 p=1 or HKDF-SHA256 host key). The whole
     /// ciphertext is authenticated before any plaintext is returned.</summary>
-    public static byte[] UnsealV1(Stream source, string secret, byte[]? host)
+    /// <param name="limit">Largest ciphertext accepted. SAP Lens 1 seals one AES-GCM stream with the tag at the end, so it is authenticated in memory: the
+    /// application restore path keeps 256 MiB, the data migration allows <see cref="V1MigrationLimit"/>.</param>
+    public static byte[] UnsealV1(Stream source, string secret, byte[]? host, long limit = 256L * 1024 * 1024)
     {
         var (header, raw) = Envelope(source, V1Magic);
         var expected = new[] { "format", "algorithm", "key_mode", "kdf", "salt", "key_id", "nonce" };
@@ -359,10 +370,21 @@ public static class BackupArchive
             "host-key" when (string?)header["kdf"] == "hkdf-sha256" => HKDF.DeriveKey(HashAlgorithmName.SHA256, HostKeyFor(header, secret, host), 32, salt, V1HostInfo),
             _ => throw new BackupException("Unsupported backup key derivation.", 422),
         };
-        using var rest = new MemoryStream();
-        source.CopyTo(rest);
-        var data = rest.ToArray();
-        if (data.Length < Tag || data.Length - Tag > 256L * 1024 * 1024) throw new BackupException("Invalid encrypted backup size.", 422);
+        byte[] data;
+        if (source.CanSeek)
+        {
+            var remaining = source.Length - source.Position;
+            if (remaining < Tag || remaining - Tag > limit) throw new BackupException(remaining - Tag > limit ? $"The archive exceeds the {limit >> 20} MiB limit of this operation." : "Invalid encrypted backup size.", 422);
+            data = new byte[remaining];
+            if (ReadFull(source, data, 0, data.Length) != data.Length) throw new BackupException("Truncated encrypted backup.", 422);
+        }
+        else
+        {
+            using var rest = new MemoryStream();
+            source.CopyTo(rest);
+            data = rest.ToArray();
+        }
+        if (data.Length < Tag || data.Length - Tag > limit) throw new BackupException("Invalid encrypted backup size.", 422);
         var plain = new byte[data.Length - Tag];
         using var gcm = new AesGcm(key, Tag);
         try { gcm.Decrypt(nonce, data.AsSpan(0, plain.Length), data.AsSpan(plain.Length), plain, V1Magic.Concat(raw).ToArray()); }

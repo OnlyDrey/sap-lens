@@ -78,41 +78,98 @@ public static partial class V1DataMigration
 
     private static string Fingerprint(JsonArray inventory) => Sha(Encoding.UTF8.GetBytes(string.Join('\n', inventory.Select(f => $"{f!["path"]}:{f["size"]}:{f["sha256"]}"))));
 
-    /// <summary>A v1 backup archive (SLBAK2 encrypted, or a legacy .tar.gz) unpacked into a private folder, with path checks. Returns the data root.</summary>
-    private static string Unpack(string archive, string secret, string target)
+    private const int V1MaxFiles = 100_000;
+    private const long V1MaxBytes = 4L * 1024 * 1024 * 1024 + 16 * 1024 * 1024;
+    private static readonly HashSet<string> Reserved = ["CON", "PRN", "AUX", "NUL", .. Enumerable.Range(1, 9).SelectMany(i => new[] { $"COM{i}", $"LPT{i}" })];
+
+    /// <summary>maintenance.safe_member: relative POSIX names under data/ or config/ (or manifest.json), no traversal, no Windows-reserved or trailing
+    /// space/dot names.</summary>
+    private static void SafeMember(string name)
     {
-        Directory.CreateDirectory(target);
-        byte[] head = new byte[8];
-        using (var probe = File.OpenRead(archive)) _ = probe.Read(head);
-        byte[] tarGz;
-        if (BackupArchive.IsV1(head))
-        {
-            using var input = File.OpenRead(archive);
-            tarGz = BackupArchive.UnsealV1(input, secret, secret.Length == 44 && TryBase64(secret) is { Length: 32 } key ? key : null);
-        }
-        else if (head[0] == 0x1f && head[1] == 0x8b) tarGz = File.ReadAllBytes(archive);
-        else throw new MigrationException("Select a SAP Lens 1 data directory or a SAP Lens 1 .slbak or .tar.gz backup.");
-        using var gzip = new GZipStream(new MemoryStream(tarGz), CompressionMode.Decompress);
-        using var reader = new TarReader(gzip);
-        long total = 0;
-        var full = Path.GetFullPath(target) + Path.DirectorySeparatorChar;
-        while (reader.GetNextEntry() is { } entry)
-        {
-            if (entry.EntryType is TarEntryType.Directory) continue;
-            if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile)) throw new MigrationException("The backup contains links or special files.");
-            var path = Path.GetFullPath(Path.Combine(target, entry.Name));
-            if (!path.StartsWith(full, StringComparison.Ordinal)) throw new MigrationException("The backup contains unsafe paths.");
-            total += entry.Length;
-            if (total > MaxSource) throw new MigrationException("The backup content exceeds 2 GiB.");
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            entry.ExtractToFile(path, overwrite: false);
-        }
-        // v1 archives hold the data directory under "data/".
-        var data = Path.Combine(target, "data");
-        return File.Exists(Path.Combine(data, "settings.json")) ? data : target;
+        var parts = name.Split('/');
+        if (name.Length == 0 || name.Contains('\\') || name.Contains(':') || name.StartsWith('/') || parts.Any(p => p is "" or "." or "..")
+            || (parts[0] is not ("data" or "config") && name != "manifest.json"))
+            throw new MigrationException("The SAP Lens 1 backup contains an unsafe member name.");
+        if (parts.Any(p => p.EndsWith(' ') || p.EndsWith('.') || Reserved.Contains(p.Split('.')[0].ToUpperInvariant())))
+            throw new MigrationException("The SAP Lens 1 backup contains non-portable path names.");
     }
 
-    private static byte[]? TryBase64(string value) { try { return Convert.FromBase64String(value); } catch (FormatException) { return null; } }
+    /// <summary>A SAP Lens 1 application backup unpacked into a private folder, with the checks of v1 maintenance.verify: SLBAK2 authentication first (an
+    /// unencrypted .tar.gz is accepted only as a legacy archive), then only regular files with safe, case-unique names, within v1's file and size
+    /// limits, a schema 1 manifest whose file list equals the members exactly, and every member's SHA-256 equal to the manifest. Returns the data root
+    /// (the archive's data/ folder) and the manifest; anything that fails leaves no unpacked file behind.</summary>
+    public static (string Root, JsonObject Manifest) Unpack(string archive, string secret, string target)
+    {
+        if (new FileInfo(archive).LinkTarget is not null) throw new MigrationException("SAP Lens 1 backups may not be links.");
+        Directory.CreateDirectory(target);
+        try
+        {
+            byte[] head = new byte[8];
+            using (var probe = File.OpenRead(archive)) _ = probe.Read(head);
+            byte[] tarGz;
+            if (BackupArchive.IsV1(head))
+            {
+                using var input = File.OpenRead(archive);
+                tarGz = BackupArchive.UnsealV1(input, secret, null, BackupArchive.V1MigrationLimit);
+            }
+            else if (head[0] == 0x1f && head[1] == 0x8b) tarGz = File.ReadAllBytes(archive);
+            else throw new MigrationException("Select a SAP Lens 1 data directory or a SAP Lens 1 .slbak or .tar.gz backup.");
+            var hashes = new Dictionary<string, string>(StringComparer.Ordinal);
+            var folded = new HashSet<string>(StringComparer.Ordinal);
+            JsonObject? manifest = null;
+            long total = 0;
+            var full = Path.GetFullPath(target) + Path.DirectorySeparatorChar;
+            using (var gzip = new GZipStream(new MemoryStream(tarGz), CompressionMode.Decompress))
+            using (var reader = new TarReader(gzip))
+                while (reader.GetNextEntry() is { } entry)
+                {
+                    if (entry.EntryType is not (TarEntryType.RegularFile or TarEntryType.V7RegularFile)) throw new MigrationException("SAP Lens 1 backup links and non-regular members are forbidden.");
+                    var name = entry.Name;
+                    SafeMember(name);
+                    if (!folded.Add(name.PyCasefold()) || hashes.Count >= V1MaxFiles + 1) throw new MigrationException("SAP Lens 1 backup limits or duplicate paths are invalid.");
+                    total += entry.Length;
+                    if (entry.Length < 0 || total > V1MaxBytes) throw new MigrationException("The SAP Lens 1 backup exceeds the supported limits.");
+                    using var content = entry.DataStream ?? Stream.Null;
+                    if (name == "manifest.json")
+                    {
+                        if (entry.Length > 16 * 1024 * 1024) throw new MigrationException("The SAP Lens 1 backup manifest is too large.");
+                        using var buffer = new MemoryStream();
+                        content.CopyTo(buffer);
+                        try { manifest = JsonNode.Parse(buffer.ToArray()) as JsonObject; } catch (JsonException) { manifest = null; }
+                        hashes[name] = "";
+                        continue;
+                    }
+                    var path = Path.GetFullPath(Path.Combine(target, name));
+                    if (!path.StartsWith(full, StringComparison.Ordinal)) throw new MigrationException("The SAP Lens 1 backup contains an unsafe member name.");
+                    Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                    using var output = new FileStream(path, FileMode.CreateNew, FileAccess.Write);
+                    using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
+                    var block = new byte[81920];
+                    int read;
+                    while ((read = content.Read(block)) > 0) { hash.AppendData(block, 0, read); output.Write(block, 0, read); }
+                    hashes[name] = Convert.ToHexStringLower(hash.GetHashAndReset());
+                }
+            if (manifest is null || (int?)manifest["schema"] != 1 || manifest["mode"] is not JsonValue || manifest["files"] is not JsonObject files || manifest["application_version"] is not JsonValue)
+                throw new MigrationException("The SAP Lens 1 backup manifest is missing or invalid.");
+            if (files.Any(f => f.Value is not JsonValue v || !v.TryGetValue<string>(out var digest) || !Hex64().IsMatch(digest)))
+                throw new MigrationException("The SAP Lens 1 backup has an invalid digest manifest.");
+            if (!hashes.Keys.Where(k => k != "manifest.json").ToHashSet(StringComparer.Ordinal).SetEquals(files.Select(f => f.Key)) || !hashes.ContainsKey("manifest.json"))
+                throw new MigrationException("The SAP Lens 1 backup has unexpected or missing members.");
+            foreach (var (name, digest) in files)
+                if (hashes[name] != (string)digest!) throw new MigrationException("A SAP Lens 1 backup member does not match its checksum.");
+            var data = Path.Combine(target, "data");
+            if (!File.Exists(Path.Combine(data, "settings.json"))) throw new MigrationException("The SAP Lens 1 backup contains no application data (data/settings.json).");
+            return (data, manifest);
+        }
+        catch (Exception error) when (error is MigrationException or BackupException or InvalidDataException or IOException or FormatException)
+        {
+            try { Directory.Delete(target, true); } catch (IOException) { }
+            if (error is BackupException backup) throw new MigrationException(backup.Message);
+            if (error is InvalidDataException or FormatException) throw new MigrationException("The SAP Lens 1 backup is damaged (invalid compressed archive).");
+            throw;
+        }
+    }
+
 
     // ---- reading v1 stores
 
@@ -299,11 +356,20 @@ public static partial class V1DataMigration
         var full = Path.GetFullPath(data);
         var id = Guid.NewGuid().ToString("N");
         var folder = Folder(full, id);
-        Directory.CreateDirectory(folder);
+        // Unpacked v1 data, copies and candidates are private: owner-only on Unix (Windows inherits the data directory's ACL).
+        if (OperatingSystem.IsWindows()) Directory.CreateDirectory(folder);
+        else { Directory.CreateDirectory(Root(full), UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); Directory.CreateDirectory(folder, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute); }
         string root;
         string kind;
+        JsonObject? archiveManifest = null;
         if (Directory.Exists(source)) { root = Path.GetFullPath(source); kind = "directory"; }
-        else if (File.Exists(source)) { root = Unpack(source, secret, Path.Combine(folder, "unpacked")); kind = "archive"; }
+        else if (File.Exists(source))
+        {
+            (root, var header) = Unpack(source, secret, Path.Combine(folder, "unpacked"));
+            kind = "archive";
+            archiveManifest = new JsonObject { ["mode"] = header["mode"]?.DeepClone(), ["application_version"] = header["application_version"]?.DeepClone(), ["created_at"] = header["created_at"]?.DeepClone(),
+                ["files"] = header["files"]!.AsObject().Count, ["portable"] = header["portable"]?.DeepClone() };
+        }
         else throw new MigrationException("The source does not exist.");
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         if (kind == "directory" && (full.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison) || root.StartsWith(full + Path.DirectorySeparatorChar, comparison) || full.Equals(root, comparison)))
@@ -321,7 +387,7 @@ public static partial class V1DataMigration
         var fingerprint = source.Length > 0 && kind == "archive" ? Sha(source) : Fingerprint(inventory);
         var preview = new JsonObject
         {
-            ["id"] = id, ["created"] = Stamp(now), ["status"] = v1.Blockers.Count == 0 ? "previewed" : "blocked", ["source"] = new JsonObject { ["path"] = source, ["kind"] = kind, ["root"] = root, ["fingerprint"] = fingerprint, ["files"] = inventory.Count, ["bytes"] = inventory.Sum(f => (long)f!["size"]!) },
+            ["id"] = id, ["created"] = Stamp(now), ["status"] = v1.Blockers.Count == 0 ? "previewed" : "blocked", ["source"] = new JsonObject { ["path"] = source, ["kind"] = kind, ["root"] = root, ["fingerprint"] = fingerprint, ["files"] = inventory.Count, ["bytes"] = inventory.Sum(f => (long)f!["size"]!), ["archive"] = archiveManifest },
             ["v1_version"] = (int?)v1.Settings["schema_version"] is { } schema ? $"settings schema {schema}" : "unknown",
             ["target"] = target, ["replace_existing"] = replaceExisting, ["stores"] = v1.Stores.DeepClone(), ["blockers"] = v1.Blockers.DeepClone(), ["warnings"] = v1.Warnings.DeepClone(),
             ["inventory"] = inventory,
@@ -383,6 +449,8 @@ public static partial class V1DataMigration
             report["candidate_sha256"] = Sha(Path.Combine(candidate, ApplicationBackups.DatabaseEntry));
             report["digest"] = digest;
             Save(Path.Combine(folder, "report.json"), report);
+            // An archive source was unpacked for the preview; the verified copy in source/ replaces it, so no second plaintext copy is kept.
+            if ((string?)preview["source"]!["kind"] == "archive" && Directory.Exists(Path.Combine(folder, "unpacked"))) Directory.Delete(Path.Combine(folder, "unpacked"), true);
             return report;
         }
         catch (Exception error) when (error is MigrationException or IOException or JsonException or SqliteException or DbUpdateException or InvalidOperationException or FormatException or BackupException)

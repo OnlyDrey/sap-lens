@@ -92,6 +92,8 @@ public static class ServerConfiguration
           --backup-key status                                      With --data-dir: show whether a key is configured and its fingerprint.
           --migrate-v1 preview --source <dir|.slbak|.tar.gz>       With --data-dir: dry run of a SAP Lens 1 data migration (read-only for the source;
                                                                    add --replace-existing to allow replacing existing SAP Lens 2 data). Prints a digest.
+                                                                   An encrypted .slbak asks for its passphrase, or for the recovery key of a
+                                                                   host-key archive; --v1-key-file <file> reads that recovery key from its file.
           --migrate-v1 run --id <id> --approve <digest>            Build and verify the migrated data separately, with a migration backup.
           --migrate-v1 activate --id <id> --approve <digest>       Activate the verified migration at the next start (previous data is kept).
           --migrate-v1 rollback --id <id>                          Return to the previous SAP Lens 2 data at the next start.

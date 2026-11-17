@@ -9,22 +9,154 @@
    "state": "No action required"
   }
  },
+ "evidence_snapshots": [
+  "02649ea2fa95b4f4188c8b085f5bacb75b62727371a27bda99d21ad466685175",
+  "0bb4dbafa6cba6929be2d2917da81637f59e23418fc136beb409d08b5c5a575b",
+  "119be4ce3cf30e69b245d65847cb54372638838c59d4e9f052183c938c0aad2e",
+  "1a8dd4d831b4cc6a81194d45898e75f1a639793f377de93548fec486ca5e19de",
+  "31033e102c02ff00b75da52af71ceaf0242c60f733c5f599eae5dd629ac35285",
+  "6391641a4aced42da80d92607198a31caeea734ec823f6de17a08ff38faf47c8",
+  "8363f9d4ae5409312a9b873b74db99079088c1d7fd7561fbb7a184b136c34bed",
+  "8794c89eccdead352c29f06bc4715603a3f0fb2028fe859691860c70f1e96485",
+  "aa58c92317a94c8df8d31fee48c2b59075b792d19987b9ae52f74edc86839064",
+  "aba43eeaeba4edf64d5311a3f9b055893dfa557860a40e4ad9d260cdd095136f",
+  "af2538fa6a7966e7fdbaa17551510a8d0976e08ccbb5e6bfdd14696d687cfbb9",
+  "b128fff5df1410ee74f12bea5ab1ee02536a2e949bbc6666d01ccf652d7d77ea",
+  "dcdbf464b078ab53f82977cd286412dd76b0bd7edb963a6b6d22894e1c54e881",
+  "de667ff388d5ad1f58dc4b7c9f960e0c8dfb375b6c757f34c197537bcee99115"
+ ],
+ "passphrase": "Synthetic v1 migration passphrase",
  "reports": [
-  "15cf25f909bea8cd1bada13c005be3d575b28030d0332f78696516d679093d63",
-  "1d3cb364ee99d362bfd233f201ce6fbe206b862d047ae3d8445693ac301f3223"
+  "388e02ff437cf840af8649827c01ee4612bc9591a15a409eede9a24079c5a6e9",
+  "3d966f96cadac86a25106a2a90594f91aff90a3b1e0dd75b897ba05e3239595a"
  ],
  "saved_filters": [
   "Økonomi brukere"
  ],
  "snapshots": [
-  "14b06a6de1f2f9c114a29710decfaff7daa7b727211e453c6a156fe54ec60dae",
-  "73a706641d63ab80070212c24b1d38409b2b052e3df1e5efc7acb1d75b6c224d",
-  "8e9771e3987865c42b33942b1ef4bab247745fc4be928ef2f1db51061cbc848d",
-  "c499273593f9741317360f5597ea006cd442bda703591f49282e85f4ba2348a0"
+  "02649ea2fa95b4f4188c8b085f5bacb75b62727371a27bda99d21ad466685175",
+  "058afd7860ff92bbf448b536515b112f13e7b081d9e2421a214f6eb45a0db829",
+  "0bb4dbafa6cba6929be2d2917da81637f59e23418fc136beb409d08b5c5a575b",
+  "11247b529bf2086973856168a0f71438e243c54436082d004efae7945423c667",
+  "119be4ce3cf30e69b245d65847cb54372638838c59d4e9f052183c938c0aad2e",
+  "1a8dd4d831b4cc6a81194d45898e75f1a639793f377de93548fec486ca5e19de",
+  "31033e102c02ff00b75da52af71ceaf0242c60f733c5f599eae5dd629ac35285",
+  "3ff41184f0ae8ce0de65af0a20bc598542efcdf8a23d31a1dba3be8a307b7039",
+  "631625897d0b963fc846ba58a80866ca021eb174e50cf3304440a43c0e9702cd",
+  "6391641a4aced42da80d92607198a31caeea734ec823f6de17a08ff38faf47c8",
+  "8363f9d4ae5409312a9b873b74db99079088c1d7fd7561fbb7a184b136c34bed",
+  "8794c89eccdead352c29f06bc4715603a3f0fb2028fe859691860c70f1e96485",
+  "989901cde2dc01dd9651ab905ba8cff3d0c2992711b95cc5c99df8014c021ee6",
+  "aa58c92317a94c8df8d31fee48c2b59075b792d19987b9ae52f74edc86839064",
+  "aba43eeaeba4edf64d5311a3f9b055893dfa557860a40e4ad9d260cdd095136f",
+  "af2538fa6a7966e7fdbaa17551510a8d0976e08ccbb5e6bfdd14696d687cfbb9",
+  "b128fff5df1410ee74f12bea5ab1ee02536a2e949bbc6666d01ccf652d7d77ea",
+  "d935fc303cce601409cc5fb748cfa94f3350e293c606df5eb4840e2b230d9337",
+  "dcdbf464b078ab53f82977cd286412dd76b0bd7edb963a6b6d22894e1c54e881",
+  "de667ff388d5ad1f58dc4b7c9f960e0c8dfb375b6c757f34c197537bcee99115"
+ ],
+ "sod": {
+  "actions": {
+   "894586230e744df6bc051f2bb8fe4ce8": {
+    "history": 2,
+    "status": "In progress"
+   }
+  },
+  "approved": "10662e2d03b349f58e496f53bee8cbc6",
+  "contexts": [
+   "10662e2d03b349f58e496f53bee8cbc6",
+   "8a73a8a1d86b4a7eafb5599de15fb2cd",
+   "current"
+  ],
+  "decisions_revision": 12,
+  "draft": "8a73a8a1d86b4a7eafb5599de15fb2cd",
+  "event_ids": [
+   "0661d30052a94c2f83d845198a2778da",
+   "218f7f079b1b491e884a0062019c3886",
+   "22cd5983e5ff414c9ada706eb9e1845c",
+   "410f50e00e6749b2b9e9e0c546a7e558",
+   "50f36cb759a44ea8829289f642a6c6a4",
+   "63bb0585dfa44790a429d5358b72e693",
+   "9760b88eac1c4d44a09abc9cb10e0b8e",
+   "a43d53b048bc4c729b046ae01a8be989",
+   "b695e8ada34d43ca8c00e6ae066e5412",
+   "d08d27e13365433db32a7bc6132993b6",
+   "d0a844ad80a4441e88e8afb30a6b16ea",
+   "f4693be3689540fbbfd95594dd189554",
+   "ff7d34a4ca664a63bf19e79fc7d3ebe3"
+  ],
+  "events": 13,
+  "legacy": {
+   "current": {
+    "047f64b3f2b5daaa5cb6d05aadf564ac7837e7299d35622bacb3bb6ec9d6cf34": 2
+   }
+  },
+  "legacy_finding": "047f64b3f2b5daaa5cb6d05aadf564ac7837e7299d35622bacb3bb6ec9d6cf34",
+  "matrix_approved": {
+   "risks": 2,
+   "user_risk": 3,
+   "users": 2
+  },
+  "periods": {
+   "10662e2d03b349f58e496f53bee8cbc6": {
+    "history": 3,
+    "name": "Kvartal Ø1 2026",
+    "snapshot": "af2538fa6a7966e7fdbaa17551510a8d0976e08ccbb5e6bfdd14696d687cfbb9",
+    "snapshots": [
+     "31033e102c02ff00b75da52af71ceaf0242c60f733c5f599eae5dd629ac35285",
+     "af2538fa6a7966e7fdbaa17551510a8d0976e08ccbb5e6bfdd14696d687cfbb9"
+    ],
+    "state": "Approved"
+   },
+   "8a73a8a1d86b4a7eafb5599de15fb2cd": {
+    "history": 0,
+    "name": "Utkast 2027",
+    "snapshot": "02649ea2fa95b4f4188c8b085f5bacb75b62727371a27bda99d21ad466685175",
+    "snapshots": [
+     "02649ea2fa95b4f4188c8b085f5bacb75b62727371a27bda99d21ad466685175"
+    ],
+    "state": "Draft"
+   }
+  },
+  "periods_revision": 5,
+  "queue_current": {
+   "Awaiting approval": 0,
+   "Conditional": 0,
+   "Historical": 0,
+   "Investigate": 0,
+   "Outdated": 0,
+   "Pending": 12,
+   "Rejected": 0,
+   "Removal required": 1,
+   "Resolved": 0,
+   "Reviewed": 3,
+   "Risk acceptance pending": 3
+  },
+  "remediation": [
+   [
+    "KARI",
+    "ZC:FI:ROLE_A2",
+    "In progress"
+   ],
+   [
+    "ØYSTEIN",
+    "ZC:FI:ROLE_AB",
+    "Not tracked"
+   ]
+  ]
+ },
+ "source_snapshots": [
+  "058afd7860ff92bbf448b536515b112f13e7b081d9e2421a214f6eb45a0db829",
+  "11247b529bf2086973856168a0f71438e243c54436082d004efae7945423c667",
+  "3ff41184f0ae8ce0de65af0a20bc598542efcdf8a23d31a1dba3be8a307b7039",
+  "631625897d0b963fc846ba58a80866ca021eb174e50cf3304440a43c0e9702cd",
+  "989901cde2dc01dd9651ab905ba8cff3d0c2992711b95cc5c99df8014c021ee6",
+  "d935fc303cce601409cc5fb748cfa94f3350e293c606df5eb4840e2b230d9337"
  ],
  "sources": {
-  "roles": "c499273593f9741317360f5597ea006cd442bda703591f49282e85f4ba2348a0",
-  "users": "14b06a6de1f2f9c114a29710decfaff7daa7b727211e453c6a156fe54ec60dae"
+  "roles": "631625897d0b963fc846ba58a80866ca021eb174e50cf3304440a43c0e9702cd",
+  "sod": "989901cde2dc01dd9651ab905ba8cff3d0c2992711b95cc5c99df8014c021ee6",
+  "users": "058afd7860ff92bbf448b536515b112f13e7b081d9e2421a214f6eb45a0db829"
  },
  "users": [
   "KARI",
