@@ -163,6 +163,33 @@ public sealed class SodPeriodsTests : IAsyncLifetime
         Assert.Equal(146, (int)comparison["summary"]!["Unchanged"]!);
         Assert.True(comparison["decision_changes"]!.AsArray().Count > 0);
 
+        // Reports read the frozen snapshot: preview, then PDF and DOCX that match the previewed model; a stale model is refused; each export is logged.
+        var preview = await Post("/api/sod/reports/preview", new JsonObject { ["period_id"] = id, ["options"] = new JsonObject { ["status"] = "Approved", ["report_date"] = "2026-07-01" } });
+        Assert.True(preview.Status == HttpStatusCode.OK, preview.Body?.ToJsonString());
+        var checksum = (string)preview.Body!["model_checksum"]!;
+        Assert.Equal(13, preview.Body["sections"]!.AsArray().Count);
+        foreach (var kind in new[] { "pdf", "docx" })
+        {
+            var request = new HttpRequestMessage(HttpMethod.Post, $"/api/sod/reports/{kind}")
+            {
+                Content = new StringContent(new JsonObject { ["period_id"] = id, ["expected_model"] = checksum, ["options"] = new JsonObject { ["status"] = "Approved", ["report_date"] = "2026-07-01" } }.ToJsonString(), Encoding.UTF8, "application/json"),
+            };
+            request.Headers.Add("Origin", _client.BaseAddress!.GetLeftPart(UriPartial.Authority));
+            var response = await _client.SendAsync(request);
+            Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            Assert.Equal(checksum, response.Headers.GetValues("X-SAP-Lens-Report-Model").Single());
+            Assert.Equal(Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(bytes)), response.Headers.GetValues("X-SAP-Lens-File-SHA256").Single());
+            Assert.True(kind == "pdf" ? bytes.AsSpan(0, 5).SequenceEqual("%PDF-"u8) : bytes[0] == (byte)'P' && bytes[1] == (byte)'K');
+        }
+        var stale = await Post("/api/sod/reports/pdf", new JsonObject { ["period_id"] = id, ["expected_model"] = new string('0', 64), ["options"] = new JsonObject { ["report_date"] = "2026-07-01" } });
+        Assert.Equal(HttpStatusCode.Conflict, stale.Status);
+        var remediation = await Post("/api/sod/reports/remediation/preview", new JsonObject { ["context"] = id });
+        Assert.True(remediation.Status == HttpStatusCode.OK, remediation.Body?.ToJsonString());
+        Assert.Equal("remediation", (string)remediation.Body!["kind"]!);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post("/api/sod/reports/preview", new JsonObject { ["period_id"] = (string)later["id"]!, ["options"] = new JsonObject { ["status"] = "Approved" } })).Status);
+        Assert.Equal(2, (int)(await Get($"/api/sod/periods/{id}/deletion-impact"))["counts"]!["reports"]!);
+
         // Deletion: an approved period is archived (reason and history confirmation required); the empty draft is erased.
         var impact = await Get($"/api/sod/periods/{id}/deletion-impact");
         Assert.Equal("archive", (string)impact["mode"]!);
