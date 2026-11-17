@@ -251,12 +251,18 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
         Assert.Equal("scheduled", (string)history["items"]![0]!["origin"]!);
         Assert.Equal("ready", (string)(await Get("/api/backups/schedule"))["attempts"]![0]!["status"]!);
 
-        // Retention: automatic archives older than the window are removed; manual ones stay.
+        // Backup retention: nothing expires before the period; afterwards an approved preview removes automatic archives only, manual ones stay.
         await Post("/api/backups/create");
+        var preview = await Get("/api/retention/preview?category=backup");
+        Assert.Equal((0, 1, 1), ((int)preview["count"]!, (int)preview["counts"]!["automatic"]!, (int)preview["counts"]!["manual"]!));
         var factory = _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>();
-        var later = new ManualClock(DateTimeOffset.UtcNow.AddDays(91));
-        var pruned = await new ApplicationBackups(new DatabaseOptions { DataDirectory = Data }, factory, later).PruneAutomaticAsync(default);
-        Assert.Equal(1, pruned);
+        var later = new SapLens.Application.Retention.DataRetention(new DatabaseOptions { DataDirectory = Data }, factory, new ManualClock(DateTimeOffset.UtcNow.AddDays(91)));
+        var due = await later.PreviewAsync("backup", default);
+        Assert.Equal(1, (int)due["count"]!);
+        Assert.Equal("awaiting_approval", await later.CheckAsync("automatic", default));                         // measured, not removed
+        Assert.Equal(2, (int)(await Get("/api/backups/history"))["total"]!);
+        var removed = await later.ApproveAsync("backup", (string)due["digest"]!, "operator", default);
+        Assert.Equal(1, (int)removed["removed"]!["automatic backups"]!);
         history = await Get("/api/backups/history");
         Assert.Equal(["manual"], history["items"]!.AsArray().Select(i => (string)i!["origin"]!));
     }
@@ -300,7 +306,10 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
 
         // Neither automatic-backup retention nor the backup history touches it.
         var factory = _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>();
-        await new ApplicationBackups(new DatabaseOptions { DataDirectory = Data }, factory, new ManualClock(DateTimeOffset.UtcNow.AddYears(2))).PruneAutomaticAsync(default);
+        var retention = new SapLens.Application.Retention.DataRetention(new DatabaseOptions { DataDirectory = Data }, factory, new ManualClock(DateTimeOffset.UtcNow.AddYears(2)));
+        var plan = await retention.PreviewAsync("backup", default);
+        Assert.Equal((0, 1), ((int)plan["count"]!, (int)plan["counts"]!["migration"]!));
+        await retention.ApproveAsync("backup", (string)plan["digest"]!, "operator", default);
         Assert.True(File.Exists(file));
         Assert.Equal(0, (int)(await Get("/api/backups/history"))["total"]!);
 

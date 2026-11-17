@@ -134,10 +134,10 @@ public sealed class V1CompatibilityTests : IAsyncLifetime
 
     [Theory]
     [InlineData("GET", "/api/retention/policy")]
-    [InlineData("GET", "/api/retention")]
+    [InlineData("GET", "/api/unknown-feature")]
     [InlineData("POST", "/api/unknown-feature/confirm")]
     [InlineData("GET", "/api/unknown-feature/status")]
-    [InlineData("POST", "/api/retention/approve")]
+    [InlineData("POST", "/api/unknown-feature/approve")]
     [InlineData("GET", "/api/sod/reports/preview")]
     [InlineData("POST", "/api/unknown-feature/create")]
     public async Task Routes_not_migrated_answer_501_with_a_detail_and_change_nothing(string method, string path)

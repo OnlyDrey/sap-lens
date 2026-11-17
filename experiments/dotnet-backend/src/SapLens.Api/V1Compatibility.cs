@@ -67,6 +67,7 @@ public static class V1Compatibility
         "GET /api/backups", "POST /api/backups/create", "POST /api/backups/key/verify", "POST /api/backups/cancel", "GET /api/backups/schedule", "POST /api/backups/schedule",
         "GET /api/backups/history", "POST /api/backups/{identity}/delete", "POST /api/backups/upload", "POST /api/backups/uploads/{identity}/cancel", "POST /api/backups/restore",
         "GET /api/backups/{identity}/download", "GET /api/storage/status", "POST /api/storage/migration/confirm", "POST /api/storage/migration/delete-backup",
+        "GET /api/retention", "GET /api/retention/preview", "POST /api/retention/approve", "PUT /api/retention/policy",
         "GET /api/account-review", "POST /api/account-review/decision/{username}", "GET /api/account-review/history/{username}",
         // Accounts mode (the Server default); in shared-token mode these answer 501.
         "POST /api/auth/activate", "POST /api/auth/recover", "POST /api/auth/login", "POST /api/auth/reset", "GET /api/auth/me", "GET /api/auth/sessions",
@@ -177,6 +178,7 @@ public static class V1Compatibility
         V1SodDecisions.Map(api);
         V1Backups.Map(api);
         V1Storage.Map(api);
+        V1Retention.Map(api);
         V1Auth.Map(api, app.Services.GetRequiredService<HostSettings>());
 
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).

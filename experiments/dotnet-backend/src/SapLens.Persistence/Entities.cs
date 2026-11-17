@@ -3,6 +3,8 @@ namespace SapLens.Persistence;
 public static class DatasetStatus
 {
     public const string Staged = "Staged", Held = "Held", Active = "Active", Retired = "Retired", Discarded = "Discarded", Failed = "Failed";
+    /// <summary>A retired revision whose records data retention removed; the row (hash, revision, record count, times) stays as evidence.</summary>
+    public const string Purged = "Purged";
 }
 
 /// <summary>One revision of one source (roles, users, sod). At most one Active revision per source (unique filtered index).</summary>

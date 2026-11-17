@@ -265,26 +265,6 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         return await HistoryAsync(ct);
     }
 
-    /// <summary>Automatic archives older than the retention window (90 days unless the retention policy sets another backup age) are removed with their
-    /// record kept as deleted. Manual and migration archives are never removed here.</summary>
-    public async Task<int> PruneAutomaticAsync(CancellationToken ct, int? days = null)
-    {
-        await using var db = await factory.CreateDbContextAsync(ct);
-        var now = clock.GetUtcNow().UtcDateTime;
-        var window = days is { } d ? TimeSpan.FromDays(d) : BackupRetention.AutomaticRetention;
-        var expired = (await db.Backups.Where(b => b.DeletedUtc == null && b.Kind == BackupKind.Automatic).ToListAsync(ct)).Where(b => now - b.CreatedUtc > window && IdOf(b) is not null).ToList();
-        if (File.Exists(PendingFile(Data))) return 0;
-        foreach (var record in expired)
-        {
-            var path = Path.Combine(Data, "backups", record.FileName);
-            if (File.Exists(path)) File.Delete(path);
-            record.DeletedUtc = now;
-            record.Reason = (record.Reason ?? "") + ";expired by retention";
-        }
-        await db.SaveChangesAsync(ct);
-        return expired.Count;
-    }
-
     // ---- restore: staging, validation, preview
 
     private static string Staging(string data, string id) => Path.Combine(RestoreRoot(data), id);
@@ -480,6 +460,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
                 ["id"] = id, ["kind"] = "restore", ["status"] = "completed", ["completed_at"] = Stamp(now), ["destination_sha256"] = destinationSha, ["archive_sha256"] = pending["sha256"]?.DeepClone(),
                 ["message"] = "Restore completed. All sessions were signed out. The previous data is kept as an encrypted destination recovery backup.",
             });
+            Retention.DataRetention.AfterRestore(data, now);
             return $"Restore {id} applied; destination recovery backup {DestinationName(id)}";
         }
         catch (Exception error) when (error is BackupException or IOException or UnauthorizedAccessException or SqliteException or System.Text.Json.JsonException or InvalidOperationException)

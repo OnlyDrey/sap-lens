@@ -161,7 +161,7 @@ public static class V1Backups
 
 /// <summary>backup_schedule.py: the schedule (the refresh schedule's fields plus keep 1..100) in backups/schedule.json with an optimistic revision, its
 /// status, and one evaluation per tick. Automatic backups need a verified recovery-key copy. Missed slots are skipped, never replayed. Automatic archives
-/// are removed by the 90-day retention, not by the keep count (v1: the legacy count limit cannot remove recent backups ahead of retention).</summary>
+/// are removed by the approved backup retention (default 90 days), not by the keep count (v1: the legacy count limit cannot remove recent backups ahead of retention).</summary>
 public static class BackupSchedule
 {
     public sealed record Definition(V1RefreshSchedule.Schedule Schedule, int Keep)
@@ -266,12 +266,11 @@ public static class BackupSchedule
     }
 }
 
-/// <summary>Runs the backup schedule inside the server process (every 20 seconds), and the 90-day automatic-backup retention once an hour.</summary>
-public sealed class BackupScheduler(DatabaseOptions options, ApplicationBackups backups, DataLoadGate loader, TimeProvider clock, ILogger<BackupScheduler> logger) : BackgroundService
+/// <summary>Runs the backup schedule inside the server process (every 20 seconds) and the daily data retention check.</summary>
+public sealed class BackupScheduler(DatabaseOptions options, ApplicationBackups backups, SapLens.Application.Retention.DataRetention retention, DataLoadGate loader, TimeProvider clock, ILogger<BackupScheduler> logger) : BackgroundService
 {
     private DateTimeOffset _cursor = clock.GetUtcNow();
     private string? _signature;
-    private DateTimeOffset _pruned = DateTimeOffset.MinValue;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -284,7 +283,9 @@ public sealed class BackupScheduler(DatabaseOptions options, ApplicationBackups 
                 if (signature != _signature) (_signature, _cursor) = (signature, now);     // a changed definition starts from now
                 var outcome = await BackupSchedule.TickAsync(options.DataDirectory, backups, loader, now, _cursor, stoppingToken);
                 if (outcome != "idle") { _cursor = now; logger.LogInformation("Scheduled backup: {Outcome}", outcome.Split(':')[0]); }
-                if (now - _pruned > TimeSpan.FromHours(1)) { _pruned = now; await backups.PruneAutomaticAsync(stoppingToken); }
+                // The daily retention check (all categories); skipped while a restore waits or a load runs, never disturbs the application.
+                if (retention.Due() && loader.Loading.CurrentCount > 0 && !File.Exists(Path.Combine(options.DataDirectory, "restore", "pending.json")))
+                    logger.LogInformation("Data retention check: {Outcome}", await retention.CheckAsync("automatic", stoppingToken));
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested) { return; }
             catch (Exception error) { logger.LogWarning("Backup scheduler evaluation failed ({Type}).", error.GetType().Name); }
