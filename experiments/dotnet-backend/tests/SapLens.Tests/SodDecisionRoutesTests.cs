@@ -160,7 +160,7 @@ public sealed class SodDecisionRoutesTests : IAsyncLifetime
         await Refused((HttpStatusCode)422, "role", Body(item, "Keep", 0, generation));
         await Refused((HttpStatusCode)422, "activity", Body(Item("activity"), "Conditional", 0, generation));                                // conditions required
         await Refused((HttpStatusCode)422, "acceptance", Changed(b => { b["expires"] = "2000-01-01"; b["decision"] = "Accepted"; b["items"] = Body(Item("acceptance"), "Accepted", 0, generation)["items"]!.DeepClone(); }));
-        await Refused(HttpStatusCode.NotImplemented, "assignment", Changed(b => b["context"] = "P2026-Q1"));                                 // review periods not migrated
+        await Refused(HttpStatusCode.NotFound, "assignment", Changed(b => b["context"] = "P2026-Q1"));                                       // an unknown review period (v1: 404)
 
         Assert.Empty((await HistoryOf("assignment", item))["items"]!.AsArray());
         var (status, ok) = await Post("/api/sod/decisions/assignment", Body(item, "Keep", 0, generation));

@@ -86,6 +86,6 @@ public sealed class SodSimulateTests : IAsyncLifetime
         Assert.Equal((int)Reference["revision"]!, (int)subjects["revision"]!);   // simulation wrote nothing
         Assert.Equal((HttpStatusCode)422, (await _client.GetAsync("/api/sod/review-subjects?" + string.Join('&', Enumerable.Range(0, 201).Select(i => $"usernames=U{i}")))).StatusCode);
         Assert.Equal((HttpStatusCode)422, (await Post("/api/sod/simulate", new JsonObject { ["user"] = user, ["removed"] = new JsonArray(1) })).Status);
-        Assert.Equal((HttpStatusCode)501, (await Post("/api/sod/simulate", new JsonObject { ["user"] = user, ["context"] = "P1" })).Status);
+        Assert.Equal(HttpStatusCode.NotFound, (await Post("/api/sod/simulate", new JsonObject { ["user"] = user, ["context"] = "P1" })).Status);   // unknown review period
     }
 }

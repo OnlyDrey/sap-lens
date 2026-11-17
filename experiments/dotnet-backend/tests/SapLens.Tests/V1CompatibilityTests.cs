@@ -138,7 +138,7 @@ public sealed class V1CompatibilityTests : IAsyncLifetime
     [InlineData("POST", "/api/storage/migration/confirm")]
     [InlineData("GET", "/api/storage/status")]
     [InlineData("POST", "/api/retention/approve")]
-    [InlineData("GET", "/api/sod/overview")]
+    [InlineData("GET", "/api/sod/reports/preview")]
     [InlineData("POST", "/api/backups/create")]
     public async Task Routes_not_migrated_answer_501_with_a_detail_and_change_nothing(string method, string path)
     {

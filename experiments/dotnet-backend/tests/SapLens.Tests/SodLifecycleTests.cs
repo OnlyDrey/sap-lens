@@ -305,6 +305,6 @@ public sealed class SodLifecycleTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync("/api/sod/subject?user=NOBODY")).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/sod/subject?user={Reference["user"]}&risk=NO_RISK")).StatusCode);
         Assert.Equal((HttpStatusCode)422, (await _client.GetAsync("/api/sod/subject")).StatusCode);
-        Assert.Equal((HttpStatusCode)501, (await _client.GetAsync($"/api/sod/subject?user={Reference["user"]}&context=P2026")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/sod/subject?user={Reference["user"]}&context=P2026")).StatusCode);   // unknown review period
     }
 }

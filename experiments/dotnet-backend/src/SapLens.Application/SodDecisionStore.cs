@@ -274,6 +274,61 @@ public sealed partial class SodDecisionStore(WriteCoordinator writer, IDbContext
     }
 
     /// <summary>Recomputes the event chain; any edited, removed or reordered event breaks it. Also checks that every event names an existing evidence snapshot.</summary>
+    /// <summary>freeze: complete copy of one context (every event per kind and key, in order, and its actions) for an immutable period snapshot.</summary>
+    public async Task<JsonObject> FreezeAsync(string context, CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var rows = await db.SodDecisionEvents.AsNoTracking().Where(e => e.Context == context).OrderBy(e => e.Seq).Select(e => new { e.Kind, e.Key, e.Json }).ToListAsync(ct);
+        var events = new JsonObject();
+        foreach (var kind in SodGovernance.Decisions.Keys) events[kind] = new JsonObject();
+        foreach (var row in rows)
+        {
+            var kind = events[row.Kind]!.AsObject();
+            if (kind[row.Key] is not JsonArray list) kind[row.Key] = list = [];
+            list.Add(JsonNode.Parse(row.Json));
+        }
+        return new JsonObject { ["events"] = events, ["actions"] = new JsonArray([.. (await ActionsAsync(context, ct)).Select(a => (JsonNode?)a.DeepClone())]) };
+    }
+
+    public const string ReportLog = "sod-report-log";
+    public const int MaxReports = 5000;
+
+    /// <summary>The report log (sod_decisions.Storage.reports): one immutable entry per issued or draft report.</summary>
+    public async Task<List<JsonObject>> ReportsAsync(CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var row = await db.SodDocuments.AsNoTracking().FirstOrDefaultAsync(d => d.Name == ReportLog, ct);
+        return row is null ? [] : [.. (JsonNode.Parse(row.Json)?["reports"] as JsonArray ?? []).Select(r => r!.AsObject())];
+    }
+
+    /// <summary>log_report: appends one entry; existing entries are never changed.</summary>
+    public Task<JsonObject> LogReportAsync(JsonObject entry, CancellationToken ct) => writer.WriteAsync(async (db, token) =>
+    {
+        var row = await db.SodDocuments.FirstOrDefaultAsync(d => d.Name == ReportLog, token);
+        var data = row is null ? new JsonObject { ["reports"] = new JsonArray() } : JsonNode.Parse(row.Json)!.AsObject();
+        var reports = data["reports"]!.AsArray();
+        if (reports.Count >= MaxReports) throw new SodDecisionException(409, "Report log capacity is reached. Existing entries are retained.");
+        reports.Add(entry.DeepClone());
+        if (row is null) db.SodDocuments.Add(row = new SodDocument { Name = ReportLog, Json = "{}" });
+        (row.Json, row.Revision, row.UpdatedUtc, row.UpdatedBy) = (data.ToJsonString(), row.Revision + 1, clock.GetUtcNow().UtcDateTime, (string?)entry["prepared_by"] ?? "");
+        return entry;
+    }, ct);
+
+    /// <summary>context_summary: counts used for a period's deletion impact, including reports issued from or comparing against it.</summary>
+    public async Task<JsonObject> ContextSummaryAsync(string context, CancellationToken ct)
+    {
+        await using var db = await factory.CreateDbContextAsync(ct);
+        var keys = await db.SodDecisionEvents.AsNoTracking().Where(e => e.Context == context).GroupBy(e => new { e.Kind, e.Key }).Select(g => new { g.Key.Kind, Count = g.Count() }).ToListAsync(ct);
+        var reports = await ReportsAsync(ct);
+        return new JsonObject
+        {
+            ["activity"] = keys.Count(k => k.Kind == "activity"), ["assignment"] = keys.Count(k => k.Kind == "assignment"), ["acceptance"] = keys.Count(k => k.Kind == "acceptance"),
+            ["events"] = keys.Sum(k => k.Count), ["actions"] = (await ActionsAsync(context, ct)).Count,
+            ["reports"] = new JsonArray([.. reports.Where(r => (string?)r["period_id"] == context).Select(r => (JsonNode?)r.DeepClone())]),
+            ["dependents"] = new JsonArray([.. reports.Where(r => (string?)r["previous_period_id"] == context && (string?)r["period_id"] != context).Select(r => (JsonNode?)r.DeepClone())]),
+        };
+    }
+
     public async Task<(bool Ok, long? BrokenAt, int Count)> VerifyChainAsync(CancellationToken ct)
     {
         await using var db = await factory.CreateDbContextAsync(ct);

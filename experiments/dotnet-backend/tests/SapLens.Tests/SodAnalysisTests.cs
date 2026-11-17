@@ -113,7 +113,7 @@ public sealed class SodAnalysisTests : IAsyncLifetime
         var count = int.Parse(export.Headers.GetValues("X-SAP-Lens-Finding-Count").Single());
         Assert.True(lines.Length - 1 >= count); // one line per evidence path of each finding
 
-        Assert.Equal((HttpStatusCode)501, (await _client.GetAsync("/api/sod/analysis?functional_groups=g1")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await _client.GetAsync("/api/sod/analysis?functional_groups=g1")).StatusCode);   // organization filters select users by name
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await _client.GetAsync("/api/sod/analysis?validity=sometimes")).StatusCode);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await _client.GetAsync("/api/sod/analysis?kind=roles&selected_roles=ZC:NOT:THERE&selected_roles=ZC:FI:ROLE_00001")).StatusCode);
     }

@@ -32,8 +32,7 @@ public static class V1SodAnalysis
         List<string> Many(string name, int count) => q[name].Count <= count ? [.. q[name].Select(v => v ?? "")] : throw new ArgumentException(name);
         try
         {
-            if (q.ContainsKey("functional_groups") || q.ContainsKey("managers"))
-                return (null, V1Compatibility.NotMigrated(null, "sod/analysis?functional_groups|managers (Functional Groups is not migrated)"));
+            if (q["functional_groups"].Count > 50 || q["managers"].Count > 50) throw new ArgumentException("functional_groups");
             var kind = q["kind"].FirstOrDefault() ?? "users";
             var validity = q["validity"].FirstOrDefault() ?? "active";
             var sort = q["sort"].FirstOrDefault() ?? "subject";
@@ -48,6 +47,21 @@ public static class V1SodAnalysis
                 Many("risks", 100), Many("criticalities", 50), Many("categories", 50), Many("groups", 100), Many("tcodes", 100), sort, q["descending"].FirstOrDefault() is "true" or "1"), null);
         }
         catch (Exception error) when (error is ArgumentException or FormatException) { return (null, Detail(422, "Invalid SoD analysis query.")); }
+    }
+
+    /// <summary>organizational_usernames: Functional Group and Manager select users by name through the username filter (never conflict evaluation).</summary>
+    public static async Task<Query> OrganizationalAsync(IServiceProvider services, Query query, IQueryCollection q, CancellationToken ct)
+    {
+        var groups = q["functional_groups"].Select(v => v ?? "").Where(v => v.Length > 0).ToList();
+        var managers = q["managers"].Select(v => v ?? "").Where(v => v.Length > 0).ToList();
+        if (groups.Count == 0 && managers.Count == 0) return query;
+        var scope = new SodQuery
+        {
+            Context = "current", Validity = query.Validity, AsOf = query.AsOf,
+            Lists = new Dictionary<string, List<string>>(StringComparer.Ordinal) { ["usernames"] = query.Usernames, ["functional_groups"] = groups, ["managers"] = managers },
+        };
+        var expanded = await SodScope.OrganizationalAsync(services, scope, ct);
+        return query with { Usernames = expanded.L("usernames") };
     }
 
     private static readonly Dictionary<string, Captured> Cache = new(StringComparer.Ordinal);
@@ -193,6 +207,7 @@ public static class V1SodAnalysis
             http.Response.Headers.CacheControl = "no-store";
             var (query, error) = Parse(http.Request.Query);
             if (error is not null) return error;
+            query = await OrganizationalAsync(services, query!, http.Request.Query, ct);
             if (Paging(http.Request.Query) is not var (offset, limit)) return Detail(422, "Invalid paging parameters.");
             var (result, failure) = await CaptureAsync(services, query!, ct);
             if (failure is not null) return failure;
@@ -224,6 +239,7 @@ public static class V1SodAnalysis
             if (!Hex(findingId) || !Hex(expected) || side is not ("ACTVT1" or "ACTVT2")) return Detail(422, "Invalid evidence request.");
             var (query, error) = Parse(q);
             if (error is not null) return error;
+            query = await OrganizationalAsync(services, query!, q, ct);
             if (Paging(q) is not var (offset, limit)) return Detail(422, "Invalid paging parameters.");
             var (result, failure) = await CaptureAsync(services, query!, ct);
             if (failure is not null) return failure;
@@ -242,6 +258,7 @@ public static class V1SodAnalysis
         {
             var (query, error) = Parse(http.Request.Query);
             if (error is not null) return error;
+            query = await OrganizationalAsync(services, query!, http.Request.Query, ct);
             var expected = http.Request.Query["expected_generation"].FirstOrDefault();
             var (result, failure) = await CaptureAsync(services, query!, ct);
             if (failure is not null) return failure;

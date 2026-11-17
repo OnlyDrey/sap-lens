@@ -29,37 +29,21 @@ public static partial class V1SodDecisions
     private static V1SodAnalysis.Query LiveQuery(string validity = "active", DateOnly? asOf = null) =>
         new("users", validity, asOf ?? DateOnly.FromDateTime(DateTime.Now), [], "", "", "", "", "", "", "", "", "", "", "", [], [], [], [], [], [], "subject", false);
 
-    /// <summary>The live review bundle: evidence generation, conflict model and the review model with every imported assignment.</summary>
+    /// <summary>One review bundle (sod_scope.load) for the live context or a review period: evidence generation, conflict model and the review model
+    /// with every assignment of the context's source cut.</summary>
     private sealed record Bundle(string Generation, DateOnly AsOf, string Validity, Dictionary<string, SodUserEntry> Model, Dictionary<string, SodUserEntry> Review,
-        Dictionary<string, string> Versions, JsonObject Coverage);
+        Dictionary<string, string> Versions, JsonObject Coverage, SodBundle Scope);
 
-    private static async Task<(Bundle? Bundle, IResult? Error)> LoadAsync(IServiceProvider services, CancellationToken ct, string validity = "active", DateOnly? asOf = null)
+    private static async Task<(Bundle? Bundle, IResult? Error)> LoadAsync(IServiceProvider services, CancellationToken ct, string validity = "active", DateOnly? asOf = null, string context = "current")
     {
-        // The lifecycle memory follows the committed revision before any review state is derived (idempotent; imports also notify it).
-        await services.GetRequiredService<AssignmentLifecycle>().ObserveAsync(ct);
-        var query = LiveQuery(validity, asOf);
-        var (captured, error) = await V1SodAnalysis.CaptureAsync(services, query, ct);
-        if (error is not null) return (null, error);
-        var snapshot = await services.GetRequiredService<SnapshotService>().GetAsync(ct);
-        var settings = await services.GetRequiredService<V1Settings>().GetAsync(ct);
-        var features = settings["features"];
-        var model = SodGovernance.Derive(captured!.Users, onlyCurrent: validity == "active");
-        // _assignment_source is the user directory only while SoD and User-Role Mapping are both enabled.
-        var sourceEnabled = ((bool?)features?["sod"] ?? false) && ((bool?)features?["user_role_mapping"] ?? true);
-        var source = sourceEnabled
-            ? snapshot.Users.UserOrder.Select(key => (key, snapshot.Users.Users[key].Assignments.Select(a =>
-                new SodGovernance.SourceAssignment(a.RoleName, a.ValidFrom, a.ValidTo, a.UserGroup, a.MatchStatus, a.CatalogueRoles, a.Tcodes))))
-            : [];
-        var review = (string?)captured.Coverage["status"] == "available" ? SodGovernance.ReviewModel(model, source, query.Validity, query.AsOf) : model;
-        var versions = new Dictionary<string, string>(StringComparer.Ordinal);
-        if (settings["data_lifecycle"]?["sources"] is JsonObject references)
-            foreach (var (name, reference) in references) if ((string?)reference?["snapshot"] is { } version) versions[name] = version;
-        if ((string?)settings["employee_snapshot_id"] is { Length: > 0 } employees) versions["employees"] = employees;
-        return (new Bundle(captured.Generation, query.AsOf, validity, model, review, versions, captured.Coverage), null);
+        SodBundle b;
+        try { b = await SodScope.LoadAsync(services, context, validity, asOf, ct); }
+        catch (SodDecisionException error) { return (null, Detail(error.Status, error.Message)); }
+        return (new Bundle(b.Generation, DateOnly.ParseExact(b.AsOf, "yyyy-MM-dd", CultureInfo.InvariantCulture), validity, SodScope.Model(b), SodScope.ReviewModel(b), b.Versions, b.Coverage, b), null);
     }
 
     /// <summary>v1 actor(): the reviewer name and identity snapshot of this request, or the refusal when nobody individual is signed in.</summary>
-    private static async Task<(string? Name, JsonObject? Identity, IResult? Error)> AttributionAsync(HttpContext http, CancellationToken ct)
+    internal static async Task<(string? Name, JsonObject? Identity, IResult? Error)> AttributionAsync(HttpContext http, CancellationToken ct)
     {
         var actor = Actors.Current(http);
         if (actor.Provenance == "server-session")
@@ -163,21 +147,21 @@ public static partial class V1SodDecisions
         };
     }
 
-    /// <summary>scope.states_for for the live context: today's lifecycle with the reappearance memory (or its fail-safe when untrusted).</summary>
-    private static async Task<SodStates> StatesAsync(IServiceProvider services, Bundle bundle, IReadOnlyDictionary<string, SodUserEntry> model, CancellationToken ct)
+    /// <summary>scope.states_for: frozen periods keep their approval-date lifecycle; live and open contexts use today and the reappearance memory.</summary>
+    private static Task<SodStates> StatesAsync(IServiceProvider services, Bundle bundle, IReadOnlyDictionary<string, SodUserEntry> model, CancellationToken ct) =>
+        SodScope.StatesAsync(services, bundle.Scope, model, ct);
+
+    private static Task<JsonObject> InfoAsync(IServiceProvider services, Bundle bundle, CancellationToken ct) => SodScope.InfoAsync(services, bundle.Scope, ct);
+
+    /// <summary>A decision for a period commits only while that period is still open (Draft or In review) on the snapshot the reviewer saw.</summary>
+    private static async Task PeriodStillOpenAsync(IServiceProvider services, string context, string generation, CancellationToken ct)
     {
-        var latest = await services.GetRequiredService<SodDecisionStore>().LatestAsync("current", ct);
-        var applies = await services.GetRequiredService<AssignmentLifecycle>().ApplicabilityAsync(ct);
-        var readOnly = latest.ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
-        return SodGovernance.States(model, readOnly, DateOnly.FromDateTime(DateTime.Now), applies.Reappeared, applies.Reasons, applies.Unavailable);
+        var period = SodPeriodStore.Find(await services.GetRequiredService<SodPeriodStore>().ReadAsync(ct), context);
+        if ((string)period["state"]! is not ("Draft" or "In review")) throw new SodDecisionException(409, ReadOnlyContext);
+        if ((string?)period["snapshot"] != generation) throw new SodDecisionException(409, "SoD evidence changed. Reload before reviewing.");
     }
 
-    /// <summary>context_info for the live context.</summary>
-    private static async Task<JsonObject> InfoAsync(IServiceProvider services, Bundle bundle, CancellationToken ct) => new()
-    {
-        ["context"] = "current", ["generation"] = bundle.Generation, ["as_of"] = bundle.AsOf.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), ["coverage"] = bundle.Coverage.DeepClone(),
-        ["frozen"] = false, ["reviewable"] = bundle.Validity == "active", ["revision"] = await services.GetRequiredService<SodDecisionStore>().RevisionAsync(ct), ["legacy"] = false, ["period"] = null,
-    };
+    private const string ReadOnlyContext = "This context accepts no decisions. Frozen periods and non-current evidence are read-only.";
 
     private static JsonNode? EventJson(SodItemState item) => item.Event?.ToJson();
     private static JsonArray List(IEnumerable<string> values) => new([.. values.Select(v => (JsonNode?)JsonValue.Create(v))]);
@@ -200,10 +184,8 @@ public static partial class V1SodDecisions
         if (user is null) return Errors([V1Validation.At("missing", "Field required", "query", "user")]);
         if (user.Length > 512 || risk.Length > 512 || activity.Length > 512 || !SodDecisionStore.ContextPattern().IsMatch(context) || validity is not ("active" or "expired" or "future" or "unknown" or "all"))
             return Errors([V1Validation.At("value_error", "Invalid subject query.", "query")]);
-        if (q.ContainsKey("functional_groups") || q.ContainsKey("managers")) return V1Compatibility.NotMigrated(http, "sod/subject?functional_groups|managers (Functional Groups is not migrated)");
-        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/subject for review period '{context}' (review periods are not migrated)");
         var services = http.RequestServices;
-        var (bundle, loadError) = await LoadAsync(services, ct, validity, asOf);
+        var (bundle, loadError) = await LoadAsync(services, ct, validity, asOf, context);
         if (loadError is not null) return loadError;
         var model = bundle!.Review;
         if (!model.TryGetValue(user, out var entry)) return Detail(404, "The SAP user has no detected conflict evidence in this context.");
@@ -364,11 +346,11 @@ public static partial class V1SodDecisions
             errors.Add(V1Validation.Error("date_from_datetime_parsing", "due_date", "Input should be a valid date"));
         if (errors.Count > 0) return Errors(errors);
         var context = (string?)body["context"] ?? "current";
-        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/remediation/actions for review period '{context}' (review periods are not migrated)");
         var (name, identity, refused) = await AttributionAsync(http, ct);
         if (refused is not null) return refused;
-        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct);
+        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct, context: context);
         if (loadError is not null) return loadError;
+        if (bundle!.Scope.Frozen) return Detail(409, "Frozen periods retain their remediation actions unchanged. Track follow-up in current evidence.");
         var user = (string)body["user"]!;
         var assignment = (string?)body["assignment_id"] ?? "";
         if (!bundle!.Review.TryGetValue(user, out var entry) || (assignment.Length > 0 && !entry.Assignments.ContainsKey(assignment)))
@@ -424,12 +406,12 @@ public static partial class V1SodDecisions
             }
         if (errors.Count > 0) return Errors(errors);
         var context = (string?)body["context"] ?? "current";
-        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/decisions/assignment/bulk for review period '{context}' (review periods are not migrated)");
         var (name, identity, refused) = await AttributionAsync(http, ct);
         if (refused is not null) return refused;
         var services = http.RequestServices;
-        var (bundle, loadError) = await LoadAsync(services, ct);
+        var (bundle, loadError) = await LoadAsync(services, ct, context: context);
         if (loadError is not null) return loadError;
+        if (!bundle!.Scope.Reviewable) return Detail(409, ReadOnlyContext);
         var expectedGeneration = (string)body["expected_generation"]!;
         if (bundle!.Generation != expectedGeneration) return Detail(409, "SoD evidence changed. Reload before reviewing.");
         var items = body["items"]!.AsArray().Select(i => i!.AsObject()).ToList();
@@ -463,6 +445,7 @@ public static partial class V1SodDecisions
         var justification = (string)body["justification"]!;
         async Task Guard(CancellationToken token)
         {
+            if (context != "current") { await PeriodStillOpenAsync(services, context, expectedGeneration, token); return; }
             var (now, _) = await V1SodAnalysis.CaptureAsync(services, LiveQuery(), token);
             if (now?.Generation != expectedGeneration) throw new SodDecisionException(409, "SoD source evidence changed. Reload before saving.");
         }
@@ -524,8 +507,7 @@ public static partial class V1SodDecisions
         var context = q["context"].FirstOrDefault() ?? "current";
         if (!SodDecisionStore.ContextPattern().IsMatch(context)) return Errors([V1Validation.At("string_pattern_mismatch", "String should match pattern '^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$'", "query", "context")]);
         if (q["usernames"].Count > 200) return Errors([V1Validation.At("too_long", $"List should have at most 200 items after validation, not {q["usernames"].Count}", "query", "usernames")]);
-        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/review-subjects for review period '{context}' (review periods are not migrated)");
-        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct);
+        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct, context: context);
         if (loadError is not null) return loadError;
         var result = await InfoAsync(http.RequestServices, bundle!, ct);
         result["users"] = List(q["usernames"].OfType<string>().Where(bundle!.Review.ContainsKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
@@ -552,8 +534,7 @@ public static partial class V1SodDecisions
         }
         if (errors.Count > 0) return Errors(errors);
         var context = (string?)body["context"] ?? "current";
-        if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/simulate for review period '{context}' (review periods are not migrated)");
-        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct);
+        var (bundle, loadError) = await LoadAsync(http.RequestServices, ct, context: context);
         if (loadError is not null) return loadError;
         var user = (string)body["user"]!;
         if (!bundle!.Model.TryGetValue(user, out var entry)) return Detail(404, "The SAP user has no detected conflict evidence in this context.");
@@ -605,12 +586,12 @@ public static partial class V1SodDecisions
             var decision = (string)body["decision"]!;
             if (!SodGovernance.Decisions[kind].Contains(decision)) return Detail(422, "Choose a decision supported by this review type.");
             var context = (string?)body["context"] ?? "current";
-            if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/decisions/{kind} for review period '{context}' (review periods are not migrated)");
             var (name, identity, refused) = await AttributionAsync(http, ct);
             if (refused is not null) return refused;
 
-            var (bundle, loadError) = await LoadAsync(http.RequestServices, ct);
+            var (bundle, loadError) = await LoadAsync(http.RequestServices, ct, context: context);
             if (loadError is not null) return loadError;
+            if (!bundle!.Scope.Reviewable) return Detail(409, ReadOnlyContext);
             var expectedGeneration = (string)body["expected_generation"]!;
             if (bundle!.Generation != expectedGeneration) return Detail(409, "SoD evidence changed. Reload before reviewing.");
             var model = kind == "assignment" ? bundle.Review : bundle.Model;
@@ -632,9 +613,13 @@ public static partial class V1SodDecisions
             {
                 result = await store.RecordAsync(request, async token =>
                 {
-                    // publication_guard: the evidence generation must still be the one the reviewer saw when the decision commits.
-                    var (now, _) = await V1SodAnalysis.CaptureAsync(http.RequestServices, LiveQuery(), token);
-                    if (now?.Generation != expectedGeneration) throw new SodDecisionException(409, "SoD source evidence changed. Reload before saving.");
+                    // publication_guard: the evidence generation must still be the one the reviewer saw when the decision commits; a period must still be open.
+                    if (context == "current")
+                    {
+                        var (now, _) = await V1SodAnalysis.CaptureAsync(http.RequestServices, LiveQuery(), token);
+                        if (now?.Generation != expectedGeneration) throw new SodDecisionException(409, "SoD source evidence changed. Reload before saving.");
+                    }
+                    else await PeriodStillOpenAsync(http.RequestServices, context, expectedGeneration, token);
                 }, ct);
             }
             catch (SodDecisionException error) { return Detail(error.Status, error.Message); }
@@ -665,11 +650,10 @@ public static partial class V1SodDecisions
             var context = q["context"].FirstOrDefault() ?? "current";
             if (!Kinds.Contains(kind) || key is null || !Hex64().IsMatch(key) || !SodDecisionStore.ContextPattern().IsMatch(context))
                 return Errors([V1Validation.At("value_error", "Invalid review item, kind or context.", "query")]);
-            if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/decisions/{kind}/history for review period '{context}' (review periods are not migrated)");
             List<JsonObject> items;
             try { items = await store.HistoryAsync(kind, context, key, ct); }
             catch (SodDecisionException error) { return Detail(error.Status, error.Message); }
-            JsonNode? verification = kind == "assignment" && items.Count > 0 && (string?)items[0]["decision"] == "Remove" ? await VerifyRemovalAsync(http.RequestServices, items[0], ct) : null;
+            JsonNode? verification = context == "current" && kind == "assignment" && items.Count > 0 && (string?)items[0]["decision"] == "Remove" ? await VerifyRemovalAsync(http.RequestServices, items[0], ct) : null;
             return Json(new JsonObject { ["items"] = new JsonArray([.. items]), ["verification"] = verification, ["reviewer_identity"] = IdentityNotice });
         });
 
@@ -681,7 +665,6 @@ public static partial class V1SodDecisions
             var context = q["context"].FirstOrDefault() ?? "current";
             if (!Kinds.Contains(kind) || key is null || !Hex64().IsMatch(key) || eventId is null || !Hex32().IsMatch(eventId) || !SodDecisionStore.ContextPattern().IsMatch(context))
                 return Errors([V1Validation.At("value_error", "Invalid review item, event, kind or context.", "query")]);
-            if (context != "current") return V1Compatibility.NotMigrated(http, $"sod/decisions/{kind}/evidence for review period '{context}' (review periods are not migrated)");
             try
             {
                 var e = (await store.HistoryAsync(kind, context, key, ct)).FirstOrDefault(i => (string?)i["event_id"] == eventId);
