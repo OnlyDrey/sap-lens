@@ -1,0 +1,100 @@
+{
+"blank_titles": {
+"events": [
+{
+"ad_username": "P000",
+"current_department": "Sales",
+"current_imported_at": "2026-11-17T03:03:33.204327+00:00",
+"current_title": "",
+"detected_at": "2026-11-16T08:00:00+00:00",
+"email": "person0@example.invalid",
+"fields": [
+"department"
+],
+"id": "d0b82435498bbae79005c7d13a1f677d43984f7d83e7979dbe03ef1eb5220241",
+"key": "person0@example.invalid",
+"name": "Person 0",
+"previous_department": "Finance",
+"previous_generation": "cd491dd9509b1d62a10b96829de0ceb90c5790a440d8341d7cbbdc86733be8d5",
+"previous_imported_at": "2026-11-17T03:03:33.204081+00:00",
+"previous_title": "Analyst",
+"source_generation": "92df5eb4d853fe5329b7f49648441e6f201cd4292c6332a8d07aa43f9ea6e068"
+}
+],
+"managers": [],
+"notices": [
+"The replacement directory has mostly empty title values, so title changes were not derived from it."
+]
+},
+"changes": {
+"events": [
+{
+"ad_username": "P001",
+"current_department": "Sales",
+"current_imported_at": "2026-11-17T03:03:33.202999+00:00",
+"current_title": "Lead",
+"detected_at": "2026-11-16T08:00:00+00:00",
+"email": "person1@example.invalid",
+"fields": [
+"department",
+"title"
+],
+"id": "f6e47d48315cb99e5fa472c3b3bb9a1e13748aab10ab8c37fbc92931ae3c9676",
+"key": "person1@example.invalid",
+"name": "Person 1",
+"previous_department": "Finance",
+"previous_generation": "cd491dd9509b1d62a10b96829de0ceb90c5790a440d8341d7cbbdc86733be8d5",
+"previous_imported_at": "2026-11-17T03:03:33.202616+00:00",
+"previous_title": "Analyst",
+"source_generation": "cff6c9c0517096e6a63c8d8035941928b76d85a699913d8de51c4ab44a2f42de"
+},
+{
+"ad_username": "P003",
+"current_department": "Finance",
+"current_imported_at": "2026-11-17T03:03:33.202999+00:00",
+"current_title": "Lead",
+"detected_at": "2026-11-16T08:00:00+00:00",
+"email": "person3@example.invalid",
+"fields": [
+"title"
+],
+"id": "d285c7f6a56046bceed966d96e12844d23d06d42151d234e5d57be05e1b6a365",
+"key": "person3@example.invalid",
+"name": "Person 3",
+"previous_department": "Finance",
+"previous_generation": "cd491dd9509b1d62a10b96829de0ceb90c5790a440d8341d7cbbdc86733be8d5",
+"previous_imported_at": "2026-11-17T03:03:33.202616+00:00",
+"previous_title": "Analyst",
+"source_generation": "cff6c9c0517096e6a63c8d8035941928b76d85a699913d8de51c4ab44a2f42de"
+}
+],
+"managers": [
+{
+"current_manager": "Other",
+"current_manager_email": "other@example.invalid",
+"detected_at": "2026-11-16T08:00:00+00:00",
+"email": "person4@example.invalid",
+"id": "b17a7fde037973751833254aa8acc45baeaecdbcbbd02cd67908fbfe126ed04d",
+"key": "person4@example.invalid",
+"name": "Person 4",
+"previous_generation": "cd491dd9509b1d62a10b96829de0ceb90c5790a440d8341d7cbbdc86733be8d5",
+"previous_manager": "Boss",
+"previous_manager_email": "boss@example.invalid",
+"source_generation": "cff6c9c0517096e6a63c8d8035941928b76d85a699913d8de51c4ab44a2f42de"
+}
+],
+"notices": []
+},
+"incomplete": {
+"events": [],
+"managers": [],
+"notices": [
+"The replacement directory has far fewer records than the previous one, so no position changes were derived from it."
+]
+},
+"unchanged": {
+"events": [],
+"managers": [],
+"notices": []
+}
+}

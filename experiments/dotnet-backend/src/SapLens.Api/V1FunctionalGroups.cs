@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using SapLens.Application;
 using SapLens.Domain.Directory;
+using Microsoft.Extensions.Logging;
 using SapLens.Domain.Roles;
 using SapLens.Domain.Users;
 
@@ -225,6 +226,7 @@ public static class V1FunctionalGroups
             var (snapshot, directory) = await StateAsync(http, ct);
             var known = Known(snapshot, username);
             if (known is null) return Detail(404, "SAP user not found.");
+            await SyncOrganizationalChangesAsync(http.RequestServices, snapshot, directory, ct);
             var data = await store.ReadAsync(ct);
             var context = DirectoryContext(snapshot, directory, known);
             var current = FunctionalGroupStore.PublicUser(data, known.Username);
@@ -407,6 +409,30 @@ public static class V1FunctionalGroups
 
     private static SapUser? Known(Snapshot snapshot, string username) =>
         snapshot.Users.Users.Values.FirstOrDefault(u => u.Username.Trim().ToUpperInvariant() == username.Trim().ToUpperInvariant());
+
+    /// <summary>sync_organizational_changes: applies stored Directory change events to classified users. Never fails a read.</summary>
+    public static async Task SyncOrganizationalChangesAsync(IServiceProvider services, Snapshot snapshot, EmployeeDirectory? directory, CancellationToken ct)
+    {
+        try
+        {
+            var store = services.GetRequiredService<FunctionalGroupStore>();
+            var data = await store.ReadAsync(ct);
+            if (directory is null || data["users"]!.AsObject().Count == 0) return;
+            var changes = await services.GetRequiredService<PositionChangeStore>().ReadAsync(ct);
+            if (changes["events"]!.AsArray().Count == 0 && changes["manager_events"]!.AsArray().Count == 0) return;
+            var owners = EmployeeDirectory.SapEmailOwners(snapshot.Users.Users.Values);
+            var classified = data["users"]!.AsObject().Select(p => ((string)p.Value!["username"]!).Trim().ToUpperInvariant()).ToHashSet();
+            var emails = new Dictionary<string, string>();
+            foreach (var user in snapshot.Users.Users.Values)
+                if (classified.Contains(user.Username.Trim().ToUpperInvariant()) && directory.MatchSapIdentity(user, owners) is ("matched", { } employee) && (string?)employee["email"] is { Length: > 0 } mail)
+                    emails[user.Username.Trim().ToUpperInvariant()] = PositionChanges.NormalizeText(mail);
+            await store.ApplyOrganizationalChangesAsync(emails, changes["events"]!.AsArray().OfType<JsonObject>(), changes["manager_events"]!.AsArray().OfType<JsonObject>(), ct);
+        }
+        catch (Exception error) when (error is not OperationCanceledException)
+        {
+            services.GetService<ILoggerFactory>()?.CreateLogger("SapLens.FunctionalGroups").LogWarning("Functional Group review synchronisation failed ({Type}); classifications are unchanged.", error.GetType().Name);
+        }
+    }
 
     /// <summary>directory_context: Department, Job Title and Manager only for an unambiguous Directory match.</summary>
     private static JsonObject? DirectoryContext(Snapshot snapshot, EmployeeDirectory? directory, SapUser user)

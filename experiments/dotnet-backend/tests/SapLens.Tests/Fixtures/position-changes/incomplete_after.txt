@@ -1,0 +1,6 @@
+Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus
+HQ;Person 0;P000;p0@example.invalid;person0@example.invalid;Sales;Analyst;True;CN=Person 0,OU=Staff;;Boss;;boss@example.invalid;;;Resolved
+HQ;Person 1;P001;p1@example.invalid;person1@example.invalid;Sales;Analyst;True;CN=Person 1,OU=Staff;;Boss;;boss@example.invalid;;;Resolved
+HQ;Person 2;P002;p2@example.invalid;person2@example.invalid;Sales;Analyst;True;CN=Person 2,OU=Staff;;Boss;;boss@example.invalid;;;Resolved
+HQ;Person 3;P003;p3@example.invalid;person3@example.invalid;Sales;Analyst;True;CN=Person 3,OU=Staff;;Boss;;boss@example.invalid;;;Resolved
+HQ;Person 4;P004;p4@example.invalid;person4@example.invalid;Sales;Analyst;True;CN=Person 4,OU=Staff;;Boss;;boss@example.invalid;;;Resolved

@@ -51,7 +51,8 @@ public static class V1AccountReview
 
     /// <summary>v1 rows(): one row per SAP user with its findings, evidence version, current decision and workflow status.</summary>
     public static List<Dictionary<string, object?>> Rows(Snapshot state, EmployeeDirectory? directory, IReadOnlyDictionary<string, Stored> saved, IReadOnlyList<string> groups, DateOnly today,
-        IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonObject>? classifications = null)
+        IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonObject>? classifications = null, IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonObject>? position = null,
+        IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonObject>? managerChanges = null)
     {
         var configured = groups.Select(g => g.Trim().ToUpperInvariant().ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         var owners = directory is null ? null : EmployeeDirectory.SapEmailOwners(state.Users.Users.Values);
@@ -98,8 +99,19 @@ public static class V1AccountReview
             System.Text.Json.Nodes.JsonObject? classified = null;
             classifications?.TryGetValue(user.Username.Trim().ToUpperInvariant(), out classified);
             var classificationReview = (string?)classified?["status"] == "Needs review";
-            var needs = findings.Count > 0 || stale || classificationReview;
-            var completed = decision is not null && (string)decision["state"]! == "No action required" && !stale && !classificationReview;
+            // MIG-003: the newest recent Department/Job Title and Manager change of the matched employee. A decision reviews the change it captured
+            // (its event id); legacy decisions without an id review every change detected before them.
+            var mail = matchStatus == "matched" && employee?["email"] is string email && email.Length > 0 ? PositionChanges.NormalizeText(email) : null;
+            var change = mail is null ? null : position?.GetValueOrDefault(mail);
+            var managerEvent = mail is null ? null : managerChanges?.GetValueOrDefault(mail);
+            var reviewed = stored is null ? null : System.Text.Json.Nodes.JsonNode.Parse(stored.Latest.DetailsJson ?? "{}") as System.Text.Json.Nodes.JsonObject;
+            bool Open(System.Text.Json.Nodes.JsonObject? item, string field) => item is not null && (stored is null || (reviewed?.ContainsKey(field) == true
+                ? (string?)reviewed[field] != (string?)item["id"]
+                : DateTime.SpecifyKind(stored.Latest.DecidedUtc, DateTimeKind.Utc) < DateTimeOffset.Parse((string)item["detected_at"]!, CultureInfo.InvariantCulture).UtcDateTime));
+            var openChange = Open(change, "position_change_id");
+            var openManager = Open(managerEvent, "manager_change_id");
+            var needs = findings.Count > 0 || stale || openChange || openManager || classificationReview;
+            var completed = decision is not null && (string)decision["state"]! == "No action required" && !stale && !openChange && !openManager && !classificationReview;
             var manager = employee?["manager"] as Dictionary<string, object?>;
             result.Add(new()
             {
@@ -112,15 +124,27 @@ public static class V1AccountReview
                     ["account_total"] = user.Accounts.Count, ["assignment_records"] = user.Assignments.Count, ["sap_emails"] = user.Emails.Take(5).ToList(), ["directory_email"] = employee?["email"],
                 },
                 ["decision"] = decision, ["history_count"] = stored?.History.Count ?? 0, ["stale"] = stale,
-                ["review_state"] = decision is null || stale ? "Needs review" : decision["state"], ["needs_review"] = needs, ["workflow_status"] = completed ? "completed" : "open",
-                ["position_change"] = null,
+                ["review_state"] = decision is null || stale || openChange || openManager ? "Needs review" : decision["state"], ["needs_review"] = needs, ["workflow_status"] = completed ? "completed" : "open",
+                ["position_change"] = change is null ? null : new Dictionary<string, object?>
+                {
+                    ["id"] = (string?)change["id"], ["open"] = openChange, ["fields"] = change["fields"]!.DeepClone(), ["previous_department"] = (string?)change["previous_department"],
+                    ["current_department"] = (string?)change["current_department"], ["previous_title"] = (string?)change["previous_title"], ["current_title"] = (string?)change["current_title"],
+                    ["detected_at"] = (string?)change["detected_at"], ["source_generation"] = (string?)change["source_generation"],
+                    ["previous_imported_at"] = (string?)change["previous_imported_at"] is { Length: > 0 } pi ? pi : null, ["current_imported_at"] = (string?)change["current_imported_at"] is { Length: > 0 } ci ? ci : null,
+                },
                 ["manager"] = manager is null ? null : new Dictionary<string, object?> { ["name"] = manager["name"], ["email"] = manager["email"], ["status"] = manager["status"] },
-                ["manager_change"] = null, ["functional_group"] = classified?["group"]?.DeepClone(),
+                ["manager_change"] = managerEvent is null ? null : new Dictionary<string, object?>
+                {
+                    ["id"] = (string?)managerEvent["id"], ["open"] = openManager, ["previous_manager"] = (string?)managerEvent["previous_manager"], ["current_manager"] = (string?)managerEvent["current_manager"],
+                    ["previous_manager_email"] = (string?)managerEvent["previous_manager_email"], ["current_manager_email"] = (string?)managerEvent["current_manager_email"],
+                    ["detected_at"] = (string?)managerEvent["detected_at"],
+                },
+                ["functional_group"] = classified?["group"]?.DeepClone(),
                 ["functional_groups"] = classified is null ? new System.Text.Json.Nodes.JsonArray() : new System.Text.Json.Nodes.JsonArray([.. classified["memberships"]!.AsArray().Select(m => m!["group"]!.DeepClone())]),
                 ["classification"] = classified is null
                     ? new Dictionary<string, object?> { ["status"] = "Unassigned", ["revision"] = 0, ["review"] = null, ["confirmed_at"] = null }
                     : new Dictionary<string, object?> { ["status"] = (string?)classified["status"], ["revision"] = (int)classified["revision"]!, ["review"] = classified["review"]?.DeepClone(), ["confirmed_at"] = (string?)classified["confirmed_at"] },
-                ["classification_review"] = classificationReview, ["priority"] = needs ? "Normal" : "None", ["priority_order"] = needs ? 1 : 2,
+                ["classification_review"] = classificationReview, ["priority"] = openChange ? "High" : needs ? "Normal" : "None", ["priority_order"] = openChange ? 0 : needs ? 1 : 2,
             });
         }
         return result;
@@ -155,7 +179,8 @@ public static class V1AccountReview
             "any" => (bool)r["needs_review"]!, "stale" => stale, "matched" => match == "matched",
             "directory_missing" => match is "missing_email" or "unmatched", "directory_ambiguous" => match is "duplicate_email" or "ambiguous_sap_email",
             "reviewed" => decision && state != "Needs review" && !stale, "pending" => !decision || state == "Needs review" || stale,
-            "position_change" or "manager_change" => false,
+            "position_change" => r["position_change"] is Dictionary<string, object?> pc && (bool)pc["open"]!,
+            "manager_change" => r["manager_change"] is Dictionary<string, object?> mc && (bool)mc["open"]!,
             "functional_group_review" => (bool)r["classification_review"]!,
             _ => ((List<string>)r["findings"]!).Contains(name),
         };
@@ -170,8 +195,12 @@ public static class V1AccountReview
         var directory = V1Employees.Available(state, settings);
         var groups = settings["unlicensed_user_groups"]?.AsArray().Select(g => (string)g!).ToList() ?? [];
         var today = DateOnly.FromDateTime(DateTime.Now);
+        await V1FunctionalGroups.SyncOrganizationalChangesAsync(services, state, directory, ct);
         var classifications = FunctionalGroupStore.ClassificationMap(await services.GetRequiredService<FunctionalGroupStore>().ReadAsync(ct));
-        var rows = Rows(state, directory, saved, groups, today, classifications);
+        var changes = directory is null ? null : await services.GetRequiredService<PositionChangeStore>().ReadAsync(ct);
+        var position = changes is null ? null : PositionChanges.LatestRecent(changes["events"]!.AsArray().OfType<System.Text.Json.Nodes.JsonObject>(), today);
+        var managerChanges = changes is null ? null : PositionChanges.LatestRecent(changes["manager_events"]!.AsArray().OfType<System.Text.Json.Nodes.JsonObject>(), today);
+        var rows = Rows(state, directory, saved, groups, today, classifications, position, managerChanges);
         var generation = CanonicalJson.Sha256(new object?[] { state.Ids.Users, directory?.Digest, groups, saved.Values.Select(s => s.Latest.Id).Order().ToList(), today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
         return (state, directory, rows, generation, settings);
     }
@@ -208,7 +237,7 @@ public static class V1AccountReview
                 ["total"] = items.Count, ["outdated"] = items.Count(r => (bool)r["stale"]!), ["matched"] = directory is null ? null : items.Count(r => (string)r["match_status"]! == "matched"),
                 ["missing"] = directory is null ? null : items.Count(r => ((List<string>)r["findings"]!).Contains("directory_match")),
                 ["mismatch"] = items.Count(r => ((List<string>)r["findings"]!).Contains("ad_disabled_open")), ["requiring_review"] = items.Count(r => (bool)r["needs_review"]!),
-                ["position_changes"] = null, ["unlicensed"] = items.Count(r => (bool)r["unlicensed"]!), ["reviewed"] = items.Count(r => Has(r, "reviewed")),
+                ["position_changes"] = items.Count(r => r["position_change"] is Dictionary<string, object?> pc && (bool)pc["open"]!), ["unlicensed"] = items.Count(r => (bool)r["unlicensed"]!), ["reviewed"] = items.Count(r => Has(r, "reviewed")),
                 ["completed"] = items.Count(r => (string)r["workflow_status"]! == "completed"), ["pending"] = items.Count(r => Has(r, "pending")),
             } : new[] { "total", "outdated", "matched", "missing", "mismatch", "requiring_review", "position_changes", "unlicensed", "reviewed", "completed", "pending" }.ToDictionary(k => k, _ => (object?)null);
             var term = search.Trim();
@@ -226,7 +255,7 @@ public static class V1AccountReview
             var visible = showCompleted ? matching : matching.Where(r => (string)r["workflow_status"]! != "completed").ToList();
             static string Fold(object? value) => (value as string ?? "").ToUpperInvariant().ToLowerInvariant();
             IEnumerable<Dictionary<string, object?>> ordered = sort == "priority"
-                ? visible.OrderBy(r => (int)r["priority_order"]!).ThenBy(r => Fold(r["username"]), StringComparer.Ordinal)
+                ? visible.OrderBy(r => (int)r["priority_order"]!).ThenBy(r => (r["position_change"] as Dictionary<string, object?>)?["detected_at"] as string ?? "", StringComparer.Ordinal).ThenBy(r => Fold(r["username"]), StringComparer.Ordinal)
                 : visible.OrderBy(r => Fold(r[sort]), StringComparer.Ordinal).ThenBy(r => Fold(r["username"]), StringComparer.Ordinal);
             var list = ordered.ToList();
             if (descending) list.Reverse();
@@ -286,7 +315,7 @@ public static class V1AccountReview
             if ((sessionUser || hasExpected) && expected != current) return Detail(409, "Another user changed this review. Reload before saving.");
             var details = new JsonObject
             {
-                ["evidence_schema"] = 2, ["identity_version"] = (string)row["identity_version"]!, ["position_change_id"] = null, ["manager_change_id"] = null,
+                ["evidence_schema"] = 2, ["identity_version"] = (string)row["identity_version"]!, ["position_change_id"] = (row["position_change"] as Dictionary<string, object?>)?["id"] as string, ["manager_change_id"] = (row["manager_change"] as Dictionary<string, object?>)?["id"] as string,
                 ["actor_identity"] = JsonSerializer.SerializeToNode(identity),
             };
             try

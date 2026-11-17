@@ -22,6 +22,8 @@ public static class CoreServices
         services.AddSingleton<SodDecisionStore>();
         services.AddSingleton<AssignmentLifecycle>();
         services.AddSingleton<IImportCommitted>(sp => sp.GetRequiredService<AssignmentLifecycle>());
+        services.AddSingleton<PositionChangeStore>();
+        services.AddSingleton<IImportCommitted>(sp => sp.GetRequiredService<PositionChangeStore>());
         services.AddSingleton<ImportService>();
         services.AddSingleton<IJobHandler>(sp => sp.GetRequiredService<ImportService>());
         services.AddHostedService<DatabaseInitializer>();

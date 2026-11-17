@@ -53,7 +53,7 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
     public static string UserKey(string username) => Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(PythonJson(username.Trim().ToUpperInvariant()))));
 
     /// <summary>position_changes.normalize_text: NFKC, collapsed whitespace, trimmed, case-folded.</summary>
-    public static string NormalizeText(string? value) => Fold(Spaces().Replace((value ?? "").Normalize(NormalizationForm.FormKC), " ").Trim());
+    public static string NormalizeText(string? value) => SapLens.Domain.Directory.PositionChanges.NormalizeText(value);
 
     /// <summary>str.casefold for names and Directory text: case-insensitive, with the German sharp s folded to "ss" as Python does.</summary>
     public static string Fold(string value) => value.ToUpperInvariant().ToLowerInvariant().Replace("ß", "ss", StringComparison.Ordinal).Replace("ẞ", "ss", StringComparison.Ordinal);
@@ -530,6 +530,76 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
             };
             return (result, applied.Count > 0);
         }, actor, ct);
+    }
+
+    // --- organizational changes (MIG-003 events) -------------------------------------------------------------------------------
+
+    /// <summary>_flag: a Department or Job Title change makes every Confirmed membership "Needs review"; idempotent per change id.</summary>
+    private bool Flag(JsonObject data, JsonObject user, string changeId, string reason)
+    {
+        var memberships = user["memberships"]!.AsObject();
+        if (memberships.Count == 0 || (user["handled"] as JsonArray ?? []).Any(h => (string?)h == changeId)
+            || memberships.Any(p => (string?)p.Value!["review"]?["change_id"] == changeId)) return false;
+        var stamp = Now();
+        var changed = false;
+        foreach (var (gid, member) in memberships)
+        {
+            if ((string?)member!["status"] != "Confirmed") continue;
+            member["status"] = "Needs review"; member["updated_at"] = stamp;
+            member["review"] = new JsonObject { ["change_id"] = changeId, ["reason"] = reason, ["required_since"] = stamp };
+            Event(data, user, "review_required", gid, gid, "Confirmed", "Needs review", "system", reason, changeId);
+            changed = true;
+        }
+        if (changed) { user["revision"] = (int)user["revision"]! + 1; user["updated_at"] = stamp; }
+        return changed;
+    }
+
+    private static string ChangeText(string label, string? before, string? after) =>
+        $"{label} changed from {(string.IsNullOrEmpty(before) ? "empty" : before)} to {(string.IsNullOrEmpty(after) ? "empty" : after)}";
+
+    private static string LastConfirmation(JsonObject user)
+    {
+        var stamps = user["memberships"]!.AsObject().Select(p => (string?)p.Value!["confirmed_at"]).Where(v => !string.IsNullOrEmpty(v)).ToList();
+        return stamps.Count > 0 ? stamps.Max(StringComparer.Ordinal)! : (string?)user["updated_at"] ?? "";
+    }
+
+    /// <summary>apply_organizational_changes: Directory change events applied to classified users matched to exactly one employee (by normalized e-mail).
+    /// Changes detected after the user's last confirmation flag memberships; manager changes only add a history signal. Idempotent per event id.</summary>
+    public Task<int> ApplyOrganizationalChangesAsync(IReadOnlyDictionary<string, string> emailByUsername, IEnumerable<JsonObject> positionEvents, IEnumerable<JsonObject> managerEvents, CancellationToken ct)
+    {
+        var byEmail = positionEvents.GroupBy(e => (string)e["key"]!).ToDictionary(g => g.Key, g => g.OrderBy(e => (string)e["detected_at"]!, StringComparer.Ordinal).ThenBy(e => (string)e["id"]!, StringComparer.Ordinal).ToList());
+        var managers = managerEvents.GroupBy(e => (string)e["key"]!).ToDictionary(g => g.Key, g => g.OrderBy(e => (string)e["detected_at"]!, StringComparer.Ordinal).ThenBy(e => (string)e["id"]!, StringComparer.Ordinal).ToList());
+        return UpdateAsync(data =>
+        {
+            var users = data["users"]!.AsObject();
+            if (users.Count == 0) return (0, false);
+            var seen = data["history"]!.AsArray().Where(e => (string?)e!["event"] == "manager_changed").Select(e => ((string)e!["user_key"]!, (string?)e["change_id"])).ToHashSet();
+            var changed = 0;
+            foreach (var (key, node) in users.ToList())
+            {
+                var user = node!.AsObject();
+                if (!emailByUsername.TryGetValue(((string)user["username"]!).Trim().ToUpperInvariant(), out var email)) continue;
+                var since = LastConfirmation(user);
+                foreach (var item in byEmail.GetValueOrDefault(email) ?? [])
+                {
+                    if (string.CompareOrdinal((string)item["detected_at"]!, since) < 0) continue;
+                    var parts = new List<string>();
+                    var fields = item["fields"]!.AsArray().Select(f => (string?)f).ToList();
+                    if (fields.Contains("department")) parts.Add(ChangeText("Directory Department", (string?)item["previous_department"], (string?)item["current_department"]));
+                    if (fields.Contains("title")) parts.Add(ChangeText("Job Title", (string?)item["previous_title"], (string?)item["current_title"]));
+                    if (Flag(data, user, (string)item["id"]!, string.Join("; ", parts))) changed++;
+                }
+                foreach (var item in managers.GetValueOrDefault(email) ?? [])
+                {
+                    if (string.CompareOrdinal((string)item["detected_at"]!, since) < 0 || !seen.Add((key, (string)item["id"]!))) continue;
+                    var status = Aggregate(user["memberships"]!.AsObject());
+                    Event(data, user, "manager_changed", null, null, status, status, "system",
+                        ChangeText("Manager", (string?)item["previous_manager"], (string?)item["current_manager"]), (string)item["id"]!);
+                    changed++;
+                }
+            }
+            return (changed, changed > 0);
+        }, "system", ct);
     }
 
     public static JsonObject UserHistory(JsonObject data, string username, int offset, int limit)
