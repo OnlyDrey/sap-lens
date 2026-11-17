@@ -26,7 +26,7 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
     private HttpClient _client = null!;
     private string Source => Path.Combine(_root, "v1");
     private string Data => Path.Combine(_root, "v2");
-    private static string RecoveryKey => File.ReadAllText(Path.Combine(Fixture, "v1-recovery.key")).Trim();
+    private static string RecoveryKey => (string)Expected["recovery_key"]!;
     private static string Passphrase => (string)Expected["passphrase"]!;
     private static readonly DateTimeOffset Now = new(2026, 11, 17, 15, 0, 0, TimeSpan.Zero);
 

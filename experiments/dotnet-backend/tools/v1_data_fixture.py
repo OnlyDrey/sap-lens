@@ -4,8 +4,8 @@ real v1 backup engine. Synthetic, reserved-domain data only; the keys and the pa
 Usage: .venv/bin/python -I tools/v1_data_fixture.py BACKEND_DIR OUT_DIR
 
 Writes OUT_DIR/data (the v1 data directory), OUT_DIR/v1-host.slbak and OUT_DIR/v1-passphrase.slbak (application backups of that directory written by
-application_backups.startup: host-key HKDF and scrypt passphrase modes), OUT_DIR/v1-recovery.key (the escrowed recovery copy of the host key) and
-OUT_DIR/expected.json (what the .NET tests compare with).
+application_backups.startup: host-key HKDF and scrypt passphrase modes) and OUT_DIR/expected.json (what the .NET tests compare with, including the
+synthetic passphrase and the escrowed recovery copy of the synthetic host key; no *.key file is written, so nothing key-shaped is committed).
 
 Content: two role, user and SoD matrix revisions (Norwegian names), a saved filter, Account Review decisions with history, SoD 2.0 decisions in the live
 context (activity, assignment, risk review), a remediation action with history, an approved review period with its decisions and frozen snapshot, a
@@ -202,7 +202,7 @@ expected = dict(
         matrix_approved=get('/api/sod/matrix/risk', context=approved)['totals'],
         remediation=sorted((i['user'], i['role'], i['action_status']) for i in get('/api/sod/remediation')['items'] if i.get('action_status')),
     ),
-    passphrase=PASSPHRASE,
+    passphrase=PASSPHRASE, recovery_key=(keys / 'host.key').read_text().strip(),
 )
 
 target_dir = Path(out)
@@ -211,7 +211,6 @@ ignore = lambda d, names: [n for n in names if n.endswith('.log') or n in {'stor
 shutil.copytree(private, target_dir / 'data', ignore=ignore)
 shutil.copyfile(archives['host'], target_dir / 'v1-host.slbak')
 shutil.copyfile(archives['passphrase'], target_dir / 'v1-passphrase.slbak')
-shutil.copyfile(keys / 'host.key', target_dir / 'v1-recovery.key')
 (target_dir / 'expected.json').write_text(json.dumps(expected, ensure_ascii=False, indent=1, sort_keys=True), encoding='utf-8')
 shutil.rmtree(work, ignore_errors=True)
 print(json.dumps(dict(events=expected['sod']['events'], periods=len(expected['sod']['periods']), evidence=len(expected['evidence_snapshots']), legacy=expected['sod']['legacy']), ensure_ascii=False))

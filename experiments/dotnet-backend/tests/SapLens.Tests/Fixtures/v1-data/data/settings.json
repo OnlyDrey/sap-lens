@@ -1,0 +1,161 @@
+{
+  "desktop": {
+    "close_to_tray": false,
+    "run_at_signin": false,
+    "start_minimized": false
+  },
+  "refresh_schedule": {
+    "enabled": false,
+    "mode": "daily",
+    "time": "06:00",
+    "cron": "0 6 * * *",
+    "timezone": "local"
+  },
+  "source_modes": {
+    "roles": "dynamic",
+    "users": "dynamic",
+    "employees": "static",
+    "sod": "dynamic"
+  },
+  "data_lifecycle": {
+    "confirmations": [],
+    "sod_history": [
+      {
+        "snapshot": "989901cde2dc01dd9651ab905ba8cff3d0c2992711b95cc5c99df8014c021ee6",
+        "path": "/tmp/tmpu8r4lchj/sod.csv",
+        "imported_at": "2026-11-17T18:19:13.155307+00:00",
+        "checked_at": "2026-11-17T18:19:13.155307+00:00"
+      }
+    ],
+    "history_metadata": {
+      "388e02ff437cf840af8649827c01ee4612bc9591a15a409eede9a24079c5a6e9": {
+        "timestamp": "2026-11-17T18:19:13.105895+00:00",
+        "operation": "refresh",
+        "status": "unchanged",
+        "checked": 3,
+        "updated": 0,
+        "unchanged": 3,
+        "failed": 0,
+        "skipped": 1
+      },
+      "3d966f96cadac86a25106a2a90594f91aff90a3b1e0dd75b897ba05e3239595a": {
+        "timestamp": "2026-11-17T18:19:13.155307+00:00",
+        "operation": "refresh",
+        "status": "changed",
+        "checked": 3,
+        "updated": 3,
+        "unchanged": 0,
+        "failed": 0,
+        "skipped": 1
+      }
+    },
+    "last_successful_refresh": "2026-11-17T18:19:13.155307+00:00",
+    "last_failed_refresh": null,
+    "sources": {
+      "roles": {
+        "snapshot": "631625897d0b963fc846ba58a80866ca021eb174e50cf3304440a43c0e9702cd",
+        "path": "/tmp/tmpu8r4lchj/roles.csv",
+        "imported_at": "2026-11-17T18:19:13.155307+00:00",
+        "checked_at": "2026-11-17T18:19:13.155307+00:00"
+      },
+      "users": {
+        "snapshot": "058afd7860ff92bbf448b536515b112f13e7b081d9e2421a214f6eb45a0db829",
+        "path": "/tmp/tmpu8r4lchj/users.csv",
+        "imported_at": "2026-11-17T18:19:13.155307+00:00",
+        "checked_at": "2026-11-17T18:19:13.155307+00:00"
+      },
+      "sod": {
+        "snapshot": "989901cde2dc01dd9651ab905ba8cff3d0c2992711b95cc5c99df8014c021ee6",
+        "path": "/tmp/tmpu8r4lchj/sod.csv",
+        "imported_at": "2026-11-17T18:19:13.155307+00:00",
+        "checked_at": "2026-11-17T18:19:13.155307+00:00"
+      }
+    },
+    "history": [
+      "3d966f96cadac86a25106a2a90594f91aff90a3b1e0dd75b897ba05e3239595a",
+      "388e02ff437cf840af8649827c01ee4612bc9591a15a409eede9a24079c5a6e9"
+    ]
+  },
+  "import_checks": {
+    "enabled": true,
+    "max_drop_percent": 30,
+    "min_previous_records": 20
+  },
+  "unlicensed_user_groups": [
+    "UNLICENSED"
+  ],
+  "employee_snapshot_id": null,
+  "employee_csv_path": "",
+  "sod_csv_path": "/tmp/tmpu8r4lchj/sod.csv",
+  "sod_import": {
+    "id": "default",
+    "name": "Standard SoD matrix",
+    "version": 1,
+    "mapping": {},
+    "delimiter": "auto",
+    "encoding": "auto"
+  },
+  "features": {
+    "user_role_mapping": true,
+    "employee_directory": false,
+    "sod": true
+  },
+  "schema_version": 3,
+  "user_csv_path": "/tmp/tmpu8r4lchj/users.csv",
+  "user_import_profiles": [
+    {
+      "id": "default",
+      "name": "Standard SAP user CSV",
+      "version": 1,
+      "mapping": {},
+      "delimiter": "auto",
+      "encoding": "auto"
+    }
+  ],
+  "active_user_import": "default",
+  "legacy_classification": null,
+  "revision": 3,
+  "data_csv_path": "/tmp/tmpu8r4lchj/roles.csv",
+  "organization": {
+    "name": "Example Inc.",
+    "platform": "SAP S/4HANA",
+    "custom_platform": "",
+    "system_id": "DEMO",
+    "client": "100",
+    "description": "Example System",
+    "footer": ""
+  },
+  "theme": "dark",
+  "theme_colors": {
+    "dark": {
+      "primary": "#1a003b",
+      "accent": "#7c85d4",
+      "secondary": "#2a3156",
+      "background": "#0d0d1a",
+      "surface": "#111827",
+      "text": "#f1f5f9"
+    },
+    "light": {
+      "primary": "#182c53",
+      "accent": "#515793",
+      "secondary": "#e1e5f2",
+      "background": "#f0f2f7",
+      "surface": "#ffffff",
+      "text": "#182c53"
+    },
+    "custom_presets": []
+  },
+  "logo_id": null,
+  "module_overrides": {},
+  "import_profiles": [
+    {
+      "id": "default",
+      "name": "Standard SAP CSV",
+      "version": 1,
+      "mapping": {},
+      "delimiter": "auto",
+      "encoding": "auto"
+    }
+  ],
+  "active_import": "default"
+}
