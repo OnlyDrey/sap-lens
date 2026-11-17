@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Starts a published SAP Lens 2 Server in the foreground on an isolated Windows TEST machine (development and acceptance testing only).
+  Starts a published SAP Lens (.NET) Server in the foreground on an isolated Windows TEST machine (development and acceptance testing only).
 
 .DESCRIPTION
   Not a production deployment mechanism. The script:
@@ -132,10 +132,10 @@ function Test-PortAvailable([System.Net.IPAddress]$Address, [int]$Port) {
 }
 
 function Get-ProtectedDataPaths {
-    <# Production and Desktop data locations that a test run must never use (v1 and SAP Lens 2). #>
+    <# Production and Desktop data locations that a test run must never use (v1 and .NET, current and earlier names). #>
     $paths = @()
-    if ($env:ProgramData) { $paths += (Join-Path $env:ProgramData 'SapLens2'), (Join-Path $env:ProgramData 'SAP Lens Server') }
-    if ($env:LOCALAPPDATA) { $paths += (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype'), (Join-Path $env:LOCALAPPDATA 'SAP Lens') }
+    if ($env:ProgramData) { $paths += (Join-Path $env:ProgramData 'SapLens'), (Join-Path $env:ProgramData 'SapLens2'), (Join-Path $env:ProgramData 'SAP Lens Server') }
+    if ($env:LOCALAPPDATA) { $paths += (Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype'), (Join-Path $env:LOCALAPPDATA 'SAP Lens') }
     if ($env:ProgramFiles) { $paths += $env:ProgramFiles }
     if ($env:SystemRoot) { $paths += $env:SystemRoot }
     $paths
@@ -284,7 +284,7 @@ function Invoke-ServerTestLauncher {
         [Console]::Error.WriteLine("start-server-test: $($_.Exception.Message)")
         return 2
     }
-    Write-Host 'SAP Lens 2 Server test launcher (development and acceptance testing only)'
+    Write-Host 'SAP Lens Server test launcher (development and acceptance testing only)'
     Write-Host "  Release:  $($release.Release)$(if (-not $release.Manifest) { ' (no build manifest)' })"
     if ($release.Manifest) {
         $manifest = Get-Content -LiteralPath $release.Manifest -Raw | ConvertFrom-Json

@@ -12,7 +12,9 @@
     <!-- `dotnet publish -c Release` alone produces the complete package: one self-contained exe; the UI is embedded in SapLens.Api.dll inside it. -->
     <PublishSingleFile>true</PublishSingleFile>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
-    <AssemblyName>SapLens2Prototype</AssemblyName>
+    <AssemblyName>SapLens</AssemblyName>
+    <!-- The official multi-size icon (16 to 256 px), embedded in SapLens.exe and used for the window. -->
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\..\assets\sap-lens.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <InvariantGlobalization>false</InvariantGlobalization>
     <!-- SapLens.Api is also the Server executable; Desktop uses it as a library. -->
@@ -35,7 +37,7 @@
   </ItemGroup>
 
   <!-- The referenced Server project is an executable: its own apphost, deps.json and runtimeconfig.json are copied along but never used by the
-       Desktop (SapLens.Api.dll itself is bundled into SapLens2Prototype.exe). -->
+       Desktop (SapLens.Api.dll itself is bundled into SapLens.exe). -->
   <Target Name="DropServerHostFiles" AfterTargets="ComputeResolvedFilesToPublishList">
     <ItemGroup>
       <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'SapLens.Api' Or '%(Filename)%(Extension)' == 'SapLens.Api.exe'" />

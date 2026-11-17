@@ -20,7 +20,7 @@ encoded="${@: -1}"
 printf '%s\n' "$*" > "$FAKE_DIR/ssh-args"
 printf '%s' "$encoded" | base64 -d | iconv -f UTF-16LE -t UTF-8 > "$FAKE_DIR/command.ps1"
 if [ "${FAKE_SSH:-record}" = run ]; then exec pwsh -NoProfile -NonInteractive -EncodedCommand "$encoded"; fi
-echo "SAPLENS2-RESULT: {\"exit\":${FAKE_EXIT:-0}}"
+echo "SAPLENS-RESULT: {\"exit\":${FAKE_EXIT:-0}}"
 exit "${FAKE_EXIT:-0}"
 FAKE
 chmod +x "$work/bin/ssh"
@@ -54,6 +54,9 @@ check 'deploy passes action, tests, confirmation, adoption and the locked commit
   '[ "$code" = 0 ] && grep -q -- "-Action Deploy" "$work/command.ps1" && grep -q -- "-Tests full -Yes -AdoptService" "$work/command.ps1" && grep -q "\$commit = '"'"'${tip:0:12}'"'"'" "$work/command.ps1" && grep -q -- "-Commit \$sha" "$work/command.ps1"'
 check 'ssh runs non-interactively with keepalives and PowerShell 5.1' 'grep -q -- "-o BatchMode=yes -o ServerAliveInterval=15" "$work/ssh-args" && grep -q "powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand" "$work/ssh-args"'
 check 'no secret-like option is ever sent' '! grep -qiE -- "--cert-password |--token|password=" "$work/command.ps1"'
+code=$(run "${base[@]}" --mode migrate-service --yes)
+check 'migrate-service is a confirmed service change' '[ "$code" = 0 ] && grep -q -- "-Action MigrateService" "$work/command.ps1" && grep -q -- " -Yes" "$work/command.ps1"'
+check 'migrate-service without --yes is refused before ssh' '[ "$(run "${base[@]}" --mode migrate-service)" = 64 ] && [ ! -e "$work/ssh-args" ]'
 export FAKE_EXIT=4
 code=$(run "${base[@]}" --mode recover --yes)
 check 'the remote exit code is returned and manual action is announced' '[ "$code" = 4 ] && grep -q "MANUAL ACTION REQUIRED" "$work/out"'
@@ -70,6 +73,14 @@ check 'dry-run locks the branch tip and changes nothing' \
   '[ "$code" = 0 ] && grep -q "\"dry_run\":true" "$work/out" && grep -q "\"commit\":\"$tip\"" "$work/out" && [ -z "$(ls -A "$work/releases")" ] && [ -z "$(ls -A "$work/backups")" ]'
 code=$(run "${base[@]}" --mode dry-run --commit 0000000000000000000000000000000000000000)
 check 'a commit that is not on the branch is refused remotely' '[ "$code" != 0 ]'
+
+# A commit from before the rename to SAP Lens carries Deploy-SapLens2.ps1 and its SAPLENS2-RESULT line; it still runs.
+legacy=$(git -C "$repo_root" log -1 --format=%H "$tip" -- experiments/dotnet-backend/scripts/deploy/Deploy-SapLens2.ps1)
+git -C "$repo_root" cat-file -e "$legacy:experiments/dotnet-backend/scripts/deploy/Deploy-SapLens2.ps1" 2>/dev/null || legacy=$(git -C "$repo_root" rev-parse "$legacy^")
+legacy_config="$work/deploy-legacy.json"
+sed 's/^{/{"ServiceName":"SapLens2",/' "$work/deploy.json" > "$legacy_config"
+code=$(run --host 192.0.2.10 --user deployer --repo "$work/host-repo" --config "$legacy_config" --mode status --commit "$legacy")
+check 'a commit from before the rename still runs its own deployment script' '[ "$code" = 0 ] && grep -q "locked commit $legacy" "$work/out" && grep -q "SAPLENS2-RESULT: " "$work/out"'
 
 echo "$((count - failures)) of $count checks passed"
 [ "$failures" = 0 ]

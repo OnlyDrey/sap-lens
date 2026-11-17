@@ -44,7 +44,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\experiments\dotnet-backend
 ```
 
 `-ExecutionPolicy Bypass` on the `powershell -File` call applies to that one process only; it changes no machine or user policy. `-Output` is the
-parent folder: each build creates a new folder `SAP-Lens-2-<version>-<UTC time>-<commit>-win-x64` inside it and never overwrites one.
+parent folder: each build creates a new folder `SAP-Lens-<version>-<UTC time>-<commit>-win-x64` inside it and never overwrites one.
 
 `build-release.ps1` builds the UI and the solution, runs the tests, publishes both executables, validates the packages, writes `README.txt`,
 `build-manifest.json` and `SHA256SUMS`, and verifies them with `verify-release.ps1`. It **does not install or start anything**. A completed build
@@ -57,7 +57,7 @@ Release layout (self-contained single-file executables; no .NET installation nee
 | --- | --- |
 | `server\SapLens.Api.exe` | Server: console process or Windows service. Everything managed, including the React UI, is inside the exe |
 | `server\e_sqlite3.dll` | SQLite native library. It stays beside the exe (loaded from there, never extracted to a temporary folder, which a service account may not be allowed to use) |
-| `desktop\SapLens2Prototype.exe` | Desktop (WebView2, loopback only). It extracts its native libraries (WebView2 loader, SQLite) to a temporary folder at start |
+| `desktop\SapLens.exe` | Desktop (WebView2, loopback only). It extracts its native libraries (WebView2 loader, SQLite) to a temporary folder at start |
 | `symbols\server\`, `symbols\desktop\` | `.pdb` debugging symbols; not needed at runtime |
 | `build-manifest.json` | Commit, dirty flag, branch, version, build time (UTC), target platform, SDK and Node versions, publish settings, and the size and SHA-256 of every file |
 | `README.txt` | Which executable to run and how to configure the Server |
@@ -68,7 +68,7 @@ inside its application folder (`startup refused: The data directory must be outs
 replaced or deleted without touching data.
 
 ```powershell
-$release = Get-ChildItem C:\saplens2\builds -Directory -Filter 'SAP-Lens-2-*' | Sort-Object { (Get-Item (Join-Path $_.FullName 'build-manifest.json')).LastWriteTime } | Select-Object -Last 1
+$release = Get-ChildItem C:\saplens2\builds -Directory -Filter 'SAP-Lens-*' | Sort-Object { (Get-Item (Join-Path $_.FullName 'build-manifest.json')).LastWriteTime } | Select-Object -Last 1
 powershell -NoProfile -ExecutionPolicy Bypass -File C:\src\sap-lens\experiments\dotnet-backend\scripts\verify-release.ps1 -ReleasePath $release.FullName   # after copying a release, too
 Get-Content (Join-Path $release.FullName 'build-manifest.json') | Select-Object -First 12
 & (Join-Path $release.FullName 'server\SapLens.Api.exe') --version
@@ -101,7 +101,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.
 | `-Port` | `18790` | Must be free on that address |
 | `-AllowedHosts` | the listen address | Host names or addresses clients type; the certificate SAN must cover each |
 | `-TrustedProxies` | none | Reverse-proxy tests only: IP or CIDR of the proxy peer, passed as `--trusted-proxies` ([section 11](SERVER_NETWORK_ACCESS.md#11-reverse-proxy-pangolin-cloudflare)) |
-| `-DataDirectory` | `C:\saplens2\runtime-test` | Absolute, local; refused inside `%ProgramData%\SapLens2`, `%ProgramData%\SAP Lens Server`, `%LOCALAPPDATA%\SAP Lens`, `%LOCALAPPDATA%\SAP Lens 2 Prototype`, Program Files, Windows or the release folder |
+| `-DataDirectory` | `C:\saplens2\runtime-test` | Absolute, local; refused inside `%ProgramData%\SapLens`, `%ProgramData%\SapLens2`, `%ProgramData%\SAP Lens Server`, `%LOCALAPPDATA%\SAP Lens`, `%LOCALAPPDATA%\SAP Lens Desktop`, `%LOCALAPPDATA%\SAP Lens 2 Prototype`, Program Files, Windows or the release folder |
 | `-CertificatePath` | `C:\ProgramData\SapLens2\tls\server.pfx` | Must exist; never created |
 | `-CertificatePasswordFile` | `C:\ProgramData\SapLens2\tls\cert-password` | Must exist and be non-empty; the Server reads it, the launcher never does |
 | `-DryRun` | off | Validates and prints the command without secrets |
@@ -246,7 +246,7 @@ Record each level separately. A successful build is **never** runtime acceptance
 | 6 Browser UI | React UI loads with a valid lock from another machine | Pending |
 | 7 Authentication and API | First administrator activated, sign-in works, import and lookups return data, 401/421 refusals as listed | Pending |
 | 8 Restart and persistence | Section 7 | Pending |
-| 9 Desktop startup | `SapLens2Prototype.exe --self-check` exit 0, window and WebView2 ([checklist](DESKTOP_SERVER_DEPLOYMENT.md#acceptance-checklist-windows)) | Pending for the current build |
+| 9 Desktop startup | `SapLens.exe --self-check` exit 0, window and WebView2 ([checklist](DESKTOP_SERVER_DEPLOYMENT.md#acceptance-checklist-windows)) | Pending for the current build |
 | 10 Windows service | [Section 5 procedure](SERVER_NETWORK_ACCESS.md#5-deployment): install, start, stop, restart, recovery, reboot, removal | Pending (never run) |
 | 11 Full Windows acceptance | Levels 1 to 10 on one commit | Not achieved |
 

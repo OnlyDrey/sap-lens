@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-  Verifies a SAP Lens 2 release folder written by build-release.ps1 or build-release.sh: every file listed in build-manifest.json exists with its size and
+  Verifies a SAP Lens release folder written by build-release.ps1 or build-release.sh: every file listed in build-manifest.json exists with its size and
   SHA-256, no unlisted file was added, and SHA256SUMS matches (it also covers build-manifest.json). Read-only. Exit code 0 valid, 1 invalid.
 
 .EXAMPLE
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -ReleasePath C:\saplens2\builds\SAP-Lens-2-...-win-x64
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -ReleasePath C:\saplens2\builds\SAP-Lens-...-win-x64
 #>
 param([Parameter(Mandatory = $true)][string]$ReleasePath)
 $ErrorActionPreference = 'Stop'
@@ -21,7 +21,7 @@ else {
     $expected = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $(if ($Matches[6]) { [int]$Matches[6] } else { 0 }))
     if ($manifest.PSObject.Properties.Name -contains 'file_version' -and ((@($manifest.file_version) -join '.') -ne ($expected -join '.'))) { $problems.Add("manifest file_version $(@($manifest.file_version) -join '.') does not follow from version $($manifest.version)") }
     $folder = Split-Path -Leaf $root
-    if ($folder -like 'SAP-Lens-2-*' -and $folder -notlike "SAP-Lens-2-$($manifest.version)-*") { $problems.Add("folder name $folder does not carry version $($manifest.version)") }
+    if ($folder -like 'SAP-Lens-*' -and $folder -notlike "SAP-Lens-$($manifest.version)-*" -and $folder -notlike "SAP-Lens-2-$($manifest.version)-*") { $problems.Add("folder name $folder does not carry version $($manifest.version)") }
 }
 $listed = @{}
 foreach ($artifact in @($manifest.artifacts)) {

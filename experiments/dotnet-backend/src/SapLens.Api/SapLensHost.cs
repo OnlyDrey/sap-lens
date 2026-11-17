@@ -72,7 +72,7 @@ public static class SapLensHost
         builder.Services.AddExceptionHandler<ProblemMapper>();
         builder.Services.AddOpenApi("v1", o => o.AddDocumentTransformer((doc, _, _) =>
         {
-            doc.Info.Title = "SAP Lens 2.0 prototype API";
+            doc.Info.Title = "SAP Lens API";
             doc.Info.Version = "v1";
             return Task.CompletedTask;
         }));

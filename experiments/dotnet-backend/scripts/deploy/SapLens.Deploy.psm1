@@ -1,14 +1,19 @@
-# SAP Lens 2 controlled deployment to a Windows host (build, validate, install service, deploy, verify, roll back, recover).
-# Windows PowerShell 5.1 and PowerShell 7. Entry point: Deploy-SapLens2.ps1. Operator guide: docs/experiments/dotnet-backend/WINDOWS_DEPLOYMENT.md.
+# SAP Lens controlled deployment to a Windows host (build, validate, install service, deploy, verify, roll back, recover).
+# Windows PowerShell 5.1 and PowerShell 7. Entry point: Deploy-SapLens.ps1. Operator guide: docs/experiments/dotnet-backend/WINDOWS_DEPLOYMENT.md.
 #
 # Every operating-system action goes through a small function below (git, service control, the release link, HTTP, the server's own maintenance
-# commands), so the deployment state machine is tested with mocks (scripts/tests/SapLens2.Deploy.Tests.ps1). Nothing here reads, prints or passes a
+# commands), so the deployment state machine is tested with mocks (scripts/tests/SapLens.Deploy.Tests.ps1). Nothing here reads, prints or passes a
 # secret: the certificate password stays in its file, which only the service reads.
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
 $script:Exe = 'SapLens.Api.exe'
 $script:Lock = $null; $script:RunFolder = $null; $script:RunLog = $null; $script:RunId = ''
+# Service names: SapLens for new installations; SapLens2 is the name of earlier installations, detected and kept until MigrateService renames it.
+$script:ServiceName = 'SapLens'; $script:LegacyServiceName = 'SapLens2'
+# Configuration lookup when -ConfigFile is not given: the environment variable (current, then earlier name), then the default files in this order.
+$script:ConfigVariables = @('SAPLENS_DEPLOY_CONFIG', 'SAPLENS2_DEPLOY_CONFIG')
+$script:ConfigDefaults = @('C:\saplens\deploy.local.json', 'C:\saplens2\deploy.local.json')
 $script:FocusedTests = @('StartupTests', 'ApiTests', 'NetworkTests', 'ReverseProxyTests', 'SessionTests', 'AccountsTests', 'AccountCompatibilityTests',
     'PersistenceTests', 'ApplicationBackupTests', 'MaintenanceCommandsTests', 'V1CompatibilityTests', 'VersioningTests', 'V1DataMigrationTests')
 # Phases after which the running service may already be stopped or switched; an interrupted run in one of them needs recovery.
@@ -33,13 +38,28 @@ function Write-SL2Log([string]$Message) {
 
 # ---- configuration
 
-function Read-SapLens2Settings([string]$Path) {
-    if (-not $Path) { $Path = if ($env:SAPLENS2_DEPLOY_CONFIG) { $env:SAPLENS2_DEPLOY_CONFIG } else { 'C:\saplens2\deploy.local.json' } }
-    if (-not (Test-Path -LiteralPath $Path)) { Stop-SL2 "Deployment configuration not found: $Path (copy scripts\deploy\deploy.example.json)." }
+function Find-SL2ConfigFile {
+    foreach ($name in $script:ConfigVariables) { $value = [Environment]::GetEnvironmentVariable($name); if ($value) { return $value } }
+    foreach ($file in $script:ConfigDefaults) { if (Test-Path -LiteralPath $file) { return $file } }
+    $script:ConfigDefaults[0]
+}
+
+# The service this host runs: the configured name, otherwise SapLens, otherwise an existing earlier SapLens2 installation (kept as it is).
+function Resolve-SL2ServiceName {
+    if ((Get-SL2Service $script:ServiceName).Exists) { return $script:ServiceName }
+    if ((Get-SL2Service $script:LegacyServiceName).Exists) { return $script:LegacyServiceName }
+    $script:ServiceName
+}
+
+function Read-SapLensSettings([string]$Path) {
+    if (-not $Path) { $Path = Find-SL2ConfigFile }
+    if (-not (Test-Path -LiteralPath $Path)) { Stop-SL2 "Deployment configuration not found: $Path (copy scripts\deploy\deploy.example.json; looked for `$env:$($script:ConfigVariables -join ', `$env:') and $($script:ConfigDefaults -join ', '))." }
     $raw = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
+    # Work, release and backup folders default to the configuration file's folder (C:\saplens2\deploy.local.json keeps C:\saplens2\releases and so on).
+    $home_ = [System.IO.Path]::GetDirectoryName($Path)
     $config = [ordered]@{
-        RepositoryPath = ''; Remote = 'origin'; Branch = 'experiment/dotnet-backend'; WorkRoot = 'C:\saplens2\deploy'; ReleasesRoot = 'C:\saplens2\releases'
-        BackupRoot = 'C:\saplens2\predeploy-backups'; ServiceName = 'SapLens2'; ServiceAccount = 'NT SERVICE\SapLens2'; ListenAddress = ''; Port = 0
+        RepositoryPath = ''; Remote = 'origin'; Branch = 'experiment/dotnet-backend'; WorkRoot = (Join-SL2 $home_ 'deploy'); ReleasesRoot = (Join-SL2 $home_ 'releases')
+        BackupRoot = (Join-SL2 $home_ 'predeploy-backups'); ServiceName = ''; ServiceAccount = ''; ListenAddress = ''; Port = 0
         AllowedHosts = @(); TrustedProxies = @(); DataDirectory = ''; CertificatePath = ''; CertificatePasswordFile = ''; ReadyTimeoutSeconds = 120; StopTimeoutSeconds = 90
     }
     foreach ($p in $raw.PSObject.Properties) {
@@ -54,6 +74,11 @@ function Read-SapLens2Settings([string]$Path) {
         if ([string]$config[$pathSetting] -notmatch '^([A-Za-z]:[\\/]|\\\\|/)') { Stop-SL2 "Deployment setting '$pathSetting' must be an absolute path." }
     }
     $config.AllowedHosts = @($config.AllowedHosts); $config.TrustedProxies = @($config.TrustedProxies)
+    $config['ConfigFile'] = $Path
+    $config['ServiceNameConfigured'] = [bool]$config.ServiceName
+    if (-not $config.ServiceName) { $config.ServiceName = Resolve-SL2ServiceName }
+    if ($config.ServiceName -notmatch '^[A-Za-z0-9_.-]{1,80}$') { Stop-SL2 "Deployment setting 'ServiceName' may contain letters, digits, '.', '_' and '-' only." }
+    if (-not $config.ServiceAccount) { $config.ServiceAccount = "NT SERVICE\$($config.ServiceName)" }      # the service's own virtual account
     [pscustomobject]$config
 }
 
@@ -322,9 +347,29 @@ function Publish-SL2Release($Config, [string]$Release, $Manifest) {
 
 # ---- service installation
 
+# The other SAP Lens service name on this host (SapLens beside SapLens2, or the reverse), when it exists: never create a second service.
+function Get-SL2OtherService($Config) {
+    foreach ($name in $script:ServiceName, $script:LegacyServiceName) { if ($name -ne $Config.ServiceName -and (Get-SL2Service $name).Exists) { return $name } }
+    $null
+}
+
+# Creates the service (automatic start, its virtual account, restart on failure) or, for an existing one, sets its command line and account.
+function Set-SL2ServiceEntry($Config, [string]$Binary, [bool]$Exists, [string]$StartMode = 'auto') {
+    if (-not $Exists) {
+        New-Service -Name $Config.ServiceName -DisplayName 'SAP Lens Server' -BinaryPathName $Binary -StartupType Manual -Description 'SAP Lens (.NET) server' | Out-Null
+    }
+    foreach ($arguments in @(@('config', $Config.ServiceName, 'binPath=', $Binary, 'start=', $StartMode), @('config', $Config.ServiceName, 'obj=', $Config.ServiceAccount),
+            @('failure', $Config.ServiceName, 'reset=', '86400', 'actions=', 'restart/60000/restart/60000//'))) {
+        $result = Invoke-SL2Process 'sc.exe' $arguments ''     # virtual account: no password
+        if ($result.ExitCode -ne 0) { Stop-SL2 "sc.exe $($arguments[0]) $($Config.ServiceName) failed ($(($result.Output | Select-Object -Last 1)))." 1 }
+    }
+}
+
 function Install-SL2Service($Config, [switch]$Reconfigure) {
     $service = Get-SL2Service $Config.ServiceName
     if ($service.Exists -and -not $Reconfigure) { Stop-SL2 "Service $($Config.ServiceName) exists; use -Reconfigure to update its command line and permissions." }
+    $other = Get-SL2OtherService $Config
+    if (-not $service.Exists -and $other) { Stop-SL2 "Service $other already runs SAP Lens on this host; a second service is never created. Remove 'ServiceName' from $($Config.ConfigFile) to use $other, or rename it with -Action MigrateService." }
     if (-not (Get-SL2Link (Get-SL2CurrentLink $Config))) { Stop-SL2 'No release is linked yet: run the build action and then deploy with -FirstInstall, which installs the service.' }
     $listeners = @(Get-SL2Listener $Config.ListenAddress ([int]$Config.Port))
     $owned = $service.Exists -and $service.ProcessId -gt 0 -and ($listeners -contains $service.ProcessId)
@@ -333,15 +378,71 @@ function Install-SL2Service($Config, [switch]$Reconfigure) {
     }
     foreach ($file in $Config.CertificatePath, $Config.CertificatePasswordFile) { if (-not (Test-Path -LiteralPath $file)) { Stop-SL2 "Missing file $file." } }
     $binary = Get-SL2BinaryPath $Config
-    if (-not $service.Exists) {
-        New-Service -Name $Config.ServiceName -DisplayName 'SAP Lens 2 Server' -BinaryPathName $binary -StartupType Automatic -Description 'SAP Lens 2 (.NET) server' | Out-Null
-    } else {
-        Invoke-SL2Process 'sc.exe' @('config', $Config.ServiceName, 'binPath=', $binary, 'start=', 'auto') '' | Out-Null
-    }
-    Invoke-SL2Process 'sc.exe' @('config', $Config.ServiceName, 'obj=', $Config.ServiceAccount) '' | Out-Null       # virtual account: no password
-    Invoke-SL2Process 'sc.exe' @('failure', $Config.ServiceName, 'reset=', '86400', 'actions=', 'restart/60000/restart/60000//') '' | Out-Null
+    Set-SL2ServiceEntry $Config $binary $service.Exists
     Grant-SL2Access $Config
     Write-SL2Log "service $($Config.ServiceName) configured: $binary, account $($Config.ServiceAccount)"
+}
+
+# Renames an earlier SapLens2 installation to the SapLens service, keeping its release, data, TLS, hosts and trusted proxies. The new service gets
+# its own virtual account (NT SERVICE\SapLens) with the same grants. Order: create SapLens (manual start), grant, stop SapLens2 and disable it,
+# start SapLens and verify readiness and identity; only then SapLens gets automatic start and SapLens2 is deleted (its settings are recorded in the
+# run folder). Any failure before that removes the new service and starts SapLens2 again, so there is never a second running or enabled service.
+function Invoke-SL2MigrateService($Config) {
+    if ($Config.ServiceNameConfigured) { Stop-SL2 "$($Config.ConfigFile) names the service ('ServiceName'/'ServiceAccount'). Remove both settings, then repeat: the service is detected automatically before and after the migration." }
+    $legacy = Get-SL2Service $script:LegacyServiceName
+    $target = Get-SL2Service $script:ServiceName
+    if ($target.Exists -and $legacy.Exists) { Stop-SL2 "Both $($script:ServiceName) and $($script:LegacyServiceName) exist. Nothing was changed; keep the one that runs the managed release and remove the other by hand (sc.exe delete) after checking -Action Status." }
+    if ($target.Exists) { Stop-SL2 "The service is already named $($script:ServiceName); nothing to migrate." }
+    if (-not $legacy.Exists) { Stop-SL2 "No $($script:LegacyServiceName) service exists on this host; nothing to migrate." }
+    $legacyConfig = $Config.PSObject.Copy(); $legacyConfig.ServiceName = $script:LegacyServiceName
+    $binary = Get-SL2BinaryPath $Config
+    if ($legacy.PathName -ne $binary) { Stop-SL2 "$($script:LegacyServiceName) runs $($legacy.PathName), not the managed release link. Deploy once with -AdoptService first, then migrate." }
+    $journal = Read-SL2Journal $Config
+    if ($journal -and $journal.phase -in $script:CriticalPhases) { Stop-SL2 "An earlier deployment ($($journal.run)) was interrupted in phase '$($journal.phase)'. Run -Action Recover first." }
+    $wasRunning = $legacy.State -eq 'Running'
+    $legacyStart = if ($legacy.StartMode -match '^Auto') { 'auto' } elseif ($legacy.StartMode -match '^Disabled') { 'disabled' } else { 'demand' }
+    $record = [pscustomobject]@{ service = $script:LegacyServiceName; binary_path = $legacy.PathName; account = $legacy.Account; start_mode = $legacy.StartMode; state = $legacy.State }
+    [System.IO.File]::WriteAllText((Join-SL2 $script:RunFolder 'legacy-service.json'), ($record | ConvertTo-Json))
+    $current = Get-SL2Link (Get-SL2CurrentLink $Config)
+    $manifest = Get-Content -LiteralPath (Join-SL2 $current 'build-manifest.json') -Raw | ConvertFrom-Json
+    $migrated = $Config.PSObject.Copy(); $migrated.ServiceName = $script:ServiceName; $migrated.ServiceAccount = "NT SERVICE\$($script:ServiceName)"
+    Write-SL2Log "migrating service $($script:LegacyServiceName) ($($legacy.State), $($legacy.StartMode)) to $($script:ServiceName); release $current"
+    $created = $false; $legacyTouched = $false
+    try {
+        Set-SL2ServiceEntry $migrated $binary $false 'demand'; $created = $true
+        Grant-SL2Access $migrated
+        $legacyTouched = $true
+        Stop-SL2Service $script:LegacyServiceName ([int]$Config.StopTimeoutSeconds)
+        $null = Invoke-SL2Process 'sc.exe' @('config', $script:LegacyServiceName, 'start=', 'disabled') ''
+        Start-SL2Service $script:ServiceName
+        $ready = Wait-SL2Ready $migrated $manifest.source_sha $manifest.version
+    } catch {
+        $reason = $_.Exception.Message
+        Write-SL2Log "service migration failed: $reason; returning to $($script:LegacyServiceName)"
+        try {
+            if ($created) {
+                if ((Get-SL2Service $script:ServiceName).State -ne 'Stopped') { Stop-SL2Service $script:ServiceName ([int]$Config.StopTimeoutSeconds) }
+                $null = Invoke-SL2Process 'sc.exe' @('delete', $script:ServiceName) ''
+            }
+            if ($legacyTouched) {
+                $null = Invoke-SL2Process 'sc.exe' @('config', $script:LegacyServiceName, 'start=', $legacyStart) ''
+                if ($wasRunning) { Start-SL2Service $script:LegacyServiceName; $null = Wait-SL2Ready $legacyConfig $manifest.source_sha $manifest.version }
+            }
+        } catch {
+            $text = "SAP Lens service migration needs a manual decision. Migration error: $reason`r`nRestore error: $($_.Exception.Message)`r`n" +
+                "Original service settings: $(Join-SL2 $script:RunFolder 'legacy-service.json')`r`nTo return: sc.exe delete $($script:ServiceName) (if present); " +
+                "sc.exe config $($script:LegacyServiceName) start= $legacyStart; Start-Service $($script:LegacyServiceName)`r`n"
+            [System.IO.File]::WriteAllText((Join-SL2 $script:RunFolder 'RECOVERY-REQUIRED.txt'), $text)
+            Stop-SL2 "Service migration failed and $($script:LegacyServiceName) could not be restored automatically; see RECOVERY-REQUIRED.txt in $script:RunFolder." 4
+        }
+        Stop-SL2 "Service migration failed; $($script:LegacyServiceName) is unchanged and $(if ($wasRunning) { 'running again' } else { 'as it was' }): $reason" 1
+    }
+    $null = Invoke-SL2Process 'sc.exe' @('config', $script:ServiceName, 'start=', $legacyStart) ''
+    $deleted = Invoke-SL2Process 'sc.exe' @('delete', $script:LegacyServiceName) ''
+    if ($deleted.ExitCode -ne 0) { Write-SL2Log "warning: $($script:LegacyServiceName) is disabled but could not be deleted ($(($deleted.Output | Select-Object -Last 1))); remove it with sc.exe delete" }
+    Write-SL2Log "service migrated: $($script:ServiceName) runs $($manifest.version) $($manifest.source_sha), account $($migrated.ServiceAccount); $($script:LegacyServiceName) removed"
+    [pscustomobject]@{ service = $script:ServiceName; previous_service = $script:LegacyServiceName; account = $migrated.ServiceAccount; release = $current
+        commit = $manifest.source_sha; version = $manifest.version; process_id = $ready.process_id; legacy_service_deleted = ($deleted.ExitCode -eq 0); data_directory = $Config.DataDirectory }
 }
 
 # Least privilege for the virtual service account: modify the data directory, read the releases, the certificate, its password file and the backup
@@ -378,7 +479,8 @@ function Get-SL2Status($Config) {
     }
     $journal = Read-SL2Journal $Config
     [pscustomobject]@{
-        service_model = $model; service = $service; expected_binary_path = Get-SL2BinaryPath $Config
+        service_model = $model; service_name = $Config.ServiceName; service = $service; expected_binary_path = Get-SL2BinaryPath $Config
+        legacy_service_name = ($Config.ServiceName -eq $script:LegacyServiceName); other_service = Get-SL2OtherService $Config
         binary_path_matches = ($service.Exists -and $service.PathName -eq (Get-SL2BinaryPath $Config))
         current_release = $current; current_commit = $(if ($manifest) { $manifest.source_sha } else { $null }); current_version = $(if ($manifest) { $manifest.version } else { $null })
         listeners = $listeners; ready = $ready; running_identity = $identity
@@ -430,7 +532,7 @@ function Test-SL2RollbackSafe($Config, [string]$ReleaseFolder, $AppliedBefore, [
 function Write-SL2RecoveryInstructions($Config, $Journal, [string]$Reason) {
     $backup = if ($Journal.PSObject.Properties['backup'] -and $Journal.backup) { "$($Journal.backup.file) (SHA-256 $($Journal.backup.sha256))" } else { 'none was taken in this run (no database existed, or this is a manual rollback); use the newest verified backup' }
     $text = @"
-SAP Lens 2 deployment $($Journal.run) needs a manual decision. Nothing further was changed automatically.
+SAP Lens deployment $($Journal.run) needs a manual decision. Nothing further was changed automatically.
 
 Reason: $Reason
 Service: $($Config.ServiceName) is stopped. Linked release: $(Get-SL2Link (Get-SL2CurrentLink $Config))
@@ -443,7 +545,7 @@ Choose one:
 2. Return to the previous release with the data as it was before the deployment (this discards changes made since the backup):
      a. Keep the current data aside: move $($Config.DataDirectory) to a new name (do not delete it).
      b. Restore the backup into a new data directory with the previous release (Settings, Backup and restore, or a support procedure),
-        then relink: Deploy-SapLens2.ps1 -Action Rollback -ToRelease "$($Journal.from_release)" -Yes
+        then relink: Deploy-SapLens.ps1 -Action Rollback -ToRelease "$($Journal.from_release)" -Yes
 "@
     $path = Join-SL2 $script:RunFolder 'RECOVERY-REQUIRED.txt'
     [System.IO.File]::WriteAllText($path, $text)
@@ -508,7 +610,7 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
     }
     $newExe = Join-SL2 (Join-SL2 $ReleaseFolder 'server') $script:Exe
     $schema = Invoke-SL2Maintenance $newExe @('--schema-info', '--data-dir', $Config.DataDirectory)
-    if (-not $schema.compatible) { Stop-SL2 ('The data directory was written by a newer SAP Lens 2 (unknown migrations: {0}); this release would refuse it.' -f (@($schema.unknown_applied) -join ', ')) }
+    if (-not $schema.compatible) { Stop-SL2 ('The data directory was written by a newer SAP Lens build (unknown migrations: {0}); this release would refuse it.' -f (@($schema.unknown_applied) -join ', ')) }
     $journal = [pscustomobject]@{
         run = $script:RunId; commit = $Commit; version = $manifest.version; to_release = $ReleaseFolder; from_release = $previous
         service_state_before = $service.State; applied_before = @($schema.applied); backup = $null; phase = 'prepared'; history = @(); updated = ''

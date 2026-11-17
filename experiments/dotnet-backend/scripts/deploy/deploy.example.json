@@ -2,18 +2,21 @@
   "RepositoryPath": "C:\\Users\\example\\Git\\sap-lens",
   "Remote": "origin",
   "Branch": "experiment/dotnet-backend",
-  "WorkRoot": "C:\\saplens2\\deploy",
-  "ReleasesRoot": "C:\\saplens2\\releases",
-  "BackupRoot": "C:\\saplens2\\predeploy-backups",
-  "ServiceName": "SapLens2",
-  "ServiceAccount": "NT SERVICE\\SapLens2",
+  "WorkRoot": "C:\\saplens\\deploy",
+  "ReleasesRoot": "C:\\saplens\\releases",
+  "BackupRoot": "C:\\saplens\\predeploy-backups",
   "ListenAddress": "192.168.10.20",
   "Port": 18795,
-  "AllowedHosts": ["lens.example.com", "192.168.10.20"],
-  "TrustedProxies": ["192.168.10.10"],
-  "DataDirectory": "C:\\ProgramData\\SapLens2\\data",
-  "CertificatePath": "C:\\ProgramData\\SapLens2\\tls\\server.pfx",
-  "CertificatePasswordFile": "C:\\ProgramData\\SapLens2\\tls\\cert-password",
+  "AllowedHosts": [
+    "lens.example.com",
+    "192.168.10.20"
+  ],
+  "TrustedProxies": [
+    "192.168.10.10"
+  ],
+  "DataDirectory": "C:\\ProgramData\\SapLens\\data",
+  "CertificatePath": "C:\\ProgramData\\SapLens\\tls\\server.pfx",
+  "CertificatePasswordFile": "C:\\ProgramData\\SapLens\\tls\\cert-password",
   "ReadyTimeoutSeconds": 120,
   "StopTimeoutSeconds": 90
 }

@@ -11,7 +11,7 @@ namespace SapLens.Desktop;
 /// (exit code 0 ready, 2 start or readiness failure, 1 already running): the SSH-verifiable part of the Desktop.</summary>
 internal static class Program
 {
-    private const string Title = "SAP Lens 2 prototype";
+    private const string Title = "SAP Lens";
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(30);
 
     [STAThread]
@@ -19,19 +19,21 @@ internal static class Program
     {
         var selfCheck = args.Contains("--self-check", StringComparer.OrdinalIgnoreCase);
         var index = Array.FindIndex(args, a => string.Equals(a, "--data-dir", StringComparison.OrdinalIgnoreCase));
-        var root = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SAP Lens 2 Prototype");
+        var location = DesktopLocation.Resolve(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        var root = location.Root;
         var dataDirectory = index >= 0 && index + 1 < args.Length ? Path.GetFullPath(args[index + 1]) : Path.Combine(root, "data");
         using var logs = new FileLoggerProvider(Path.Combine(root, "logs"), selfCheck ? "self-check" : "desktop");
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
         var log = factory.CreateLogger("SapLens.Desktop");
-        log.LogInformation("Desktop starting ({Product} {Version}, commit {Commit}, file version {FileVersion}, self-check {SelfCheck})", SapLens.Api.ProductIdentity.Product,
-            SapLens.Api.ProductIdentity.Version, SapLens.Api.ProductIdentity.Commit ?? "not recorded", string.Join('.', SapLens.Api.ProductIdentity.FileVersion), selfCheck);
+        log.LogInformation("Desktop starting ({Product} {Version}, commit {Commit}, file version {FileVersion}, self-check {SelfCheck}, folder {Folder})", SapLens.Api.ProductIdentity.Product,
+            SapLens.Api.ProductIdentity.Version, SapLens.Api.ProductIdentity.Commit ?? "not recorded", string.Join('.', SapLens.Api.ProductIdentity.FileVersion), selfCheck,
+            location.Legacy ? "earlier prototype folder kept" : "current");
 
-        using var single = new Mutex(true, @"Local\SapLens2Prototype", out var first);
+        using var single = new Mutex(true, location.Mutex, out var first);
         if (!first)
         {
             log.LogWarning("Another instance is already running");
-            if (!selfCheck) MessageBox.Show("SAP Lens 2 prototype is already running.", Title);
+            if (!selfCheck) MessageBox.Show("SAP Lens is already running.", Title);
             return 1;
         }
         if (!selfCheck)
@@ -51,7 +53,7 @@ internal static class Program
         if (!outcome.Ok)
         {
             if (!selfCheck)
-                MessageBox.Show($"{outcome.Error}\n\nDetails are in the log file:\n{logs.FilePath}\n\nClose other SAP Lens 2 windows, check that the data folder is on a local disk and writable, then start again.",
+                MessageBox.Show($"{outcome.Error}\n\nDetails are in the log file:\n{logs.FilePath}\n\nClose other SAP Lens windows, check that the data folder is on a local disk and writable, then start again.",
                     Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 2;
         }

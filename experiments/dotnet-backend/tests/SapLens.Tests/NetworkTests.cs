@@ -74,7 +74,7 @@ public sealed class NetworkPolicyTests : IDisposable
                      "SAP_LENS_V2_CERT_KEY", "SAP_LENS_V2_CERT_PASSWORD_FILE", "SAP_LENS_V2_CERT_PASSWORD", "SAP_LENS_V2_AUTH", "SAP_LENS_V2_TOKEN", "SAP_LENS_V2_PRINCIPAL" })
             Assert.Contains(variable, help);
         Assert.Equal(help, ServerConfiguration.Informational(["-h"]));
-        Assert.StartsWith("SAP Lens 2 server ", ServerConfiguration.Informational(["--version"]));
+        Assert.StartsWith("SAP Lens server ", ServerConfiguration.Informational(["--version"]));
         Assert.Null(ServerConfiguration.Informational(["--data-dir", _root]));
         Assert.False(Directory.Exists(Path.Combine(_root, "never")));
         Assert.Throws<InvalidOperationException>(() => ServerConfiguration.Parse(["--data-dir", _root, "--helpme"], Env()));   // still fail-closed
@@ -107,7 +107,7 @@ public sealed class NetworkPolicyTests : IDisposable
         Assert.DoesNotContain("synthetic-token-value", help.Out + help.Error);
         var version = await Run("--version");
         Assert.Equal(0, version.Code);
-        Assert.StartsWith("SAP Lens 2 server ", version.Out);
+        Assert.StartsWith("SAP Lens server ", version.Out);
         Assert.False(Directory.Exists(never));
         var unknown = await Run("--data-dir", never, "--bogus");
         Assert.Equal(3, unknown.Code);

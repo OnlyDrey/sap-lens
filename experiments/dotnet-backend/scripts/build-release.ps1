@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Repeatable Windows x64 release build of SAP Lens 2 (.NET Server and Desktop) with the production React UI. Windows PowerShell 5.1 and PowerShell 7.
+  Repeatable Windows x64 release build of SAP Lens (.NET Server and Desktop) with the production React UI. Windows PowerShell 5.1 and PowerShell 7.
 
 .DESCRIPTION
   1. Builds the React UI from frontend/ (npm ci + npm run build; Node.js 24 or 25, as frontend/package.json requires).
@@ -8,9 +8,9 @@
      -TestFilter runs only the matching tests, as a deployment's focused validation does).
   3. Publishes both self-contained single-file executables (no trimming, Native AOT or compression) into a new versioned release folder:
 
-       <Output>\SAP-Lens-2-<version>-<yyyyMMdd-HHmmss>-<commit>-win-x64\
+       <Output>\SAP-Lens-<version>-<yyyyMMdd-HHmmss>-<commit>-win-x64\
          server\SapLens.Api.exe          Server (console or Windows service), plus e_sqlite3.dll and libSkiaSharp.dll (SQLite and image/PDF native libraries, loaded from beside the exe)
-         desktop\SapLens2Prototype.exe   Desktop (WebView2, loopback only)
+         desktop\SapLens.exe            Desktop (WebView2, loopback only)
          symbols\server\, symbols\desktop\   .pdb files for diagnostics (not needed at runtime)
          build-manifest.json             commit, version, build time, platform, publish settings, size and SHA-256 of every artifact
          README.txt                      which executable to run and how to configure the Server
@@ -27,7 +27,7 @@ param(
     [string]$Output = '',
     [switch]$SkipTests,
     [switch]$SkipPublishTests,
-    # Runs only the tests matching this dotnet test filter (for example a deployment's focused selection) instead of the whole suite.
+    # Runs only the tests matching this test filter expression (for example a deployment's focused selection) instead of the whole suite.
     [string]$TestFilter = ''
 )
 $ErrorActionPreference = 'Stop'
@@ -60,7 +60,7 @@ $channel = if ($Matches[5]) { $Matches[5] } else { 'stable' }
 $fileVersion = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $(if ($Matches[6]) { [int]$Matches[6] } else { 0 }))
 $uiVersion = (Get-Content (Join-Path $root '..\..\backend\resources\product-version.json') -Raw | ConvertFrom-Json).version   # recorded, never used as this version
 $built = [DateTime]::UtcNow
-$release = Join-Path $Output ('SAP-Lens-2-{0}-{1}-{2}-{3}' -f $version, $built.ToString('yyyyMMdd-HHmmss'), $sha.Substring(0, 7), $platform)
+$release = Join-Path $Output ('SAP-Lens-{0}-{1}-{2}-{3}' -f $version, $built.ToString('yyyyMMdd-HHmmss'), $sha.Substring(0, 7), $platform)
 if (Test-Path -LiteralPath $release) { throw "Release folder $release exists; an existing release is never overwritten." }
 $identity = "-p:SourceRevisionId=$sha"
 
@@ -99,12 +99,12 @@ function Test-Contains([string]$Path, [string]$Text) {
     }
     return $false
 }
-$expected = @{ server = @('SapLens.Api.exe', 'e_sqlite3.dll', 'libSkiaSharp.dll'); desktop = @('SapLens2Prototype.exe') }
+$expected = @{ server = @('SapLens.Api.exe', 'e_sqlite3.dll', 'libSkiaSharp.dll'); desktop = @('SapLens.exe') }
 foreach ($part in 'server', 'desktop') {
     $actual = @(Get-ChildItem (Join-Path $release $part) -Recurse -File | ForEach-Object { $_.FullName.Substring((Join-Path $release $part).Length + 1) } | Sort-Object)
     if (($actual -join '|') -ne (($expected[$part] | Sort-Object) -join '|')) { throw "Unexpected files in ${part}: $($actual -join ', ') (expected $($expected[$part] -join ', '))." }
 }
-foreach ($check in 'server\SapLens.Api.exe', 'desktop\SapLens2Prototype.exe') {
+foreach ($check in 'server\SapLens.Api.exe', 'desktop\SapLens.exe') {
     $file = Join-Path $release $check
     if (-not (Test-Contains $file "$version+$sha")) { throw "Product version and build identity $version+$sha missing in $check." }
     # The UI is embedded as resources named SapLensUi/<path> (the separator after "assets" is the build machine's; the server normalizes it).
@@ -128,13 +128,13 @@ function Get-Artifacts([string]$Folder, [string[]]$Exclude) {
     }
 }
 $manifest = [ordered]@{
-    schema = 1; product = 'SAP Lens 2'; version = $version; channel = $channel; file_version = $fileVersion; ui_source_version = $uiVersion
+    schema = 1; product = 'SAP Lens'; version = $version; channel = $channel; file_version = $fileVersion; ui_source_version = $uiVersion
     source_sha = $sha; source_dirty = $dirty; source_committed_at = $committed
     branch = (& git -C $root rev-parse --abbrev-ref HEAD).Trim(); build_timestamp_utc = $built.ToString('yyyy-MM-ddTHH:mm:ssZ'); target_platform = $platform
     dotnet_sdk = $sdk; node = $nodeVersion
     publish = [ordered]@{ self_contained = $true; single_file = $true; trimmed = $false; native_aot = $false; compressed = $false
         server_native_libraries = 'beside the executable (e_sqlite3.dll, libSkiaSharp.dll)'; desktop_native_libraries = 'bundled, extracted to a temporary folder at start' }
-    executables = [ordered]@{ server = 'server/SapLens.Api.exe'; desktop = 'desktop/SapLens2Prototype.exe' }
+    executables = [ordered]@{ server = 'server/SapLens.Api.exe'; desktop = 'desktop/SapLens.exe' }
     artifacts = @(Get-Artifacts $release @('build-manifest.json', 'SHA256SUMS'))
 }
 [System.IO.File]::WriteAllText((Join-Path $release 'build-manifest.json'), ($manifest | ConvertTo-Json -Depth 5))
@@ -148,6 +148,6 @@ if ($python) { Invoke-Step 'Secret scan of the release folder' { & $python (Join
 else { Write-Warning 'Python not found: the release secret scan (scripts/check-secrets.py --path) was NOT run.' }
 & (Join-Path $PSScriptRoot 'verify-release.ps1') -ReleasePath $release
 if ($LASTEXITCODE -ne 0) { throw 'Release verification failed.' }
-foreach ($exe in 'server\SapLens.Api.exe', 'desktop\SapLens2Prototype.exe') { Write-Host ('{0}: {1:N1} MB' -f $exe, ((Get-Item (Join-Path $release $exe)).Length / 1MB)) }
+foreach ($exe in 'server\SapLens.Api.exe', 'desktop\SapLens.exe') { Write-Host ('{0}: {1:N1} MB' -f $exe, ((Get-Item (Join-Path $release $exe)).Length / 1MB)) }
 Write-Host "Release build complete: $release"
 Write-Host 'Nothing was installed or started.'

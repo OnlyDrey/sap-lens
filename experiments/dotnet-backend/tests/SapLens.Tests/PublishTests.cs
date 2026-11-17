@@ -77,10 +77,16 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         return output;
     }
 
-    private static bool Contains(string file, string text)
+    private static bool Contains(string file, string text) => Contains(file, Encoding.UTF8.GetBytes(text));
+
+    private static bool Contains(string file, byte[] needle) => File.ReadAllBytes(file).AsSpan().IndexOf(needle) >= 0;
+
+    /// <summary>The largest image of the official icon, assets/sap-lens.ico (ICONDIR, then 16-byte entries with size at +8 and offset at +12).</summary>
+    private static byte[] LargestIconImage()
     {
-        var needle = Encoding.UTF8.GetBytes(text);
-        return File.ReadAllBytes(file).AsSpan().IndexOf(needle) >= 0;
+        var ico = File.ReadAllBytes(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RepoProject("SapLens.Api"))!, "..", "..", "..", "..", "assets", "sap-lens.ico")));
+        var (size, offset) = Enumerable.Range(0, BitConverter.ToUInt16(ico, 4)).Select(i => (BitConverter.ToInt32(ico, 14 + 16 * i), BitConverter.ToInt32(ico, 18 + 16 * i))).MaxBy(e => e.Item1);
+        return ico[offset..(offset + size)];
     }
 
     private static int FreePort()
@@ -152,6 +158,8 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         Assert.True(Contains(exe, "System.Private.CoreLib.dll"));                         // self-contained
         Assert.True(Contains(exe, "SapLens.Api.runtimeconfig.json"));
         Assert.True(new FileInfo(exe).Length > 50_000_000);
+        // The official icon is embedded as the application icon: its largest image (the 256 px entry of assets/sap-lens.ico) is in the exe's resources.
+        Assert.True(Contains(exe, LargestIconImage()));
     }
 
     [Fact]
@@ -176,7 +184,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         }
         var version = await Run("--version");
         Assert.Equal(0, version.Code);
-        Assert.StartsWith("SAP Lens 2 server ", version.Out);
+        Assert.StartsWith("SAP Lens server ", version.Out);
         Assert.Contains("--trusted-proxies", (await Run("--help")).Out);
         var inside = await Run("--data-dir", Path.Combine(output, "data"), "--port", FreePort().ToString());
         Assert.Equal(3, inside.Code);
@@ -300,7 +308,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
     public void Published_windows_desktop_is_one_self_contained_exe_with_the_embedded_ui()
     {
         var output = Publish("SapLens.Desktop", "win-x64");
-        var exe = Path.Combine(output, "SapLens2Prototype.exe");
+        var exe = Path.Combine(output, "SapLens.exe");
         Assert.True(File.Exists(exe));
         Assert.False(Directory.Exists(Path.Combine(output, "frontend")));
         Assert.False(Directory.Exists(Path.Combine(output, "wwwroot")));
@@ -311,6 +319,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         Assert.True(Contains(exe, "WebView2Loader.dll"));
         Assert.True(Contains(exe, "System.Private.CoreLib.dll"));
         Assert.True(new FileInfo(exe).Length > 50_000_000);
-        Assert.Equal(["SapLens2Prototype.exe"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // no loose server host, docs or settings
+        Assert.True(Contains(exe, LargestIconImage()));   // the official icon (assets/sap-lens.ico) is the application icon
+        Assert.Equal(["SapLens.exe"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // no loose server host, docs or settings
     }
 }

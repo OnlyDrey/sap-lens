@@ -25,7 +25,7 @@ The Windows file version follows the v1 contract: `MAJOR.MINOR.PATCH.N` with the
 | `GET /api/version`, `/api/application-info`, `/api/diagnostics` | `version` = product version; application-info also `channel`, `file_version`, `source_sha` |
 | `GET /product-version.json` | The .NET host's identity (`product`, `version`, `base_version`, `channel`, `file_version`, `source_sha`). The file the React build emits carries v1's identity and is not served by the .NET host |
 | Desktop log | `Desktop starting (SAP Lens 2 2.0.0-alpha.1, commit …, file version 2.0.0.1, …)` |
-| Release folder | `SAP-Lens-2-2.0.0-alpha.1-<UTC time>-<commit>-win-x64` |
+| Release folder | `SAP-Lens-2.0.0-alpha.1-<UTC time>-<commit>-win-x64` |
 | `build-manifest.json` | `product`, `version`, `channel`, `file_version`, `ui_source_version` (v1's version the embedded UI was built with, recorded only), `source_sha`, `source_dirty`, build time |
 
 ## SAP Lens v1 is unchanged

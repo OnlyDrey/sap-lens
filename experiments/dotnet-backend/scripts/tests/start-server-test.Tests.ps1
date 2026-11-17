@@ -121,7 +121,7 @@ Describe 'Configuration validation' {
         $saved = $env:LOCALAPPDATA, $env:ProgramData
         try {
             $env:LOCALAPPDATA = Join-Path $TestDrive 'local'; $env:ProgramData = Join-Path $TestDrive 'programdata'
-            foreach ($path in (Join-Path $env:ProgramData 'SapLens2/data'), (Join-Path $env:ProgramData 'SAP Lens Server'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype/data'), (Join-Path $env:LOCALAPPDATA 'SAP LENS/x')) {
+            foreach ($path in (Join-Path $env:ProgramData 'SapLens2/data'), (Join-Path $env:ProgramData 'SapLens/data'), (Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop/data'), (Join-Path $env:ProgramData 'SAP Lens Server'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype/data'), (Join-Path $env:LOCALAPPDATA 'SAP LENS/x')) {
                 $config = $valid.Clone(); $config.DataDirectory = $path
                 { Assert-TestConfiguration @config } | Should -Throw '*production or Desktop location*'
             }
@@ -329,13 +329,13 @@ Describe 'Release verification' {
         function New-VerifiableRelease([string]$Path) {
             New-Item -ItemType Directory -Force (Join-Path $Path 'server'), (Join-Path $Path 'desktop') | Out-Null
             Set-Content (Join-Path $Path 'server/SapLens.Api.exe') 'server'; Set-Content (Join-Path $Path 'server/e_sqlite3.dll') 'sqlite'
-            Set-Content (Join-Path $Path 'desktop/SapLens2Prototype.exe') 'desktop'; Set-Content (Join-Path $Path 'README.txt') 'readme'
-            $artifacts = foreach ($relative in 'README.txt', 'desktop/SapLens2Prototype.exe', 'server/SapLens.Api.exe', 'server/e_sqlite3.dll') {
+            Set-Content (Join-Path $Path 'desktop/SapLens.exe') 'desktop'; Set-Content (Join-Path $Path 'README.txt') 'readme'
+            $artifacts = foreach ($relative in 'README.txt', 'desktop/SapLens.exe', 'server/SapLens.Api.exe', 'server/e_sqlite3.dll') {
                 $file = Get-Item (Join-Path $Path $relative)
                 [ordered]@{ path = $relative; bytes = $file.Length; sha256 = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
             }
             $manifest = [ordered]@{ version = '2.0.0-alpha.1'; file_version = @(2, 0, 0, 1); source_sha = 'abc'; build_timestamp_utc = '2026-11-16T10:00:00Z'; target_platform = 'win-x64'
-                executables = [ordered]@{ server = 'server/SapLens.Api.exe'; desktop = 'desktop/SapLens2Prototype.exe' }; artifacts = @($artifacts) }
+                executables = [ordered]@{ server = 'server/SapLens.Api.exe'; desktop = 'desktop/SapLens.exe' }; artifacts = @($artifacts) }
             [System.IO.File]::WriteAllText((Join-Path $Path 'build-manifest.json'), ($manifest | ConvertTo-Json -Depth 5))
             $sums = foreach ($relative in @('build-manifest.json') + @($artifacts | ForEach-Object { $_.path })) {
                 '{0}  ./{1}' -f (Get-FileHash (Join-Path $Path $relative) -Algorithm SHA256).Hash.ToLowerInvariant(), $relative }

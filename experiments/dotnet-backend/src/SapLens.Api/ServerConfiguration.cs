@@ -58,7 +58,7 @@ public static class ServerConfiguration
     }
 
     public const string Help = """
-        SAP Lens 2 server (.NET prototype)
+        SAP Lens server (.NET)
 
         Usage: SapLens.Api --data-dir <absolute path> [options]
 

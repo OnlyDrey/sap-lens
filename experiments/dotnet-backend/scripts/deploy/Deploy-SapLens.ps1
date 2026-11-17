@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds, validates and deploys SAP Lens 2 on this Windows host as the SapLens2 Windows service (test server). Windows PowerShell 5.1 and PowerShell 7.
+  Builds, validates and deploys SAP Lens (.NET server) on this Windows host as the SapLens Windows service (test server). Windows PowerShell 5.1 and PowerShell 7.
 
 .DESCRIPTION
   Usually started over SSH by scripts/deploy/deploy-windows.sh; it can also be run locally in an elevated PowerShell. Actions:
@@ -12,24 +12,28 @@
                     newer build, create and verify an encrypted pre-deployment backup, stop the service, switch the 'current' link, start,
                     verify readiness, version and commit. Any failure rolls back to the previous release when that is proven safe.
                     -DryRun resolves the commit and prints the plan without building, backing up or touching the service. Needs -Yes.
-    InstallService  Creates (or with -Reconfigure updates) the SapLens2 service from the configuration. Needs -Yes.
+    InstallService  Creates (or with -Reconfigure updates) the SapLens service from the configuration. Needs -Yes.
+                    An existing service of an earlier installation (SapLens2) is detected and used; a second service is never created.
+    MigrateService  Renames an earlier SapLens2 service to SapLens (same release, data, TLS, hosts, proxies; own virtual account), verifies
+                    readiness and identity, then removes SapLens2. Any failure restores SapLens2. Needs -Yes.
                     -AdoptService brings a hand-installed service (another executable path, same arguments) under managed releases once.
     Rollback        Returns to the previous release (or -ToRelease), only when it can open the current data. Needs -Yes.
     Recover         Completes an interrupted deployment (Ctrl+C, a dropped SSH session): returns to the previous release. Needs -Yes.
     Health          Readiness and identity of the running server.
 
-  Configuration: a JSON file that is not committed (-ConfigFile, $env:SAPLENS2_DEPLOY_CONFIG or C:\saplens2\deploy.local.json; template
-  deploy.example.json). It holds paths, addresses and host names, never a secret. The last output line is 'SAPLENS2-RESULT: <json>'.
+  Configuration: a JSON file that is not committed (-ConfigFile, $env:SAPLENS_DEPLOY_CONFIG, $env:SAPLENS2_DEPLOY_CONFIG,
+  C:\saplens\deploy.local.json or C:\saplens2\deploy.local.json, the first that is set or exists; template deploy.example.json). It holds paths,
+  addresses and host names, never a secret. The last output line is 'SAPLENS-RESULT: <json>'.
   Exit codes: 0 success, 1 failed (nothing changed, or rolled back and ready again), 2 refused before any change, 4 manual action required.
 
 .EXAMPLE
-  .\Deploy-SapLens2.ps1 -Action Status
+  .\Deploy-SapLens.ps1 -Action Status
 .EXAMPLE
-  .\Deploy-SapLens2.ps1 -Action Deploy -Branch experiment/dotnet-backend -Tests focused -Yes
+  .\Deploy-SapLens.ps1 -Action Deploy -Branch experiment/dotnet-backend -Tests focused -Yes
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'Rollback', 'Recover', 'Health')]
+    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'MigrateService', 'Rollback', 'Recover', 'Health')]
     [string]$Action = 'Status',
     [string]$ConfigFile = '',
     [string]$Branch = '',
@@ -46,11 +50,11 @@ param(
 )
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot 'SapLens2.Deploy.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot 'SapLens.Deploy.psm1') -Force
 
 function Write-Result($Value, [int]$Code) {
     $Value | ConvertTo-Json -Depth 8 | Write-Host
-    Write-Host ('SAPLENS2-RESULT: ' + (@{ exit = $Code; result = $Value } | ConvertTo-Json -Depth 8 -Compress))
+    Write-Host ('SAPLENS-RESULT: ' + (@{ exit = $Code; result = $Value } | ConvertTo-Json -Depth 8 -Compress))
     exit $Code
 }
 
@@ -61,8 +65,8 @@ function Test-Elevated {
 }
 
 try {
-    $config = Read-SapLens2Settings $ConfigFile
-    $changing = $Action -in @('Deploy', 'InstallService', 'Rollback', 'Recover') -and -not $DryRun
+    $config = Read-SapLensSettings $ConfigFile
+    $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'Rollback', 'Recover') -and -not $DryRun
     if ($changing -and -not $Yes) { Stop-SL2 "$Action changes the service; repeat with -Yes after reviewing -Action Status (or -DryRun)." }
     if ($changing -and -not (Test-Elevated)) { Stop-SL2 "$Action needs an elevated session (an administrator account over SSH, or Run as administrator)." }
     switch ($Action) {
@@ -107,6 +111,7 @@ try {
             Write-Result (Invoke-SL2Deploy $config $published $sha -DryRun:$DryRun -FirstInstall:$FirstInstall -AdoptService:$AdoptService) 0
         }
         'InstallService' { Install-SL2Service $config -Reconfigure:$Reconfigure; Write-Result (Get-SL2Status $config) 0 }
+        'MigrateService' { Write-Result (Invoke-SL2MigrateService $config) 0 }
         'Rollback' { Write-Result (Invoke-SL2Rollback $config $ToRelease) 0 }
         'Recover' { Write-Result (Invoke-SL2Recover $config) 0 }
     }

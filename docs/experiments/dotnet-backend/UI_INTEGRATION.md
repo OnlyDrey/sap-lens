@@ -115,7 +115,7 @@ from another device): expected are the sign-in page, then the SAP Lens UI with t
 Stop the validation server by closing its window. Only after this passes, replace the running lab service's binaries
 (`Stop-Service SapLens2`, copy `server-win-x64`, `Start-Service SapLens2`; see [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md#9-secure-shutdown-and-restart)).
 
-Desktop: `C:\saplens2\release-next\desktop-win-x64\SapLens2Prototype.exe --self-check` (exit code 0), then start it normally; the window shows
+Desktop: `C:\saplens2\release-next\desktop-win-x64\SapLens.exe --self-check` (exit code 0), then start it normally; the window shows
 the same React UI without a sign-in.
 
 ## Limitations of this milestone

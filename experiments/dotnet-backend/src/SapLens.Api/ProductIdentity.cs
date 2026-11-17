@@ -5,12 +5,12 @@ using System.Text.RegularExpressions;
 
 namespace SapLens.Api;
 
-/// <summary>Product version and build identity of SAP Lens 2, read from this assembly's attributes, which Directory.Build.props derives from
+/// <summary>Product version and build identity of SAP Lens (.NET), read from this assembly's attributes, which Directory.Build.props derives from
 /// experiments/dotnet-backend/product-version.json (the only source). Version (2.0.0-alpha.1) is the product version; Commit is build identity (set by the
 /// release scripts through SourceRevisionId, null for a local build without it). Desktop and Server share this class, so they cannot disagree.</summary>
 public static partial class ProductIdentity
 {
-    public const string Product = "SAP Lens 2";
+    public const string Product = "SAP Lens";
     private static readonly Assembly Assembly = typeof(ProductIdentity).Assembly;
     private static readonly string Informational = Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
     /// <summary>MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N], without build metadata.</summary>
@@ -28,7 +28,7 @@ public static partial class ProductIdentity
 
     public static string Platform => RuntimeInformation.RuntimeIdentifier;
 
-    /// <summary>The --version text: one stable first line ("SAP Lens 2 server 2.0.0-alpha.1"), then the identity details. No secrets, no paths.</summary>
+    /// <summary>The --version text: one stable first line ("SAP Lens server 2.0.0-alpha.1"), then the identity details. No secrets, no paths.</summary>
     public static string Describe(string component) => string.Join(Environment.NewLine,
         $"{Product} {component} {Version}",
         $"Channel: {(Channel == "stable" ? "stable release" : Channel + " pre-release")}",

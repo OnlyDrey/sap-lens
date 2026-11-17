@@ -19,6 +19,11 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
 
     public const long MaxUpload = 256L * 1024 * 1024;
     public const string DatabaseEntry = "sap-lens-v2.sqlite3", AccountsEntry = "security/accounts.sqlite3", ManifestEntry = "manifest.json";
+
+    /// <summary>The archive manifest's "product" is a format identifier, not the display name: it stays "SAP Lens 2" so that every earlier .NET
+    /// build can still restore an archive written by a later one. "SAP Lens" is also accepted on restore for archives written under the new name.</summary>
+    public const string ManifestProduct = "SAP Lens 2";
+    private static readonly string[] AcceptedManifestProducts = [ManifestProduct, "SAP Lens"];
     [GeneratedRegex("^[a-f0-9]{32}$")] public static partial Regex Identity();
     [GeneratedRegex("^branding/[a-f0-9]{64}\\.png$")] private static partial Regex BrandingEntry();
     private static readonly SemaphoreSlim Gate = new(1, 1);
@@ -147,7 +152,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
                 }
             var manifest = new JsonObject
             {
-                ["format"] = 1, ["product"] = "SAP Lens 2", ["version"] = ProductVersion, ["kind"] = kind, ["created"] = Stamp(now), ["files"] = files,
+                ["format"] = 1, ["product"] = ManifestProduct, ["version"] = ProductVersion, ["kind"] = kind, ["created"] = Stamp(now), ["files"] = files,
                 ["migrations"] = new JsonArray([.. Migrations(Path.Combine(work, DatabaseEntry)).Select(m => (JsonNode?)m)]), ["accounts"] = accounts,
             };
             File.WriteAllText(Path.Combine(work, ManifestEntry), manifest.ToJsonString());
@@ -318,7 +323,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
                 ["id"] = id, ["kind"] = "restore", ["status"] = "ready", ["archive_sha256"] = Sha(archive),
                 ["preview"] = new JsonObject
                 {
-                    ["source_mode"] = "SAP Lens 2", ["source_version"] = manifest["version"]?.DeepClone(), ["created_at"] = manifest["created"]?.DeepClone(),
+                    ["source_mode"] = "SAP Lens", ["source_version"] = manifest["version"]?.DeepClone(), ["created_at"] = manifest["created"]?.DeepClone(),
                     ["files"] = manifest["files"]!.AsArray().Count, ["snapshots"] = 0,
                     ["categories"] = new JsonArray([.. new[] { "application database", manifest["accounts"] is JsonObject ? "accounts" : null, manifest["files"]!.AsArray().Any(f => ((string)f!["path"]!).StartsWith("branding/", StringComparison.Ordinal)) ? "branding" : null }
                         .Where(c => c is not null).Select(c => (JsonNode?)c)]),
@@ -358,7 +363,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         JsonObject manifest;
         try { manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(target, ManifestEntry))) as JsonObject ?? throw new FormatException(); }
         catch (Exception error) when (error is IOException or System.Text.Json.JsonException or FormatException) { throw new BackupException("The archive manifest is missing or invalid.", 422); }
-        if ((int?)manifest["format"] != 1 || (string?)manifest["product"] != "SAP Lens 2" || manifest["files"] is not JsonArray files) throw new BackupException("Unsupported archive manifest.", 422);
+        if ((int?)manifest["format"] != 1 || !AcceptedManifestProducts.Contains((string?)manifest["product"] ?? "") || manifest["files"] is not JsonArray files) throw new BackupException("Unsupported archive manifest.", 422);
         var listed = files.Select(f => (string)f!["path"]!).ToHashSet(StringComparer.Ordinal);
         var present = archive.Entries.Select(e => e.FullName).Where(n => n != ManifestEntry).ToHashSet(StringComparer.Ordinal);
         if (!listed.SetEquals(present) || !listed.Contains(DatabaseEntry)) throw new BackupException("The archive does not match its manifest.", 422);

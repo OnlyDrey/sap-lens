@@ -1,16 +1,19 @@
-# Pester 5 tests of the SAP Lens 2 Windows deployment state machine (scripts/deploy/SapLens2.Deploy.psm1). Every operating-system action (service
+# Pester 5 tests of the SAP Lens Windows deployment state machine (scripts/deploy/SapLens.Deploy.psm1). Every operating-system action (service
 # control, the release link, HTTP, git, the server's maintenance commands) is mocked; folders live in TestDrive. Nothing is installed or started.
 BeforeAll {
-    $script:ModulePath = (Resolve-Path (Join-Path $PSScriptRoot '..\deploy\SapLens2.Deploy.psm1')).Path
-    $script:EntryPath = (Resolve-Path (Join-Path $PSScriptRoot '..\deploy\Deploy-SapLens2.ps1')).Path
+    $script:ModulePath = (Resolve-Path (Join-Path $PSScriptRoot '..\deploy\SapLens.Deploy.psm1')).Path
+    $script:EntryPath = (Resolve-Path (Join-Path $PSScriptRoot '..\deploy\Deploy-SapLens.ps1')).Path
     Import-Module $script:ModulePath -Force
-    $script:M = 'SapLens2.Deploy'
+    $script:M = 'SapLens.Deploy'
     $script:Original = ''
     # Windows-only cmdlets the module calls; stubs let Pester mock them on Linux (on Windows the real commands exist and are mocked directly).
     foreach ($name in 'New-Service', 'Stop-Service', 'Start-Service', 'Get-NetTCPConnection') {
         if (-not (Get-Command $name -ErrorAction SilentlyContinue)) { New-Item -Path "function:global:$name" -Value { throw "stub $($MyInvocation.MyCommand.Name)" } | Out-Null }
     }
     $script:Old = 'a' * 40; $script:New = 'b' * 40
+    $script:Missing = [pscustomobject]@{ Exists = $false; State = 'Missing'; StartMode = ''; Account = ''; PathName = ''; ProcessId = 0 }
+    # No real service is ever queried, also on Windows (where the host may run SapLens or SapLens2): tests decide which services exist.
+    Mock -ModuleName $M Get-SL2Service { $script:Missing }
 
     function New-TestConfig {
         $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
@@ -22,7 +25,7 @@ BeforeAll {
             CertificatePasswordFile = (Join-Path $root 'tls/cert-password'); ReadyTimeoutSeconds = 5; StopTimeoutSeconds = 3 }
         $file = Join-Path $root 'deploy.json'
         $json | ConvertTo-Json | Set-Content $file
-        Read-SapLens2Settings $file
+        Read-SapLensSettings $file
     }
 
     function New-TestRelease($Config, [string]$Name, [string]$Sha, [string]$Version = '2.0.0-alpha.1') {
@@ -37,7 +40,9 @@ BeforeAll {
         $script:Calls = [System.Collections.Generic.List[string]]::new()
         $script:State = @{ Service = 'Running'; Pid = 4242; Link = $Previous; Identity = @{ $Previous = $script:Old }; Options = $Options; Applied = @('m1') }
         $script:Expected = Get-SL2BinaryPath $Config
-        Mock -ModuleName $M Get-SL2Service { [pscustomobject]@{ Exists = $true; State = $script:State.Service; StartMode = 'Auto'; Account = 'NT SERVICE\SapLens2'
+        $script:State.ServiceName = $Config.ServiceName
+        Mock -ModuleName $M Get-SL2Service { param($Name) if ($Name -ne $script:State.ServiceName) { return $script:Missing }
+            [pscustomobject]@{ Exists = $true; State = $script:State.Service; StartMode = 'Auto'; Account = "NT SERVICE\$Name"
             PathName = $script:Expected; ProcessId = $(if ($script:State.Service -eq 'Running') { $script:State.Pid } else { 0 }) } }
         Mock -ModuleName $M Stop-SL2Service { $script:Calls.Add('stop'); if ($script:State.Options.StopTimeout) { Stop-SL2 'Service did not stop within 3 s. It was not killed.' 4 }; $script:State.Service = 'Stopped' }
         Mock -ModuleName $M Start-SL2Service { $script:Calls.Add('start:' + (Split-Path $script:State.Link -Leaf)); $script:State.Service = 'Running'; $script:State.Pid++ }
@@ -82,9 +87,9 @@ Describe 'Configuration' {
     It 'refuses unknown settings, missing values and relative paths' {
         $file = Join-Path $TestDrive 'bad.json'
         @{ RepositoryPath = 'C:\r'; Typo = 1 } | ConvertTo-Json | Set-Content $file
-        { Read-SapLens2Settings $file } | Should -Throw '*Unknown deployment setting*'
+        { Read-SapLensSettings $file } | Should -Throw '*Unknown deployment setting*'
         @{ RepositoryPath = 'relative\repo'; ListenAddress = '10.0.0.1'; Port = 1; DataDirectory = 'C:\d'; CertificatePath = 'C:\c'; CertificatePasswordFile = 'C:\p' } | ConvertTo-Json | Set-Content $file
-        { Read-SapLens2Settings $file } | Should -Throw '*absolute path*'
+        { Read-SapLensSettings $file } | Should -Throw '*absolute path*'
     }
 
     It 'builds the service command line from the configuration with TLS, hosts and trusted proxies and no secret' {
@@ -95,6 +100,33 @@ Describe 'Configuration' {
         $binary | Should -Match '--trusted-proxies 192.168.10.10'
         $binary | Should -Match '--cert-password-file'
         $binary | Should -Not -Match '--cert-password '
+    }
+
+    It 'names the service SapLens for a new installation and keeps an existing earlier SapLens2 service' {
+        $config = New-TestConfig
+        ($config.ServiceName, $config.ServiceAccount, $config.ServiceNameConfigured) | Should -Be @('SapLens', 'NT SERVICE\SapLens', $false)
+        Mock -ModuleName $M Get-SL2Service { param($Name) if ($Name -eq 'SapLens2') { [pscustomobject]@{ Exists = $true; State = 'Running' } } else { $script:Missing } }
+        $config = Read-SapLensSettings $config.ConfigFile
+        ($config.ServiceName, $config.ServiceAccount) | Should -Be @('SapLens2', 'NT SERVICE\SapLens2')
+        Mock -ModuleName $M Get-SL2Service { [pscustomobject]@{ Exists = $true; State = 'Running' } }      # both exist: SapLens wins
+        (Read-SapLensSettings $config.ConfigFile).ServiceName | Should -Be 'SapLens'
+    }
+
+    It 'finds the configuration under the current and the earlier variable name and defaults folders to the configuration folder' {
+        $config = New-TestConfig
+        $minimal = Join-Path $TestDrive 'minimal/deploy.local.json'
+        New-Item -ItemType Directory -Force (Split-Path $minimal) | Out-Null
+        $config | Select-Object RepositoryPath, ListenAddress, Port, DataDirectory, CertificatePath, CertificatePasswordFile | ConvertTo-Json | Set-Content $minimal
+        $saved = $env:SAPLENS_DEPLOY_CONFIG, $env:SAPLENS2_DEPLOY_CONFIG
+        try {
+            $env:SAPLENS_DEPLOY_CONFIG = $null; $env:SAPLENS2_DEPLOY_CONFIG = $minimal
+            $read = Read-SapLensSettings ''
+            $read.ConfigFile | Should -Be $minimal
+            $read.ReleasesRoot | Should -Be ([System.IO.Path]::Combine((Split-Path $minimal), 'releases'))
+            $read.WorkRoot | Should -Be ([System.IO.Path]::Combine((Split-Path $minimal), 'deploy'))
+            $env:SAPLENS_DEPLOY_CONFIG = $config.ConfigFile
+            (Read-SapLensSettings '').ConfigFile | Should -Be $config.ConfigFile                  # the current name wins
+        } finally { $env:SAPLENS_DEPLOY_CONFIG, $env:SAPLENS2_DEPLOY_CONFIG = $saved }
     }
 
     It 'maps the test selections to the build filter' {
@@ -270,6 +302,15 @@ Describe 'Service installation and host safety' {
         Should -Invoke -ModuleName $M Stop-Process -Times 0
     }
 
+    It 'never creates a second service beside an earlier SapLens2 installation' {
+        $config = New-TestConfig
+        $config.ServiceName = 'SapLens'; $config.ServiceNameConfigured = $true
+        Mock -ModuleName $M Get-SL2Service { param($Name) if ($Name -eq 'SapLens2') { [pscustomobject]@{ Exists = $true; State = 'Running'; ProcessId = 7 } } else { $script:Missing } }
+        Mock -ModuleName $M New-Service { throw 'must not be created' }
+        { Install-SL2Service $config } | Should -Throw '*a second service is never created*'
+        Should -Invoke -ModuleName $M New-Service -Times 0
+    }
+
     It 'reports an unmanaged server (for example the test launcher) as such' {
         $config = New-TestConfig
         Mock -ModuleName $M Get-SL2Service { [pscustomobject]@{ Exists = $false; State = 'Missing'; StartMode = ''; Account = ''; PathName = ''; ProcessId = 0 } }
@@ -291,7 +332,7 @@ Describe 'Service installation and host safety' {
     It 'requires -Yes for actions that change the service' {
         $config = New-TestConfig
         $file = Join-Path $TestDrive 'entry.json'
-        $config | ConvertTo-Json | Set-Content $file
+        $config | Select-Object * -ExcludeProperty ConfigFile, ServiceNameConfigured, ServiceName, ServiceAccount | ConvertTo-Json | Set-Content $file
         $output = & pwsh -NoProfile -File $script:EntryPath -Action Deploy -ConfigFile $file 2>&1
         $LASTEXITCODE | Should -Be 2
         ($output -join "`n") | Should -Match 'repeat with -Yes'
@@ -365,5 +406,64 @@ Describe 'Adopting a hand-installed service' {
         $script:Expected | Should -Be $script:Original
         $script:Calls | Should -Contain 'binary:original'
         (Read-SL2Journal $script:Config).phase | Should -Be 'rolled_back'
+    }
+}
+
+Describe 'Migrating an earlier SapLens2 service to SapLens' {
+    BeforeEach {
+        $script:Config = New-TestConfig
+        $script:Current = New-TestRelease $script:Config 'current' $script:Old
+        # Two services by name; the fake host listens with the running one's process.
+        $script:Svc = @{ SapLens2 = @{ State = 'Running'; Pid = 100; StartMode = 'Auto'; Path = (Get-SL2BinaryPath $script:Config) } }
+        $script:Calls = [System.Collections.Generic.List[string]]::new()
+        $script:Fail = @{}
+        Mock -ModuleName $M Get-SL2Service { param($Name) $s = $script:Svc[$Name]; if (-not $s) { return $script:Missing }
+            [pscustomobject]@{ Exists = $true; State = $s.State; StartMode = $s.StartMode; Account = "NT SERVICE\$Name"; PathName = $s.Path; ProcessId = $(if ($s.State -eq 'Running') { $s.Pid } else { 0 }) } }
+        Mock -ModuleName $M New-Service { param($Name, $DisplayName, $BinaryPathName) $script:Calls.Add("create:$Name"); $script:Svc[$Name] = @{ State = 'Stopped'; Pid = 200; StartMode = 'Manual'; Path = $BinaryPathName } }
+        Mock -ModuleName $M Invoke-SL2Process { param($File, $Arguments) $script:Calls.Add(($Arguments | Select-Object -First 4) -join ' ')
+            if ($Arguments[0] -eq 'delete') { $script:Svc.Remove($Arguments[1]) }
+            if ($Arguments[0] -eq 'config' -and $Arguments[2] -eq 'start=') { $script:Svc[$Arguments[1]].StartMode = $Arguments[3] }
+            [pscustomobject]@{ ExitCode = 0; Output = @() } }
+        Mock -ModuleName $M Stop-SL2Service { param($Name) $script:Calls.Add("stop:$Name"); $script:Svc[$Name].State = 'Stopped' }
+        Mock -ModuleName $M Start-SL2Service { param($Name) $script:Calls.Add("start:$Name"); $script:Svc[$Name].State = 'Running' }
+        Mock -ModuleName $M Get-SL2Link { $script:Current }
+        Mock -ModuleName $M Get-SL2Listener { foreach ($s in $script:Svc.Values) { if ($s.State -eq 'Running') { $s.Pid } } }
+        Mock -ModuleName $M Invoke-SL2Http { param($Url) if ($Url -like '*/health/ready') { return [pscustomobject]@{ Status = $(if ($script:Fail.NeverReady -and $script:Svc['SapLens'] -and $script:Svc['SapLens'].State -eq 'Running') { 503 } else { 200 }); Body = '' } }
+            [pscustomobject]@{ Status = 200; Body = (@{ source_sha = $script:Old; version = '2.0.0-alpha.1' } | ConvertTo-Json) } }
+        Mock -ModuleName $M Start-Sleep { }
+        Mock -ModuleName $M Stop-Process { throw 'Stop-Process must never be called' }
+        $script:Config = Read-SapLensSettings $script:Config.ConfigFile          # detects SapLens2
+        $null = New-SL2Run $script:Config 'migrateservice'
+    }
+
+    It 'creates SapLens with its own account, verifies it, then removes SapLens2; data and command line stay the same' {
+        $script:Config.ServiceName | Should -Be 'SapLens2'
+        $result = Invoke-SL2MigrateService $script:Config
+        ($result.service, $result.account, $result.legacy_service_deleted) | Should -Be @('SapLens', 'NT SERVICE\SapLens', $true)
+        $script:Svc.Keys | Should -Be @('SapLens')
+        $script:Svc['SapLens'].Path | Should -Be (Get-SL2BinaryPath $script:Config)
+        $script:Svc['SapLens'].StartMode | Should -Be 'auto'
+        $order = $script:Calls -join ' | '
+        $order | Should -Match 'create:SapLens .*obj= NT SERVICE\\SapLens.*/grant NT SERVICE\\SapLens:\(OI\)\(CI\)M.*stop:SapLens2 \| config SapLens2 start= disabled \| start:SapLens .*config SapLens start= auto \| delete SapLens2'
+        Test-Path (Join-Path (Split-Path (Get-ChildItem -Recurse -Filter legacy-service.json -Path $script:Config.WorkRoot).FullName) 'legacy-service.json') | Should -BeTrue
+        (Read-SapLensSettings $script:Config.ConfigFile).ServiceName | Should -Be 'SapLens'      # detected after the migration
+    }
+
+    It 'removes the new service and restores SapLens2 when SapLens does not become ready' {
+        $script:Fail.NeverReady = $true
+        { Invoke-SL2MigrateService $script:Config } | Should -Throw '*SapLens2 is unchanged and running again*'
+        $script:Svc.Keys | Should -Be @('SapLens2')
+        ($script:Svc['SapLens2'].State, $script:Svc['SapLens2'].StartMode) | Should -Be @('Running', 'auto')
+        $script:Calls | Should -Contain 'delete SapLens'
+    }
+
+    It 'refuses without any change when the service is named in the configuration, both services exist, or SapLens2 is not on the managed release' {
+        $named = $script:Config.PSObject.Copy(); $named.ServiceNameConfigured = $true
+        { Invoke-SL2MigrateService $named } | Should -Throw '*Remove both settings*'
+        $script:Svc['SapLens2'].Path = '"C:\manual\SapLens.Api.exe" --data-dir C:\d'
+        { Invoke-SL2MigrateService $script:Config } | Should -Throw '*-AdoptService first*'
+        $script:Svc['SapLens'] = @{ State = 'Stopped'; Pid = 0; StartMode = 'Manual'; Path = '' }
+        { Invoke-SL2MigrateService $script:Config } | Should -Throw '*Both SapLens and SapLens2 exist*'
+        $script:Calls | Should -BeNullOrEmpty
     }
 }

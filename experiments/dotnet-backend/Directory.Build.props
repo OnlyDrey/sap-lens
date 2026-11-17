@@ -9,7 +9,7 @@
     <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
-  <!-- Product version of SAP Lens 2 (Server and Desktop): product-version.json next to this file is the only source (see
+  <!-- Product version of SAP Lens (.NET Server and Desktop): product-version.json next to this file is the only source (see
        docs/experiments/dotnet-backend/VERSIONING.md). It is independent of SAP Lens v1 (backend/resources/product-version.json) and changes only by an
        explicit, approved edit; builds never increment it. Build identity is separate: the release scripts pass -p:SourceRevisionId=<commit>, which the
        SDK appends to the informational version (2.0.0-alpha.1+<commit>); build time and artifact hashes live in build-manifest.json.
@@ -24,7 +24,7 @@
     <Version>$(SapLensVersion)</Version>
     <FileVersion>$(SapLensBaseVersion).$(SapLensPrerelease)</FileVersion>
     <AssemblyVersion>$(SapLensBaseVersion).0</AssemblyVersion>
-    <Product>SAP Lens 2</Product>
+    <Product>SAP Lens</Product>
   </PropertyGroup>
   <Target Name="SapLensValidateVersion" BeforeTargets="CoreCompile" Condition="'$(SapLensVersionValid)' != 'True'">
     <Error Text="$(SapLensVersionFile): version '$(SapLensVersion)' must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-alpha.N|-beta.N|-rc.N." />

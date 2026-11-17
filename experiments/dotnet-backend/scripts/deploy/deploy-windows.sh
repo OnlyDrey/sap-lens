@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build, validate and deploy SAP Lens on a Windows host over SSH (the Windows side is Deploy-SapLens2.ps1).
+# Build, validate and deploy SAP Lens on a Windows host over SSH (the Windows side is Deploy-SapLens.ps1).
 #
 #   scripts/deploy/deploy-windows.sh --host HOST --user USER [options]
 #
@@ -12,13 +12,14 @@
 #   rollback         return to the previous release when it can open the data (needs --yes)
 #   recover          finish an interrupted deployment (needs --yes)
 #   install-service  create or (--reconfigure) update the Windows service from the host's configuration (needs --yes)
+#   migrate-service  rename an earlier SapLens2 service to SapLens, verify it, remove SapLens2; restores SapLens2 on failure (needs --yes)
 #
 # Options:
 #   --branch NAME        branch to build (default experiment/dotnet-backend); main and work are refused
 #   --commit SHA         exact commit on that branch (default: the branch tip, resolved once and locked)
 #   --tests focused|full test selection before deployment (default focused)
 #   --repo PATH          repository clone on the Windows host (or $SAPLENS_WINDOWS_REPO); required
-#   --config PATH        deployment configuration on the Windows host (default: C:\saplens2\deploy.local.json there)
+#   --config PATH        deployment configuration on the Windows host (default there: C:\saplens\ or C:\saplens2\deploy.local.json)
 #   --port N             SSH port (default 22)
 #   --to-release PATH    rollback target folder on the host
 #   --adopt-service      first managed deployment of a service that was installed by hand (same arguments)
@@ -36,7 +37,7 @@ host=''; user=''; port=22; mode='status'; branch='experiment/dotnet-backend'; co
 repo="${SAPLENS_WINDOWS_REPO:-}"; config=''; to_release=''; yes=0; adopt=0; first=0; reconfigure=0
 log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/saplens-deploy"
 
-usage() { sed -n '2,32p' "$0" | sed 's/^# \{0,1\}//'; exit 64; }
+usage() { sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 64; }
 die() { echo "deploy-windows: $*" >&2; exit 64; }
 need() { [ $# -ge 2 ] && [ -n "$2" ] || die "$1 needs a value"; }
 
@@ -78,12 +79,12 @@ for value in "$repo" "$config" "$to_release"; do
 done
 case "$mode" in
   status) action='Status' ;; health) action='Health' ;; build) action='Build' ;; dry-run) action='Deploy' ;; deploy) action='Deploy' ;;
-  rollback) action='Rollback' ;; recover) action='Recover' ;; install-service) action='InstallService' ;;
+  rollback) action='Rollback' ;; recover) action='Recover' ;; install-service) action='InstallService' ;; migrate-service) action='MigrateService' ;;
   *) die "unknown --mode $mode" ;;
 esac
 
 changing=0
-case "$mode" in deploy|rollback|recover|install-service) changing=1 ;; esac
+case "$mode" in deploy|rollback|recover|install-service|migrate-service) changing=1 ;; esac
 if [ "$changing" = 1 ] && [ "$yes" != 1 ]; then
   if [ -t 0 ]; then
     read -r -p "Mode '$mode' restarts or changes the SAP Lens service on $host. Continue? [y/N] " answer
@@ -117,12 +118,15 @@ read -r -d '' bootstrap <<PWSH || true
 \$sha = @(& \$git @('rev-parse', \$(if (\$commit) { "\$commit^{commit}" } else { "origin/\$branch^{commit}" })))[0]
 Write-Host "locked commit \$sha (\$branch)"
 \$dir = Join-Path ([System.IO.Path]::GetTempPath()) ('saplens-deploy-' + \$sha.Substring(0, 12))
-\$script = Join-Path \$dir 'experiments/dotnet-backend/scripts/deploy/Deploy-SapLens2.ps1'
-if (-not (Test-Path -LiteralPath \$script)) {
+\$deploy = Join-Path \$dir 'experiments/dotnet-backend/scripts/deploy'
+if (-not (Test-Path -LiteralPath \$deploy)) {
   New-Item -ItemType Directory -Force \$dir | Out-Null
   \$null = & \$git @('archive', '--format=zip', '-o', (Join-Path \$dir 'deploy.zip'), \$sha, 'experiments/dotnet-backend/scripts/deploy')
   Expand-Archive -LiteralPath (Join-Path \$dir 'deploy.zip') -DestinationPath \$dir -Force
 }
+# Commits before the rename to SAP Lens carry Deploy-SapLens2.ps1.
+\$script = @('Deploy-SapLens.ps1', 'Deploy-SapLens2.ps1') | ForEach-Object { Join-Path \$deploy \$_ } | Where-Object { Test-Path -LiteralPath \$_ } | Select-Object -First 1
+if (-not \$script) { throw "commit \$sha has no Windows deployment script" }
 & \$script $arguments -Commit \$sha
 exit \$LASTEXITCODE
 PWSH
@@ -146,7 +150,7 @@ ssh -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$por
   powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand "$encoded" 2>&1 | tee "$log"
 code=${PIPESTATUS[0]}
 set -e
-result=$(grep -a 'SAPLENS2-RESULT: ' "$log" | tail -1 || true)
+result=$(grep -aE 'SAPLENS2?-RESULT: ' "$log" | tail -1 || true)
 [ -n "$result" ] || echo "No result line from the Windows host (SSH or PowerShell failure, exit $code); see $log." >&2
 case "$code" in
   0) echo "done: $mode succeeded" ;;

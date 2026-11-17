@@ -190,6 +190,40 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task The_manifest_product_stays_a_stable_format_identifier_and_both_product_names_restore()
+    {
+        ConfigureKey();
+        var (_, created) = await Post("/api/backups/create");
+        var archive = await _client.GetByteArrayAsync($"/api/backups/{(string)created!["id"]!}/download");
+        byte[] WithProduct(string product)
+        {
+            using var plain = new MemoryStream();
+            BackupArchive.Unseal(new MemoryStream(archive), plain, "", BackupKeys.Host(Data));
+            using (var zip = new System.IO.Compression.ZipArchive(plain, System.IO.Compression.ZipArchiveMode.Update, leaveOpen: true))
+            {
+                var entry = zip.GetEntry(ApplicationBackups.ManifestEntry)!;
+                JsonObject manifest;
+                using (var reader = new StreamReader(entry.Open())) manifest = JsonNode.Parse(reader.ReadToEnd())!.AsObject();
+                Assert.Equal(ApplicationBackups.ManifestProduct, (string)manifest["product"]!);   // earlier .NET builds can restore it
+                manifest["product"] = product;
+                entry.Delete();
+                using var writer = new StreamWriter(zip.CreateEntry(ApplicationBackups.ManifestEntry).Open());
+                writer.Write(manifest.ToJsonString());
+            }
+            plain.Position = 0;
+            using var sealedArchive = new MemoryStream();
+            BackupArchive.Seal(plain, sealedArchive, "", BackupKeys.Host(Data));
+            return sealedArchive.ToArray();
+        }
+
+        var (renamed, preview) = await Upload(WithProduct("SAP Lens"));
+        Assert.Equal(HttpStatusCode.OK, renamed);
+        Assert.Equal("SAP Lens", (string)preview!["preview"]!["source_mode"]!);
+        Assert.Equal(HttpStatusCode.OK, (await Post($"/api/backups/uploads/{(string)preview["id"]!}/cancel")).Status);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload(WithProduct("Another product"))).Status);
+    }
+
+    [Fact]
     public async Task A_restore_that_fails_at_restart_is_rolled_back_and_a_pending_restore_can_be_cancelled()
     {
         ConfigureKey();

@@ -94,7 +94,7 @@ public sealed class V1CompatibilityTests : IAsyncLifetime
         Assert.Equal("DollarSign", fi.GetProperty("icon").GetString());
         Assert.True(registry.GetProperty("icons").GetArrayLength() > 0);
 
-        Assert.Equal("dotnet-preview", (await Get("/api/version")).GetProperty("mode").GetString());
+        Assert.Equal("dotnet", (await Get("/api/version")).GetProperty("mode").GetString());
         Assert.Equal("server", (await Get("/api/runtime")).GetProperty("deployment_mode").GetString());
     }
 

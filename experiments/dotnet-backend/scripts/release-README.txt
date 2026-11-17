@@ -1,9 +1,10 @@
-SAP Lens 2 (.NET experiment) {{VERSION}}, commit {{SHA}}, built {{BUILT}} UTC, {{PLATFORM}}.
+SAP Lens (.NET) {{VERSION}}, commit {{SHA}}, built {{BUILT}} UTC, {{PLATFORM}}.
 Development and acceptance testing only; not a production release.
 
 WHICH EXECUTABLE
-  desktop\SapLens2Prototype.exe  One user on this PC. Double-click; needs the Microsoft Edge WebView2 Runtime. Data and logs go to
-                                 %LOCALAPPDATA%\SAP Lens 2 Prototype. It extracts its native libraries to a temporary folder at start.
+  desktop\SapLens.exe            One user on this PC. Double-click; needs the Microsoft Edge WebView2 Runtime. Data and logs go to
+                                 %LOCALAPPDATA%\SAP Lens Desktop (an existing %LOCALAPPDATA%\SAP Lens 2 Prototype folder is kept and used).
+                                 It never uses %LOCALAPPDATA%\SAP Lens (SAP Lens v1). It extracts its native libraries to a temporary folder at start.
   server\SapLens.Api.exe         Browser access from this PC or the LAN. Keep e_sqlite3.dll and libSkiaSharp.dll next to it. Console or Windows service.
   No .NET installation is needed. Requires Windows 10 1903 / Windows Server 2019 or later (system ICU for Unicode text).
   symbols\ holds debugging symbols only.

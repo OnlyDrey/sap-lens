@@ -29,7 +29,7 @@ can be done while it is stopped or running.
 ## Procedure (Windows PowerShell 5.1 or 7)
 
 ```powershell
-$Exe      = 'C:\saplens2\releases\SAP-Lens-2-2.0.0-alpha.1-<build>-win-x64\server\SapLens.Api.exe'
+$Exe      = 'C:\saplens2\releases\SAP-Lens-2.0.0-alpha.1-<build>-win-x64\server\SapLens.Api.exe'
 $DataDir  = 'C:\ProgramData\SapLens2\data'
 $Work     = 'C:\saplens2\migration'                      # reports of this procedure
 $V1Backup = 'C:\saplens2\migration\SAP-Lens-backup-<id>.slbak'

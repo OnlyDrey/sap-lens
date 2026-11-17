@@ -70,20 +70,22 @@ SAP_LENS_V2_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-
 dotnet publish src/SapLens.Desktop -c Release -o <out>/desktop   # win-x64, self-contained, single file: set in the project
 ```
 
-The package is `SapLens2Prototype.exe` (plus `.pdb` files that can be deleted; the release scripts move them to `symbols\desktop`). No `frontend` or `wwwroot` folder exists or is needed.
-Arguments: `--data-dir <absolute path>` (default `%LOCALAPPDATA%\SAP Lens 2 Prototype\data`) and `--self-check` (start, probe, log, exit
+The package is `SapLens.exe` (plus `.pdb` files that can be deleted; the release scripts move them to `symbols\desktop`). No `frontend` or `wwwroot` folder exists or is needed.
+Arguments: `--data-dir <absolute path>` (default `%LOCALAPPDATA%\SAP Lens Desktop\data`) and `--self-check` (start, probe, log, exit
 without a window: exit code 0 ready, 2 start or readiness failure, 1 another instance running).
 
 Lifecycle as implemented (`Program.cs`, `MainWindow.cs`) [C]:
 
 1. Single instance per Windows session (named mutex).
-2. Private data directory `%LOCALAPPDATA%\SAP Lens 2 Prototype\data`, separate from v1.
+2. Private data directory `%LOCALAPPDATA%\SAP Lens Desktop\data`, separate from v1 (`%LOCALAPPDATA%\SAP Lens`, never used). A folder of the earlier
+   prototype builds, `%LOCALAPPDATA%\SAP Lens 2 Prototype`, is kept in place and used as long as `SAP Lens Desktop` does not exist; nothing is moved
+   or renamed (`DesktopLocation`). Single-instance mutex `Local\SapLensDotnetDesktop`, or `Local\SapLens2Prototype` with the earlier folder.
 3. Core starts in-process on `127.0.0.1:0`; a fresh 256-bit token per run.
 4. The window is created only after `StartupProbe` confirmed `/health/ready` = 200 and the UI at `/` (30 s limit); otherwise the host is
    stopped, a message with the reason and the log path is shown, exit code 2.
-4a. Log file `%LOCALAPPDATA%\SAP Lens 2 Prototype\logs\desktop-YYYYMMDD.log` (startup, readiness, WebView2 version, navigation and
+4a. Log file `%LOCALAPPDATA%\SAP Lens Desktop\logs\desktop-YYYYMMDD.log` (startup, readiness, WebView2 version, navigation and
    browser-process failures, shutdown). The token is never logged (tested).
-5. WebView2 profile in `%LOCALAPPDATA%\SAP Lens 2 Prototype\webview2`; DevTools and default context menus off; navigation confined to the
+5. WebView2 profile in `%LOCALAPPDATA%\SAP Lens Desktop\webview2`; DevTools and default context menus off; navigation confined to the
    loopback origin; new windows blocked.
 6. The token is added to `/api` requests in `WebResourceRequested` by the host. Page script never sees it, which also removes the v1
    finding F1 (capability passed through the first page load).
@@ -170,10 +172,10 @@ if exist C:\saplens2\desktop\frontend (echo UNEXPECTED frontend folder) else (ec
 
 REM Desktop without a window, from an unrelated working directory, with its own data directory
 cd /d %TEMP%
-start "" /wait C:\saplens2\desktop\SapLens2Prototype.exe --self-check --data-dir C:\saplens2\desktop-check
+start "" /wait C:\saplens2\desktop\SapLens.exe --self-check --data-dir C:\saplens2\desktop-check
 echo self-check exit code %ERRORLEVEL%
 dir C:\saplens2\desktop-check
-type "%LOCALAPPDATA%\SAP Lens 2 Prototype\logs\self-check-*.log"
+type "%LOCALAPPDATA%\SAP Lens Desktop\logs\self-check-*.log"
 
 REM Server from an unrelated working directory; it generates its token file on first start
 start "" /b C:\saplens2\server\SapLens.Api.exe --data-dir C:\saplens2\server-data --port 18790 > C:\saplens2\server.log 2>&1
@@ -208,29 +210,29 @@ $users = @('USERNAME;ROLE_NAME;USER_GROUP;FIRST_NAME;LAST_NAME;EMAIL;USER_VALID_
 Set-Content -Path (Join-Path $csv 'roles.csv') -Value $roles -Encoding UTF8
 Set-Content -Path (Join-Path $csv 'users.csv') -Value $users -Encoding UTF8
 
-Start-Process -FilePath 'C:\saplens2\desktop\SapLens2Prototype.exe' -WorkingDirectory $env:TEMP
+Start-Process -FilePath 'C:\saplens2\desktop\SapLens.exe' -WorkingDirectory $env:TEMP
 # In the window: status line shows "<user> · desktop · No data imported yet"; Data tab: import roles.csv as Roles, then users.csv as Users;
 # Role Lookup: search ZC:FI*; User Access: search USER; Compare Users: USER0001 and USER0002 with validity "all". Then close the window.
 
-$app = Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype'
+$app = Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop'
 Get-ChildItem (Join-Path $app 'data')
 Get-ChildItem (Join-Path $app 'logs') | Sort-Object LastWriteTime | Select-Object -Last 1 | Get-Content -Tail 40
 # After closing the window, both must return nothing:
-Get-Process SapLens2Prototype -ErrorAction SilentlyContinue
-Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -like '*SAP Lens 2 Prototype*' }
+Get-Process SapLens -ErrorAction SilentlyContinue
+Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -like '*SAP Lens Desktop*' }
 ```
 
 ### Acceptance checklist (Windows)
 
 | # | Check | Pass when | Status |
 | --- | --- | --- | --- |
-| 1 | Package completeness | `C:\saplens2\desktop` holds `SapLens2Prototype.exe` and no `frontend`/`wwwroot`; publish tests pass | Pending |
+| 1 | Package completeness | `C:\saplens2\desktop` holds `SapLens.exe` and no `frontend`/`wwwroot`; publish tests pass | Pending |
 | 2 | Headless start | `--self-check` exit code 0 from `%TEMP%`; log says "Self-check passed" | Pending |
 | 3 | Desktop launch | Window opens within a few seconds; one instance only (second start says already running) | Pending |
 | 4 | WebView2 rendering | Prototype UI visible (header, tabs, status line), not a 404 or blank page | Pending |
 | 5 | Local API connectivity | Status line shows the Windows user and `desktop`; imports and lookups return data; no sign-in prompt | Pending |
 | 6 | SQLite initialization | `sap-lens-v2.sqlite3` (plus `-wal`/`-shm` while running) in the data directory | Pending |
-| 7 | Clean shutdown | After closing: no `SapLens2Prototype` process, no `msedgewebview2` with the prototype profile; log ends with "Desktop stopped" | Pending |
+| 7 | Clean shutdown | After closing: no `SapLens` process, no `msedgewebview2` with the prototype profile; log ends with "Desktop stopped" | Pending |
 | 8 | Server package | Section A Server results as expected, from `%TEMP%` | Pending |
 
 Windows Desktop acceptance is **not complete** until rows 1 to 8 pass on the VM with the fixed build.

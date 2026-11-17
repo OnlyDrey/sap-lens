@@ -104,10 +104,10 @@ public static class V1Compatibility
             registry["modules"] = new JsonArray([.. registry["modules"]!.AsArray().Select(m => (JsonNode)Effective(m!.AsObject(), overrides))]);
             return Results.Content(registry.ToJsonString(), "application/json");
         });
-        api.MapGet("/version", () => new { app = "SAP Lens", version = Version, mode = "dotnet-preview" });
+        api.MapGet("/version", () => new { app = "SAP Lens", version = Version, mode = "dotnet" });
         api.MapGet("/application-info", () => new
         {
-            version = Version, mode = "dotnet-preview", source_sha = SourceSha, file_version = ProductIdentity.FileVersion, python = (string?)null,
+            version = Version, mode = "dotnet", source_sha = SourceSha, file_version = ProductIdentity.FileVersion, python = (string?)null,
             product = ProductIdentity.Product, channel = ProductIdentity.Channel,
             runtime = $".NET {Environment.Version}", platform = System.Runtime.InteropServices.RuntimeInformation.OSDescription,
         });
