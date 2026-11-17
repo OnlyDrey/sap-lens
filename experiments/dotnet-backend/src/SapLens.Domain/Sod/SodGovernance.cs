@@ -84,6 +84,8 @@ public sealed class SodUserEntry
     public Dictionary<string, SodAssignment> Assignments { get; } = new(StringComparer.Ordinal);
     public SortedSet<string> Groups { get; } = new(StringComparer.Ordinal);
     public JsonNode? Account { get; set; }
+    /// <summary>restrict(): assignment ids passing the assignment-level filters (null: every assignment is shown).</summary>
+    public IReadOnlySet<string>? VisibleAssignments { get; set; }
 }
 
 /// <summary>Lifecycle state of one review item and the latest event it rests on.</summary>
