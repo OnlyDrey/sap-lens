@@ -7,6 +7,24 @@ if (ServerConfiguration.Informational(args) is { } information)
     Console.Out.WriteLine(information);
     return 0;
 }
+if (args.Contains("--check-sign-in"))
+{
+    // Local, read-only sign-in diagnosis: no listener, no writes; the password is read from the console without echo (or from redirected input).
+    try
+    {
+        var (store, username) = ServerConfiguration.SignInCheck(args, Environment.GetEnvironmentVariable);
+        Console.Error.Write($"Password for '{username}': ");
+        var password = ServerConfiguration.ReadSecret();
+        Console.Error.WriteLine();
+        Console.Out.WriteLine(SapLens.Application.Accounts.AccountDiagnostics.Report(SapLens.Application.Accounts.AccountDiagnostics.Check(store, username, password)));
+        return 0;
+    }
+    catch (InvalidOperationException error)
+    {
+        Console.Error.WriteLine($"check refused: {error.Message}");
+        return 3;
+    }
+}
 try
 {
     var settings = ServerConfiguration.Parse(args, Environment.GetEnvironmentVariable);

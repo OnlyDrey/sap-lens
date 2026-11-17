@@ -20,6 +20,30 @@ public static class ServerConfiguration
         return null;
     }
 
+    /// <summary>--check-sign-in USERNAME with --data-dir (or SAP_LENS_V2_DATA_DIR): the account store path and the username to diagnose.</summary>
+    public static (string Store, string Username) SignInCheck(string[] args, Func<string, string?> environment)
+    {
+        string? Value(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null; }
+        var username = Value("--check-sign-in") ?? throw new InvalidOperationException("--check-sign-in needs a username.");
+        var data = Value("--data-dir") ?? environment("SAP_LENS_V2_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_V2_DATA_DIR) is required.");
+        if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
+        return (SapLens.Application.Accounts.AccountStore.For(data), username);
+    }
+
+    /// <summary>A secret from the console without echo, or one line of redirected input.</summary>
+    public static string ReadSecret()
+    {
+        if (Console.IsInputRedirected) return Console.In.ReadLine() ?? "";
+        var sb = new System.Text.StringBuilder();
+        while (true)
+        {
+            var key = Console.ReadKey(intercept: true);
+            if (key.Key == ConsoleKey.Enter) return sb.ToString();
+            if (key.Key == ConsoleKey.Backspace) { if (sb.Length > 0) sb.Length--; continue; }
+            if (!char.IsControl(key.KeyChar)) sb.Append(key.KeyChar);
+        }
+    }
+
     public const string Help = """
         SAP Lens 2 server (.NET prototype)
 
@@ -44,6 +68,9 @@ public static class ServerConfiguration
                                        SAP_LENS_V2_PRINCIPAL       Name recorded for API clients using the token. Default server-operator.
           --help, -h                                               Show this text and exit.
           --version                                                Show the version and exit.
+          --check-sign-in <username>                               With --data-dir: explain locally why a sign-in is refused, then exit.
+                                                                   Read-only (opens the account store read-only, starts no server); the
+                                                                   password is typed without echo and never printed.
 
         Secrets are never accepted as options: --cert-password and --token are refused.
         Unknown options, missing values and invalid settings stop startup with exit code 3 and "startup refused: <reason>".
