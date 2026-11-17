@@ -82,6 +82,40 @@ Differences that need a person to look at once a real report model exists: line-
 title size, and Word's rendering of the generated table style (python-docx used the template style "Light Shading Accent 1"; ours defines an
 equivalent table style with header shading and rules).
 
+## Python.NET (pythonnet) evaluated, not adopted
+
+pythonnet 3.2.1 (MIT, netstandard2.0) embeds CPython in a .NET process and can call v1's `sod_reports` and `branding` modules unchanged.
+Evaluated in two forms against native .NET and a conventional Python subprocess worker. Evidence: `tools/pythonnet-poc` (not part of the solution,
+never shipped; v1 paths come from environment variables), run on Linux x64 with CPython 3.12 and the v1 venv on the `Fixtures/reporting` inputs.
+
+| Measurement (Linux x64) | Native .NET | Python.NET in-process | Python.NET isolated worker | Python subprocess worker |
+| --- | --- | --- | --- | --- |
+| Output vs v1 | Same content, pages, metadata; layout differs slightly | Byte-identical PDF, DOCX and images | Byte-identical | Byte-identical |
+| Start-up | None (library load) | `PythonEngine.Initialize` plus imports 2.7 s | 0.8-1.0 s first request incl. start | 1.0 s first request incl. start |
+| 13-page PDF (warm) | Well under 1 s | 14-434 ms per render | 274 ms | 322 ms |
+| Concurrency | Rendering serialized by design (v1 lock), other requests unaffected | None: 32 renders on 8 threads 10.0 s vs 10.0 s serial (GIL) | Pool of 4: 16 PDFs in 1.4-1.7 s | Same as a worker pool |
+| Memory | Part of the server process | +165 MB working set in the server | 116-117 MB per worker | 76 MB per worker |
+| Native crash in the renderer (`ctypes.string_at(0)`) | n/a (no Python) | Kills the whole server (exit 139) | Worker dies (139); server keeps running | Same as isolated worker |
+| Hung render | Bounded in-process | Cannot be interrupted safely | Killed by timeout at 3.0 s | Same |
+| .NET 10 | Supported | Works; `PythonEngine.Shutdown` succeeds (2.2 s) | Works | n/a |
+| Runtime to ship | `libSkiaSharp` (9-11 MB) | CPython plus Pillow, ReportLab, python-docx, lxml (packages 46 MB, stdlib 54 MB) per OS, in a folder beside the executable (cannot live inside a single-file binary) | Same plus a second .NET executable | CPython and packages, no .NET host |
+| Patch cadence | NuGet audit on every build | CPython, Pillow and lxml CVEs patched by SAP Lens 2 | Same | Same |
+| Windows x64 | Cross-published; acceptance pending | Not tested (needs the embeddable CPython distribution and `python3xx.dll`) | Not tested | Not tested |
+
+Findings:
+
+- **In-process (A)** is the weakest option: the GIL removes all parallelism, the server pays 2.7 s start-up and 165 MB, and a native fault in Pillow or
+  lxml (untrusted image decoding) terminates the whole service, including SoD review writes in progress.
+- **Isolated worker (B)** fixes crash isolation and timeouts but is a Python subprocess worker with an extra .NET host: the same CPython packaging
+  and patch burden, plus a second executable to sign and version. A plain Python worker achieves the same isolation with less.
+- **Licences** are acceptable (pythonnet MIT, CPython PSF, packages BSD/MIT/MIT-CMU); licensing does not decide the question.
+- Byte-identical output is the only advantage, and v1 report bytes are not a compatibility contract (reports carry no signatures; checksums
+  cover the frozen model, not the file). Native output already matches content, pages, metadata and fonts.
+
+Decision: Python.NET is not introduced into production code. Native .NET stays the choice for PDF, DOCX and images because it has the lower
+maintenance and deployment cost (one ecosystem, no bundled interpreter, no IPC surface). If a future renderer requirement can only be met by a
+Python library, the conventional subprocess worker (Option B above) is the fallback, not Python.NET.
+
 ## Security and operation
 
 - Images: content-type detection from the bytes, size limit before decoding, dimension and frame checks from the header before pixel decoding,
