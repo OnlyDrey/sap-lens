@@ -173,14 +173,27 @@ public static partial class V1DataMigration
 
     // ---- reading v1 stores
 
-    private sealed record SourceRevision(string Snapshot, string Kind, List<Dictionary<string, string>> Records, JsonNode? Report, bool Active, DateTime When, string FileName);
+    /// <summary>A v1 source revision. Its records are read from the content-addressed file only while that revision is imported or verified (one at a
+    /// time), and the file is re-verified against its address each time, so a large installation never holds all revisions in memory.</summary>
+    private sealed record SourceRevision(string Snapshot, string Kind, string File, int Count, JsonNode? Report, bool Active, DateTime When, string FileName)
+    {
+        public IEnumerable<Dictionary<string, string>> Records()
+        {
+            var bytes = System.IO.File.ReadAllBytes(File);
+            if (Sha(bytes) != Snapshot) throw new MigrationException($"The {Kind} snapshot {Snapshot} changed during the migration.");
+            // A read-only document over the file bytes; one record object at a time (no DOM of the whole revision).
+            using var document = JsonDocument.Parse(bytes);
+            if (!document.RootElement.TryGetProperty("records", out var records) || records.ValueKind != JsonValueKind.Array) yield break;
+            foreach (var record in records.EnumerateArray()) yield return Row(record);
+        }
+    }
 
     private sealed class V1Data
     {
         public required string Root;
         public JsonObject Settings = [];
         public List<SourceRevision> Revisions = [];
-        public List<(string Id, string Json)> Evidence = [];
+        public List<(string Id, string File)> Evidence = [];
         public List<(string Name, JsonObject Value)> Documents = [];
         public JsonArray SavedFilters = [];
         public JsonObject AccountReview = [];
@@ -239,9 +252,9 @@ public static partial class V1DataMigration
                     var isActive = active.TryGetValue(kind, out var a) && a.Snapshot == id;
                     var when = isActive ? a.When : history.GetValueOrDefault(id, "");
                     var stamp = DateTimeOffset.TryParse(when, System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.AssumeUniversal, out var t) ? t.UtcDateTime : File.GetLastWriteTimeUtc(file);
-                    v1.Revisions.Add(new SourceRevision(id, kind, [.. records.Select(Row)], value["report"]?.DeepClone(), isActive, stamp, isActive ? Path.GetFileName(a.Path) : ""));
+                    v1.Revisions.Add(new SourceRevision(id, kind, file, records.Count, value["report"]?.DeepClone(), isActive, stamp, isActive ? Path.GetFileName(a.Path) : ""));
                 }
-                else { v1.Evidence.Add((id, Encoding.UTF8.GetString(bytes))); evidence++; }
+                else { v1.Evidence.Add((id, file)); evidence++; }
             }
         foreach (var kind in SourceKinds)
             if (active.TryGetValue(kind, out var a) && v1.Revisions.All(r => r.Snapshot != a.Snapshot)) v1.Blockers.Add($"The active {kind} snapshot {a.Snapshot} referenced by settings is missing.");
@@ -262,7 +275,7 @@ public static partial class V1DataMigration
                 if (!Hex64().IsMatch(id) || Sha(bytes) != id) { v1.Blockers.Add($"employee-directory/{Path.GetFileName(file)} does not match its content address."); continue; }
                 var value = JsonNode.Parse(bytes) as JsonObject;
                 if (value?["records"] is not JsonArray records) { v1.Warnings.Add($"employee-directory/{id}.json has no records and is kept only in the migration backup."); continue; }
-                v1.Revisions.Add(new SourceRevision(id, Sources.Employees, [.. records.Select(Row)], null, id == employeeActive, File.GetLastWriteTimeUtc(file), (string?)value["file_name"] ?? ""));
+                v1.Revisions.Add(new SourceRevision(id, Sources.Employees, file, records.Count, null, id == employeeActive, File.GetLastWriteTimeUtc(file), (string?)value["file_name"] ?? ""));
                 employees++;
             }
         if (employeeActive is not null && v1.Revisions.All(r => r.Snapshot != employeeActive)) v1.Blockers.Add($"The active Employee Directory snapshot {employeeActive} is missing.");
@@ -311,8 +324,13 @@ public static partial class V1DataMigration
         return v1;
     }
 
-    private static Dictionary<string, string> Row(JsonNode? node) =>
-        (node as JsonObject ?? []).ToDictionary(p => p.Key, p => p.Value is JsonValue v && v.GetValueKind() == JsonValueKind.String ? v.GetValue<string>() : p.Value?.ToJsonString() ?? "", StringComparer.Ordinal);
+    private static Dictionary<string, string> Row(JsonElement record)
+    {
+        var row = new Dictionary<string, string>(StringComparer.Ordinal);
+        if (record.ValueKind != JsonValueKind.Object) return row;
+        foreach (var p in record.EnumerateObject()) row[p.Name] = p.Value.ValueKind == JsonValueKind.String ? p.Value.GetString()! : p.Value.ValueKind == JsonValueKind.Null ? "" : p.Value.GetRawText();
+        return row;
+    }
 
     /// <summary>The files the stores above cover; everything else in the source is only preserved in the migration backup.</summary>
     private static bool Covered(string path) =>
@@ -530,19 +548,24 @@ public static partial class V1DataMigration
                     using var hasher = new ContentHasher();
                     var dataset = new Dataset
                     {
-                        Source = r.Kind, Revision = ++revision, Status = DatasetStatus.Staged, RecordCount = r.Records.Count, FileName = r.FileName,
+                        Source = r.Kind, Revision = ++revision, Status = DatasetStatus.Staged, RecordCount = r.Count, FileName = r.FileName,
                         CreatedUtc = r.When, ConfirmedBy = "v1-migration",
                         ReportJson = new JsonObject { ["migrated_from_v1"] = new JsonObject { ["snapshot"] = r.Snapshot, ["active"] = r.Active }, ["v1_report"] = r.Report?.DeepClone() }.ToJsonString(),
                     };
                     db.Datasets.Add(dataset);
                     await db.SaveChangesAsync(ct);
                     var ordinal = 0;
-                    foreach (var record in r.Records)
+                    foreach (var record in r.Records())
                     {
                         var json = Sources.Serialize(record);
                         hasher.Add(json);
                         db.DatasetRecords.Add(new DatasetRecord { DatasetId = dataset.Id, Ordinal = ordinal++, Payload = json });
+                        if (ordinal % 5000 == 0) { await db.SaveChangesAsync(ct); db.ChangeTracker.Clear(); }      // bounded change tracking
                     }
+                    await db.SaveChangesAsync(ct);
+                    db.ChangeTracker.Clear();
+                    if (ordinal != r.Count) throw new MigrationException($"The {r.Kind} snapshot {r.Snapshot} changed during the migration.");
+                    db.Datasets.Attach(dataset);
                     (dataset.ContentHash, dataset.Status, dataset.ActivatedUtc) = (hasher.Finish(), r.Active ? DatasetStatus.Active : DatasetStatus.Retired, r.Active ? r.When : null);
                     await db.SaveChangesAsync(ct);
                     db.ChangeTracker.Clear();
@@ -551,7 +574,12 @@ public static partial class V1DataMigration
                 counts[$"datasets_{group.Key}"] = group.Count();
             }
 
-            foreach (var (eid, json) in v1.Evidence) db.SodEvidenceSnapshots.Add(new SodEvidenceSnapshot { Sha256 = eid, Json = json });
+            foreach (var (eid, path) in v1.Evidence)
+            {
+                var bytes = File.ReadAllBytes(path);
+                if (Sha(bytes) != eid) throw new MigrationException($"Evidence snapshot {eid} changed during the migration.");
+                db.SodEvidenceSnapshots.Add(new SodEvidenceSnapshot { Sha256 = eid, Json = Encoding.UTF8.GetString(bytes) });
+            }
             counts["evidence_snapshots"] = v1.Evidence.Count;
 
             foreach (var (name, value) in v1.Documents)
@@ -589,7 +617,7 @@ public static partial class V1DataMigration
             var usersActive = datasets.Values.FirstOrDefault(d => d.Source == Sources.Users && d.Status == DatasetStatus.Active);
             var names = new Dictionary<string, string>(StringComparer.Ordinal);
             foreach (var r in v1.Revisions.Where(r => r.Kind == Sources.Users))
-                foreach (var record in r.Records) if (record.GetValueOrDefault("USERNAME") is { Length: > 0 } u) names.TryAdd(AccountDigest(u), u.Trim().PyUpper());
+                foreach (var record in r.Records()) if (record.GetValueOrDefault("USERNAME") is { Length: > 0 } u) names.TryAdd(AccountDigest(u), u.Trim().PyUpper());
             var unmatched = new JsonObject();
             var events = new List<(DateTime When, ReviewDecision Decision)>();
             foreach (var (key, item) in v1.AccountReview)
@@ -688,9 +716,19 @@ public static partial class V1DataMigration
         foreach (var r in v1.Revisions)
         {
             var dataset = (await db.Datasets.AsNoTracking().Where(d => d.Source == r.Kind).ToListAsync(ct)).First(d => d.ReportJson!.Contains(r.Snapshot, StringComparison.Ordinal));
-            var stored = await SnapshotService.RecordsAsync(db, dataset.Id, ct);
-            if (stored.Count != r.Records.Count || stored.Zip(r.Records).Any(p => !p.First.OrderBy(k => k.Key, StringComparer.Ordinal).SequenceEqual(p.Second.OrderBy(k => k.Key, StringComparer.Ordinal))))
-                throw new MigrationException($"The {r.Kind} revision {r.Snapshot} differs after migration.");
+            // Streamed pairwise: every stored record, in order, equals the v1 record (same fields and values); same count on both sides.
+            using (var expected = r.Records().GetEnumerator())
+            {
+                var count = 0;
+                await foreach (var payload in db.DatasetRecords.AsNoTracking().Where(x => x.DatasetId == dataset.Id).OrderBy(x => x.Ordinal).Select(x => x.Payload).AsAsyncEnumerable().WithCancellation(ct))
+                {
+                    var stored = Sources.Deserialize(payload);
+                    if (!expected.MoveNext() || stored.Count != expected.Current.Count || expected.Current.Any(f => !stored.TryGetValue(f.Key, out var v) || v != f.Value))
+                        throw new MigrationException($"The {r.Kind} revision {r.Snapshot} differs after migration.");
+                    count++;
+                }
+                if (expected.MoveNext() || count != r.Count) throw new MigrationException($"The {r.Kind} revision {r.Snapshot} differs after migration.");
+            }
             if ((dataset.Status == DatasetStatus.Active) != r.Active) throw new MigrationException($"The {r.Kind} revision {r.Snapshot} has the wrong state after migration.");
         }
         result["source_revisions"] = v1.Revisions.Count;

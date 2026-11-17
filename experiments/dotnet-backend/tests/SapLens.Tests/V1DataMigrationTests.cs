@@ -297,4 +297,38 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
         Assert.Equal("rolled_back", (string)V1DataMigration.Status(Data, id)["status"]!);
         Assert.Equal(["Existing v2 filter"], (await Get("/api/saved-filters"))["items"]!.AsArray().Select(i => (string)i!["name"]!));
     }
+
+    [Fact]
+    public async Task A_large_revision_is_imported_in_batches_and_verified_record_by_record()
+    {
+        // Replace the active users revision with 12,345 records (more than two 5,000-record batches), content-addressed like v1.
+        var settingsPath = Path.Combine(Source, "settings.json");
+        var settings = JsonNode.Parse(File.ReadAllText(settingsPath))!.AsObject();
+        var active = (string)settings["data_lifecycle"]!["sources"]!["users"]!["snapshot"]!;
+        var snapshot = JsonNode.Parse(File.ReadAllText(Path.Combine(Source, "csv-data", "snapshots", active + ".json")))!.AsObject();
+        var template = snapshot["records"]![0]!.AsObject();
+        var records = new JsonArray();
+        for (var i = 0; i < 12_345; i++)
+        {
+            var record = template.DeepClone().AsObject();
+            record["USERNAME"] = $"SYNTH{i:D6}";
+            record["LAST_NAME"] = i % 2 == 0 ? "Ødegård" : "Nordmann";
+            records.Add(record);
+        }
+        snapshot["records"] = records;
+        var bytes = Encoding.UTF8.GetBytes(snapshot.ToJsonString());
+        var id = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        File.WriteAllBytes(Path.Combine(Source, "csv-data", "snapshots", id + ".json"), bytes);
+        settings["data_lifecycle"]!["sources"]!["users"]!["snapshot"] = id;
+        File.WriteAllText(settingsPath, settings.ToJsonString());
+
+        var preview = V1DataMigration.Preview(Source, Data, "", replaceExisting: false, Now);
+        var report = await V1DataMigration.RunAsync(Data, (string)preview["id"]!, (string)preview["digest"]!, "admin", Now);
+        Assert.Equal("verified", (string)report["status"]!);
+        V1DataMigration.RequestActivation(Data, (string)preview["id"]!, (string)preview["digest"]!, "admin", Now);
+        await Start();
+        var page = await Get("/api/access/users?show_expired=true&search=SYNTH01234");
+        Assert.Equal(["SYNTH012340", "SYNTH012341", "SYNTH012342", "SYNTH012343", "SYNTH012344"], page["items"]!.AsArray().Select(u => (string)u!["username"]!).Take(5));
+        Assert.Equal(12_345, (int)(await Get("/api/access/users?show_expired=true&search=SYNTH&limit=1"))["total"]!);
+    }
 }

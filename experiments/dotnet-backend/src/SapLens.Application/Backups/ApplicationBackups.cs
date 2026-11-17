@@ -12,8 +12,11 @@ namespace SapLens.Application.Backups;
 /// database and the account store (active sessions removed), the branding images and a manifest with SHA-256 per file, encrypted as SLBAK3. Restore is a
 /// restart handoff: an upload is decrypted, checked and previewed without touching active data; a confirmed restore is applied at the next start, before
 /// the database opens, after an encrypted destination recovery backup of the current data, and is rolled back if anything fails.</summary>
-public sealed partial class ApplicationBackups(DatabaseOptions options, IDbContextFactory<SapLensDb> factory, TimeProvider clock)
+public sealed partial class ApplicationBackups(DatabaseOptions options, IDbContextFactory<SapLensDb> factory, TimeProvider clock, WriteCoordinator? writer = null)
 {
+    /// <summary>Record changes go through the process-wide write coordinator (one SQLite writer, BEGIN IMMEDIATE), like every other write.</summary>
+    private readonly WriteCoordinator _writer = writer ?? new WriteCoordinator(factory);
+
     public const long MaxUpload = 256L * 1024 * 1024;
     public const string DatabaseEntry = "sap-lens-v2.sqlite3", AccountsEntry = "security/accounts.sqlite3", ManifestEntry = "manifest.json";
     [GeneratedRegex("^[a-f0-9]{32}$")] public static partial Regex Identity();
@@ -181,11 +184,11 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
             var id = Guid.NewGuid().ToString("N");
             var now = clock.GetUtcNow();
             var (sha, size, manifest) = await Task.Run(() => WriteArchive(Data, Path.Combine(Data, "backups", ArchiveName(id)), passphrase, host, kind, now), ct);
-            await using (var db = await factory.CreateDbContextAsync(ct))
+            await _writer.WriteAsync((db, _) =>
             {
                 db.Backups.Add(new BackupRecord { Kind = kind, FileName = ArchiveName(id), Sha256 = sha, SizeBytes = size, Reason = $"{(passphrase.Length > 0 ? "passphrase" : "host-key")};{actor}", CreatedUtc = now.UtcDateTime });
-                await db.SaveChangesAsync(ct);
-            }
+                return Task.CompletedTask;
+            }, ct);
             var operation = new JsonObject
             {
                 ["id"] = id, ["kind"] = "backup", ["status"] = "ready", ["completed_at"] = Stamp(clock.GetUtcNow()), ["archive_sha256"] = sha,
@@ -247,17 +250,19 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
     {
         if (!confirm) throw new BackupException("Confirm backup deletion.", 422);
         if (File.Exists(PendingFile(Data))) throw new BackupException("An active operation prevents archive deletion.");
-        await using var db = await factory.CreateDbContextAsync(ct);
         var name = Identity().IsMatch(id) ? ArchiveName(id) : "";
-        var record = await db.Backups.FirstOrDefaultAsync(b => b.FileName == name && b.DeletedUtc == null && (b.Kind == BackupKind.Manual || b.Kind == BackupKind.Automatic), ct)
-            ?? throw new BackupException("Only inactive backup archives can be deleted.");
-        foreach (var staged in Directory.Exists(RestoreRoot(Data)) ? Directory.GetDirectories(RestoreRoot(Data)) : [])
-            if (File.Exists(Path.Combine(staged, "preview.json")) && (string?)JsonNode.Parse(File.ReadAllText(Path.Combine(staged, "preview.json")))?["archive_sha256"] == record.Sha256)
-                throw new BackupException("A staged restore protects this archive.");
-        File.Delete(Path.Combine(Data, "backups", name));
-        record.DeletedUtc = clock.GetUtcNow().UtcDateTime;
-        record.Reason = (record.Reason ?? "") + $";deleted by {actor}";
-        await db.SaveChangesAsync(ct);
+        await _writer.WriteAsync(async (db, token) =>
+        {
+            var record = await db.Backups.FirstOrDefaultAsync(b => b.FileName == name && b.DeletedUtc == null && (b.Kind == BackupKind.Manual || b.Kind == BackupKind.Automatic), token)
+                ?? throw new BackupException("Only inactive backup archives can be deleted.");
+            foreach (var staged in Directory.Exists(RestoreRoot(Data)) ? Directory.GetDirectories(RestoreRoot(Data)) : [])
+                if (File.Exists(Path.Combine(staged, "preview.json")) && (string?)JsonNode.Parse(File.ReadAllText(Path.Combine(staged, "preview.json")))?["archive_sha256"] == record.Sha256)
+                    throw new BackupException("A staged restore protects this archive.");
+            // The file goes first: if the commit then failed, the record stays and history shows the archive as missing, never a silent leftover.
+            File.Delete(Path.Combine(Data, "backups", name));
+            record.DeletedUtc = clock.GetUtcNow().UtcDateTime;
+            record.Reason = (record.Reason ?? "") + $";deleted by {actor}";
+        }, ct);
         var operation = ReadOperation(Data);
         if ((string?)operation["id"] == id) { operation["status"] = "cancelled"; operation["message"] = "Backup archive deleted by request."; WriteOperation(Data, operation); }
         return await HistoryAsync(ct);

@@ -23,16 +23,18 @@ public static class V1Storage
             if (error is not null) return error;
             if (!body!.Confirm) return Detail("Confirm that the upgraded installation works to release the pre-migration backup.", 422);
             var maintenance = services.GetRequiredService<DatabaseMaintenance>();
-            await using var db = await services.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync(ct);
-            var record = (await Migrations(db, ct)).FirstOrDefault(r => Id(r) == body.Id && r.AdminConfirmedUtc is null);
-            if (record is null) return Detail("There is no completed migration with this identifier.", 409);
             var integrity = await maintenance.VerifyAsync(ct);
             if (!maintenance.Ready || !integrity.Ok)
                 return Detail("The upgraded store is not healthy yet, so the backup is kept: " + string.Join("; ", integrity.Problems.Take(5).DefaultIfEmpty(maintenance.NotReadyReason ?? "not ready")), 409);
-            record.AdminConfirmedUtc = services.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
-            record.Reason = $"{record.Reason};confirmed by {Actors.Name(http)}";
-            await db.SaveChangesAsync(ct);
-            return Json(await StatusAsync(services, ct));
+            var confirmed = await services.GetRequiredService<WriteCoordinator>().WriteAsync(async (db, token) =>
+            {
+                var record = (await Migrations(db, token)).FirstOrDefault(r => Id(r) == body.Id && r.AdminConfirmedUtc is null);
+                if (record is null) return false;
+                record.AdminConfirmedUtc = services.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
+                record.Reason = $"{record.Reason};confirmed by {Actors.Name(http)}";
+                return true;
+            }, ct);
+            return confirmed ? Json(await StatusAsync(services, ct)) : Detail("There is no completed migration with this identifier.", 409);
         });
 
         api.MapPost("/storage/migration/delete-backup", async (HttpContext http, IServiceProvider services, DatabaseOptions options, CancellationToken ct) =>
@@ -41,16 +43,18 @@ public static class V1Storage
             var (body, error) = await Read(http, ct);
             if (error is not null) return error;
             if (!body!.Confirm) return Detail("Confirm that the pre-migration backup may be deleted.", 422);
-            await using var db = await services.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync(ct);
-            var record = (await Migrations(db, ct)).FirstOrDefault(r => Id(r) == body.Id && r.AdminConfirmedUtc is not null);
-            if (record is null) return Detail("Only the backup of a confirmed migration can be deleted.", 409);
-            var file = Path.Combine(options.BackupDirectory, record.FileName);
-            if (!File.Exists(file) || new FileInfo(file).LinkTarget is not null) return Detail("The migration backup is not present.", 409);
-            File.Delete(file);
-            record.DeletedUtc = services.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
-            record.Reason = $"{record.Reason};deleted by {Actors.Name(http)}";
-            await db.SaveChangesAsync(ct);
-            return Json(await StatusAsync(services, ct));
+            var refusal = await services.GetRequiredService<WriteCoordinator>().WriteAsync(async (db, token) =>
+            {
+                var record = (await Migrations(db, token)).FirstOrDefault(r => Id(r) == body.Id && r.AdminConfirmedUtc is not null);
+                if (record is null) return "Only the backup of a confirmed migration can be deleted.";
+                var file = Path.Combine(options.BackupDirectory, record.FileName);
+                if (!File.Exists(file) || new FileInfo(file).LinkTarget is not null) return "The migration backup is not present.";
+                File.Delete(file);                                       // file first, as for application backups
+                record.DeletedUtc = services.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
+                record.Reason = $"{record.Reason};deleted by {Actors.Name(http)}";
+                return null;
+            }, ct);
+            return refusal is null ? Json(await StatusAsync(services, ct)) : Detail(refusal, 409);
         });
     }
 

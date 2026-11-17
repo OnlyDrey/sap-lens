@@ -22,8 +22,10 @@ namespace SapLens.Application.Retention;
 ///
 /// State lives in data-retention.json in the data directory, outside the data an application restore replaces. Approvals are bound to the installation
 /// identity (.installation-id, never in a backup); a restore voids approvals and pauses cleanup for 7 days.</summary>
-public sealed partial class DataRetention(DatabaseOptions options, IDbContextFactory<SapLensDb> factory, TimeProvider clock)
+public sealed partial class DataRetention(DatabaseOptions options, IDbContextFactory<SapLensDb> factory, TimeProvider clock, WriteCoordinator? writer = null)
 {
+    private readonly WriteCoordinator _writer = writer ?? new WriteCoordinator(factory);
+
     public const int DefaultMonths = 24, MinMonths = 6, MaxMonths = 120, DefaultDays = 90, MinDays = 7, MaxDays = 3650, KeepPerSource = 2;
     public static readonly string[] Categories = ["source", "review", "backup"];
     private static readonly string[] Frozen = ["Approved", "Closed", "Approved / closed"];
@@ -279,43 +281,44 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
         var errors = 0;
         if (category == "source")
         {
-            await using var db = await factory.CreateDbContextAsync(ct);
-            var (_, items) = await SourcePlanAsync(db, period, now, ct);     // re-planned: an earlier preview is never trusted
+            List<Candidate> items;
+            await using (var db = await factory.CreateDbContextAsync(ct)) (_, items) = await SourcePlanAsync(db, period, now, ct);   // re-planned: a preview is never trusted
             foreach (var item in items)
-            {
-                await using var tx = await db.Database.BeginTransactionAsync(ct);
-                // Re-checked inside the transaction: still superseded, still unreferenced by review decisions or invalidations.
-                var dataset = await db.Datasets.FirstOrDefaultAsync(d => d.Id == item.Id && d.Status == DatasetStatus.Retired, ct);
-                if (dataset is null || await db.ReviewDecisions.AnyAsync(r => r.DatasetId == item.Id, ct) || await db.ReviewInvalidations.AnyAsync(r => r.DatasetId == item.Id, ct)) { await tx.RollbackAsync(ct); continue; }
                 try
                 {
-                    // The records go; the revision row stays as evidence (activated datasets are never deleted, a database trigger enforces it).
-                    await db.DatasetRecords.Where(r => r.DatasetId == item.Id).ExecuteDeleteAsync(ct);
-                    dataset.Status = DatasetStatus.Purged;
-                    await db.SaveChangesAsync(ct);
-                    await tx.CommitAsync(ct);
-                    var key = $"{item.Source} revisions";
-                    removed[key] = (Int(removed[key]) ?? 0) + 1;
+                    // One write transaction per revision (BEGIN IMMEDIATE through the coordinator), re-checked inside it: still superseded, still
+                    // unreferenced by review decisions or invalidations. The records go; the revision row stays as evidence (activated datasets are
+                    // never deleted, a database trigger enforces it).
+                    var purged = await _writer.WriteAsync(async (db, token) =>
+                    {
+                        var dataset = await db.Datasets.FirstOrDefaultAsync(d => d.Id == item.Id && d.Status == DatasetStatus.Retired, token);
+                        if (dataset is null || await db.ReviewDecisions.AnyAsync(r => r.DatasetId == item.Id, token) || await db.ReviewInvalidations.AnyAsync(r => r.DatasetId == item.Id, token)) return false;
+                        await db.DatasetRecords.Where(r => r.DatasetId == item.Id).ExecuteDeleteAsync(token);
+                        dataset.Status = DatasetStatus.Purged;
+                        return true;
+                    }, ct);
+                    if (purged) { var key = $"{item.Source} revisions"; removed[key] = (Int(removed[key]) ?? 0) + 1; }
                 }
-                catch (DbUpdateException) { await tx.RollbackAsync(ct); db.ChangeTracker.Clear(); errors++; }
-            }
+                catch (DbUpdateException) { errors++; }
         }
         else if (category == "backup")
         {
             if (!File.Exists(Path.Combine(Data, "restore", "pending.json")))
             {
-                await using var db = await factory.CreateDbContextAsync(ct);
-                var (_, items) = await BackupPlanAsync(db, period, now, ct);
+                List<BackupRecord> items;
+                await using (var db = await factory.CreateDbContextAsync(ct)) (_, items) = await BackupPlanAsync(db, period, now, ct);
                 foreach (var item in items)
                 {
                     var path = Path.Combine(options.BackupDirectory, item.FileName);
                     try
                     {
                         if (File.Exists(path)) File.Delete(path);
-                        var tracked = await db.Backups.FirstAsync(b => b.Id == item.Id, ct);
-                        tracked.DeletedUtc = now.UtcDateTime;
-                        tracked.Reason = $"{tracked.Reason};expired by retention ({actor})";
-                        await db.SaveChangesAsync(ct);
+                        await _writer.WriteAsync(async (db, token) =>
+                        {
+                            var tracked = await db.Backups.FirstAsync(b => b.Id == item.Id, token);
+                            tracked.DeletedUtc = now.UtcDateTime;
+                            tracked.Reason = $"{tracked.Reason};expired by retention ({actor})";
+                        }, ct);
                         removed["automatic backups"] = (Int(removed["automatic backups"]) ?? 0) + 1;
                         bytes += item.SizeBytes;
                     }
