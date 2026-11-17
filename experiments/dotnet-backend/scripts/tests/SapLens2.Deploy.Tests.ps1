@@ -5,6 +5,7 @@ BeforeAll {
     $script:EntryPath = (Resolve-Path (Join-Path $PSScriptRoot '..\deploy\Deploy-SapLens2.ps1')).Path
     Import-Module $script:ModulePath -Force
     $script:M = 'SapLens2.Deploy'
+    $script:Original = ''
     # Windows-only cmdlets the module calls; stubs let Pester mock them on Linux (on Windows the real commands exist and are mocked directly).
     foreach ($name in 'New-Service', 'Stop-Service', 'Start-Service', 'Get-NetTCPConnection') {
         if (-not (Get-Command $name -ErrorAction SilentlyContinue)) { New-Item -Path "function:global:$name" -Value { throw "stub $($MyInvocation.MyCommand.Name)" } | Out-Null }
@@ -42,7 +43,9 @@ BeforeAll {
         Mock -ModuleName $M Start-SL2Service { $script:Calls.Add('start:' + (Split-Path $script:State.Link -Leaf)); $script:State.Service = 'Running'; $script:State.Pid++ }
         Mock -ModuleName $M Get-SL2Link { $script:State.Link }
         Mock -ModuleName $M Set-SL2Link { param($Link, $Target) $script:Calls.Add('link:' + (Split-Path $Target -Leaf)); $script:State.Link = $Target }
-        Mock -ModuleName $M Get-SL2Listener { if ($script:State.Service -eq 'Running') { , @($script:State.Pid) } else { , @() } }
+        # Like the real function after PowerShell unrolls its result: one listener comes back as a bare [int], none as nothing.
+        Mock -ModuleName $M Get-SL2Listener { if ($script:State.Service -eq 'Running') { $script:State.Pid } }
+        Mock -ModuleName $M Set-SL2ServiceBinary { param($Name, $BinaryPath) $script:Calls.Add('binary:' + $(if ($BinaryPath -eq (Get-SL2BinaryPath $Config)) { 'managed' } else { 'original' })); $script:Expected = $BinaryPath }
         Mock -ModuleName $M Start-Sleep { }
         Mock -ModuleName $M Stop-Process { throw 'Stop-Process must never be called' }
         Mock -ModuleName $M Invoke-SL2Http {
@@ -50,6 +53,8 @@ BeforeAll {
             if ($Url -like '*/health/ready') { return [pscustomobject]@{ Status = $(if ($script:State.Options.NeverReady -and $script:State.Link -like '*new*') { 503 } else { 200 }); Body = '' } }
             $sha = $script:State.Identity[$script:State.Link]
             if ($script:State.Options.WrongIdentity -and $script:State.Link -like '*new*') { $sha = 'c' * 40 }
+            # An adopted service running its original command line answers as the release it ran before.
+            if ($script:Original -and $script:Expected -eq $script:Original) { $sha = $script:Old }
             [pscustomobject]@{ Status = 200; Body = (@{ source_sha = $sha; version = '2.0.0-alpha.1' } | ConvertTo-Json) }
         }
         Mock -ModuleName $M Invoke-SL2Maintenance {
@@ -69,7 +74,7 @@ BeforeAll {
 
     function Invoke-Deploy($Config, $Release) {
         $null = New-SL2Run $Config 'deploy'
-        try { Invoke-SL2Deploy $Config $Release $script:New | Out-Null; 0 } catch { $_.Exception.ExitCode }
+        try { Invoke-SL2Deploy $Config $Release $script:New | Out-Null; 0 } catch { if ($_.Exception.PSObject.Properties["ExitCode"]) { $_.Exception.ExitCode } else { throw } }
     }
 }
 
@@ -104,7 +109,8 @@ Describe 'Source' {
     It 'never builds main or work and only deploys pushed commits of the branch' {
         $config = New-TestConfig
         { Resolve-SL2Commit $config 'main' '' } | Should -Throw '*not ''main''*'
-        Mock -ModuleName $M Invoke-SL2Git { param($Repository, $Arguments) if ($Arguments[0] -eq 'rev-parse') { , @(('e' * 40)) } else { , @() } }
+        # A single output line arrives as a plain string (the shape that broke Windows PowerShell 5.1 with "[System.Char] ... 'Trim'").
+        Mock -ModuleName $M Invoke-SL2Git { param($Repository, $Arguments) if ($Arguments[0] -eq 'rev-parse') { "$('e' * 40)`n" } }
         Mock -ModuleName $M Invoke-SL2Process { [pscustomobject]@{ ExitCode = 1; Output = @() } }
         { Resolve-SL2Commit $config 'experiment/dotnet-backend' ('f' * 40) } | Should -Throw '*only pushed commits*'
         Resolve-SL2Commit $config 'experiment/dotnet-backend' '' | Should -Be ('e' * 40)
@@ -114,7 +120,7 @@ Describe 'Source' {
         $config = New-TestConfig
         $worktree = Join-Path (Join-Path $config.WorkRoot 'worktrees') ('b' * 12)
         New-Item -ItemType Directory -Force $worktree | Out-Null
-        Mock -ModuleName $M Invoke-SL2Git { param($Repository, $Arguments) if ($Arguments[0] -eq 'rev-parse') { , @(('b' * 40)) } else { , @(' M file.cs') } }
+        Mock -ModuleName $M Invoke-SL2Git { param($Repository, $Arguments) if ($Arguments[0] -eq 'rev-parse') { 'b' * 40 } else { ' M file.cs' } }
         { New-SL2Worktree $config ('b' * 40) } | Should -Throw '*not a clean checkout*'
     }
 }
@@ -257,7 +263,7 @@ Describe 'Service installation and host safety' {
         $release = New-TestRelease $config 'new' $script:New
         Mock -ModuleName $M Get-SL2Service { [pscustomobject]@{ Exists = $false; State = 'Missing'; StartMode = ''; Account = ''; PathName = ''; ProcessId = 0 } }
         Mock -ModuleName $M Get-SL2Link { $release }
-        Mock -ModuleName $M Get-SL2Listener { , @(999) }
+        Mock -ModuleName $M Get-SL2Listener { 999 }
         Mock -ModuleName $M Stop-Process { throw 'never' }
         Mock -ModuleName $M New-Service { throw 'must not be created' }
         { Install-SL2Service $config } | Should -Throw '*used by process 999*'
@@ -268,7 +274,7 @@ Describe 'Service installation and host safety' {
         $config = New-TestConfig
         Mock -ModuleName $M Get-SL2Service { [pscustomobject]@{ Exists = $false; State = 'Missing'; StartMode = ''; Account = ''; PathName = ''; ProcessId = 0 } }
         Mock -ModuleName $M Get-SL2Link { '' }
-        Mock -ModuleName $M Get-SL2Listener { , @(999) }
+        Mock -ModuleName $M Get-SL2Listener { 999 }
         Mock -ModuleName $M Invoke-SL2Http { [pscustomobject]@{ Status = 200; Body = '{"source_sha":"x","version":"2.0.0-alpha.1"}' } }
         (Get-SL2Status $config).service_model | Should -Be 'unmanaged-process'
     }
@@ -289,5 +295,75 @@ Describe 'Service installation and host safety' {
         $output = & pwsh -NoProfile -File $script:EntryPath -Action Deploy -ConfigFile $file 2>&1
         $LASTEXITCODE | Should -Be 2
         ($output -join "`n") | Should -Match 'repeat with -Yes'
+    }
+}
+
+Describe 'Windows PowerShell 5.1 regressions' {
+    It 'reads a single git line that PowerShell returns as a plain string (the [System.Char] Trim failure)' {
+        $config = New-TestConfig
+        Mock -ModuleName $M Invoke-SL2Git { "  $('c' * 40)  " }
+        Get-SL2GitValue $config.RepositoryPath @('rev-parse', 'HEAD') | Should -Be ('c' * 40)
+        Mock -ModuleName $M Invoke-SL2Git { 'one'; 'two' }
+        { Get-SL2GitValue $config.RepositoryPath @('rev-parse', 'HEAD') } | Should -Throw '*expected one*'
+    }
+
+    It 'keeps native commands from stopping on stderr and never reads $IsWindows unguarded' {
+        $module = Get-Content $script:ModulePath -Raw
+        foreach ($name in 'Invoke-SL2Git', 'Invoke-SL2Process', 'Invoke-SL2Http') {
+            $body = ([regex]::Match($module, "function $name\b[^{]*\{(?<b>[\s\S]*?)\n\}")).Groups['b'].Value
+            $body | Should -Match "ErrorActionPreference = 'Continue'"
+        }
+        $module | Should -Not -Match '\)\[0\]\.Trim\(\)'
+        (Get-Content $script:EntryPath -Raw) | Should -Not -Match '-not \$IsWindows'
+    }
+
+    It 'appends to a journal history read back from JSON with a single entry' {
+        $config = New-TestConfig
+        $null = New-SL2Run $config 'recover'
+        Write-SL2Journal $config ([pscustomobject]@{ run = 'r'; phase = 'backup'; history = @(@{ phase = 'prepared'; at = 'x' }); updated = '' })
+        $journal = Read-SL2Journal $config
+        Set-SL2Phase $config $journal 'aborted'
+        @((Read-SL2Journal $config).history).Count | Should -Be 2
+    }
+}
+
+Describe 'Adopting a hand-installed service' {
+    AfterAll { $script:Original = '' }
+    BeforeEach {
+        $script:Config = New-TestConfig
+        $script:Target = New-TestRelease $script:Config 'new' $script:New
+        $script:Original = '"C:\saplens2\builds\manual\server\SapLens.Api.exe" ' + ((Get-SL2ServiceArguments $script:Config | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' ')
+    }
+
+    It 'adopts only on request and only with the configured arguments' {
+        Use-FakeHost $script:Config ''
+        $script:Expected = $script:Original
+        Invoke-Deploy $script:Config $script:Target | Should -Be 2                              # without -AdoptService
+        $script:Calls | Should -Not -Contain 'stop'
+        $script:Expected = $script:Original -replace '--port 18795', '--port 18796'
+        $null = New-SL2Run $script:Config 'deploy'
+        { Invoke-SL2Deploy $script:Config $script:Target $script:New -AdoptService } | Should -Throw '*arguments differ*'
+        $script:Calls | Should -Not -Contain 'stop'
+    }
+
+    It 'moves the service to the managed release link and keeps it there when ready' {
+        Use-FakeHost $script:Config ''
+        $script:Expected = $script:Original
+        $script:State.Identity[$script:Target] = $script:New
+        $null = New-SL2Run $script:Config 'deploy'
+        (Invoke-SL2Deploy $script:Config $script:Target $script:New -AdoptService).deployed | Should -BeTrue
+        ($script:Calls -join ' ') | Should -Be 'schema:new backup verify stop link:new binary:managed start:new'
+    }
+
+    It 'restores the original command line when the adopted deployment fails' {
+        Use-FakeHost $script:Config '' @{ WrongIdentity = $true }
+        $script:Expected = $script:Original
+        $script:State.Identity[$script:Target] = $script:New
+        $script:State.Identity[''] = $script:Old
+        $null = New-SL2Run $script:Config 'deploy'
+        { Invoke-SL2Deploy $script:Config $script:Target $script:New -AdoptService } | Should -Throw '*rolled back*'
+        $script:Expected | Should -Be $script:Original
+        $script:Calls | Should -Contain 'binary:original'
+        (Read-SL2Journal $script:Config).phase | Should -Be 'rolled_back'
     }
 }

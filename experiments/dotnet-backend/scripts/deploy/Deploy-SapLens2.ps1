@@ -13,6 +13,7 @@
                     verify readiness, version and commit. Any failure rolls back to the previous release when that is proven safe.
                     -DryRun resolves the commit and prints the plan without building, backing up or touching the service. Needs -Yes.
     InstallService  Creates (or with -Reconfigure updates) the SapLens2 service from the configuration. Needs -Yes.
+                    -AdoptService brings a hand-installed service (another executable path, same arguments) under managed releases once.
     Rollback        Returns to the previous release (or -ToRelease), only when it can open the current data. Needs -Yes.
     Recover         Completes an interrupted deployment (Ctrl+C, a dropped SSH session): returns to the previous release. Needs -Yes.
     Health          Readiness and identity of the running server.
@@ -40,6 +41,7 @@ param(
     [switch]$DryRun,
     [switch]$FirstInstall,
     [switch]$Reconfigure,
+    [switch]$AdoptService,
     [switch]$Yes
 )
 Set-StrictMode -Version 3.0
@@ -53,7 +55,8 @@ function Write-Result($Value, [int]$Code) {
 }
 
 function Test-Elevated {
-    if (-not $IsWindows -and $PSVersionTable.PSEdition -eq 'Core') { return $true }
+    # $IsWindows does not exist in Windows PowerShell 5.1 (and StrictMode refuses unknown variables): test the edition first.
+    if ($PSVersionTable.PSEdition -eq 'Core' -and -not (Get-Variable IsWindows -ValueOnly -ErrorAction SilentlyContinue)) { return $true }
     ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
@@ -101,7 +104,7 @@ try {
                     $published = Publish-SL2Release $config $built $manifest
                 }
             }
-            Write-Result (Invoke-SL2Deploy $config $published $sha -DryRun:$DryRun -FirstInstall:$FirstInstall) 0
+            Write-Result (Invoke-SL2Deploy $config $published $sha -DryRun:$DryRun -FirstInstall:$FirstInstall -AdoptService:$AdoptService) 0
         }
         'InstallService' { Install-SL2Service $config -Reconfigure:$Reconfigure; Write-Result (Get-SL2Status $config) 0 }
         'Rollback' { Write-Result (Invoke-SL2Rollback $config $ToRelease) 0 }

@@ -65,6 +65,13 @@ function Get-SL2ServiceArguments($Config) {
     $arguments
 }
 
+# The executable and the arguments of a service command line ("C:\path\SapLens.Api.exe" --a b "--c" "d e"), quotes removed.
+function Split-SL2CommandLine([string]$CommandLine) {
+    $tokens = [System.Collections.Generic.List[string]]::new()
+    foreach ($m in [regex]::Matches($CommandLine, '"([^"]*)"|(\S+)')) { $tokens.Add($(if ($m.Groups[1].Success) { $m.Groups[1].Value } else { $m.Groups[2].Value })) }
+    $tokens.ToArray()          # a plain sequence: callers wrap it in @(...) before indexing (one token would otherwise arrive as a string)
+}
+
 function Get-SL2CurrentLink($Config) { Join-SL2 $Config.ReleasesRoot 'current' }
 function Get-SL2ServiceExe($Config) { Join-SL2 (Join-SL2 (Get-SL2CurrentLink $Config) 'server') $script:Exe }
 
@@ -75,7 +82,18 @@ function Get-SL2BinaryPath($Config) {
 
 # ---- platform layer (mocked in tests)
 
+# PowerShell unrolls a one-element array returned from a function into that element; indexing it then yields a [char] (the Windows PowerShell 5.1
+# failure "[System.Char] does not contain a method named 'Trim'"). Callers therefore wrap results in @(...), and single values use Get-SL2GitValue.
+function Get-SL2GitValue([string]$Repository, [string[]]$Arguments) {
+    $lines = @(Invoke-SL2Git $Repository $Arguments | Where-Object { "$_".Trim() })
+    if ($lines.Count -ne 1) { Stop-SL2 ("git {0} returned {1} lines, expected one." -f ($Arguments -join ' '), $lines.Count) }
+    ([string]$lines[0]).Trim()
+}
+
+# Native commands: Windows PowerShell 5.1 turns every stderr line of a native command redirected with 2>&1 into a terminating error when
+# $ErrorActionPreference is 'Stop' (git and the build tools write progress there). These wrappers run with 'Continue' and judge by the exit code.
 function Invoke-SL2Git([string]$Repository, [string[]]$Arguments) {
+    $ErrorActionPreference = 'Continue'
     $output = & git -C $Repository @Arguments 2>&1
     if ($LASTEXITCODE -ne 0) { Stop-SL2 ("git {0} failed: {1}" -f ($Arguments -join ' '), (($output | Out-String).Trim())) }
     @($output | ForEach-Object { "$_" })
@@ -84,6 +102,7 @@ function Invoke-SL2Git([string]$Repository, [string[]]$Arguments) {
 function Get-SL2Shell { if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' } }
 
 function Invoke-SL2Process([string]$File, [string[]]$Arguments, [string]$LogFile) {
+    $ErrorActionPreference = 'Continue'
     $output = & $File @Arguments 2>&1
     $code = $LASTEXITCODE
     if ($LogFile) { $output | ForEach-Object { "$_" } | Add-Content -LiteralPath $LogFile -Encoding UTF8 }
@@ -103,12 +122,15 @@ function Invoke-SL2Maintenance([string]$ExePath, [string[]]$Arguments, [switch]$
 }
 
 function Get-SL2Service([string]$Name) {
+    # Windows always has CIM; elsewhere (the Linux test harness) there is no service manager, so the service reads as missing.
+    if (-not (Get-Command Get-CimInstance -ErrorAction SilentlyContinue)) { return [pscustomobject]@{ Exists = $false; State = 'Missing'; StartMode = ''; Account = ''; PathName = ''; ProcessId = 0 } }
     $service = Get-CimInstance Win32_Service -Filter "Name='$Name'" -ErrorAction SilentlyContinue
     if (-not $service) { return [pscustomobject]@{ Exists = $false; State = 'Missing'; StartMode = ''; Account = ''; PathName = ''; ProcessId = 0 } }
     [pscustomobject]@{ Exists = $true; State = $service.State; StartMode = $service.StartMode; Account = $service.StartName; PathName = $service.PathName; ProcessId = [int]$service.ProcessId }
 }
 
 function Get-SL2Listener([string]$Address, [int]$Port) {
+    if (-not (Get-Command Get-NetTCPConnection -ErrorAction SilentlyContinue)) { return @() }
     @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction SilentlyContinue | Where-Object { $_.LocalAddress -in @($Address, '0.0.0.0', '::') } |
         ForEach-Object { [int]$_.OwningProcess } | Sort-Object -Unique)
 }
@@ -131,6 +153,12 @@ function Stop-SL2Service([string]$Name, [int]$TimeoutSeconds) {
 
 function Start-SL2Service([string]$Name) { Start-Service -Name $Name -ErrorAction Stop }
 
+# Changes only the command line of an existing service (sc.exe config binPath=); account, start mode and recovery settings stay as they are.
+function Set-SL2ServiceBinary([string]$Name, [string]$BinaryPath) {
+    $result = Invoke-SL2Process 'sc.exe' @('config', $Name, 'binPath=', $BinaryPath) ''
+    if ($result.ExitCode -ne 0) { Stop-SL2 "sc.exe could not update the command line of $Name ($(($result.Output | Select-Object -Last 1)))." 4 }
+}
+
 function Get-SL2Link([string]$Link) {
     if (-not (Test-Path -LiteralPath $Link)) { return '' }
     $item = Get-Item -LiteralPath $Link -Force
@@ -150,6 +178,7 @@ function Set-SL2Link([string]$Link, [string]$Target) {
 # A readiness and identity probe of the local listener. TLS verification is skipped for this local probe only (it sends no credentials and reads
 # two public documents); clients and the reverse proxy validate the certificate as before.
 function Invoke-SL2Http([string]$Url) {
+    $ErrorActionPreference = 'Continue'
     $body = & curl.exe --silent --show-error --insecure --max-time 10 --write-out "`n%{http_code}" $Url 2>&1
     $lines = @($body | ForEach-Object { "$_" })
     [pscustomobject]@{ Status = [int]($lines[-1]); Body = (($lines | Select-Object -SkipLast 1) -join "`n") }
@@ -177,7 +206,12 @@ function Write-SL2Journal($Config, $Journal) {
 
 function Set-SL2Phase($Config, $Journal, [string]$Phase) {
     $Journal.phase = $Phase
-    $Journal.history += , @{ phase = $Phase; at = [DateTime]::UtcNow.ToString('o') }
+    # A journal read back from JSON may hold history as a single object or not at all: rebuild it as an array.
+    # (A typed list: an if-expression or a function would unroll a one-entry history into a bare hashtable again.)
+    $history = [System.Collections.Generic.List[object]]::new()
+    if ($Journal.PSObject.Properties['history'] -and $null -ne $Journal.history) { foreach ($entry in @($Journal.history)) { $history.Add($entry) } }
+    $history.Add(@{ phase = $Phase; at = [DateTime]::UtcNow.ToString('o') })
+    $Journal | Add-Member -NotePropertyName history -NotePropertyValue $history.ToArray() -Force
     Write-SL2Journal $Config $Journal
     Write-SL2Log "phase: $Phase"
 }
@@ -208,10 +242,10 @@ function Resolve-SL2Commit($Config, [string]$Branch, [string]$Commit) {
     if (-not $Branch) { $Branch = $Config.Branch }
     if ($Branch -in @('main', 'work')) { Stop-SL2 "Deployments are built from the development branch, not '$Branch'." }
     Invoke-SL2Git $Config.RepositoryPath @('fetch', '--quiet', $Config.Remote, "refs/heads/${Branch}:refs/remotes/$($Config.Remote)/$Branch") | Out-Null
-    $tip = (Invoke-SL2Git $Config.RepositoryPath @('rev-parse', "$($Config.Remote)/$Branch^{commit}"))[0].Trim()
+    $tip = Get-SL2GitValue $Config.RepositoryPath @('rev-parse', "$($Config.Remote)/$Branch^{commit}")
     if (-not $Commit) { return $tip }
     if ($Commit -notmatch '^[0-9a-f]{7,40}$') { Stop-SL2 "Commit '$Commit' is not a hexadecimal SHA." }
-    $full = (Invoke-SL2Git $Config.RepositoryPath @('rev-parse', "$Commit^{commit}"))[0].Trim()
+    $full = Get-SL2GitValue $Config.RepositoryPath @('rev-parse', "$Commit^{commit}")
     $contained = Invoke-SL2Process 'git' @('-C', $Config.RepositoryPath, 'merge-base', '--is-ancestor', $full, $tip) ''
     if ($contained.ExitCode -ne 0) { Stop-SL2 "Commit $full is not on $($Config.Remote)/$Branch; only pushed commits of the branch are deployed." }
     $full
@@ -221,8 +255,8 @@ function Resolve-SL2Commit($Config, [string]$Branch, [string]$Commit) {
 function New-SL2Worktree($Config, [string]$Commit) {
     $path = Join-SL2 (Join-SL2 $Config.WorkRoot 'worktrees') $Commit.Substring(0, 12)
     if (Test-Path -LiteralPath $path) {
-        $head = (Invoke-SL2Git $path @('rev-parse', 'HEAD'))[0].Trim()
-        $dirty = Invoke-SL2Git $path @('status', '--porcelain')
+        $head = Get-SL2GitValue $path @('rev-parse', 'HEAD')
+        $dirty = @(Invoke-SL2Git $path @('status', '--porcelain'))
         if ($head -ne $Commit -or @($dirty | Where-Object { $_ }).Count -gt 0) {
             Stop-SL2 "Build worktree $path is not a clean checkout of $Commit. Remove it with: git -C `"$($Config.RepositoryPath)`" worktree remove --force `"$path`""
         }
@@ -292,7 +326,7 @@ function Install-SL2Service($Config, [switch]$Reconfigure) {
     $service = Get-SL2Service $Config.ServiceName
     if ($service.Exists -and -not $Reconfigure) { Stop-SL2 "Service $($Config.ServiceName) exists; use -Reconfigure to update its command line and permissions." }
     if (-not (Get-SL2Link (Get-SL2CurrentLink $Config))) { Stop-SL2 'No release is linked yet: run the build action and then deploy with -FirstInstall, which installs the service.' }
-    $listeners = Get-SL2Listener $Config.ListenAddress ([int]$Config.Port)
+    $listeners = @(Get-SL2Listener $Config.ListenAddress ([int]$Config.Port))
     $owned = $service.Exists -and $service.ProcessId -gt 0 -and ($listeners -contains $service.ProcessId)
     if ($listeners.Count -gt 0 -and -not $owned) {
         Stop-SL2 ("Port {0} on {1} is used by process {2}, not by the service. Stop that server yourself (for example start-server-test.ps1 -Stop); it is never terminated by this script." -f $Config.Port, $Config.ListenAddress, ($listeners -join ','))
@@ -333,7 +367,7 @@ function Get-SL2Status($Config) {
     $current = Get-SL2Link (Get-SL2CurrentLink $Config)
     $manifest = $null
     if ($current -and (Test-Path -LiteralPath (Join-SL2 $current 'build-manifest.json'))) { $manifest = Get-Content -LiteralPath (Join-SL2 $current 'build-manifest.json') -Raw | ConvertFrom-Json }
-    $listeners = Get-SL2Listener $Config.ListenAddress ([int]$Config.Port)
+    $listeners = @(Get-SL2Listener $Config.ListenAddress ([int]$Config.Port))
     $model = if ($service.Exists) { 'windows-service' } elseif ($listeners.Count -gt 0) { 'unmanaged-process' } else { 'none' }
     $identity = $null; $ready = $null
     if ($listeners.Count -gt 0) {
@@ -361,12 +395,12 @@ function Wait-SL2Ready($Config, [string]$Commit, [string]$Version) {
     while ([DateTime]::UtcNow -lt $deadline) {
         $service = Get-SL2Service $Config.ServiceName
         if ($service.State -eq 'Stopped') { Stop-SL2 'The service stopped during startup (see <data-dir>\logs\server-*.log).' 1 }
-        $listeners = Get-SL2Listener $Config.ListenAddress ([int]$Config.Port)
+        $listeners = @(Get-SL2Listener $Config.ListenAddress ([int]$Config.Port))
         if ($service.State -eq 'Running' -and $service.ProcessId -gt 0 -and $listeners -contains $service.ProcessId) {
             $ready = Invoke-SL2Http "$base/health/ready"
             if ($ready.Status -eq 200) {
                 $identity = (Invoke-SL2Http "$base/product-version.json").Body | ConvertFrom-Json
-                if ($identity.source_sha -ne $Commit -or $identity.version -ne $Version) {
+                if ($Commit -and ($identity.source_sha -ne $Commit -or $identity.version -ne $Version)) {
                     Stop-SL2 "The service answers as $($identity.version) $($identity.source_sha), expected $Version $Commit." 1
                 }
                 return [pscustomobject]@{ process_id = $service.ProcessId; identity = $identity }
@@ -382,8 +416,8 @@ function Wait-SL2Ready($Config, [string]$Commit, [string]$Version) {
 
 # Whether the release in $ReleaseFolder can open the data as it is now. A release that knows --schema-info answers itself; for an older build the
 # proof is that no migration was applied since the deployment started.
-function Test-SL2RollbackSafe($Config, [string]$ReleaseFolder, $AppliedBefore) {
-    $exe = Join-SL2 (Join-SL2 $ReleaseFolder 'server') $script:Exe
+function Test-SL2RollbackSafe($Config, [string]$ReleaseFolder, $AppliedBefore, [string]$Executable = '') {
+    $exe = if ($Executable) { $Executable } else { Join-SL2 (Join-SL2 $ReleaseFolder 'server') $script:Exe }
     $info = Invoke-SL2Maintenance $exe @('--schema-info', '--data-dir', $Config.DataDirectory) -AllowUnsupported
     if ($info) { return [pscustomobject]@{ Safe = [bool]$info.compatible; Reason = $(if ($info.compatible) { 'the previous release knows every applied migration' } else { 'the database has migrations the previous release does not know: ' + (@($info.unknown_applied) -join ', ') }) } }
     $newExe = Join-SL2 (Join-SL2 (Get-SL2Link (Get-SL2CurrentLink $Config)) 'server') $script:Exe
@@ -419,15 +453,26 @@ Choose one:
 function Invoke-SL2RollbackCore($Config, $Journal, [string]$Target) {
     Write-SL2Log "rolling back to $Target"
     Stop-SL2Service $Config.ServiceName ([int]$Config.StopTimeoutSeconds)
-    $safety = Test-SL2RollbackSafe $Config $Target $Journal.applied_before
+    $before = if ($Journal.PSObject.Properties['service_binary_before']) { [string]$Journal.service_binary_before } else { '' }
+    $adopted = $before -and -not $Target
+    $safety = if ($adopted) { Test-SL2RollbackSafe $Config '' $Journal.applied_before @(Split-SL2CommandLine $before)[0] } else { Test-SL2RollbackSafe $Config $Target $Journal.applied_before }
     if (-not $safety.Safe) {
         Set-SL2Phase $Config $Journal 'manual_recovery_required'
         Write-SL2RecoveryInstructions $Config $Journal $safety.Reason
         Stop-SL2 "Rollback is not safe: $($safety.Reason). The service is stopped; see RECOVERY-REQUIRED.txt in $script:RunFolder." 4
     }
-    Set-SL2Link (Get-SL2CurrentLink $Config) $Target
+    if ($adopted) {
+        # The service was adopted in this run: its original command line (and release) comes back unchanged.
+        Set-SL2ServiceBinary $Config.ServiceName $before
+        $identity = if ($Journal.PSObject.Properties['identity_before'] -and $Journal.identity_before) { $Journal.identity_before } else { $null }
+        $manifest = [pscustomobject]@{ source_sha = $(if ($identity) { $identity.source_sha } else { '' }); version = $(if ($identity) { $identity.version } else { '' }) }
+        $Target = @(Split-SL2CommandLine $before)[0]
+    } else {
+        if ($before) { Set-SL2ServiceBinary $Config.ServiceName (Get-SL2BinaryPath $Config) }
+        Set-SL2Link (Get-SL2CurrentLink $Config) $Target
+        $manifest = Get-Content -LiteralPath (Join-SL2 $Target 'build-manifest.json') -Raw | ConvertFrom-Json
+    }
     Start-SL2Service $Config.ServiceName
-    $manifest = Get-Content -LiteralPath (Join-SL2 $Target 'build-manifest.json') -Raw | ConvertFrom-Json
     try { Wait-SL2Ready $Config $manifest.source_sha $manifest.version | Out-Null }
     catch {
         Set-SL2Phase $Config $Journal 'manual_recovery_required'
@@ -438,7 +483,7 @@ function Invoke-SL2RollbackCore($Config, $Journal, [string]$Target) {
     Write-SL2Log "rolled back to $Target ($($manifest.version) $($manifest.source_sha)); the service is ready"
 }
 
-function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [switch]$DryRun, [switch]$FirstInstall) {
+function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [switch]$DryRun, [switch]$FirstInstall, [switch]$AdoptService) {
     $previousJournal = Read-SL2Journal $Config
     if ($previousJournal -and $previousJournal.phase -in $script:CriticalPhases) {
         Stop-SL2 "An earlier deployment ($($previousJournal.run)) was interrupted in phase '$($previousJournal.phase)'. Run -Action Recover first."
@@ -448,8 +493,18 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
     $link = Get-SL2CurrentLink $Config
     $previous = Get-SL2Link $link
     if (-not $service.Exists -and -not $FirstInstall) { Stop-SL2 "Service $($Config.ServiceName) is not installed. Run the first deployment with -FirstInstall (see WINDOWS_DEPLOYMENT.md)." }
+    $adopt = $false
     if ($service.Exists -and $service.PathName -ne (Get-SL2BinaryPath $Config)) {
-        Stop-SL2 "The service command line differs from the deployment configuration. Review Status and apply the configuration with -Action InstallService -Reconfigure -Yes."
+        # A service installed by hand (or by an earlier procedure) runs another executable path. It is adopted only on request, and only when its
+        # arguments are exactly the configured ones (data directory, network, TLS, hosts, proxies), so nothing about its runtime changes silently.
+        $existing = @(Split-SL2CommandLine $service.PathName)
+        $wanted = @(Get-SL2ServiceArguments $Config)
+        $same = ($existing.Count - 1) -eq $wanted.Count -and -not (Compare-Object @($existing | Select-Object -Skip 1) $wanted -SyncWindow 0)
+        if (-not $same) {
+            Stop-SL2 ("The service arguments differ from the deployment configuration.`n  service: {0}`n  config:  {1}`nAlign deploy.local.json with the running service (or apply the configuration with -Action InstallService -Reconfigure -Yes)." -f (($existing | Select-Object -Skip 1) -join ' '), ($wanted -join ' '))
+        }
+        if (-not $AdoptService) { Stop-SL2 "Service $($Config.ServiceName) runs $($existing[0]), not the managed release link. Review -Action Status and deploy once with -AdoptService to bring it under managed releases (its account and arguments are kept)." }
+        $adopt = $true
     }
     $newExe = Join-SL2 (Join-SL2 $ReleaseFolder 'server') $script:Exe
     $schema = Invoke-SL2Maintenance $newExe @('--schema-info', '--data-dir', $Config.DataDirectory)
@@ -457,6 +512,11 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
     $journal = [pscustomobject]@{
         run = $script:RunId; commit = $Commit; version = $manifest.version; to_release = $ReleaseFolder; from_release = $previous
         service_state_before = $service.State; applied_before = @($schema.applied); backup = $null; phase = 'prepared'; history = @(); updated = ''
+        service_binary_before = $(if ($adopt) { $service.PathName } else { '' }); identity_before = $null
+    }
+    if ($service.State -eq 'Running') {
+        $identity = Invoke-SL2Http "https://$($Config.ListenAddress):$($Config.Port)/product-version.json"
+        if ($identity.Status -eq 200) { $journal.identity_before = $identity.Body | ConvertFrom-Json }
     }
     Write-SL2Log ("deploying {0} {1} from {2}; service {3} ({4}); {5} pending migration(s)" -f $manifest.version, $Commit, $(if ($previous) { $previous } else { '(none)' }), $service.State, $service.Account, @($schema.pending).Count)
     if ($DryRun) {
@@ -479,6 +539,7 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
         }
         Set-SL2Phase $Config $journal 'switched'
         Set-SL2Link $link $ReleaseFolder
+        if ($adopt) { Set-SL2ServiceBinary $Config.ServiceName (Get-SL2BinaryPath $Config) }
         if ($FirstInstall -and -not $service.Exists) { Install-SL2Service $Config }
         Set-SL2Phase $Config $journal 'starting'
         Start-SL2Service $Config.ServiceName
@@ -491,7 +552,7 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
     }
     catch [DeployException] {
         Write-SL2Log "deployment failed: $($_.Exception.Message)"
-        if ($previous) { Invoke-SL2RollbackCore $Config $journal $previous; $completed = $true; Stop-SL2 "Deployment failed and was rolled back: $($_.Exception.Message)" 1 }
+        if ($previous -or $adopt) { Invoke-SL2RollbackCore $Config $journal $previous; $completed = $true; Stop-SL2 "Deployment failed and was rolled back: $($_.Exception.Message)" 1 }
         Set-SL2Phase $Config $journal 'manual_recovery_required'
         Write-SL2RecoveryInstructions $Config $journal "first deployment failed: $($_.Exception.Message)"
         $completed = $true
@@ -500,7 +561,7 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
     finally {
         # Ctrl+C or a terminating error outside the handled path: return to the previous release if one exists, otherwise leave a recovery note.
         if (-not $completed -and $journal.phase -in $script:CriticalPhases) {
-            try { if ($previous) { Invoke-SL2RollbackCore $Config $journal $previous } } catch { Write-SL2Log "automatic rollback after interruption failed: $($_.Exception.Message)" }
+            try { if ($previous -or $adopt) { Invoke-SL2RollbackCore $Config $journal $previous } } catch { Write-SL2Log "automatic rollback after interruption failed: $($_.Exception.Message)" }
         }
     }
 }
@@ -515,7 +576,8 @@ function Invoke-SL2Recover($Config) {
         if ($service.Exists -and $service.State -eq 'Stopped' -and $journal.service_state_before -eq 'Running') { Start-SL2Service $Config.ServiceName }
         return [pscustomobject]@{ recovered = $true; phase = 'aborted' }
     }
-    if (-not $journal.from_release) {
+    $adopted = $journal.PSObject.Properties['service_binary_before'] -and $journal.service_binary_before
+    if (-not $journal.from_release -and -not $adopted) {
         Set-SL2Phase $Config $journal 'manual_recovery_required'
         Write-SL2RecoveryInstructions $Config $journal 'an interrupted first deployment has no previous release to return to'
         Stop-SL2 'Interrupted first deployment: see RECOVERY-REQUIRED.txt.' 4
