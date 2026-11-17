@@ -48,6 +48,9 @@ EF Core migrations then own the v2 schema from that point; each future schema ch
 ### Implemented procedure (`--migrate-v1`)
 
 The server binary migrates a SAP Lens 1 data directory, or a SAP Lens 1 `.slbak` (passphrase or recovery key) or `.tar.gz` backup of it, in explicit steps.
+The administrator procedure with exact PowerShell commands is [V1_MIGRATION.md](V1_MIGRATION.md). An archive is checked like SAP Lens 1
+`maintenance.verify` after authentication: regular files with safe, case-unique names, member and size limits, and a manifest listing exactly the
+members with matching SHA-256.
 The source is only read. Use synthetic data or a copy; do not run it against a production installation before the owner's acceptance.
 
 | Step | Command | Effect |

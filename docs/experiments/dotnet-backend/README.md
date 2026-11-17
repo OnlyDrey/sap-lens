@@ -27,7 +27,8 @@ Evidence tags used in every document: **[M]** measured on Linux x64 in this envi
 | [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md) | Server configuration reference (every option, environment variable, default and refusal), trusted-LAN HTTPS, authentication review, firewall, Windows service and systemd deployment |
 | [VERSIONING.md](VERSIONING.md) | Product version (`2.0.0-alpha.N`, independent of v1), channel and build identity; where each appears; release policy |
 | [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md) | Windows test VM runbook: native release build, test launcher (`scripts/start-server-test.ps1`), manual start, HTTPS and TLS checks, firewall, logs, restart, and the acceptance levels (build is not runtime acceptance) |
-| [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | How v1 data, decisions and evidence would move, with rollback |
+| [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | How v1 data, decisions and evidence move, with rollback |
+| [V1_MIGRATION.md](V1_MIGRATION.md) | Administrator procedure: SAP Lens 1 `.slbak` or data directory to SAP Lens 2 (Windows PowerShell), verification and rollback |
 
 ## Code
 
