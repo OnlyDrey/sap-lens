@@ -30,11 +30,16 @@ public static class V1Access
     private static (IResult? Error, (UserLookupQuery Query, bool ShowExpired, string Status) Value) Parse(HttpContext http)
     {
         var q = http.Request.Query;
-        foreach (var unsupported in new[] { "usernames", "missing_roles", "assignment_band" })
+        foreach (var unsupported in Array.Empty<string>())
             if (q[unsupported].Any(v => !string.IsNullOrEmpty(v)))
                 return (V1Compatibility.NotMigrated(http, $"{http.Request.Path.Value?[5..]}?{unsupported}=… (filter not migrated yet)"), default);
         var sort = q["sort"].FirstOrDefault() ?? "username";
-        if (sort is "job_title" or "department") return (V1Compatibility.NotMigrated(http, $"{http.Request.Path.Value?[5..]}?sort={sort} (Employee Directory sort not migrated yet)"), default);
+        // Directory sorts are applied after the lookup (OrganizationAsync); the lookup itself orders by username.
+        if (sort is "job_title" or "department") sort = "username";
+        if ((q["usernames"].FirstOrDefault() ?? "").Length > 16000 || q["missing_roles"].Count > 20 || (q["missing_mode"].FirstOrDefault() ?? "any") is not ("any" or "all")
+            || (q["assignment_band"].FirstOrDefault() ?? "") is not ("" or "0–5" or "6–10" or "11–20" or "21–30" or "31+" or "0" or "1–5" or "6–20" or "21+"))
+            return (Detail(422, "Unsupported filter value."), default);
+        if (ParseUsernames(q["usernames"].FirstOrDefault() ?? "").Requested.Count > 500) return (Detail(422, "At most 500 different usernames can be filtered at once."), default);
         var status = q["status"].FirstOrDefault() ?? "";
         var mode = q["transaction_mode"].FirstOrDefault() ?? "and";
         var excludeMode = q["exclude_mode"].FirstOrDefault() ?? "any";
@@ -81,7 +86,7 @@ public static class V1Access
             var groups = snapshot.Users.Users.Values.SelectMany(u => u.Groups).Where(g => g.Length > 0).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToList();
             return Results.Ok(new
             {
-                items = pageItems.Select(Row).ToList(), total = result.Count, offset, limit, username_filter = (object?)null,
+                items = pageItems.Select(Row).ToList(), total = result.Count, offset, limit, username_filter = org.Feedback(result),
                 loaded = snapshot.Ids.Users is not null, catalogue_loaded = snapshot.Catalogue.Roles.Count > 0,
                 report = await UsersReport(http, snapshot, ct),
                 as_of = today.ToString("yyyy-MM-dd"), data_revision = Revision(snapshot), groups, groups_total = snapshot.Users.GroupCount, export_assignments = exportAssignments,
@@ -299,7 +304,40 @@ public static class V1Access
 
     /// <summary>The organizational context of a User Access request (MIG-004): the functional_groups / managers filter (organization.selection) and the
     /// row annotation (organization.annotate): Functional Group memberships and, for a user linked to exactly one Directory employee, job title and department.</summary>
-    private sealed record Organization(Func<List<UserSummary>, List<UserSummary>> Filter, Func<UserSummary, Dictionary<string, object?>> Row);
+    private sealed record Organization(Func<List<UserSummary>, List<UserSummary>> Filter, Func<UserSummary, Dictionary<string, object?>> Row, Func<List<UserSummary>, JsonObject?> Feedback);
+
+    private static readonly System.Text.RegularExpressions.Regex Separators = new(@"[\s,;]+");
+    private static readonly System.Text.RegularExpressions.Regex ValidUsername = new("^[^\\s@,;<>\"\\x00-\\x1f]{1,40}$");
+
+    /// <summary>username_filter.parse_usernames: exact names (first spelling, de-duplicated, in input order), duplicates and invalid entries.</summary>
+    private static (List<string> Requested, int Duplicates, List<string> Invalid) ParseUsernames(string text)
+    {
+        var (requested, invalid, seen) = (new List<string>(), new List<string>(), new HashSet<string>());
+        var duplicates = 0;
+        foreach (var raw in Separators.Split(text))
+        {
+            var token = raw.Trim();
+            if (token.Length == 0) continue;
+            if (!ValidUsername.IsMatch(token)) { if (!invalid.Contains(token)) invalid.Add(token); continue; }
+            if (!seen.Add(RoleNames.NormalizeUsername(token))) { duplicates++; continue; }
+            requested.Add(token);
+        }
+        return (requested, duplicates, invalid);
+    }
+
+    /// <summary>current_role_count: distinct business/release roles with a currently valid assignment.</summary>
+    private static int CurrentRoleCount(SapUser user, DateOnly today) => user.Assignments
+        .Where(a => a.Scope is "business" or "release" && SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today) == "active").Select(a => RoleNames.Normalize(a.RoleName)).Distinct().Count();
+
+    /// <summary>in_assignment_band: '6–10', '31+' or a single value such as '0'.</summary>
+    private static bool InBand(int count, string band)
+    {
+        var match = System.Text.RegularExpressions.Regex.Match(band, "^(\\d+)(?:–(\\d+)|(\\+))?$");
+        if (!match.Success) return false;
+        var low = int.Parse(match.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+        int? high = match.Groups[3].Success ? null : match.Groups[2].Success ? int.Parse(match.Groups[2].Value, System.Globalization.CultureInfo.InvariantCulture) : low;
+        return count >= low && (high is null || count <= high);
+    }
 
     private static async Task<Organization> OrganizationAsync(HttpContext http, Snapshot snapshot, CancellationToken ct)
     {
@@ -327,7 +365,72 @@ public static class V1Access
                 ["classification_status"] = record is null ? "Unassigned" : (string)record["status"]!,
             };
         }
-        return new Organization(result => keep is null ? result : result.Where(u => snapshot.Users.Users.TryGetValue(u.UserKey, out var user) && keep(user)).ToList(), Row);
+        var today = DateOnly.FromDateTime(DateTime.Now);
+        // Exact username list (v1 username_filter), assignment band, missing catalogue roles (v1 missing_users) and the Directory sorts.
+        var usernameText = q["usernames"].FirstOrDefault() ?? "";
+        var parsed = usernameText.Trim().Length > 0 ? ParseUsernames(usernameText) : default;
+        var listed = parsed.Requested?.Select(RoleNames.NormalizeUsername).Where(snapshot.Users.Users.ContainsKey).ToHashSet();
+        var band = q["assignment_band"].FirstOrDefault() ?? "";
+        var missingRoles = q["missing_roles"].OfType<string>().Where(v => v.Length > 0).ToList();
+        HashSet<string>? missing = null;
+        if (missingRoles.Count > 0)
+        {
+            missing = [];
+            if (snapshot.Catalogue.Roles.Count > 0)
+            {
+                var wanted = missingRoles.Select(RoleNames.Normalize).ToHashSet();
+                var all = (q["missing_mode"].FirstOrDefault() ?? "any") == "all";
+                var groups = q["groups"].OfType<string>().Append(q["group"].FirstOrDefault() ?? "").Where(v => v.Length > 0).ToHashSet();
+                var status = q["status"].FirstOrDefault() ?? "";
+                var showExpired = (q["show_expired"].FirstOrDefault() ?? "") is "true" or "True" or "1";
+                foreach (var (key, user) in snapshot.Users.Users)
+                {
+                    var entries = user.Assignments.Where(a => a.Scope != "other" && (groups.Count == 0 || groups.Contains(a.UserGroup))
+                        && (status.Length > 0 ? SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today) == status : showExpired || SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today) != "expired")).ToList();
+                    // Absence is concluded only from eligible assignments that are all mapped to catalogue roles.
+                    if (entries.Count == 0 || entries.Any(a => !a.Resolved)) continue;
+                    var held = entries.Select(a => RoleNames.Normalize(a.RoleName)).Concat(entries.SelectMany(a => a.CatalogueRoles.Select(RoleNames.Normalize))).ToHashSet();
+                    var lacking = wanted.Where(w => !held.Contains(w)).Count();
+                    if (all ? lacking == wanted.Count : lacking > 0) missing.Add(key);
+                }
+            }
+        }
+        var sort = q["sort"].FirstOrDefault() ?? "username";
+        var descending = (q["descending"].FirstOrDefault() ?? "") is "true" or "True" or "1";
+        (string Title, string Department) Fields(UserSummary u)
+        {
+            if (directory is not null && snapshot.Users.Users.TryGetValue(u.UserKey, out var sap) && directory.MatchSapIdentity(sap, owners!) is ("matched", { } employee))
+                return (((string?)employee["title"] ?? "").Trim(), ((string?)employee["department"] ?? "").Trim());
+            return ("", "");
+        }
+        List<UserSummary> Filter(List<UserSummary> result)
+        {
+            var kept = result.Where(u => snapshot.Users.Users.TryGetValue(u.UserKey, out var user) && (keep is null || keep(user))
+                && (listed is null || listed.Contains(u.UserKey)) && (missing is null || missing.Contains(u.UserKey))
+                && (band.Length == 0 || InBand(CurrentRoleCount(user, today), band))).ToList();
+            if (sort is not ("job_title" or "department")) return kept;
+            // Users without a Directory value come last in both directions (v1).
+            var valued = kept.Select(u => (Value: sort == "job_title" ? Fields(u).Title : Fields(u).Department, User: u)).ToList();
+            var known = valued.Where(p => p.Value.Length > 0).OrderBy(p => p.Value.ToUpperInvariant().ToLowerInvariant(), StringComparer.Ordinal).ThenBy(p => p.User.UserKey, StringComparer.Ordinal).ToList();
+            if (descending) known.Reverse();
+            return [.. known.Select(p => p.User), .. valued.Where(p => p.Value.Length == 0).Select(p => p.User).OrderBy(u => u.UserKey, StringComparer.Ordinal)];
+        }
+        JsonObject? Feedback(List<UserSummary> result)
+        {
+            if (parsed.Requested is null) return null;
+            var keys = parsed.Requested.Select(n => (Key: RoleNames.NormalizeUsername(n), Name: n)).ToList();
+            var present = keys.Where(k => snapshot.Users.Users.ContainsKey(k.Key)).Select(k => k.Key).ToList();
+            var shown = result.Select(u => u.UserKey).ToHashSet();
+            return new JsonObject
+            {
+                ["requested"] = parsed.Requested.Count, ["duplicates"] = parsed.Duplicates, ["invalid"] = new JsonArray([.. parsed.Invalid.Select(i => (JsonNode)i)]),
+                ["found"] = present.Count, ["matched"] = present.Count(shown.Contains),
+                ["filtered_out"] = new JsonArray([.. present.Where(k => !shown.Contains(k)).Take(100).Select(k => (JsonNode)snapshot.Users.Users[k].Username)]),
+                ["unmatched"] = new JsonArray([.. keys.Where(k => !snapshot.Users.Users.ContainsKey(k.Key)).Select(k => (JsonNode)k.Name)]),
+                ["limit"] = 500, ["exceeds_limit"] = parsed.Requested.Count > 500,
+            };
+        }
+        return new Organization(Filter, Row, Feedback);
     }
 
     /// <summary>source_info's report: v1's User Access import report (users.report without samples and file name) from the stored import report and the

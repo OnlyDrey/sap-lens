@@ -1,10 +1,88 @@
 [
- {"name": "default"},
- {"name": "expired", "show_expired": true},
- {"name": "group", "groups": ["GRP_LOG"], "show_expired": true},
- {"name": "role", "roles": ["ZC:MM:ROLE_00218"]},
- {"name": "tcode_or", "tcodes": ["T0154", "T0012"], "transaction_mode": "or", "show_expired": true},
- {"name": "exclude", "exclude_tcodes": ["T0154"], "exclude_mode": "any"},
- {"name": "status_expired", "status": "expired"},
- {"name": "search_desc", "search": "user0001", "sort": "email", "descending": true, "show_expired": true}
+ {
+  "name": "default"
+ },
+ {
+  "name": "expired",
+  "show_expired": true
+ },
+ {
+  "name": "group",
+  "groups": [
+   "GRP_LOG"
+  ],
+  "show_expired": true
+ },
+ {
+  "name": "role",
+  "roles": [
+   "ZC:MM:ROLE_00218"
+  ]
+ },
+ {
+  "name": "tcode_or",
+  "tcodes": [
+   "T0154",
+   "T0012"
+  ],
+  "transaction_mode": "or",
+  "show_expired": true
+ },
+ {
+  "name": "exclude",
+  "exclude_tcodes": [
+   "T0154"
+  ],
+  "exclude_mode": "any"
+ },
+ {
+  "name": "status_expired",
+  "status": "expired"
+ },
+ {
+  "name": "search_desc",
+  "search": "user0001",
+  "sort": "email",
+  "descending": true,
+  "show_expired": true
+ },
+ {
+  "name": "usernames",
+  "usernames": "USER00001\nuser00017, nobody;USER00152 bad@mail user00017",
+  "show_expired": true
+ },
+ {
+  "name": "band-0-5",
+  "assignment_band": "0\u20135"
+ },
+ {
+  "name": "band-6-10",
+  "assignment_band": "6\u201310",
+  "show_expired": true
+ },
+ {
+  "name": "band-legacy-21",
+  "assignment_band": "21+"
+ },
+ {
+  "name": "missing-any",
+  "missing_roles": [
+   "ZC:FI:ROLE_00001",
+   "ZC:CO:ROLE_00001"
+  ],
+  "show_expired": true
+ },
+ {
+  "name": "missing-all",
+  "missing_roles": [
+   "ZC:FI:ROLE_00001",
+   "ZC:CO:ROLE_00001"
+  ],
+  "missing_mode": "all"
+ },
+ {
+  "name": "sort-department",
+  "sort": "department",
+  "descending": true
+ }
 ]

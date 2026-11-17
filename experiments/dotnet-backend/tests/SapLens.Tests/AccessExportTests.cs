@@ -59,7 +59,10 @@ public sealed class AccessExportTests : IAsyncLifetime
             var name = (string)spec["name"]!;
             var want = expected[name]!;
             var query = QueryString(spec);
-            var selection = JsonNode.Parse(await _client.GetStringAsync("/api/access/users-selection?" + query))!;
+            var selectionResponse = await _client.GetAsync("/api/access/users-selection?" + query);
+            var selectionText = await selectionResponse.Content.ReadAsStringAsync();
+            if (!selectionResponse.IsSuccessStatusCode) { failures.Add($"{name}: selection {(int)selectionResponse.StatusCode} {selectionText}"); continue; }
+            var selection = JsonNode.Parse(selectionText)!;
             if ((int)selection["total"]! != (int)want["total"]! || !JsonNode.DeepEquals(selection["usernames"], want["usernames"])) failures.Add($"{name}: selection differs ({selection["total"]} vs {want["total"]})");
             var response = await _client.GetAsync("/api/access/exports/users?" + query);
             var bytes = await response.Content.ReadAsByteArrayAsync();
@@ -141,7 +144,8 @@ public sealed class AccessExportTests : IAsyncLifetime
         Assert.StartsWith("text/csv", response.Content.Headers.ContentType!.ToString());
         Assert.Matches("attachment; filename=\"sap-lens-user-directory-review-\\d{4}-\\d{2}-\\d{2}\\.csv\"", response.Content.Headers.ContentDisposition?.ToString() ?? string.Join("", response.Headers.GetValues("Content-Disposition")));
         Assert.Equal("no-store", response.Headers.CacheControl!.ToString());
-        Assert.Equal((HttpStatusCode)501, (await _client.GetAsync("/api/access/exports/users?missing_roles=X")).StatusCode);
+        var tooMany = Uri.EscapeDataString(string.Join(',', Enumerable.Range(0, 501).Select(i => $"U{i:000}")));
+        Assert.Equal((HttpStatusCode)422, (await _client.GetAsync("/api/access/exports/users?usernames=" + tooMany)).StatusCode);   // v1: at most 500 names
         Assert.Equal((HttpStatusCode)422, (await _client.GetAsync("/api/access/users-selection?sort=password")).StatusCode);
         Assert.Equal("'=cmd", V1Csv.Cell("=cmd"));
     }

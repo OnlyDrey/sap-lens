@@ -70,19 +70,6 @@ public sealed class AccessTests : IAsyncLifetime
         Assert.Equal((HttpStatusCode)422, (await Get("/api/access/users?limit=101")).Status);
     }
 
-    [Theory]
-    [InlineData("/api/access/users?usernames=USER0001")]
-    [InlineData("/api/access/users?missing_roles=ZC:FI:ROLE_0001")]
-    [InlineData("/api/access/users?assignment_band=31%2B")]
-    [InlineData("/api/access/users?sort=job_title")]
-    [InlineData("/api/access/exports/users?usernames=USER0001")]
-    public async Task Filters_and_routes_not_migrated_are_refused_with_501_instead_of_being_ignored(string path)
-    {
-        var (status, body) = await Get(path);
-        Assert.Equal((HttpStatusCode)501, status);
-        Assert.Equal("not_migrated", (string)body["code"]!);
-    }
-
     [Fact]
     public async Task User_detail_lists_assignments_in_the_v1_shape()
     {
