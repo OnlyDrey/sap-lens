@@ -72,8 +72,6 @@ public sealed class AccessTests : IAsyncLifetime
 
     [Theory]
     [InlineData("/api/access/users?usernames=USER0001")]
-    [InlineData("/api/access/users?functional_groups=g1")]
-    [InlineData("/api/access/users?managers=none")]
     [InlineData("/api/access/users?missing_roles=ZC:FI:ROLE_0001")]
     [InlineData("/api/access/users?assignment_band=31%2B")]
     [InlineData("/api/access/users?sort=job_title")]

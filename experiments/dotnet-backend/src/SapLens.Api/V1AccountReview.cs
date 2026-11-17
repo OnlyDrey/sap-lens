@@ -50,7 +50,8 @@ public static class V1AccountReview
     }
 
     /// <summary>v1 rows(): one row per SAP user with its findings, evidence version, current decision and workflow status.</summary>
-    public static List<Dictionary<string, object?>> Rows(Snapshot state, EmployeeDirectory? directory, IReadOnlyDictionary<string, Stored> saved, IReadOnlyList<string> groups, DateOnly today)
+    public static List<Dictionary<string, object?>> Rows(Snapshot state, EmployeeDirectory? directory, IReadOnlyDictionary<string, Stored> saved, IReadOnlyList<string> groups, DateOnly today,
+        IReadOnlyDictionary<string, System.Text.Json.Nodes.JsonObject>? classifications = null)
     {
         var configured = groups.Select(g => g.Trim().ToUpperInvariant().ToLowerInvariant()).ToHashSet(StringComparer.Ordinal);
         var owners = directory is null ? null : EmployeeDirectory.SapEmailOwners(state.Users.Users.Values);
@@ -93,8 +94,12 @@ public static class V1AccountReview
             var stored = saved.GetValueOrDefault(Sources.AccountKey(user.Username));
             var stale = stored is not null && (stored.Invalidated || stored.Latest.EvidenceVersion != version);
             var decision = stored is null ? null : DecisionView(stored.Latest);
-            var needs = findings.Count > 0 || stale;
-            var completed = decision is not null && (string)decision["state"]! == "No action required" && !stale;
+            // MIG-004: a Functional Group membership that needs review (Directory Department or Job Title changed) is a review signal.
+            System.Text.Json.Nodes.JsonObject? classified = null;
+            classifications?.TryGetValue(user.Username.Trim().ToUpperInvariant(), out classified);
+            var classificationReview = (string?)classified?["status"] == "Needs review";
+            var needs = findings.Count > 0 || stale || classificationReview;
+            var completed = decision is not null && (string)decision["state"]! == "No action required" && !stale && !classificationReview;
             var manager = employee?["manager"] as Dictionary<string, object?>;
             result.Add(new()
             {
@@ -110,9 +115,12 @@ public static class V1AccountReview
                 ["review_state"] = decision is null || stale ? "Needs review" : decision["state"], ["needs_review"] = needs, ["workflow_status"] = completed ? "completed" : "open",
                 ["position_change"] = null,
                 ["manager"] = manager is null ? null : new Dictionary<string, object?> { ["name"] = manager["name"], ["email"] = manager["email"], ["status"] = manager["status"] },
-                ["manager_change"] = null, ["functional_group"] = null, ["functional_groups"] = Array.Empty<string>(),
-                ["classification"] = new Dictionary<string, object?> { ["status"] = "Unassigned", ["revision"] = 0, ["review"] = null, ["confirmed_at"] = null },
-                ["classification_review"] = false, ["priority"] = needs ? "Normal" : "None", ["priority_order"] = needs ? 1 : 2,
+                ["manager_change"] = null, ["functional_group"] = classified?["group"]?.DeepClone(),
+                ["functional_groups"] = classified is null ? new System.Text.Json.Nodes.JsonArray() : new System.Text.Json.Nodes.JsonArray([.. classified["memberships"]!.AsArray().Select(m => m!["group"]!.DeepClone())]),
+                ["classification"] = classified is null
+                    ? new Dictionary<string, object?> { ["status"] = "Unassigned", ["revision"] = 0, ["review"] = null, ["confirmed_at"] = null }
+                    : new Dictionary<string, object?> { ["status"] = (string?)classified["status"], ["revision"] = (int)classified["revision"]!, ["review"] = classified["review"]?.DeepClone(), ["confirmed_at"] = (string?)classified["confirmed_at"] },
+                ["classification_review"] = classificationReview, ["priority"] = needs ? "Normal" : "None", ["priority_order"] = needs ? 1 : 2,
             });
         }
         return result;
@@ -130,6 +138,9 @@ public static class V1AccountReview
         });
     }
 
+    /// <summary>v1 filters Account Review by the sole membership's group (`functional_group`), else "unassigned".</summary>
+    private static string FunctionalGroupId(Dictionary<string, object?> row) => (string?)(row["functional_group"] as System.Text.Json.Nodes.JsonNode)?["id"] ?? "unassigned";
+
     private static string ManagerKey(Dictionary<string, object?> row) =>
         row["manager"] is Dictionary<string, object?> m && EmployeeDirectory.Normalized((string?)m["email"]) is { Length: > 0 } email ? email : "none";
 
@@ -144,7 +155,8 @@ public static class V1AccountReview
             "any" => (bool)r["needs_review"]!, "stale" => stale, "matched" => match == "matched",
             "directory_missing" => match is "missing_email" or "unmatched", "directory_ambiguous" => match is "duplicate_email" or "ambiguous_sap_email",
             "reviewed" => decision && state != "Needs review" && !stale, "pending" => !decision || state == "Needs review" || stale,
-            "position_change" or "manager_change" or "functional_group_review" => false,
+            "position_change" or "manager_change" => false,
+            "functional_group_review" => (bool)r["classification_review"]!,
             _ => ((List<string>)r["findings"]!).Contains(name),
         };
     }
@@ -158,7 +170,8 @@ public static class V1AccountReview
         var directory = V1Employees.Available(state, settings);
         var groups = settings["unlicensed_user_groups"]?.AsArray().Select(g => (string)g!).ToList() ?? [];
         var today = DateOnly.FromDateTime(DateTime.Now);
-        var rows = Rows(state, directory, saved, groups, today);
+        var classifications = FunctionalGroupStore.ClassificationMap(await services.GetRequiredService<FunctionalGroupStore>().ReadAsync(ct));
+        var rows = Rows(state, directory, saved, groups, today, classifications);
         var generation = CanonicalJson.Sha256(new object?[] { state.Ids.Users, directory?.Digest, groups, saved.Values.Select(s => s.Latest.Id).Order().ToList(), today.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) });
         return (state, directory, rows, generation, settings);
     }
@@ -206,7 +219,7 @@ public static class V1AccountReview
                 string[] fields = [(string)r["username"]!, (string)r["name"]!, .. (List<string>)r["groups"]!];
                 if (term.Length > 0 && !(term.Contains('*') ? fields.Any(f => TextMatching.TextMatches(f, term)) : TextMatching.TextMatches(string.Join(' ', fields), term))) return false;
                 return (wanted.Count == 0 || wanted.Any(w => Has(r, w))) && (licenseFilter.Count == 0 || (bool)r["unlicensed"]! == licenseFilter.Contains("classified"))
-                    && (states.Count == 0 || states.Contains((string)r["review_state"]!)) && (functionalGroups.Count == 0 || functionalGroups.Contains("unassigned"))
+                    && (states.Count == 0 || states.Contains((string)r["review_state"]!)) && (functionalGroups.Count == 0 || functionalGroups.Contains(FunctionalGroupId(r)))
                     && (managers.Count == 0 || managers.Contains(ManagerKey(r)));
             }).ToList();
             var hidden = showCompleted ? 0 : matching.Count(r => (string)r["workflow_status"]! == "completed");
@@ -226,7 +239,10 @@ public static class V1AccountReview
             return Json(new Dictionary<string, object?>
             {
                 ["items"] = list.Skip(offset).Take(limit).ToList(), ["total"] = list.Count, ["offset"] = offset, ["limit"] = limit, ["completed_hidden"] = hidden, ["include_completed"] = showCompleted,
-                ["functional_group_options"] = new[] { new { value = "unassigned", label = "Unassigned" } }, ["manager_options"] = managerOptions,
+                ["functional_group_options"] = FunctionalGroupStore.ListGroups(await services.GetRequiredService<FunctionalGroupStore>().ReadAsync(ct))
+                    .Where(g => (string?)g["status"] == "active" || (int)g["user_count"]! > 0)
+                    .Select(g => new { value = (string)g["id"]!, label = (string)g["name"]! + ((string?)g["status"] == "archived" ? " (archived)" : "") })
+                    .Prepend(new { value = "unassigned", label = "Unassigned" }).ToList(), ["manager_options"] = managerOptions,
                 ["loaded"] = loaded, ["directory_available"] = directory is not null, ["summary"] = summary, ["data_revision"] = generation, ["finding_labels"] = Findings, ["review_states"] = States,
             });
         });

@@ -1,0 +1,1230 @@
+{
+"analyses": [
+{
+"members": [
+"USER00152",
+"user00170",
+"USER00017",
+"USER00296",
+"USER00287",
+"GHOST01"
+],
+"result": {
+"common_roles": 0,
+"comparable": true,
+"compared": [
+{
+"account_status": "future",
+"full_name": "First17 Last17",
+"roles": 3,
+"username": "user00017"
+},
+{
+"account_status": "future",
+"full_name": "First2 Last152",
+"roles": 4,
+"username": "USER00152"
+},
+{
+"account_status": "future",
+"full_name": "First20 Last170",
+"roles": 4,
+"username": "user00170"
+},
+{
+"account_status": "future",
+"full_name": "First37 Last287",
+"roles": 2,
+"username": "USER00287"
+},
+{
+"account_status": "future",
+"full_name": "First46 Last296",
+"roles": 2,
+"username": "USER00296"
+}
+],
+"deviations": 5,
+"distinct_roles": 15,
+"eligible": 5,
+"group": {
+"id": "fg_aaaaaaaaaaaa",
+"name": "Finance",
+"status": "active"
+},
+"limitations": [
+"1 classified member(s) are not in the SAP user import and were not compared."
+],
+"members": 6,
+"method": {
+"common_at": 0.6,
+"min_members": 3,
+"note": "Advisory only. Roles are unique active user and role pairs; a deviation is a prompt to investigate, not a finding.",
+"uncommon_at": 0.25
+},
+"not_in_import": [
+"GHOST01"
+],
+"roles": [
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"USER00152"
+],
+"kind": "uncommon",
+"role": "ZC:BASIS:ROLE_00078",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"USER00152"
+],
+"kind": "uncommon",
+"role": "ZC:CO:ROLE_00097",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"USER00287"
+],
+"kind": "uncommon",
+"role": "ZC:FI:ROLE_00204",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"USER00152"
+],
+"kind": "uncommon",
+"role": "ZC:Finance:ROLE_00029",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"USER00296"
+],
+"kind": "uncommon",
+"role": "ZC:Finance:ROLE_00053",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"user00170"
+],
+"kind": "uncommon",
+"role": "ZC:GEN:ROLE_00119",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"user00170"
+],
+"kind": "uncommon",
+"role": "ZC:HR:ROLE_00091",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"user00170"
+],
+"kind": "uncommon",
+"role": "ZC:PM:ROLE_00033",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"USER00152"
+],
+"kind": "uncommon",
+"role": "ZC:PP:ROLE_00016",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"user00017"
+],
+"kind": "uncommon",
+"role": "ZC:PP:ROLE_00196",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"user00017"
+],
+"kind": "uncommon",
+"role": "ZC:QM:ROLE_00044",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"USER00287"
+],
+"kind": "uncommon",
+"role": "ZC:QM:ROLE_00164",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"user00017"
+],
+"kind": "uncommon",
+"role": "ZC:SD:ROLE_00123",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"USER00296"
+],
+"kind": "uncommon",
+"role": "ZC:SD:ROLE_00147",
+"users": 1
+},
+{
+"eligible": 5,
+"frequency": 0.2,
+"holders": [
+"user00170"
+],
+"kind": "uncommon",
+"role": "ZO:MM:M0:PR_REL_ST_E2_02:ALL",
+"users": 1
+}
+],
+"users": [
+{
+"additional_roles": [
+"ZC:BASIS:ROLE_00078",
+"ZC:CO:ROLE_00097",
+"ZC:Finance:ROLE_00029",
+"ZC:PP:ROLE_00016"
+],
+"missing_common_roles": [],
+"roles": 4,
+"username": "USER00152"
+},
+{
+"additional_roles": [
+"ZC:GEN:ROLE_00119",
+"ZC:HR:ROLE_00091",
+"ZC:PM:ROLE_00033",
+"ZO:MM:M0:PR_REL_ST_E2_02:ALL"
+],
+"missing_common_roles": [],
+"roles": 4,
+"username": "user00170"
+},
+{
+"additional_roles": [
+"ZC:PP:ROLE_00196",
+"ZC:QM:ROLE_00044",
+"ZC:SD:ROLE_00123"
+],
+"missing_common_roles": [],
+"roles": 3,
+"username": "user00017"
+},
+{
+"additional_roles": [
+"ZC:FI:ROLE_00204",
+"ZC:QM:ROLE_00164"
+],
+"missing_common_roles": [],
+"roles": 2,
+"username": "USER00287"
+},
+{
+"additional_roles": [
+"ZC:Finance:ROLE_00053",
+"ZC:SD:ROLE_00147"
+],
+"missing_common_roles": [],
+"roles": 2,
+"username": "USER00296"
+}
+]
+},
+"today": "2026-11-16"
+},
+{
+"members": [
+"USER00152",
+"user00170"
+],
+"result": {
+"common_roles": 0,
+"comparable": false,
+"compared": [
+{
+"account_status": "future",
+"full_name": "First2 Last152",
+"roles": 4,
+"username": "USER00152"
+},
+{
+"account_status": "future",
+"full_name": "First20 Last170",
+"roles": 4,
+"username": "user00170"
+}
+],
+"deviations": 0,
+"distinct_roles": 8,
+"eligible": 2,
+"group": {
+"id": "fg_aaaaaaaaaaaa",
+"name": "Finance",
+"status": "active"
+},
+"limitations": [
+"Only 2 comparable member(s): at least 3 are needed before common and uncommon roles mean anything."
+],
+"members": 2,
+"method": {
+"common_at": 0.6,
+"min_members": 3,
+"note": "Advisory only. Roles are unique active user and role pairs; a deviation is a prompt to investigate, not a finding.",
+"uncommon_at": 0.25
+},
+"not_in_import": [],
+"roles": [
+{
+"eligible": 2,
+"frequency": 0.5,
+"holders": [
+"USER00152"
+],
+"kind": "not compared",
+"role": "ZC:BASIS:ROLE_00078",
+"users": 1
+},
+{
+"eligible": 2,
+"frequency": 0.5,
+"holders": [
+"USER00152"
+],
+"kind": "not compared",
+"role": "ZC:CO:ROLE_00097",
+"users": 1
+},
+{
+"eligible": 2,
+"frequency": 0.5,
+"holders": [
+"USER00152"
+],
+"kind": "not compared",
+"role": "ZC:Finance:ROLE_00029",
+"users": 1
+},
+{
+"eligible": 2,
+"frequency": 0.5,
+"holders": [
+"user00170"
+],
+"kind": "not compared",
+"role": "ZC:GEN:ROLE_00119",
+"users": 1
+},
+{
+"eligible": 2,
+"frequency": 0.5,
+"holders": [
+"user00170"
+],
+"kind": "not compared",
+"role": "ZC:HR:ROLE_00091",
+"users": 1
+},
+{
+"eligible": 2,
+"frequency": 0.5,
+"holders": [
+"user00170"
+],
+"kind": "not compared",
+"role": "ZC:PM:ROLE_00033",
+"users": 1
+},
+{
+"eligible": 2,
+"frequency": 0.5,
+"holders": [
+"USER00152"
+],
+"kind": "not compared",
+"role": "ZC:PP:ROLE_00016",
+"users": 1
+},
+{
+"eligible": 2,
+"frequency": 0.5,
+"holders": [
+"user00170"
+],
+"kind": "not compared",
+"role": "ZO:MM:M0:PR_REL_ST_E2_02:ALL",
+"users": 1
+}
+],
+"users": [
+{
+"additional_roles": [],
+"missing_common_roles": [],
+"roles": 4,
+"username": "USER00152"
+},
+{
+"additional_roles": [],
+"missing_common_roles": [],
+"roles": 4,
+"username": "user00170"
+}
+]
+},
+"today": "2026-11-16"
+},
+{
+"members": [
+"USER00152",
+"user00170",
+"USER00017",
+"USER00296"
+],
+"result": {
+"common_roles": 0,
+"comparable": true,
+"compared": [
+{
+"account_status": "future",
+"full_name": "First17 Last17",
+"roles": 3,
+"username": "user00017"
+},
+{
+"account_status": "future",
+"full_name": "First2 Last152",
+"roles": 4,
+"username": "USER00152"
+},
+{
+"account_status": "future",
+"full_name": "First20 Last170",
+"roles": 4,
+"username": "user00170"
+},
+{
+"account_status": "future",
+"full_name": "First46 Last296",
+"roles": 2,
+"username": "USER00296"
+}
+],
+"deviations": 4,
+"distinct_roles": 13,
+"eligible": 4,
+"group": {
+"id": "fg_aaaaaaaaaaaa",
+"name": "Finance",
+"status": "active"
+},
+"limitations": [],
+"members": 4,
+"method": {
+"common_at": 0.6,
+"min_members": 3,
+"note": "Advisory only. Roles are unique active user and role pairs; a deviation is a prompt to investigate, not a finding.",
+"uncommon_at": 0.25
+},
+"not_in_import": [],
+"roles": [
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"USER00152"
+],
+"kind": "uncommon",
+"role": "ZC:BASIS:ROLE_00078",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"USER00152"
+],
+"kind": "uncommon",
+"role": "ZC:CO:ROLE_00097",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"USER00152"
+],
+"kind": "uncommon",
+"role": "ZC:Finance:ROLE_00029",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"USER00296"
+],
+"kind": "uncommon",
+"role": "ZC:Finance:ROLE_00053",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"user00170"
+],
+"kind": "uncommon",
+"role": "ZC:GEN:ROLE_00119",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"user00170"
+],
+"kind": "uncommon",
+"role": "ZC:HR:ROLE_00091",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"user00170"
+],
+"kind": "uncommon",
+"role": "ZC:PM:ROLE_00033",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"USER00152"
+],
+"kind": "uncommon",
+"role": "ZC:PP:ROLE_00016",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"user00017"
+],
+"kind": "uncommon",
+"role": "ZC:PP:ROLE_00196",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"user00017"
+],
+"kind": "uncommon",
+"role": "ZC:QM:ROLE_00044",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"user00017"
+],
+"kind": "uncommon",
+"role": "ZC:SD:ROLE_00123",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"USER00296"
+],
+"kind": "uncommon",
+"role": "ZC:SD:ROLE_00147",
+"users": 1
+},
+{
+"eligible": 4,
+"frequency": 0.25,
+"holders": [
+"user00170"
+],
+"kind": "uncommon",
+"role": "ZO:MM:M0:PR_REL_ST_E2_02:ALL",
+"users": 1
+}
+],
+"users": [
+{
+"additional_roles": [
+"ZC:BASIS:ROLE_00078",
+"ZC:CO:ROLE_00097",
+"ZC:Finance:ROLE_00029",
+"ZC:PP:ROLE_00016"
+],
+"missing_common_roles": [],
+"roles": 4,
+"username": "USER00152"
+},
+{
+"additional_roles": [
+"ZC:GEN:ROLE_00119",
+"ZC:HR:ROLE_00091",
+"ZC:PM:ROLE_00033",
+"ZO:MM:M0:PR_REL_ST_E2_02:ALL"
+],
+"missing_common_roles": [],
+"roles": 4,
+"username": "user00170"
+},
+{
+"additional_roles": [
+"ZC:PP:ROLE_00196",
+"ZC:QM:ROLE_00044",
+"ZC:SD:ROLE_00123"
+],
+"missing_common_roles": [],
+"roles": 3,
+"username": "user00017"
+},
+{
+"additional_roles": [
+"ZC:Finance:ROLE_00053",
+"ZC:SD:ROLE_00147"
+],
+"missing_common_roles": [],
+"roles": 2,
+"username": "USER00296"
+}
+]
+},
+"today": "2026-11-16"
+}
+],
+"legacy": {
+"format": 1,
+"groups": {
+"fg_aaaaaaaaaaaa": {
+"created": "2026-01-01T00:00:00+00:00",
+"description": "",
+"id": "fg_aaaaaaaaaaaa",
+"modified": "2026-01-01T00:00:00+00:00",
+"name": "Finance",
+"status": "active"
+},
+"fg_bbbbbbbbbbbb": {
+"created": "2026-01-01T00:00:00+00:00",
+"description": "",
+"id": "fg_bbbbbbbbbbbb",
+"modified": "2026-01-01T00:00:00+00:00",
+"name": "Procurement",
+"status": "active"
+},
+"fg_cccccccccccc": {
+"created": "2026-01-01T00:00:00+00:00",
+"description": "",
+"id": "fg_cccccccccccc",
+"modified": "2026-01-01T00:00:00+00:00",
+"name": "Old",
+"status": "archived"
+}
+},
+"history": [],
+"rules": [
+{
+"department": "Finance",
+"group_id": "fg_aaaaaaaaaaaa",
+"id": "fr_000000000009",
+"title_contains": ""
+}
+],
+"users": {
+"600e0545a43d87bff19079b7526e19ff29b5302694d6d601b924a59f51671cfb": {
+"group_id": null,
+"revision": 1,
+"status": "Unassigned",
+"username": "USER00003"
+},
+"88dbecbd35bc154e8a9e191c6c468c3d7ff99e4e2a4eccaee278e3beea77aaa8": {
+"confirmed_at": "2026-01-02T00:00:00+00:00",
+"confirmed_by": "Ada",
+"group_id": "fg_bbbbbbbbbbbb",
+"handled": [],
+"rationale": "",
+"review": {
+"change_id": "c9",
+"reason": "Department changed",
+"required_since": "2026-01-03T00:00:00+00:00"
+},
+"revision": 3,
+"status": "Needs review",
+"username": "USER00002"
+},
+"ea2c663bf3950729e5be29f6c89c02f06dd6ddc281bbf64af6aa847442236ce6": {
+"confirmed_at": "2026-01-02T00:00:00+00:00",
+"confirmed_by": "Ada",
+"group_id": "fg_aaaaaaaaaaaa",
+"handled": [
+"c1"
+],
+"rationale": "Owns AP",
+"revision": 2,
+"status": "Confirmed",
+"updated_at": "2026-01-02T00:00:00+00:00",
+"username": "USER00001"
+}
+}
+},
+"matches": [
+{
+"department": "Finance Ops",
+"reasons": [
+"Directory Department contains Finance"
+],
+"rule": "fr_000000000001",
+"title": "Senior Accountant"
+},
+{
+"department": "finance  ops",
+"reasons": [
+"Directory Department contains Finance"
+],
+"rule": "fr_000000000001",
+"title": "Buyer"
+},
+{
+"department": "Procurement",
+"reasons": null,
+"rule": "fr_000000000001",
+"title": ""
+},
+{
+"department": "",
+"reasons": null,
+"rule": "fr_000000000001",
+"title": "Accountant"
+},
+{
+"department": "Group Finance",
+"reasons": [
+"Directory Department contains Finance"
+],
+"rule": "fr_000000000001",
+"title": "Analyst"
+},
+{
+"department": "HR",
+"reasons": null,
+"rule": "fr_000000000001",
+"title": "Buyer"
+},
+{
+"department": "Finance Ops",
+"reasons": [
+"Job Title contains Accountant"
+],
+"rule": "fr_000000000002",
+"title": "Senior Accountant"
+},
+{
+"department": "finance  ops",
+"reasons": null,
+"rule": "fr_000000000002",
+"title": "Buyer"
+},
+{
+"department": "Procurement",
+"reasons": null,
+"rule": "fr_000000000002",
+"title": ""
+},
+{
+"department": "",
+"reasons": [
+"Job Title contains Accountant"
+],
+"rule": "fr_000000000002",
+"title": "Accountant"
+},
+{
+"department": "Group Finance",
+"reasons": null,
+"rule": "fr_000000000002",
+"title": "Analyst"
+},
+{
+"department": "HR",
+"reasons": null,
+"rule": "fr_000000000002",
+"title": "Buyer"
+},
+{
+"department": "Finance Ops",
+"reasons": null,
+"rule": "fr_000000000003",
+"title": "Senior Accountant"
+},
+{
+"department": "finance  ops",
+"reasons": [
+"Directory Department = Finance Ops",
+"Job Title contains Buyer"
+],
+"rule": "fr_000000000003",
+"title": "Buyer"
+},
+{
+"department": "Procurement",
+"reasons": null,
+"rule": "fr_000000000003",
+"title": ""
+},
+{
+"department": "",
+"reasons": null,
+"rule": "fr_000000000003",
+"title": "Accountant"
+},
+{
+"department": "Group Finance",
+"reasons": null,
+"rule": "fr_000000000003",
+"title": "Analyst"
+},
+{
+"department": "HR",
+"reasons": null,
+"rule": "fr_000000000003",
+"title": "Buyer"
+},
+{
+"department": "Finance Ops",
+"reasons": null,
+"rule": "fr_000000000004",
+"title": "Senior Accountant"
+},
+{
+"department": "finance  ops",
+"reasons": null,
+"rule": "fr_000000000004",
+"title": "Buyer"
+},
+{
+"department": "Procurement",
+"reasons": null,
+"rule": "fr_000000000004",
+"title": ""
+},
+{
+"department": "",
+"reasons": null,
+"rule": "fr_000000000004",
+"title": "Accountant"
+},
+{
+"department": "Group Finance",
+"reasons": null,
+"rule": "fr_000000000004",
+"title": "Analyst"
+},
+{
+"department": "HR",
+"reasons": null,
+"rule": "fr_000000000004",
+"title": "Buyer"
+},
+{
+"department": "Finance Ops",
+"reasons": null,
+"rule": "fr_000000000005",
+"title": "Senior Accountant"
+},
+{
+"department": "finance  ops",
+"reasons": null,
+"rule": "fr_000000000005",
+"title": "Buyer"
+},
+{
+"department": "Procurement",
+"reasons": [
+"Directory Department = Procurement"
+],
+"rule": "fr_000000000005",
+"title": ""
+},
+{
+"department": "",
+"reasons": null,
+"rule": "fr_000000000005",
+"title": "Accountant"
+},
+{
+"department": "Group Finance",
+"reasons": null,
+"rule": "fr_000000000005",
+"title": "Analyst"
+},
+{
+"department": "HR",
+"reasons": null,
+"rule": "fr_000000000005",
+"title": "Buyer"
+}
+],
+"migrated": {
+"format": 2,
+"groups": {
+"fg_aaaaaaaaaaaa": {
+"created": "2026-01-01T00:00:00+00:00",
+"description": "",
+"id": "fg_aaaaaaaaaaaa",
+"modified": "2026-01-01T00:00:00+00:00",
+"name": "Finance",
+"status": "active"
+},
+"fg_bbbbbbbbbbbb": {
+"created": "2026-01-01T00:00:00+00:00",
+"description": "",
+"id": "fg_bbbbbbbbbbbb",
+"modified": "2026-01-01T00:00:00+00:00",
+"name": "Procurement",
+"status": "active"
+},
+"fg_cccccccccccc": {
+"created": "2026-01-01T00:00:00+00:00",
+"description": "",
+"id": "fg_cccccccccccc",
+"modified": "2026-01-01T00:00:00+00:00",
+"name": "Old",
+"status": "archived"
+}
+},
+"history": [],
+"rules": [
+{
+"department": "Finance",
+"department_mode": "equals",
+"group_id": "fg_aaaaaaaaaaaa",
+"id": "fr_000000000009",
+"title_contains": ""
+}
+],
+"users": {
+"600e0545a43d87bff19079b7526e19ff29b5302694d6d601b924a59f51671cfb": {
+"handled": [],
+"memberships": {},
+"revision": 1,
+"updated_at": null,
+"username": "USER00003"
+},
+"88dbecbd35bc154e8a9e191c6c468c3d7ff99e4e2a4eccaee278e3beea77aaa8": {
+"handled": [],
+"memberships": {
+"fg_bbbbbbbbbbbb": {
+"confirmed_at": "2026-01-02T00:00:00+00:00",
+"confirmed_by": "Ada",
+"rationale": "",
+"review": {
+"change_id": "c9",
+"reason": "Department changed",
+"required_since": "2026-01-03T00:00:00+00:00"
+},
+"status": "Needs review",
+"updated_at": "2026-01-02T00:00:00+00:00"
+}
+},
+"revision": 3,
+"updated_at": null,
+"username": "USER00002"
+},
+"ea2c663bf3950729e5be29f6c89c02f06dd6ddc281bbf64af6aa847442236ce6": {
+"handled": [
+"c1"
+],
+"memberships": {
+"fg_aaaaaaaaaaaa": {
+"confirmed_at": "2026-01-02T00:00:00+00:00",
+"confirmed_by": "Ada",
+"rationale": "Owns AP",
+"review": null,
+"status": "Confirmed",
+"updated_at": "2026-01-02T00:00:00+00:00"
+}
+},
+"revision": 2,
+"updated_at": "2026-01-02T00:00:00+00:00",
+"username": "USER00001"
+}
+}
+},
+"normalized": {
+"": "",
+"  Finance   Ops ": "finance ops",
+"STRASSE": "strasse",
+"Straße": "strasse",
+"ﬁnance": "finance",
+"Ｆｉｎａｎｃｅ Team": "finance team"
+},
+"suggestions": [
+{
+"department": "Finance Ops",
+"held": [
+"fg_aaaaaaaaaaaa"
+],
+"result": {
+"groups": [
+{
+"already_member": true,
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Directory Department contains Finance",
+"Job Title contains Accountant"
+],
+"rule_ids": [
+"fr_000000000001",
+"fr_000000000002"
+]
+}
+],
+"matches": [
+{
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Directory Department contains Finance"
+],
+"rule_id": "fr_000000000001"
+},
+{
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Job Title contains Accountant"
+],
+"rule_id": "fr_000000000002"
+}
+],
+"status": "suggested"
+},
+"title": "Senior Accountant"
+},
+{
+"department": "finance  ops",
+"held": [
+"fg_aaaaaaaaaaaa"
+],
+"result": {
+"groups": [
+{
+"already_member": true,
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Directory Department contains Finance"
+],
+"rule_ids": [
+"fr_000000000001"
+]
+},
+{
+"already_member": false,
+"group_id": "fg_bbbbbbbbbbbb",
+"group_name": "Procurement",
+"reasons": [
+"Directory Department = Finance Ops",
+"Job Title contains Buyer"
+],
+"rule_ids": [
+"fr_000000000003"
+]
+}
+],
+"matches": [
+{
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Directory Department contains Finance"
+],
+"rule_id": "fr_000000000001"
+},
+{
+"group_id": "fg_bbbbbbbbbbbb",
+"group_name": "Procurement",
+"reasons": [
+"Directory Department = Finance Ops",
+"Job Title contains Buyer"
+],
+"rule_id": "fr_000000000003"
+}
+],
+"status": "suggested"
+},
+"title": "Buyer"
+},
+{
+"department": "Procurement",
+"held": [
+"fg_aaaaaaaaaaaa"
+],
+"result": {
+"groups": [
+{
+"already_member": false,
+"group_id": "fg_bbbbbbbbbbbb",
+"group_name": "Procurement",
+"reasons": [
+"Directory Department = Procurement"
+],
+"rule_ids": [
+"fr_000000000005"
+]
+}
+],
+"matches": [
+{
+"group_id": "fg_bbbbbbbbbbbb",
+"group_name": "Procurement",
+"reasons": [
+"Directory Department = Procurement"
+],
+"rule_id": "fr_000000000005"
+}
+],
+"status": "suggested"
+},
+"title": ""
+},
+{
+"department": "",
+"held": [
+"fg_aaaaaaaaaaaa"
+],
+"result": {
+"groups": [
+{
+"already_member": true,
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Job Title contains Accountant"
+],
+"rule_ids": [
+"fr_000000000002"
+]
+}
+],
+"matches": [
+{
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Job Title contains Accountant"
+],
+"rule_id": "fr_000000000002"
+}
+],
+"status": "suggested"
+},
+"title": "Accountant"
+},
+{
+"department": "Group Finance",
+"held": [
+"fg_aaaaaaaaaaaa"
+],
+"result": {
+"groups": [
+{
+"already_member": true,
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Directory Department contains Finance"
+],
+"rule_ids": [
+"fr_000000000001"
+]
+}
+],
+"matches": [
+{
+"group_id": "fg_aaaaaaaaaaaa",
+"group_name": "Finance",
+"reasons": [
+"Directory Department contains Finance"
+],
+"rule_id": "fr_000000000001"
+}
+],
+"status": "suggested"
+},
+"title": "Analyst"
+},
+{
+"department": "HR",
+"held": [
+"fg_aaaaaaaaaaaa"
+],
+"result": {
+"groups": [],
+"matches": [],
+"status": "none"
+},
+"title": "Buyer"
+}
+],
+"user_keys": {
+" User00001 ": "ea2c663bf3950729e5be29f6c89c02f06dd6ddc281bbf64af6aa847442236ce6",
+"quote\"back\\slash": "f316cdd418031fb39202795f045142f86b4c6c01a63b921dd289a99e151ce62d",
+"tab\tuser": "e492d959aad32bc610dbb477421393d8db8895b55cef395787f220bbfc742fe0",
+"user00001": "ea2c663bf3950729e5be29f6c89c02f06dd6ddc281bbf64af6aa847442236ce6",
+"ÆØÅ.user": "d1e37a30c85de4bb2ac61b4d823f3f9da4074423363d2cbcd8ff634ab5f40b57",
+"ＦＵＬＬ": "1777bb42f2a5f08e169a11e6be03f23463a9d9561a995f3639f84e995175a916"
+}
+}

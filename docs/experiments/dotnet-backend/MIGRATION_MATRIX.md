@@ -9,14 +9,14 @@ Status: **Done** (served with the v1 contract and contract-tested), **Partial** 
 Parity: **Verified** (identical results against Python v1 on synthetic fixtures), **Contract** (shape, validation and refusals tested; no
 data-dependent comparison needed or possible), **Pending**.
 
-Baseline 2026-11-16 at `902ddba`: route audit **83 of 145** UI route strings implemented. After MIG-009: **87 of 145**. After MIG-010: **89 of 145**. After MIG-008: **92 of 145**. Every unimplemented route answers `501 not_migrated`.
+Baseline 2026-11-16 at `902ddba`: route audit **83 of 145** UI route strings implemented. After MIG-009: **87 of 145**. After MIG-010: **89 of 145**. After MIG-008: **92 of 145**. After MIG-004: **93 of 145** (the 22 Functional Group routes share one UI route string). Every unimplemented route answers `501 not_migrated`.
 
 | Area / feature | v1 implementation | SAP Lens 2 implementation | Status | Parity | Tests (.NET) | Dependencies | Remaining work | MIG |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Shell: version, application info, runtime, presentation, registry, product identity | `main.py`, `version.py`, `routers/presentation.py` | `V1Compatibility`, `ProductIdentity` | Done | Contract | `V1CompatibilityTests`, `VersioningTests` | - | Desktop native options (start at login, tray) are not offered by the .NET Desktop (`runtime` reports them unavailable) | - |
 | Authentication, accounts, sessions, audit, identity migration (`auth/*`, 16) | `auth_store.py`, `routers/authentication.py` | `AccountStore`, `V1Auth` | Done | Contract (Argon2id store compatible) | `AccountsTests`, `SessionTests`, `ReverseProxyTests` | - | Adoption of an existing v1 `accounts.sqlite3` tested only on Linux | - |
 | Role catalogue, Role Lookup, naming, access package, legacy compare | `cache.py`, `routers/roles.py`, `access_package.py` | `V1Compatibility`, `V1AccessPackage`, `V1Compare` | Done | Verified | `FunctionalEquivalence`, `AccessPackageTests`, `AccessExportTests` | - | - | MIG-R05 |
-| User Access, user detail, selection, assignment exports | `routers/access.py`, `csv_exports.py` | `V1Access` | Done | Verified | `AccessTests`, `AccessExportTests` | Functional Groups for its group filters | Functional Group filter values | MIG-004 |
+| User Access, user detail, selection, assignment exports | `routers/access.py`, `csv_exports.py` | `V1Access` | Done | Verified | `AccessTests`, `AccessExportTests`, `FunctionalGroupTests` (organization filters, row annotation) | - | Sort by job title or department (501), `usernames`, `missing_roles`, `assignment_band` filters (501) | MIG-004 |
 | Release Roles and exports (`access/release-*`, `access/exports/{users,release-roles,releases}`) | `routers/access.py` | `V1ReleaseRoles` | Done | Verified | `AccessExportTests` | - | - | - |
 | User comparison, saved filters | `routers/user_comparison.py`, `saved_filters.py` | `V1Access`, `V1SavedFilters` | Done | Verified | `AccessTests`, `DashboardAndSavedFiltersTests` | - | - | - |
 | Dashboard | `routers/dashboard.py` | `V1Dashboard` | Partial | Verified (catalogue, users, assignments, releases) | `DashboardAndSavedFiltersTests` | SoD overview (MIG-013), Account Review KPIs | Directory and Account Review KPIs report `null` with a reason; SoD overview card | MIG-013 |
@@ -29,8 +29,8 @@ Baseline 2026-11-16 at `902ddba`: route audit **83 of 145** UI route strings imp
 | Configuration: export, import, reset, theme | `config.py`, `configuration_routes.py` | `V1Configuration`, `V1Settings` | Partial | Verified | `ConfigurationTests` | Image codec | `logo_base64` in configuration import answers 501 | MIG-001 |
 | Branding: custom logo (`branding/*`) | `branding.py` (Pillow) | - | Missing | Pending | - | Image codec decision | Both routes; logos in reports | MIG-001 |
 | Employee Directory (`employees/*`, 7) | `employee_directory.py` | `V1Employees` | Partial | Verified | `EmployeeDirectoryTests` | - | Position-change history | MIG-003 |
-| Account Review (`account-review/*`, `reviewer-profile`) | `account_review.py`, `review_identity.py` | `V1AccountReview` | Partial | Verified | `AccountReviewTests` | Directory history | Position and manager change evidence (`position_change_id`, `manager_change_id` are null) | MIG-003 |
-| Functional Groups (`functional-groups`) | `functional_groups.py`, router | - | Missing | Pending | - | - | Definitions, membership, analysis, filters | MIG-004 |
+| Account Review (`account-review/*`, `reviewer-profile`) | `account_review.py`, `review_identity.py` | `V1AccountReview` | Partial | Verified | `AccountReviewTests`, `FunctionalGroupTests` | Directory history | Position and manager change evidence (`position_change_id`, `manager_change_id` are null); Functional Group fields, filter and review signal are migrated | MIG-003 |
+| Functional Groups (`functional-groups/*`, 22 routes) | `functional_groups.py`, `organization.py`, `functional_group_analysis.py`, router | `FunctionalGroupStore`, `V1FunctionalGroups` | Partial | Verified (identity keys, rules, suggestions, format 1 migration, analysis); Contract (workflow) | `FunctionalGroupTests`, `tools/functional_groups_check.js` (React) | MIG-003 for Directory change flags | Directory-change review flags (needs MIG-003 position changes); NFKC folding of compatibility characters (BLK-GLOBALIZATION); SoD `functional_groups`/`managers` filters (SoD milestone) | MIG-004 |
 | Backup and restore (`backups/*`, 11; `storage/*` status and migration, 3) | `application_backups.py`, `backup_crypto.py`, `routers/storage.py` | Native SQLite backups at `/api/v1/admin/backups`; lifecycle re-baseline only | Missing | Pending | `PersistenceTests` (native) | - | v1 contract on SQLite backups, encryption, schedule, retention, storage status | MIG-005 |
 | Data retention (`retention/*`, 4) | `data_retention.py` | - | Missing | Pending | - | SoD review data for its SoD part | Non-SoD datasets first | MIG-007 |
 | SoD source, catalogue, reference library, analysis, evidence, export, appearance, metadata | `sod_import.py`, `sod_catalogue.py`, `sod_analysis.py` | `V1SodCatalogue`, `V1SodAnalysis` | Partial | Verified | `SodAnalysisTests`, `SodCatalogueTests`, `SodReferenceWorkbookTests` | Functional Groups | `functional_groups`/`managers` analysis filters answer 501 | MIG-004 |
@@ -42,6 +42,12 @@ Baseline 2026-11-16 at `902ddba`: route audit **83 of 145** UI route strings imp
 | SoD reports (preview, PDF, DOCX, remediation CSV/PDF, branding) | `sod_reports.py` (ReportLab, python-docx) | - | Missing | Pending | - | MIG-016, MIG-017, PDF/DOCX dependency decision | Seven routes | MIG-018 |
 | Migration of existing v1 data (decisions, lifecycle memory, evidence, reviews, settings) | JSON stores | - | Missing | Pending | - | All stores above | Import with verification ([MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md)) | MIG-014 |
 | Packaging, versioning, Windows service, reverse proxy | v1 installers and scripts | `build-release.*`, `ProductIdentity`, `ProxyTrust` | Done (Linux) | Contract | `PublishTests`, `VersioningTests`, Pester | Windows VM | Native Windows acceptance of Server, Desktop, service and upgrade | - |
+
+## Blockers found during migration
+
+| ID | Affects | Blocker | Decision needed |
+| --- | --- | --- | --- |
+| BLK-GLOBALIZATION | MIG-004 (name and Directory text folding), MIG-008 (IANA time zones on Windows) | `Directory.Build.props` builds the server with `InvariantGlobalization=true`. NFKC normalization of compatibility characters (ligatures, full-width letters, no-break space) is then unavailable, so v1's `normalize_text` differs for such text (test `Compatibility_characters_fold_like_python_v1` is skipped with this ID). On Windows, IANA zone names such as `Europe/Oslo` need ICU; `local` and `UTC` always work. | Yes: enable ICU for the server (Windows ships ICU; Linux needs libicu), or accept the gap |
 
 ## How this matrix is kept
 

@@ -133,7 +133,7 @@ public sealed class V1CompatibilityTests : IAsyncLifetime
     }
 
     [Theory]
-    [InlineData("GET", "/api/functional-groups")]
+    [InlineData("GET", "/api/branding/logo")]
     [InlineData("GET", "/api/retention")]
     [InlineData("POST", "/api/branding/preview")]
     [InlineData("GET", "/api/storage/status")]

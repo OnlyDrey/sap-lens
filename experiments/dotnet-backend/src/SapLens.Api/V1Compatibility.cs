@@ -41,7 +41,7 @@ public static class V1Compatibility
     [
         "GET /api/auth/state", "GET /api/configuration", "GET /api/presentation", "GET /api/registry/modules", "GET /api/version", "GET /api/application-info",
         "GET /api/runtime", "GET /api/modules", "GET /api/roles", "GET /api/roles/{agr_name}",
-        "POST /api/configuration", "POST /api/configuration/theme", "GET /api/data-sources/history", "POST /api/refresh", "GET /api/refresh-schedule", "POST /api/refresh-schedule/preview", "GET /api/data-sources/reports/{id}", "GET /api/data-sources/reports/{id}/export", "GET /api/data-sources/{source}/preview", "POST /api/data/cancel",
+        "POST /api/configuration", "POST /api/configuration/theme", "GET /api/data-sources/history", "POST /api/refresh", "GET /api/refresh-schedule", "POST /api/refresh-schedule/preview", "GET /api/functional-groups", "GET /api/data-sources/reports/{id}", "GET /api/data-sources/reports/{id}/export", "GET /api/data-sources/{source}/preview", "POST /api/data/cancel",
         "POST /api/data-sources/{source}/select", "POST /api/server/uploads/{source}/activate",
         "GET /api/access/users", "GET /api/access/users/{username}", "GET /api/access/users-selection", "GET /api/access/exports/users",
         "GET /api/access/release-options", "GET /api/access/release-roles", "GET /api/access/exports/release-roles", "GET /api/access/exports/releases", "GET /api/access/releases", "GET /api/access/release-assignments", "GET /api/user-comparison", "GET /api/user-comparison/evidence",
@@ -135,6 +135,7 @@ public static class V1Compatibility
         V1RefreshReports.Map(api);
         V1Refresh.Map(api);
         V1RefreshSchedule.Map(api);
+        V1FunctionalGroups.Map(api);
         V1ImportPreview.Map(api);
         V1Access.Map(api);
         V1DataHealth.Map(api);

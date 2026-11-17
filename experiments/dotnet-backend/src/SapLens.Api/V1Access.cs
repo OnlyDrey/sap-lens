@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
 using SapLens.Application;
 using SapLens.Domain.Analysis;
@@ -29,7 +30,7 @@ public static class V1Access
     private static (IResult? Error, (UserLookupQuery Query, bool ShowExpired, string Status) Value) Parse(HttpContext http)
     {
         var q = http.Request.Query;
-        foreach (var unsupported in new[] { "usernames", "functional_groups", "managers", "missing_roles", "assignment_band" })
+        foreach (var unsupported in new[] { "usernames", "missing_roles", "assignment_band" })
             if (q[unsupported].Any(v => !string.IsNullOrEmpty(v)))
                 return (V1Compatibility.NotMigrated(http, $"{http.Request.Path.Value?[5..]}?{unsupported}=… (filter not migrated yet)"), default);
         var sort = q["sort"].FirstOrDefault() ?? "username";
@@ -38,7 +39,7 @@ public static class V1Access
         var mode = q["transaction_mode"].FirstOrDefault() ?? "and";
         var excludeMode = q["exclude_mode"].FirstOrDefault() ?? "any";
         if (!Sorts.Contains(sort) || !Statuses.Contains(status) || mode is not ("and" or "or") || excludeMode is not ("any" or "all")) return (Detail(422, "Unsupported filter value."), default);
-        if (q["groups"].Count > 50 || q["roles"].Count > 50 || q["tcodes"].Count > 21 || q["exclude_tcodes"].Count > 21) return (Detail(422, "Too many filter values."), default);
+        if (q["functional_groups"].Count > 50 || q["managers"].Count > 50 || q["groups"].Count > 50 || q["roles"].Count > 50 || q["tcodes"].Count > 21 || q["exclude_tcodes"].Count > 21) return (Detail(422, "Too many filter values."), default);
         var showExpired = Flag(q, "show_expired");
         var query = new UserLookupQuery(q["search"].FirstOrDefault() ?? "", q["group"].FirstOrDefault() ?? "", [.. q["groups"].OfType<string>()], q["role"].FirstOrDefault() ?? "",
             [.. q["roles"].OfType<string>()], q["tcode"].FirstOrDefault() ?? "", [.. q["tcodes"].OfType<string>()], mode, Flag(q, "exclude_transactions"),
@@ -57,6 +58,9 @@ public static class V1Access
             var snapshot = await snapshots.GetAsync(ct);
             var today = Today();
             var result = UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today);
+            var org = await OrganizationAsync(http, snapshot, ct);
+            result = org.Filter(result);
+            var Row = org.Row;
             var anchor = q["anchor"].FirstOrDefault() ?? "";
             var pageItems = result.Skip(offset).Take(limit).ToList();
             if (anchor.Length > 0)
@@ -90,7 +94,7 @@ public static class V1Access
             if (Parse(http) is { Error: { } error }) return error;
             var (query, _, _) = Parse(http).Value;
             var snapshot = await snapshots.GetAsync(ct);
-            var result = UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, Today());
+            var result = (await OrganizationAsync(http, snapshot, ct)).Filter(UserLookup.Find(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, Today()));
             const int cap = 5000;
             return Results.Ok(new { total = result.Count, usernames = result.Take(cap).Select(u => u.Username).ToList(), truncated = result.Count > cap, limit = cap, data_revision = Revision(snapshot) });
         });
@@ -103,7 +107,8 @@ public static class V1Access
             var snapshot = await snapshots.GetAsync(ct);
             if (snapshot.Ids.Users is null) return Detail(409, "No validated User Access dataset is loaded.");
             var today = Today();
-            var (result, evidence) = UserLookup.FindWithEvidence(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today);
+            var (found, evidence) = UserLookup.FindWithEvidence(snapshot.Users, snapshot.Catalogue.Roles.Count > 0, query, today);
+            var result = (await OrganizationAsync(http, snapshot, ct)).Filter(found);
             var rows = result.SelectMany(u => AuditAssignments(snapshot.Users.Users[u.UserKey], showExpired, status, today)
                 .Select(a => (Assignment: a, Identity: u, Matched: evidence.TryGetValue(u.UserKey, out var hit) && hit.Any(e => e.Id == a.Id)))).ToList();
             var csv = new System.Text.StringBuilder("\ufeff");
@@ -292,15 +297,38 @@ public static class V1Access
         ["status"] = SapDates.IntervalStatus(a.ValidFrom, a.ValidTo, today), ["account_status"] = SapDates.IntervalStatus(a.UserValidFrom, a.UserValidTo, today),
     };
 
-    /// <summary>One User Access row: the v1 summary plus organization annotations. Functional groups and the Employee Directory are not migrated, so the
-    /// row states that truthfully (no membership, directory unavailable), as v1 does when those sources are absent.</summary>
-    private static Dictionary<string, object?> Row(UserSummary u) => new()
+    /// <summary>The organizational context of a User Access request (MIG-004): the functional_groups / managers filter (organization.selection) and the
+    /// row annotation (organization.annotate): Functional Group memberships and, for a user linked to exactly one Directory employee, job title and department.</summary>
+    private sealed record Organization(Func<List<UserSummary>, List<UserSummary>> Filter, Func<UserSummary, Dictionary<string, object?>> Row);
+
+    private static async Task<Organization> OrganizationAsync(HttpContext http, Snapshot snapshot, CancellationToken ct)
     {
-        ["username"] = u.Username, ["user_key"] = u.UserKey, ["groups"] = u.Groups, ["first_name"] = u.FirstName, ["last_name"] = u.LastName, ["email"] = u.Email,
-        ["account_status"] = u.AccountStatus, ["lock_status"] = u.LockStatus, ["relevant_roles"] = u.RelevantRoles,
-        ["job_title"] = "", ["department"] = "", ["directory_status"] = "unavailable", ["functional_group"] = null, ["functional_groups"] = Array.Empty<object>(),
-        ["classification_status"] = "Unassigned",
-    };
+        var q = http.Request.Query;
+        var settings = await http.RequestServices.GetRequiredService<V1Settings>().GetAsync(ct);
+        var directory = V1Employees.Available(snapshot, settings);
+        var data = await http.RequestServices.GetRequiredService<FunctionalGroupStore>().ReadAsync(ct);
+        var keep = V1FunctionalGroups.Selection(snapshot, directory, data, [.. q["functional_groups"].OfType<string>().Where(v => v.Length > 0)],
+            [.. q["managers"].OfType<string>().Where(v => v.Length > 0)]);
+        var classes = FunctionalGroupStore.ClassificationMap(data);
+        var owners = directory is null ? null : SapLens.Domain.Directory.EmployeeDirectory.SapEmailOwners(snapshot.Users.Users.Values);
+        Dictionary<string, object?> Row(UserSummary u)
+        {
+            var (title, department, status) = ("", "", directory is null ? "unavailable" : "unmatched");
+            if (directory is not null && snapshot.Users.Users.TryGetValue(u.UserKey, out var sap) && directory.MatchSapIdentity(sap, owners!) is ("matched", { } employee))
+                (title, department, status) = (((string?)employee["title"] ?? "").Trim(), ((string?)employee["department"] ?? "").Trim(), "matched");
+            classes.TryGetValue(u.Username.Trim().ToUpperInvariant(), out var record);
+            return new()
+            {
+                ["username"] = u.Username, ["user_key"] = u.UserKey, ["groups"] = u.Groups, ["first_name"] = u.FirstName, ["last_name"] = u.LastName, ["email"] = u.Email,
+                ["account_status"] = u.AccountStatus, ["lock_status"] = u.LockStatus, ["relevant_roles"] = u.RelevantRoles,
+                ["job_title"] = title, ["department"] = department, ["directory_status"] = status,
+                ["functional_group"] = record?["group"]?.DeepClone(),   // only with exactly one membership (compatibility)
+                ["functional_groups"] = record is null ? new JsonArray() : new JsonArray([.. record["memberships"]!.AsArray().Select(m => m!["group"]!.DeepClone())]),
+                ["classification_status"] = record is null ? "Unassigned" : (string)record["status"]!,
+            };
+        }
+        return new Organization(result => keep is null ? result : result.Where(u => snapshot.Users.Users.TryGetValue(u.UserKey, out var user) && keep(user)).ToList(), Row);
+    }
 
     /// <summary>source_info's report: v1's User Access import report (users.report without samples and file name) from the stored import report and the
     /// built directory's counts.</summary>
