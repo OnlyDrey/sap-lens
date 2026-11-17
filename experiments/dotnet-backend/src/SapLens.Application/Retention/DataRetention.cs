@@ -29,6 +29,7 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
     private static readonly string[] Frozen = ["Approved", "Closed", "Approved / closed"];
     private static readonly SemaphoreSlim Gate = new(1, 1);
     [GeneratedRegex("[a-f0-9]{64}")] private static partial Regex Hex();
+    [GeneratedRegex("\"migrated_from_v1\":\\{\"snapshot\":\"([a-f0-9]{64})\"")] private static partial Regex V1Alias();
 
     private string Data => options.DataDirectory;
     private static string FileOf(string data) => Path.Combine(data, "data-retention.json");
@@ -129,7 +130,9 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
         var cutoff = now.UtcDateTime.AddDays(-months * 30.4375);
         var (hashes, ids) = await ReferencesAsync(db, ct);
         var all = await db.Datasets.AsNoTracking().Where(d => d.Status == DatasetStatus.Active || d.Status == DatasetStatus.Retired)
-            .Select(d => new { d.Id, d.Source, d.Revision, d.Status, d.ContentHash, d.RecordCount, d.ActivatedUtc, d.CreatedUtc }).ToListAsync(ct);
+            .Select(d => new { d.Id, d.Source, d.Revision, d.Status, d.ContentHash, d.RecordCount, d.ActivatedUtc, d.CreatedUtc, d.ReportJson }).ToListAsync(ct);
+        // A revision migrated from SAP Lens 1 is also referenced by its v1 snapshot id (periods, decisions and reports written by v1 name that id).
+        static string? Alias(string? report) => report is not null && V1Alias().Match(report) is { Success: true } m ? m.Groups[1].Value : null;
         var active = all.Where(d => d.Status == DatasetStatus.Active).Select(d => d.ContentHash).ToHashSet(StringComparer.Ordinal);
         var items = new List<Candidate>();
         var protectedCounts = new Dictionary<string, int> { ["referenced"] = 0, ["recent"] = 0, ["kept_newest"] = 0, ["unclassified"] = 0, ["unrecognised"] = 0 };
@@ -137,7 +140,7 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
         {
             var entries = group.Where(d =>
                 {
-                    if (!active.Contains(d.ContentHash) && !hashes.Contains(d.ContentHash) && !ids.Contains(d.Id)) return true;
+                    if (!active.Contains(d.ContentHash) && !hashes.Contains(d.ContentHash) && !ids.Contains(d.Id) && !(Alias(d.ReportJson) is { } alias && hashes.Contains(alias))) return true;
                     protectedCounts["referenced"]++;
                     return false;
                 })

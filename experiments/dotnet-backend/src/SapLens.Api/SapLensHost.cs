@@ -17,6 +17,7 @@ public static class SapLensHost
         RefuseInsideApplication(settings.DataDirectory);
         // A confirmed restore is applied before anything opens the database or the account store; it rolls back by itself on failure.
         ApplicationBackups.ProductVersion = V1Compatibility.Version;
+        var migrated = V1DataMigration.ApplyPending(settings.DataDirectory, DateTimeOffset.UtcNow);
         var restored = ApplicationBackups.ApplyPending(settings.DataDirectory, DateTimeOffset.UtcNow);
         var ui = UiAssets.Create();
         var tls = PrepareCertificate(settings);
@@ -83,6 +84,7 @@ public static class SapLensHost
         startup.LogInformation("Listening on {Address}:{Port} ({Scheme}), network access {Network}, allowed hosts {Hosts}", settings.ListenAddress, settings.Port,
             settings.Https ? "https" : "http", settings.NetworkAccess ? "enabled" : "disabled", settings.AllowedHosts.Count == 0 ? "loopback only" : string.Join(",", settings.AllowedHosts));
         startup.LogInformation("Unicode: ICU {Icu}, casefold table Unicode {Unicode}", icu, SapLens.Domain.Text.PythonText.UnicodeVersion);
+        if (migrated is not null) startup.LogWarning("SAP Lens 1 migration: {Outcome}", migrated);
         if (restored is not null) startup.LogWarning("Pending restore: {Outcome}", restored);
         if (settings.TrustedProxies.Count > 0)
             startup.LogInformation("Trusted reverse proxies {Proxies} ({Hops} hop(s)): X-Forwarded-For, -Proto and -Host applied from these peers only", string.Join(",", settings.TrustedProxies), settings.TrustedProxyHops);

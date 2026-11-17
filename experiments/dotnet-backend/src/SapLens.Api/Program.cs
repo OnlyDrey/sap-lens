@@ -7,6 +7,55 @@ if (ServerConfiguration.Informational(args) is { } information)
     Console.Out.WriteLine(information);
     return 0;
 }
+if (args.Contains("--migrate-v1"))
+{
+    // SAP Lens 1 to SAP Lens 2 data migration, step by step; local, the server must not be running for activate/rollback to take effect at its next start.
+    try
+    {
+        string? Value(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null; }
+        var step = Value("--migrate-v1") ?? throw new InvalidOperationException("--migrate-v1 needs preview, run, activate, rollback or status.");
+        var data = Value("--data-dir") ?? Environment.GetEnvironmentVariable("SAP_LENS_V2_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_V2_DATA_DIR) is required.");
+        if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
+        var actor = Environment.UserName;
+        var now = DateTimeOffset.UtcNow;
+        System.Text.Json.Nodes.JsonObject result;
+        switch (step)
+        {
+            case "preview":
+                var source = Value("--source") ?? throw new InvalidOperationException("--source <SAP Lens 1 data directory or .slbak/.tar.gz> is required.");
+                var secret = "";
+                if (File.Exists(source) && !source.EndsWith(".tar.gz", StringComparison.OrdinalIgnoreCase))
+                {
+                    Console.Error.Write("SAP Lens 1 backup passphrase or recovery key: ");
+                    secret = ServerConfiguration.ReadSecret();
+                    Console.Error.WriteLine();
+                }
+                result = V1DataMigration.Preview(source, data, secret, args.Contains("--replace-existing"), now);
+                result.Remove("inventory");
+                break;
+            case "run":
+                result = await V1DataMigration.RunAsync(data, Value("--id") ?? "", Value("--approve") ?? "", actor, now);
+                break;
+            case "activate":
+                result = V1DataMigration.RequestActivation(data, Value("--id") ?? "", Value("--approve") ?? "", actor, now);
+                break;
+            case "rollback":
+                result = V1DataMigration.RequestRollback(data, Value("--id") ?? "", actor, now);
+                break;
+            case "status":
+                result = V1DataMigration.Status(data, Value("--id") ?? "");
+                break;
+            default: throw new InvalidOperationException("--migrate-v1 needs preview, run, activate, rollback or status.");
+        }
+        Console.Out.WriteLine(result.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true, Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping }));
+        return 0;
+    }
+    catch (Exception error) when (error is InvalidOperationException or MigrationException or SapLens.Application.Backups.BackupException or IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine($"migration refused: {error.Message}");
+        return 3;
+    }
+}
 if (args.Contains("--backup-key"))
 {
     // Local host backup key management: no listener; the key value is never printed.

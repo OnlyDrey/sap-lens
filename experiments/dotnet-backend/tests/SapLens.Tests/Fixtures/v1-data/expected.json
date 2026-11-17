@@ -1,0 +1,35 @@
+{
+ "account_review": {
+  "06aef018027b1d218f1f86cf92e8536a6726d74f5e696adb74c4376b5e2251c6": {
+   "history": 0,
+   "state": "Investigating"
+  },
+  "eb115cb89b7e248a94d58023eadc3a3cad61c34a95ef215844739bfd544a9487": {
+   "history": 1,
+   "state": "No action required"
+  }
+ },
+ "reports": [
+  "15cf25f909bea8cd1bada13c005be3d575b28030d0332f78696516d679093d63",
+  "1d3cb364ee99d362bfd233f201ce6fbe206b862d047ae3d8445693ac301f3223"
+ ],
+ "saved_filters": [
+  "Økonomi brukere"
+ ],
+ "snapshots": [
+  "14b06a6de1f2f9c114a29710decfaff7daa7b727211e453c6a156fe54ec60dae",
+  "73a706641d63ab80070212c24b1d38409b2b052e3df1e5efc7acb1d75b6c224d",
+  "8e9771e3987865c42b33942b1ef4bab247745fc4be928ef2f1db51061cbc848d",
+  "c499273593f9741317360f5597ea006cd442bda703591f49282e85f4ba2348a0"
+ ],
+ "sources": {
+  "roles": "c499273593f9741317360f5597ea006cd442bda703591f49282e85f4ba2348a0",
+  "users": "14b06a6de1f2f9c114a29710decfaff7daa7b727211e453c6a156fe54ec60dae"
+ },
+ "users": [
+  "KARI",
+  "OLA",
+  "ÅSE",
+  "ØYSTEIN"
+ ]
+}

@@ -45,6 +45,27 @@ database**, never an in-place conversion:
 
 EF Core migrations then own the v2 schema from that point; each future schema change takes a protected migration backup first (implemented).
 
+### Implemented procedure (`--migrate-v1`)
+
+The server binary migrates a SAP Lens 1 data directory, or a SAP Lens 1 `.slbak` (passphrase or recovery key) or `.tar.gz` backup of it, in explicit steps.
+The source is only read. Use synthetic data or a copy; do not run it against a production installation before the owner's acceptance.
+
+| Step | Command | Effect |
+| --- | --- | --- |
+| Dry run | `SapLens.Api --migrate-v1 preview --source <v1 dir or backup> --data-dir <v2 dir> [--replace-existing]` | SHA-256 inventory, validation of every store, what is imported or only preserved, blockers, warnings, and an approval digest. Writes only `migration/<id>/preview.json`. Existing SAP Lens 2 data is a blocker unless `--replace-existing` is given. |
+| Run | `--migrate-v1 run --id <id> --approve <digest>` | Refuses a changed source. Makes a verified private copy and an encrypted migration backup (host key; unencrypted with a warning when none is configured), builds a separate candidate database and verifies it (integrity, every record of every revision, evidence content addresses, both hash chains, counts). Active data is untouched. |
+| Activate | `--migrate-v1 activate --id <id> --approve <digest>` | Refuses when the v1 directory changed since the run. The candidate replaces the active data at the next start, before the database opens; the previous files go to `migration/<id>/previous`. Any failure rolls back. Retention cleanup pauses for 7 days. |
+| Rollback | `--migrate-v1 rollback --id <id>` | The previous SAP Lens 2 files return at the next start; the migrated files are kept in `migration/<id>/rolled-back`. |
+| Status | `--migrate-v1 status --id <id>` | The migration report. |
+
+Imported: settings, every role, user and SoD matrix revision (active and superseded, with the v1 snapshot id kept as an alias that protects it from
+retention), Employee Directory revisions, SoD evidence snapshots (content addresses re-verified), SoD decision events (hash chain in timestamp order),
+remediation actions and report log, review periods and legacy reviews, catalogue and reference annotations, functional groups, assignment lifecycle,
+position changes, report branding, reviewer profile, saved filters, refresh reports, account review decisions with their history (on the review hash
+chain; decisions for users in no migrated revision are kept in a `v1-account-review-unmatched` document), branding images, the account store (sessions
+removed) and the refresh schedule state. Not migrated: data retention approvals (bound to the installation), SAP Lens 1 application backups and its derived
+SQLite cache. Every source file, migrated or not, is in the migration backup, which Settings, Storage keeps until an administrator confirms the upgrade.
+
 ## 3. Import formats
 
 Unchanged. The prototype accepts the same CSV files (encodings, delimiters, mappings, limits) with identical results on the equivalence
