@@ -212,6 +212,39 @@ public sealed class SodPeriodsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Legacy_reviews_are_listed_filtered_exported_and_their_evidence_read()
+    {
+        var listing = await Get("/api/sod/reviews?limit=2");
+        Assert.True((int)listing["total"]! > 0);
+        Assert.Equal((int)listing["total"]!, (int)listing["summary"]!["Pending"]!);
+        var row = listing["items"]![0]!;
+        var findingId = (string)row["finding_id"]!;
+        Assert.True(row["finding"]!["evidence_total"] is JsonObject);
+        var (saved, response) = await Post($"/api/sod/reviews/{findingId}", new JsonObject
+        {
+            ["expected_revision"] = (int)listing["revision"]!, ["expected_generation"] = (string)listing["generation"]!, ["evidence_version"] = (string)row["finding"]!["evidence_version"]!,
+            ["annotation"] = new JsonObject { ["decision"] = "Access removal required", ["reviewer"] = "Reviewer", ["rationale"] = "Remove the conflicting role", ["action_owner"] = "Owner" },
+        });
+        Assert.True(saved == HttpStatusCode.OK, response?.ToJsonString());
+        var filtered = await Get("/api/sod/reviews?lifecycle=Action%20required");
+        Assert.Equal(findingId, (string)filtered["items"]!.AsArray().Single()!["finding_id"]!);
+        Assert.Equal(0, (int)(await Get("/api/sod/reviews?search=no-such-user-xyz"))["total"]!);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await _client.GetAsync("/api/sod/reviews?sort=other")).StatusCode);
+
+        var export = await _client.GetStringAsync("/api/sod/reviews/actions/export");
+        Assert.StartsWith("\uFEFF\"FINDING_ID\";\"USERNAME\"", export);
+        Assert.Contains(findingId, export);
+        Assert.Equal(2, export.Split("\r\n", StringSplitOptions.RemoveEmptyEntries).Length);           // header and the one open action
+        Assert.Contains(findingId, await _client.GetStringAsync("/api/sod/reviews/export"));
+
+        var history = await Get($"/api/sod/reviews/{findingId}/history");
+        var eventId = (string)history["items"]![0]!["event_id"]!;
+        var evidence = await Get($"/api/sod/reviews/{findingId}/history/{eventId}/evidence?side=ACTVT1");
+        Assert.True((int)evidence["total"]! > 0);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/sod/reviews/{findingId}/history/{new string('0', 32)}/evidence")).StatusCode);
+    }
+
+    [Fact]
     public async Task Period_validation_concurrency_and_overview()
     {
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post("/api/sod/periods", new JsonObject { ["name"] = "Bad", ["start"] = "2026-06-01", ["end"] = "2026-01-01", ["evaluation_date"] = "2026-03-01", ["expected_revision"] = 0 })).Status);

@@ -44,6 +44,8 @@ public static class V1Retention
             return Json(retention.SetPolicy(e.GetValue<bool>(), months!.Value, review, days, Actors.Name(http)));
         });
 
+        api.MapPost("/retention/review/undo", UndoAsync);
+
         api.MapPost("/retention/approve", async (HttpContext http, DataRetention retention, CancellationToken ct) =>
         {
             if (Guard(http) is { } refused) return refused;
@@ -64,6 +66,21 @@ public static class V1Retention
             }
             catch (RetentionException error) { return Results.Json(new { detail = error.Message }, statusCode: error.Status); }
         });
+    }
+
+    /// <summary>POST /api/retention/review/undo: restores review periods removed by a review cleanup. SAP Lens 2 never removes review periods (they are
+    /// immutable audit evidence), so there is never a cleanup to undo; the request is validated as in v1 and answered 409 without changing anything.</summary>
+    private static async Task<IResult> UndoAsync(HttpContext http, CancellationToken ct)
+    {
+        if (Guard(http) is { } refused) return refused;
+        var (body, invalid) = await V1Validation.ReadBody(http, ct);
+        if (invalid is not null) return invalid;
+        if (body!.Select(p => p.Key).FirstOrDefault(k => k is not ("operation" or "confirm")) is { } extra) return Invalid("body", extra, "extra_forbidden", "Extra inputs are not permitted");
+        var operation = body!["operation"] is JsonValue o && o.TryGetValue<string>(out var text) ? text : "";
+        if (!SapLens.Application.Backups.ApplicationBackups.Identity().IsMatch(operation)) return Invalid("body", "operation", "string_pattern_mismatch", "String should match pattern '^[a-f0-9]{32}$'");
+        if (body["confirm"] is not { } c || c.GetValueKind() is not (JsonValueKind.True or JsonValueKind.False)) return Invalid("body", "confirm", "bool_type", "Input should be a valid boolean");
+        if (!c.GetValue<bool>()) return Results.Json(new { detail = "Confirm that the removed review periods should be restored." }, statusCode: 422);
+        return Results.Json(new { detail = "There is no review cleanup to undo: SAP Lens 2 keeps completed review periods as immutable audit evidence." }, statusCode: 409);
     }
 
     private static IResult? Guard(HttpContext http)

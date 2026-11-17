@@ -936,6 +936,51 @@ public static class SodPeriods
             copy["evaluation_as_of"] = b.AsOf;
             return Json(await Service<SodReviewStore>(http.RequestServices).SaveAsync(copy, annotation, revision, evidence, "current", identity, ct));
         }));
+        // Listing, CSV exports and historical evidence of the legacy reviews (routers/sod_reviews.py). A historical finding stays Historical: the .NET port
+        // never derives "Resolved" (v1 resolves a historical finding only after several source checks; not claiming resolution is the conservative side).
+        api.MapGet("/sod/reviews", (HttpContext http, CancellationToken ct) => Guard(async () =>
+        {
+            var (rows, data, b, problem) = await LegacyReviewsAsync(http, ct);
+            if (problem is not null) return problem;
+            var offset = int.TryParse(http.Request.Query["offset"].FirstOrDefault() ?? "0", out var o) ? Math.Max(0, o) : 0;
+            var limit = int.TryParse(http.Request.Query["limit"].FirstOrDefault() ?? "25", out var l) ? Math.Clamp(l, 1, 100) : 25;
+            var page = new JsonArray();
+            foreach (var row in rows.Skip(offset).Take(limit))
+            {
+                var copy = row.DeepClone().AsObject();
+                var finding = copy["finding"]!.AsObject();
+                var evidence = finding["evidence"] as JsonObject ?? [];
+                finding["evidence_total"] = new JsonObject(evidence.Select(p => KeyValuePair.Create(p.Key, (JsonNode?)((p.Value as JsonArray)?.Count ?? 0))));
+                finding["evidence"] = new JsonObject(evidence.Select(p => KeyValuePair.Create(p.Key, (JsonNode?)new JsonArray([.. (p.Value as JsonArray ?? []).Take(25).Select(x => x?.DeepClone())]))));
+                page.Add(copy);
+            }
+            data!["items"] = page;
+            data["total"] = rows.Count;
+            data["offset"] = offset;
+            data["limit"] = limit;
+            data["generation"] = b!.Generation;
+            data["as_of"] = b.AsOf;
+            return Json(data);
+        }));
+        api.MapGet("/sod/reviews/export", (HttpContext http, CancellationToken ct) => Guard(() => LegacyExportAsync(http, false, ct)));
+        api.MapGet("/sod/reviews/actions/export", (HttpContext http, CancellationToken ct) => Guard(() => LegacyExportAsync(http, true, ct)));
+        api.MapGet("/sod/reviews/{findingId}/history/{eventId}/evidence", (string findingId, string eventId, HttpContext http, CancellationToken ct) => Guard(async () =>
+        {
+            var side = http.Request.Query["side"].FirstOrDefault() ?? "ACTVT1";
+            if (side is not ("ACTVT1" or "ACTVT2")) return Results.Json(new { detail = new[] { new { type = "literal_error", loc = new[] { "query", "side" }, msg = "Input should be 'ACTVT1' or 'ACTVT2'" } } }, statusCode: 422);
+            var store = Service<SodReviewStore>(http.RequestServices);
+            var e = (await store.HistoryAsync(findingId, "current", ct)).FirstOrDefault(x => (string?)x["event_id"] == eventId);
+            if (e is null) return Results.Json(new { detail = "Review event is not available." }, statusCode: 404);
+            var finding = await store.FindingForEventAsync(e, ct);
+            var rows = finding["evidence"]?[side] as JsonArray ?? [];
+            var offset = int.TryParse(http.Request.Query["offset"].FirstOrDefault() ?? "0", out var o) ? Math.Max(0, o) : 0;
+            var limit = int.TryParse(http.Request.Query["limit"].FirstOrDefault() ?? "25", out var l) ? Math.Clamp(l, 1, 100) : 25;
+            return Json(new JsonObject
+            {
+                ["items"] = new JsonArray([.. rows.Skip(offset).Take(limit).Select(r => r?.DeepClone())]), ["total"] = rows.Count, ["offset"] = offset, ["limit"] = limit,
+                ["source_versions"] = finding["source_versions"]?.DeepClone() ?? new JsonObject(), ["evaluation_as_of"] = finding["evaluation_as_of"]?.DeepClone(),
+            });
+        }));
         api.MapGet("/sod/reviews/{findingId}/history", (string findingId, HttpContext http, CancellationToken ct) => Guard(async () =>
         {
             var events = await Service<SodReviewStore>(http.RequestServices).HistoryAsync(findingId, "current", ct);
@@ -946,5 +991,64 @@ public static class SodPeriods
                 ["items"] = new JsonArray([.. events.Skip(offset).Take(limit)]), ["total"] = events.Count, ["offset"] = offset, ["limit"] = limit, ["reviewer_identity"] = IdentityNotice,
             });
         }));
+    }
+
+    private static readonly string[] ReviewSorts = ["subject", "risk_id", "decision", "modified", "target_date"];
+
+    /// <summary>review_query + selected(): the legacy review rows of the live context after the v1 filters and sort.</summary>
+    private static async Task<(List<JsonObject> Rows, JsonObject? Data, SodBundle? Bundle, IResult? Problem)> LegacyReviewsAsync(HttpContext http, CancellationToken ct)
+    {
+        var q = http.Request.Query;
+        string Q(string name, int max) => (q[name].FirstOrDefault() ?? "") is var v && v.Length <= max ? v : throw new SodDecisionException(422, $"{name} is too long.");
+        var (search, risk, decision, lifecycle, status, reviewer) = (Q("search", 256), Q("risk", 512), Q("decision", 100), Q("lifecycle", 64), Q("action_status", 64), Q("reviewer", 120));
+        var sort = q["sort"].FirstOrDefault() ?? "subject";
+        if (!ReviewSorts.Contains(sort)) return ([], null, null, Results.Json(new { detail = new[] { new { type = "literal_error", loc = new[] { "query", "sort" }, msg = "Input should be 'subject', 'risk_id', 'decision', 'modified' or 'target_date'" } } }, statusCode: 422));
+        var descending = SodScope.Flag(q["descending"].FirstOrDefault());
+        var b = await SodScope.LoadAsync(http.RequestServices, "current", "active", null, ct);
+        var data = await Service<SodReviewStore>(http.RequestServices).ListingAsync(b.Findings, "current", b.Coverage, ct);
+        var rows = new List<JsonObject>();
+        foreach (var row in data["items"]!.AsArray().Select(r => r!.AsObject()))
+        {
+            var finding = row["finding"]!.AsObject();
+            var annotation = row["event"]?["annotation"] as JsonObject ?? [];
+            string A(string k) => (string?)annotation[k] ?? "";
+            if (search.Length > 0 && !SapLens.Domain.Text.TextMatching.SearchFields(search, (string?)finding["subject"], (string?)finding["risk_id"], A("reviewer"), A("rationale"))) continue;
+            if ((risk.Length > 0 && risk != (string?)finding["risk_id"]) || (decision.Length > 0 && decision != (string?)row["decision"]) || (lifecycle.Length > 0 && lifecycle != (string?)row["lifecycle"])
+                || (status.Length > 0 && status != A("action_status")) || (reviewer.Length > 0 && reviewer != A("reviewer"))) continue;
+            rows.Add(row);
+        }
+        string Key(JsonObject row)
+        {
+            var e = row["event"] as JsonObject;
+            var value = sort is "subject" or "risk_id" ? (string?)row["finding"]![sort] : sort == "decision" ? (string?)row["decision"] : sort == "modified" ? (string?)e?["timestamp"] : (string?)e?["annotation"]?["target_date"];
+            return (value ?? "").PyCasefold();
+        }
+        var ordered = rows.OrderBy(Key, StringComparer.Ordinal).ThenBy(r => (string)r["finding_id"]!, StringComparer.Ordinal).ToList();
+        if (descending) ordered.Reverse();
+        return (ordered, data, b, null);
+    }
+
+    private static readonly string[] ReviewColumns = ["FINDING_ID", "USERNAME", "RISK", "DECISION", "LIFECYCLE", "EVIDENCE_FRESHNESS", "REVIEWER", "REVIEW_DATE", "JUSTIFICATION",
+        "MITIGATING_CONTROLS", "ACTION_OWNER", "TARGET_DATE", "ACTION_STATUS", "COMPLETION_NOTES", "EVIDENCE_VERSION"];
+
+    private static async Task<IResult> LegacyExportAsync(HttpContext http, bool actions, CancellationToken ct)
+    {
+        var (rows, _, _, problem) = await LegacyReviewsAsync(http, ct);
+        if (problem is not null) return problem;
+        if (actions) rows = [.. rows.Where(r => r["event"] is JsonObject e && (string?)e["annotation"]?["action_status"] is not ("Completed" or "Not applicable") && (string?)r["decision"] is "Access removal required" or "Further investigation required")];
+        var sb = new StringBuilder("\uFEFF" + string.Join(';', ReviewColumns.Select(c => $"\"{c}\"")) + "\r\n");
+        foreach (var row in rows)
+        {
+            var e = row["event"] as JsonObject;
+            var a = e?["annotation"] as JsonObject ?? [];
+            string A(string k) => (string?)a[k] ?? "";
+            var values = new[] { (string?)row["finding_id"], (string?)row["finding"]!["subject"], (string?)row["finding"]!["risk_id"], (string?)row["decision"], (string?)row["lifecycle"],
+                (bool?)row["stale"] == true ? "Outdated" : "Current", A("reviewer"), (string?)e?["timestamp"], A("rationale"), A("mitigating_controls"), A("action_owner"), A("target_date"), A("action_status"),
+                A("completion_notes"), (string?)e?["evidence_version"] };
+            sb.Append(string.Join(';', values.Select(v => "\"" + V1Csv.Cell(v).Replace("\"", "\"\"", StringComparison.Ordinal) + "\""))).Append("\r\n");
+        }
+        http.Response.Headers.CacheControl = "no-store";
+        http.Response.Headers.ContentDisposition = $"attachment; filename=\"sap-lens-sod-{(actions ? "actions" : "reviews")}-{DateTime.Now:yyyy-MM-dd}.csv\"";
+        return Results.Text(sb.ToString(), "text/csv; charset=utf-8", Encoding.UTF8);
     }
 }

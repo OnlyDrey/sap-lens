@@ -318,4 +318,24 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
         Assert.Null(final!["retained"]);
         Assert.False(File.Exists(file));
     }
+
+    [Fact]
+    public async Task Health_legacy_settings_path_and_review_undo_follow_v1()
+    {
+        var health = await Get("/health");
+        Assert.Equal(("sap-lens", "needs_configuration", 0), ((string)health["app"]!, (string)health["status"]!, (int)health["cached_roles"]!));
+        Assert.Equal("", (string)(await Get("/api/settings"))["data_csv_path"]!);
+        Assert.Equal(HttpStatusCode.BadRequest, (await Post("/api/settings", new { data_csv_path = "relative/roles.csv" })).Status);
+        var csv = Path.Combine(_root, "roles.csv");
+        File.WriteAllText(csv, Csv.Roles(4));
+        var (status, body) = await Post("/api/settings", new { data_csv_path = csv });
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal((csv, (string?)null), ((string)body!["data_csv_path"]!, (string?)body["error"]));
+        Assert.Equal(("ok", 4), ((string)(await Get("/health"))["status"]!, (int)(await Get("/health"))["cached_roles"]!));
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post("/api/retention/review/undo", new { operation = "x", confirm = true })).Status);
+        var (undo, detail) = await Post("/api/retention/review/undo", new { operation = new string('a', 32), confirm = true });
+        Assert.Equal(HttpStatusCode.Conflict, undo);
+        Assert.Contains("immutable audit evidence", (string)detail!["detail"]!);
+    }
 }

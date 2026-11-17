@@ -387,7 +387,33 @@ public static partial class V1DataSources
         result["status"] = unchanged ? "unchanged" : "updated";
         result["records"] = diff.Records;
         Counts(result, diff);
+        if (source == "sod")
+        {
+            var before = (long?)evaluation["evaluated_against"] is { } previous ? SapLens.Domain.Sod.SodSource.Build(await SnapshotService.RecordsAsync(db, previous, ct)).Risks : [];
+            result["risk_change_summary"] = RiskChanges(before, SapLens.Domain.Sod.SodSource.Build(await SnapshotService.RecordsAsync(db, dataset.Id, ct)).Risks);
+        }
         return V1RefreshReports.Changes(diff.Changes);
+    }
+
+    /// <summary>csv_lifecycle.sod_risk_changes: definition-level changes between two SoD matrix revisions, at most 100 identifiers per kind.</summary>
+    internal static JsonObject RiskChanges(IReadOnlyList<Dictionary<string, object?>> before, IReadOnlyList<Dictionary<string, object?>> after)
+    {
+        var old = before.ToDictionary(r => (string)r["risk_id"]!, StringComparer.Ordinal);
+        var @new = after.ToDictionary(r => (string)r["risk_id"]!, StringComparer.Ordinal);
+        var common = old.Keys.Intersect(@new.Keys).Order(StringComparer.Ordinal).ToList();
+        static string C(object? value) => SapLens.Domain.Json.CanonicalJson.Serialize(value);
+        bool Differs(string key, params string[] fields) => fields.Any(f => C(old[key].GetValueOrDefault(f)) != C(@new[key].GetValueOrDefault(f)));
+        var changes = new (string Name, List<string> Ids)[]
+        {
+            ("added_risks", [.. @new.Keys.Except(old.Keys).Order(StringComparer.Ordinal)]), ("removed_risks", [.. old.Keys.Except(@new.Keys).Order(StringComparer.Ordinal)]),
+            ("changed_risks", [.. common.Where(k => C(old[k]) != C(@new[k]))]), ("changed_criticality", [.. common.Where(k => Differs(k, "criticality"))]),
+            ("changed_source_descriptions", [.. common.Where(k => Differs(k, "source_text"))]), ("changed_activities", [.. common.Where(k => Differs(k, "activity1", "activity2"))]),
+            ("changed_transaction_mappings", [.. common.Where(k => Differs(k, "activities"))]),
+        };
+        return new JsonObject(changes.Select(c => KeyValuePair.Create(c.Name, (JsonNode?)new JsonObject
+        {
+            ["total"] = c.Ids.Count, ["risk_ids"] = new JsonArray([.. c.Ids.Take(100).Select(i => (JsonNode?)i)]), ["truncated"] = c.Ids.Count > 100,
+        })));
     }
 
     internal static void Counts(JsonObject result, RecordDiffResult diff)

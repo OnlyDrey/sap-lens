@@ -176,6 +176,9 @@ public static class V1Compatibility
         V1Diagnostics.Map(api);
         V1Compare.Map(api);
         V1SodDecisions.Map(api);
+        // v1 GET /health (outside /api): status, cached roles and the last load, for monitoring and the v1 desktop shell.
+        app.MapGet("/health", async (IServiceProvider services, CancellationToken ct) => Results.Content((await V1Refresh.HealthAsync(services, ct)).ToJsonString(), "application/json"))
+            .ExcludeFromDescription();
         V1Backups.Map(api);
         V1Storage.Map(api);
         V1Retention.Map(api);

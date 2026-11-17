@@ -30,9 +30,6 @@ public static class V1Access
     private static (IResult? Error, (UserLookupQuery Query, bool ShowExpired, string Status) Value) Parse(HttpContext http)
     {
         var q = http.Request.Query;
-        foreach (var unsupported in Array.Empty<string>())
-            if (q[unsupported].Any(v => !string.IsNullOrEmpty(v)))
-                return (V1Compatibility.NotMigrated(http, $"{http.Request.Path.Value?[5..]}?{unsupported}=… (filter not migrated yet)"), default);
         var sort = q["sort"].FirstOrDefault() ?? "username";
         // Directory sorts are applied after the lookup (OrganizationAsync); the lookup itself orders by username.
         if (sort is "job_title" or "department") sort = "username";

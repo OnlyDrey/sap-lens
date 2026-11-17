@@ -87,4 +87,21 @@ public sealed class SodSourceMetadataTests
             try { Directory.Delete(root, true); } catch (IOException) { }
         }
     }
+
+    [Fact]
+    public void Risk_change_summary_follows_v1_sod_risk_changes()
+    {
+        static List<Dictionary<string, object?>> Risks(string csv) =>
+            SapLens.Domain.Sod.SodSource.Build(csv.Split('\n', StringSplitOptions.RemoveEmptyEntries).Skip(1).Select(line => (IReadOnlyDictionary<string, string>)SapLens.Tests.Csv.SodHeader.Split(';')
+                .Zip(line.Split(';')).ToDictionary(p => p.First, p => p.Second))).Risks;
+        var before = Risks(SapLens.Tests.Csv.Sod() + "R002;Low;SOD;Old text;B1;B2;ACTVT1;B1;T010;x\nR002;Low;SOD;Old text;B1;B2;ACTVT2;B2;T011;y\n");
+        var after = Risks(SapLens.Tests.Csv.Sod().Replace("High", "Critical") + "R003;Low;SOD;New risk;C1;C2;ACTVT1;C1;T020;x\nR003;Low;SOD;New risk;C1;C2;ACTVT2;C2;T021;y\n");
+        var summary = SapLens.Api.V1DataSources.RiskChanges(before, after);
+        Assert.Equal(["R003"], summary["added_risks"]!["risk_ids"]!.AsArray().Select(i => (string)i!));
+        Assert.Equal(["R002"], summary["removed_risks"]!["risk_ids"]!.AsArray().Select(i => (string)i!));
+        Assert.Equal(["R001"], summary["changed_criticality"]!["risk_ids"]!.AsArray().Select(i => (string)i!));
+        Assert.Equal((1, 0, 0), ((int)summary["changed_risks"]!["total"]!, (int)summary["changed_activities"]!["total"]!, (int)summary["changed_transaction_mappings"]!["total"]!));
+        Assert.False((bool)summary["added_risks"]!["truncated"]!);
+        Assert.Equal(7, summary.Count);
+    }
 }

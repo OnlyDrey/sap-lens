@@ -23,6 +23,32 @@ public static class V1Refresh
 
     public static void Map(RouteGroupBuilder api)
     {
+        // Legacy single-path settings API (main.py read_settings/update_settings): the role catalogue path, the loader error and state. A Server never
+        // accepts a server file path from a browser (as for data-source selection); there it answers 400.
+        api.MapGet("/settings", async (V1Settings store, DataLoadGate gate, CancellationToken ct) => Results.Json(new
+        {
+            data_csv_path = (string?)(await store.GetAsync(ct))["data_csv_path"] ?? "", error = (string?)null, loading = gate.Loading.CurrentCount == 0,
+        }));
+        api.MapPost("/settings", async (HttpContext http, HostSettings host, IServiceProvider services, V1Settings store, DataLoadGate gate, CancellationToken ct) =>
+        {
+            var (body, invalid) = await V1Validation.ReadBody(http, ct);
+            if (invalid is not null) return invalid;
+            var path = body!["data_csv_path"] is JsonValue v && v.TryGetValue<string>(out var text) ? text : null;
+            if (path is null || path.Length is < 1 or > 4096)
+                return Results.Json(new { detail = new[] { new { type = "string_too_short", loc = new[] { "body", "data_csv_path" }, msg = "String should have at least 1 character" } } }, statusCode: 422);
+            path = path.Trim();
+            if (host.Mode == HostMode.Server) return Results.Json(new { detail = "A server does not read file paths sent by a browser. Upload the file in Data Sources." }, statusCode: 400);
+            if (path.Length == 0 || path.Contains("://", StringComparison.Ordinal) || path.Contains('\0') || !Path.IsPathFullyQualified(path))
+                return Results.Json(new { detail = "Enter a full local or network-share CSV path." }, statusCode: 400);
+            var candidate = await store.GetAsync(ct);
+            candidate["data_csv_path"] = path;
+            var (report, busy) = await ImportWithSettingsAsync(services, Actors.Name(http), candidate, new HashSet<string> { "roles" },
+                saved => saved["data_csv_path"] = path, ct);
+            if (busy) return Results.Json(new { detail = "A CSV is already loading. Wait or cancel it before trying another file." }, statusCode: 409);
+            var failed = report?["sources"] is JsonArray sources ? sources.OfType<JsonObject>().FirstOrDefault(r => (string?)r["source"] == "roles" && (string?)r["status"] == "failed") : null;
+            return Results.Json(new { data_csv_path = (string?)(await store.GetAsync(ct))["data_csv_path"] ?? "", error = (string?)failed?["message"], loading = gate.Loading.CurrentCount == 0 });
+        });
+
         api.MapPost("/refresh", async (HttpContext http, IServiceProvider services, CancellationToken ct) =>
         {
             var (report, busy) = await RunAsync(services, Actors.Name(http), ct);
@@ -33,8 +59,8 @@ public static class V1Refresh
         });
     }
 
-    /// <summary>The v1 `/health` body the refresh response extends.</summary>
-    private static async Task<JsonObject> HealthAsync(IServiceProvider services, CancellationToken ct)
+    /// <summary>The v1 `/health` body the refresh response extends (also served at GET /health).</summary>
+    public static async Task<JsonObject> HealthAsync(IServiceProvider services, CancellationToken ct)
     {
         var snapshot = await services.GetRequiredService<SnapshotService>().GetAsync(ct);
         await using var db = await services.GetRequiredService<IDbContextFactory<SapLensDb>>().CreateDbContextAsync(ct);

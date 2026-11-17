@@ -4,10 +4,9 @@ using SapLens.Domain.Roles;
 namespace SapLens.Api;
 
 /// <summary>Port of routers/dashboard.py: aggregates of the active validated snapshots. Missing or disabled sources are never zero-filled.
-/// Position-change history is not migrated yet; its metric is null with an explicit reason, never estimated.</summary>
+/// A metric whose source is not loaded is null with an explicit reason, never estimated.</summary>
 public static class V1Dashboard
 {
-    public const string PositionReason = "Position-change history between Employee Directory imports is not available in the .NET server yet.";
     public static readonly string[] Bands = ["0–5", "6–10", "11–20", "21–30", "31+"];
 
     public static string Band(int count) => count <= 5 ? Bands[0] : count <= 10 ? Bands[1] : count <= 20 ? Bands[2] : count <= 30 ? Bands[3] : Bands[4];
@@ -67,9 +66,10 @@ public static class V1Dashboard
                 foreach (var (id, label, value) in new[] { ("reviewed", "Completed reviews", reviewed), ("pending", "Pending reviews", rows.Count - reviewed), ("outdated", "Outdated reviews", rows.Count(r => (bool)r["stale"]!)) })
                     Add(id, label, value, "review", "All currently imported SAP accounts form the review population; outdated reviews are included in pending.");
                 var directoryLoaded = directoryEnabled && (bool)directory["loaded"]!;
-                Add("position_changes", "Users requiring review — Position changes", null, "review",
+                Add("position_changes", "Users requiring review — Position changes",
+                    directoryLoaded ? rows.Count(r => r["position_change"] is Dictionary<string, object?> pc && (bool)pc["open"]!) : null, "review",
                     "Department or job title changed between Employee Directory imports and not yet reviewed. Separate from SoD conflicts and other account findings; opens Account Review.",
-                    directoryLoaded ? PositionReason : "Employee Directory not loaded");
+                    "Employee Directory not loaded");
                 Add("ad_disabled_open", "AD disabled / SAP valid and unlocked", directoryLoaded ? rows.Count(r => ((List<string>)r["findings"]!).Contains("ad_disabled_open")) : null, "review",
                     "Reliably matched AD and SAP account evidence.", coverageReason);
             }

@@ -117,6 +117,9 @@ public sealed class PositionChangeTests : IAsyncLifetime
         var filtered = JsonNode.Parse(await _client.GetStringAsync("/api/account-review?findings=position_change&include_completed=true"))!;
         Assert.Contains(filtered["items"]!.AsArray(), i => (string)i!["username"]! == "USERP01");
         Assert.True((int)filtered["summary"]!["position_changes"]! >= 1);
+        var dashboard = JsonNode.Parse(await _client.GetStringAsync("/api/dashboard"))!;
+        var metric = dashboard["metrics"]!.AsArray().First(m => (string)m!["id"]! == "position_changes")!;
+        Assert.Equal((int)JsonNode.Parse(await _client.GetStringAsync("/api/account-review?include_completed=true"))!["summary"]!["position_changes"]!, (int)metric["value"]!);
 
         // A decision captures the change it reviewed: the change stays visible but is no longer open.
         var decision = await _client.PostAsJsonAsync("/api/account-review/decision/USERP01",
