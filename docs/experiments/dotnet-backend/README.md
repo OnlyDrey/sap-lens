@@ -37,8 +37,8 @@ Everything lives in [`experiments/dotnet-backend`](../../../experiments/dotnet-b
 | Path | Purpose |
 | --- | --- |
 | `src/SapLens.Domain` | Ported v1 business rules: CSV import, normalization, catalogue, users, lookups, comparison, SoD, import checks |
-| `src/SapLens.Persistence` | EF Core SQLite: schema, migration, immutability triggers, write coordinator, integrity, online backup, retention |
-| `src/SapLens.Application` | Import pipeline, persistent job queue and worker, snapshot service, review service |
+| `src/SapLens.Persistence` | EF Core SQLite: schema, migrations, immutability triggers, write coordinator, integrity, online backup |
+| `src/SapLens.Application` | Import pipeline, persistent job queue and worker, snapshot service, review service, accounts, application backups and crypto, SAP Lens 1 archive validation, data retention |
 | `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded production React UI (`frontend/dist`) and sign-in page, v1 compatibility API (`V1Compatibility.cs`), startup probe |
 | `src/SapLens.Desktop` | Windows shell: WinForms + WebView2, in-process core, loopback, per-run token (built on Linux, never run) |
 | `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
@@ -73,3 +73,18 @@ python -I tools/bench_http.py --data $D --dotnet $D/server-linux-x64 --out $D/ht
 ```
 
 Generated data, publish output and benchmark JSON stay outside the repository.
+
+## Testing
+
+- **Suite:** `dotnet test tests/SapLens.Tests -c Release` runs every xUnit test; the release scripts run the same suite. During development,
+  select the affected classes, for example `--filter "FullyQualifiedName~V1DataMigrationTests|FullyQualifiedName~ApplicationBackupTests"`.
+- **Python v1 references:** tests that compare with SAP Lens 1 read fixtures written by `tools/*_reference.py` from the real v1 code
+  (`.venv` with `backend/requirements-dev.txt`); a test that compares with v1 is also checked by tampering its fixture once (it must fail).
+- **SAP Lens 1 installation fixture:** `tests/SapLens.Tests/Fixtures/v1-data` is written by `tools/v1_data_fixture.py`
+  (`.venv/bin/python -I tools/v1_data_fixture.py ../../backend <out>`). It is a v1 data directory with SoD decisions, periods, remediation,
+  legacy reviews and Account Review history, plus its host-key and passphrase `.slbak` backups and `expected.json` (synthetic secrets
+  included). The repository `.gitignore` excludes private v1 data patterns, so these fixture paths (and the build-970d219 account store) are
+  re-included explicitly; check `git status --ignored` after regenerating.
+- **Migration procedure:** `pwsh -File scripts/tests/v1-migration-procedure.ps1 -Exe <SapLens.Api> -Root <new folder>` runs the documented
+  Windows procedure ([V1_MIGRATION.md](V1_MIGRATION.md)) against that fixture with 12 checks.
+- **Not covered by automated tests here:** native Windows (Desktop, service, ACLs, PowerShell 5.1), WebView2, and real SAP Lens 1 data.

@@ -1,5 +1,9 @@
 # Feature parity matrix (Phase 0)
 
+> **Current status:** this is the Phase 0 inventory, kept for its history. The current per-feature status is
+> [MIGRATION_MATRIX.md](MIGRATION_MATRIX.md) (every area Done or with named, deliberate differences; route audit 145 of 145) and the
+> generated [ROUTE_AUDIT.md](ROUTE_AUDIT.md).
+
 Inventory of what the production React UI (`frontend/`, identical to `origin/work` `d7a39fb`) needs from a backend, compared with the Python v1
 implementation and this .NET branch. Measured, not assumed: the UI references **145 distinct API routes** in 32 areas (grep of
 `frontend/src`), served in v1 by about 4,600 lines of routers over about 23,000 lines of backend modules. Status as of this milestone.

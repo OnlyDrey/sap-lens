@@ -53,6 +53,15 @@ test drops the trigger, edits a decision and shows the chain reports the exact b
 URLs and, on Windows, network drives. SQLite locking is unreliable on network file systems. [T for the path forms, U for the Windows drive
 type check]
 
+## Dataset states added by the migration work
+
+- `Purged`: a superseded revision whose records data retention removed after approval; the row (content hash, revision, record count, times)
+  stays as evidence because activated datasets are never deleted (trigger `Datasets_NoDeleteActivated`). [T]
+- Revisions migrated from SAP Lens 1 keep the v1 snapshot id in `ReportJson.migrated_from_v1.snapshot`; retention treats a reference to
+  either id as a reference to the revision. [T]
+- The SAP Lens 1 migration builds a separate candidate database under `migration/<id>/candidate`, verifies it, and activates it at the
+  next start by replacing the database files (the previous files are kept for rollback). [T]
+
 ## Migrations
 
 - EF Core migrations generated with `dotnet ef`, applied by `DatabaseMaintenance.InitializeAsync` at startup, never by hand.

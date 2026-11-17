@@ -6,17 +6,25 @@ Server run the same core; only the host and the security boundary differ.
 ## Layers (implemented as projects)
 
 ```
-SapLens.Desktop (Windows shell)      SapLens.Api (Server entry point + shared host builder)
-            \                          /
-             SapLens.Application         import pipeline, jobs, snapshot, reviews, DI registration (AddSapLensCore)
-                  |            \
-         SapLens.Domain     SapLens.Persistence    pure rules  |  EF Core SQLite, migrations, write coordinator, backup
+SapLens.Desktop (Windows shell)      SapLens.Api (Server entry point, shared host builder, v1-compatible API)   SapLens.Cli (local tools)
+            \                          /          \
+             SapLens.Application                SapLens.Documents   import pipeline, jobs, snapshot, reviews, accounts, backups and
+                  |            \                                     crypto, v1 backup archives, data retention | PDF/DOCX rendering
+         SapLens.Domain     SapLens.Persistence    pure rules, Python text semantics  |  EF Core SQLite, migrations, write coordinator
 ```
+
+The project references are acyclic: Domain has none; Persistence references Domain; Application references both; Api references
+Application and Documents; Desktop references Api; Cli references Application.
 
 - **Domain** has no I/O beyond reading a CSV stream and no framework dependency. Everything that must be byte-equivalent to v1 lives here.
 - **Persistence** owns the schema and every database invariant (triggers, unique filtered index, PRAGMAs, path policy).
 - **Application** composes them: one registration method used by Desktop, Server and tests, so there is exactly one core.
-- **Api** is transport only: validation of query input, paging, problem details, security boundary.
+- **Api** hosts transport (validation, paging, problem details, the security boundary) and, as the port grew route by route, the
+  v1-compatible modules that are still bound to their routes: the SoD scope, periods, reviews and reports, Functional Groups and the SAP Lens 1
+  data migration workflow. Moving those stores and services into Application is recorded technical debt (see below); it is a mechanical move
+  with no behaviour change, deferred to keep the migration diffs reviewable.
+- **Writes** all go through `WriteCoordinator` (one writer per process, `BEGIN IMMEDIATE`), including backup records, retention purges and
+  storage confirmations. The SAP Lens 1 migration writes a separate candidate database and never the active one.
 
 ## Modules
 
@@ -29,10 +37,20 @@ would make each a folder with its own endpoints, services and tests, still in on
 | SAP Role Catalog | `CatalogueBuilder`, `RoleNames`, `RoleMatcher`, `ModuleRegistry`, `RoleLookup` | Implemented |
 | Access Analysis | `UserDirectoryBuilder`, `UserLookup`, `UserComparison`, `TransactionFilters` | Implemented (core filters) |
 | SoD Analysis | `SodSource`, `SodAnalyzer`, canonical JSON identities | Implemented (analysis only) |
-| Review & Governance | `ReviewService`, append-only decisions, invalidation, hash chain | Partial (no periods, approvals) |
-| Reporting & Evidence | Dataset revisions kept as evidence; frozen SoD reports | Data only; no DOCX/PDF |
-| Identity & Access | Loopback-only token boundary, host and origin checks | Minimal; accounts not implemented |
-| Platform & Operations | Health, readiness, JSON logs, correlation ids, migrations, integrity, backup, retention, job worker | Implemented |
+| Review & Governance | `ReviewService`, `SodDecisionStore`, `SodPeriods`, `SodReviewStore`, `AssignmentLifecycle`: append-only hash-chained decisions, periods with approval and frozen evidence | Implemented |
+| Reporting & Evidence | Dataset revisions kept as evidence; `SodReports` with the native PDF/DOCX renderers (`SapLens.Documents`) | Implemented |
+| Identity & Access | `AccountStore` (v1 schema, Argon2id, sessions, roles), `V1Auth` permission map, token boundary, host/origin/CSRF checks, `ProxyTrust` | Implemented |
+| Backups, Retention & Migration | `ApplicationBackups`, `BackupCrypto` (SLBAK3), `V1BackupArchive`, `DataRetention`, `V1DataMigration` | Implemented |
+| Platform & Operations | Health, readiness, JSON logs, correlation ids, migrations, integrity, job worker, schedulers, ICU check | Implemented |
+
+## Technical debt (recorded, not hidden)
+
+| Item | Why it matters | Proposal |
+| --- | --- | --- |
+| Domain stores in the Api project (`FunctionalGroupStore`, `SodPeriodStore`, `SodReviewStore`, `PrivateSnapshots`, `V1DataMigration`) | Application-level services cannot be reused without the web host; Api is 14k lines | Move to `SapLens.Application` module folders; pure move, covered by the existing tests |
+| Large route modules (`SodPeriods.cs` about 1,100 lines, `V1DataMigration.cs` about 830) | Hard to review | Split by sub-feature together with the move above |
+| Per-file small helpers (`Json(...)`, `Detail(...)`) repeated in route files | Noise, not risk | Fold into one result helper when the files are next changed |
+| SAP Lens 1 archives authenticated in memory (one AES-GCM stream, tag at the end) | 1 GiB limit for `.slbak` migration | Migrate larger installations from a stopped copy of the data directory (documented) |
 
 ## Request flow
 

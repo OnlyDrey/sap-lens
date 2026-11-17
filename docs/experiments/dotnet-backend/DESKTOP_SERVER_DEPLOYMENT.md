@@ -109,6 +109,13 @@ system-wide .NET.
 | Signing | One exe (single-file) or every PE (one-dir) with Authenticode | Every PE | Optional (package signing) |
 | Runtime lifecycle | Self-contained: the runtime is patched only by shipping a new build. .NET 10 LTS support ends November 2028; plan monthly servicing rebuilds | Same | Same |
 
+## Backups, keys and SAP Lens 1 data
+
+- Application backups need a host backup key outside the data directory: `SapLens.Api --backup-key create <file> --data-dir <dir>`, then
+  `--backup-key export <file>` for the escrowed recovery copy, verified in Settings, Backups. Automatic backups stay off until it is verified.
+- SAP Lens 1 data (a `.slbak`, `.tar.gz` or data directory) moves with `--migrate-v1`; the step-by-step Windows procedure is
+  [V1_MIGRATION.md](V1_MIGRATION.md).
+
 ## Unicode and ICU (runtime requirement)
 
 SAP Lens 2 builds with `InvariantGlobalization=false`: Unicode normalization (NFKC, used for Employee Directory and Functional Group text) and IANA time
