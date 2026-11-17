@@ -30,6 +30,19 @@ public static class ServerConfiguration
         return (SapLens.Application.Accounts.AccountStore.For(data), username);
     }
 
+    /// <summary>--backup-key create|use|export PATH with --data-dir: a LOCAL host backup key operation. The key itself is never printed.</summary>
+    public static (string Action, string Path, string Data) BackupKey(string[] args, Func<string, string?> environment)
+    {
+        var i = Array.IndexOf(args, "--backup-key");
+        var action = i + 1 < args.Length ? args[i + 1] : "";
+        if (action is not ("create" or "use" or "export" or "status")) throw new InvalidOperationException("--backup-key needs create, use, export or status.");
+        var path = action == "status" ? "" : i + 2 < args.Length && !args[i + 2].StartsWith("--", StringComparison.Ordinal) ? args[i + 2] : throw new InvalidOperationException($"--backup-key {action} needs a file path.");
+        var d = Array.IndexOf(args, "--data-dir");
+        var data = (d >= 0 && d + 1 < args.Length ? args[d + 1] : null) ?? environment("SAP_LENS_V2_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_V2_DATA_DIR) is required.");
+        if (!System.IO.Path.IsPathFullyQualified(data) || (path.Length > 0 && !System.IO.Path.IsPathFullyQualified(path))) throw new InvalidOperationException("--data-dir and the key path must be absolute paths.");
+        return (action, path, data);
+    }
+
     /// <summary>A secret from the console without echo, or one line of redirected input.</summary>
     public static string ReadSecret()
     {
@@ -71,6 +84,12 @@ public static class ServerConfiguration
           --check-sign-in <username>                               With --data-dir: explain locally why a sign-in is refused, then exit.
                                                                    Read-only (opens the account store read-only, starts no server); the
                                                                    password is typed without echo and never printed.
+          --backup-key create <file>                               With --data-dir: create a new private host backup key file outside the data
+                                                                   directory and use it, then exit. The key is never printed.
+          --backup-key use <file>                                  With --data-dir: use an existing host backup key file, then exit.
+          --backup-key export <file>                               With --data-dir: write a recovery copy to a new private file (store it separately,
+                                                                   then verify it in Settings > Backups), then exit.
+          --backup-key status                                      With --data-dir: show whether a key is configured and its fingerprint.
 
         Secrets are never accepted as options: --cert-password and --token are refused.
         Unknown options, missing values and invalid settings stop startup with exit code 3 and "startup refused: <reason>".

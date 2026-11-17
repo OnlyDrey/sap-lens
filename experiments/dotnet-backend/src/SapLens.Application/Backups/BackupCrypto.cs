@@ -154,7 +154,7 @@ public static class BackupKeys
         catch (IOException) when (File.Exists(path) && new FileInfo(path).Length > 0) { throw new BackupException("The file already exists; keys are never overwritten.", 422); }
     }
 
-    internal static void WriteAtomic(string path, string text)
+    public static void WriteAtomic(string path, string text)
     {
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
         File.WriteAllText(temporary, text);

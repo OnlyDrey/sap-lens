@@ -7,6 +7,28 @@ if (ServerConfiguration.Informational(args) is { } information)
     Console.Out.WriteLine(information);
     return 0;
 }
+if (args.Contains("--backup-key"))
+{
+    // Local host backup key management: no listener; the key value is never printed.
+    try
+    {
+        var (action, path, data) = ServerConfiguration.BackupKey(args, Environment.GetEnvironmentVariable);
+        var result = action switch
+        {
+            "create" => SapLens.Application.Backups.BackupKeys.Create(path, data),
+            "use" => SapLens.Application.Backups.BackupKeys.Use(path, data),
+            "export" => SapLens.Application.Backups.BackupKeys.Export(path, data),
+            _ => SapLens.Application.Backups.BackupKeys.Status(data),
+        };
+        Console.Out.WriteLine(result.ToJsonString());
+        return 0;
+    }
+    catch (Exception error) when (error is InvalidOperationException or SapLens.Application.Backups.BackupException or IOException or UnauthorizedAccessException)
+    {
+        Console.Error.WriteLine($"backup key refused: {error.Message}");
+        return 3;
+    }
+}
 if (args.Contains("--check-sign-in"))
 {
     // Local, read-only sign-in diagnosis: no listener, no writes; the password is read from the console without echo (or from redirected input).

@@ -64,6 +64,9 @@ public static class V1Compatibility
         "POST /api/sod/reviews/{finding_id}", "GET /api/sod/reviews/{finding_id}/history",
         "GET /api/data-sources/sod/inspection", "POST /api/data-sources/sod/inspect",
         "POST /api/sod/reports/preview", "POST /api/sod/reports/{kind}", "POST /api/sod/reports/remediation/preview", "POST /api/sod/reports/remediation/{kind}", "POST /api/sod/reports/remediation/csv",
+        "GET /api/backups", "POST /api/backups/create", "POST /api/backups/key/verify", "POST /api/backups/cancel", "GET /api/backups/schedule", "POST /api/backups/schedule",
+        "GET /api/backups/history", "POST /api/backups/{identity}/delete", "POST /api/backups/upload", "POST /api/backups/uploads/{identity}/cancel", "POST /api/backups/restore",
+        "GET /api/backups/{identity}/download",
         "GET /api/account-review", "POST /api/account-review/decision/{username}", "GET /api/account-review/history/{username}",
         // Accounts mode (the Server default); in shared-token mode these answer 501.
         "POST /api/auth/activate", "POST /api/auth/recover", "POST /api/auth/login", "POST /api/auth/reset", "GET /api/auth/me", "GET /api/auth/sessions",
@@ -172,6 +175,7 @@ public static class V1Compatibility
         V1Diagnostics.Map(api);
         V1Compare.Map(api);
         V1SodDecisions.Map(api);
+        V1Backups.Map(api);
         V1Auth.Map(api, app.Services.GetRequiredService<HostSettings>());
 
         // Everything else the UI may call: explicit, visible "not migrated" (except /api/v1, which keeps its own 404s).

@@ -1,6 +1,7 @@
 using System.Text.Json;
 using SapLens.Application;
 using SapLens.Application.Accounts;
+using SapLens.Application.Backups;
 using SapLens.Persistence;
 
 namespace SapLens.Api;
@@ -13,6 +14,9 @@ public static class SapLensHost
         settings.Validate();
         DatabaseOptions.ValidateLocal(settings.DataDirectory);
         RefuseInsideApplication(settings.DataDirectory);
+        // A confirmed restore is applied before anything opens the database or the account store; it rolls back by itself on failure.
+        ApplicationBackups.ProductVersion = V1Compatibility.Version;
+        var restored = ApplicationBackups.ApplyPending(settings.DataDirectory, DateTimeOffset.UtcNow);
         var ui = UiAssets.Create();
         var tls = PrepareCertificate(settings);
         // Content root is the application directory (never the current working directory); no file is read from it at runtime.
@@ -49,6 +53,8 @@ public static class SapLensHost
         builder.Services.AddSingleton<LogoStore>();
         builder.Services.AddSingleton<SodPeriodStore>();
         builder.Services.AddSingleton<SodReviewStore>();
+        builder.Services.AddSingleton<ApplicationBackups>();
+        builder.Services.AddHostedService<BackupScheduler>();
         // The scheduled refresh imports through the job worker; without a worker (--no-worker) nothing would process it.
         if (settings.WorkerEnabled) builder.Services.AddHostedService<RefreshScheduler>();
         builder.Services.AddSingleton<RequestBoundaryTokenCheck>();
@@ -74,6 +80,7 @@ public static class SapLensHost
         var startup = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("SapLens.Startup");
         startup.LogInformation("Listening on {Address}:{Port} ({Scheme}), network access {Network}, allowed hosts {Hosts}", settings.ListenAddress, settings.Port,
             settings.Https ? "https" : "http", settings.NetworkAccess ? "enabled" : "disabled", settings.AllowedHosts.Count == 0 ? "loopback only" : string.Join(",", settings.AllowedHosts));
+        if (restored is not null) startup.LogWarning("Pending restore: {Outcome}", restored);
         if (settings.TrustedProxies.Count > 0)
             startup.LogInformation("Trusted reverse proxies {Proxies} ({Hops} hop(s)): X-Forwarded-For, -Proto and -Host applied from these peers only", string.Join(",", settings.TrustedProxies), settings.TrustedProxyHops);
         if (settings.Certificate is { } cert)

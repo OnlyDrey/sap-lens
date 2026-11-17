@@ -1,0 +1,273 @@
+using System.Net;
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Security.Cryptography;
+using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using SapLens.Api;
+using SapLens.Application.Backups;
+using SapLens.Persistence;
+
+namespace SapLens.Tests;
+
+/// <summary>Application backups and restore through the v1 routes: the host key and escrow, verified encrypted archives, history, download and delete,
+/// the schedule, staged restore with validation, the restart handoff with a destination recovery backup, rollback, and the Server account boundary.</summary>
+public sealed class ApplicationBackupTests : IAsyncLifetime
+{
+    private readonly string _root = Directory.CreateTempSubdirectory("saplens-backups-").FullName;
+    private readonly string _token = HostSettings.NewToken();
+    private WebApplication _app = null!;
+    private HttpClient _client = null!;
+    private string Data => Path.Combine(_root, "data");
+    private string KeyFile => Path.Combine(_root, "keys", "host.key");
+
+    public Task InitializeAsync() => Start();
+
+    private async Task Start(HostMode mode = HostMode.Desktop, AuthenticationMode auth = AuthenticationMode.SharedToken)
+    {
+        _app = SapLensHost.Build(new HostSettings { DataDirectory = Data, Port = 0, AccessToken = _token, JsonConsoleLogging = false, PrincipalName = "operator", Mode = mode, Authentication = auth });
+        await _app.StartAsync();
+        _client = new HttpClient { BaseAddress = new Uri(_app.Urls.First()) };
+        _client.DefaultRequestHeaders.Add(RequestBoundary.TokenHeader, _token);
+        _client.DefaultRequestHeaders.Add("Origin", _client.BaseAddress.GetLeftPart(UriPartial.Authority));
+    }
+
+    private async Task Stop()
+    {
+        _client.Dispose();
+        await _app.StopAsync();
+        await _app.DisposeAsync();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await Stop();
+        try { Directory.Delete(_root, true); } catch (IOException) { }
+    }
+
+    private async Task<(HttpStatusCode Status, JsonNode? Body)> Post(string path, object? body = null)
+    {
+        var response = body is null ? await _client.PostAsync(path, null) : await _client.PostAsJsonAsync(path, body);
+        var text = await response.Content.ReadAsStringAsync();
+        return (response.StatusCode, text.Length > 0 ? JsonNode.Parse(text) : null);
+    }
+
+    private async Task<JsonNode> Get(string path) => JsonNode.Parse(await _client.GetStringAsync(path))!;
+
+    private async Task<(HttpStatusCode Status, JsonNode? Body)> Upload(byte[] archive, string secret = "", string type = "application/octet-stream")
+    {
+        var content = new ByteArrayContent(archive);
+        content.Headers.ContentType = new MediaTypeHeaderValue(type);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/backups/upload") { Content = content };
+        if (secret.Length > 0) request.Headers.Add("X-SAP-Lens-Backup-Secret", Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(secret)));
+        var response = await _client.SendAsync(request);
+        return (response.StatusCode, JsonNode.Parse(await response.Content.ReadAsStringAsync()));
+    }
+
+    private void ConfigureKey()
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(KeyFile)!);
+        BackupKeys.Create(KeyFile, Data);
+    }
+
+    private async Task<int> SavedFilters() => (await Get("/api/saved-filters"))["items"]!.AsArray().Count;
+    private Task<(HttpStatusCode, JsonNode?)> SaveFilter(string name) => Post("/api/saved-filters", new { name, view = "users", filters = new { search = name } });
+
+    [Fact]
+    public async Task Backups_need_a_host_key_and_are_verified_encrypted_listed_downloaded_and_deleted_on_confirmation()
+    {
+        var status = await Get("/api/backups");
+        Assert.Equal("idle", (string)status["status"]!);
+        Assert.False((bool)status["key_provider"]!["configured"]!);
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/backups/create")).Status);
+
+        ConfigureKey();
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/backups/create", new { passphrase = "short" })).Status);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post("/api/backups/create", new { passphrase = "", extra = 1 })).Status);
+        var (code, created) = await Post("/api/backups/create");
+        Assert.Equal(HttpStatusCode.OK, code);
+        Assert.Equal(("ready", "backup"), ((string)created!["status"]!, (string)created["kind"]!));
+        var id = (string)created["id"]!;
+        Assert.Matches("^[a-f0-9]{32}$", id);
+
+        var history = await Get("/api/backups/history");
+        Assert.Equal(1, (int)history["total"]!);
+        Assert.Equal(("manual", "ready", true), ((string)history["items"]![0]!["origin"]!, (string)history["items"]![0]!["status"]!, (bool)history["items"]![0]!["verified"]!));
+
+        var download = await _client.GetAsync($"/api/backups/{id}/download?kind=backup");
+        Assert.Equal(HttpStatusCode.OK, download.StatusCode);
+        Assert.Equal($"SAP-Lens-backup-{id}.slbak", download.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
+        var bytes = await download.Content.ReadAsByteArrayAsync();
+        Assert.Equal((string)created["archive_sha256"]!, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+        Assert.True(BackupArchive.IsV2(bytes));
+        // The archive holds the database and account-free payload sealed with the host key; the plaintext is a zip with a manifest.
+        using (var plain = new MemoryStream())
+        {
+            BackupArchive.Unseal(new MemoryStream(bytes), plain, "", BackupKeys.Host(Data));
+            plain.Position = 0;
+            using var zip = new System.IO.Compression.ZipArchive(plain);
+            Assert.Contains(zip.Entries, e => e.FullName == ApplicationBackups.DatabaseEntry);
+            Assert.Contains(zip.Entries, e => e.FullName == ApplicationBackups.ManifestEntry);
+        }
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/backups/{id}/download?kind=other")).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await _client.GetAsync($"/api/backups/{new string('0', 32)}/download")).StatusCode);
+
+        // An altered archive is not offered for download.
+        var file = Path.Combine(Data, "backups", ApplicationBackups.ArchiveName(id));
+        var original = File.ReadAllBytes(file);
+        var altered = (byte[])original.Clone();
+        altered[^1] ^= 1;
+        File.WriteAllBytes(file, altered);
+        Assert.Equal(HttpStatusCode.Conflict, (await _client.GetAsync($"/api/backups/{id}/download")).StatusCode);
+        File.WriteAllBytes(file, original);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post($"/api/backups/{id}/delete", new { confirm = false })).Status);
+        var (deleted, after) = await Post($"/api/backups/{id}/delete", new { confirm = true });
+        Assert.Equal(HttpStatusCode.OK, deleted);
+        Assert.Equal(0, (int)after!["total"]!);
+        Assert.False(File.Exists(file));
+        Assert.Equal(HttpStatusCode.Conflict, (await Post($"/api/backups/{id}/delete", new { confirm = true })).Status);
+    }
+
+    [Fact]
+    public async Task Restore_is_validated_staged_and_applied_at_restart_with_a_destination_recovery_backup()
+    {
+        ConfigureKey();
+        Assert.Equal(HttpStatusCode.OK, (await SaveFilter("Before backup")).Item1);
+        var (_, created) = await Post("/api/backups/create", new { passphrase = "Synthetic restore passphrase" });
+        var id = (string)created!["id"]!;
+        var archive = await _client.GetByteArrayAsync($"/api/backups/{id}/download");
+        Assert.Equal(HttpStatusCode.OK, (await SaveFilter("After backup")).Item1);
+        Assert.Equal(2, await SavedFilters());
+
+        // Refusals: content type, an empty or foreign file, a SAP Lens 1 archive, a wrong passphrase, tampering. None changes data.
+        Assert.Equal(HttpStatusCode.UnsupportedMediaType, (await Upload(archive, type: "application/json")).Status);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload("not an archive"u8.ToArray())).Status);
+        var v1 = File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "Fixtures", "backups", "v1-passphrase.slbak"));
+        var (v1Status, v1Body) = await Upload(v1, "Synthetic v1 backup passphrase");
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, v1Status);
+        Assert.Contains("migration", (string)v1Body!["detail"]!);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload(archive, "Wrong restore passphrase")).Status);
+        var tampered = (byte[])archive.Clone();
+        tampered[^20] ^= 1;
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload(tampered, "Synthetic restore passphrase")).Status);
+        Assert.Empty(Directory.Exists(Path.Combine(Data, "restore")) ? Directory.GetDirectories(Path.Combine(Data, "restore")) : []);
+
+        var (staged, preview) = await Upload(archive, "Synthetic restore passphrase");
+        Assert.Equal(HttpStatusCode.OK, staged);
+        Assert.Equal(("restore", "ready", true), ((string)preview!["kind"]!, (string)preview["status"]!, (bool)preview["preview"]!["encrypted"]!));
+        Assert.Contains("application database", preview["preview"]!["categories"]!.AsArray().Select(c => (string)c!));
+        var restoreId = (string)preview["id"]!;
+        var sha = (string)preview["archive_sha256"]!;
+        Assert.Equal(2, await SavedFilters());                                              // staging never touches active data
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post("/api/backups/restore", new { id = restoreId, sha256 = sha, confirm = false, confirm_accounts = false })).Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/backups/restore", new { id = restoreId, sha256 = new string('a', 64), confirm = true, confirm_accounts = false })).Status);
+        var (confirmed, waiting) = await Post("/api/backups/restore", new { id = restoreId, sha256 = sha, confirm = true, confirm_accounts = false });
+        Assert.Equal(HttpStatusCode.OK, confirmed);
+        Assert.Equal("waiting_for_restart", (string)waiting!["status"]!);
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/backups/create")).Status);           // nothing else starts while a restore waits
+
+        await Stop();
+        await Start();
+        var done = await Get("/api/backups");
+        Assert.Equal("completed", (string)done["status"]!);
+        Assert.Equal(1, await SavedFilters());                                              // the state of the backup, not merged
+        var recovery = await _client.GetAsync($"/api/backups/{restoreId}/download?kind=destination-before-restore");
+        Assert.Equal(HttpStatusCode.OK, recovery.StatusCode);
+        var recoveryBytes = await recovery.Content.ReadAsByteArrayAsync();
+        Assert.Equal((string)done["destination_sha256"]!, Convert.ToHexStringLower(SHA256.HashData(recoveryBytes)));
+
+        // The destination recovery backup restores the pre-restore state (two filters) through the same path.
+        var (_, back) = await Upload(recoveryBytes);
+        await Post("/api/backups/restore", new { id = (string)back!["id"]!, sha256 = (string)back["archive_sha256"]!, confirm = true, confirm_accounts = false });
+        await Stop();
+        await Start();
+        Assert.Equal(2, await SavedFilters());
+    }
+
+    [Fact]
+    public async Task A_restore_that_fails_at_restart_is_rolled_back_and_a_pending_restore_can_be_cancelled()
+    {
+        ConfigureKey();
+        await SaveFilter("Kept");
+        var (_, created) = await Post("/api/backups/create");
+        var archive = await _client.GetByteArrayAsync($"/api/backups/{(string)created!["id"]!}/download");
+        await SaveFilter("Also kept");
+
+        var (_, preview) = await Upload(archive);
+        var restoreId = (string)preview!["id"]!;
+        await Post("/api/backups/restore", new { id = restoreId, sha256 = (string)preview["archive_sha256"]!, confirm = true, confirm_accounts = false });
+        Assert.Equal("cancelled", (string)(await Post("/api/backups/cancel")).Body!["status"]!);
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/backups/cancel")).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Post($"/api/backups/uploads/{restoreId}/cancel")).Status);
+
+        (_, preview) = await Upload(archive);
+        restoreId = (string)preview!["id"]!;
+        await Post("/api/backups/restore", new { id = restoreId, sha256 = (string)preview["archive_sha256"]!, confirm = true, confirm_accounts = false });
+        await Stop();
+        // A staged file altered after confirmation: the restart refuses it and rolls back.
+        File.AppendAllText(Path.Combine(Data, "restore", restoreId, "staged", ApplicationBackups.DatabaseEntry), "x");
+        await Start();
+        var status = await Get("/api/backups");
+        Assert.Equal("failed", (string)status["status"]!);
+        Assert.Contains("rolled back", (string)status["message"]!);
+        Assert.Equal(2, await SavedFilters());
+    }
+
+    [Fact]
+    public async Task The_schedule_needs_a_verified_recovery_copy_uses_revisions_and_creates_automatic_backups()
+    {
+        var schedule = await Get("/api/backups/schedule");
+        Assert.Equal((0, 7, false), ((int)schedule["revision"]!, (int)schedule["schedule"]!["keep"]!, (bool)schedule["encryption_ready"]!));
+        var enabled = new { revision = 0, schedule = new { enabled = true, mode = "daily", time = "02:00", cron = "0 2 * * *", timezone = "UTC", keep = 7 } };
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/backups/schedule", enabled)).Status);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post("/api/backups/schedule", new { revision = 0, schedule = new { keep = 0 } })).Status);
+
+        ConfigureKey();
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/backups/key/verify", new { recovery_key = Convert.ToBase64String(new byte[32]) })).Status);
+        var recovery = Path.Combine(_root, "keys", "recovery-copy.key");
+        BackupKeys.Export(recovery, Data);
+        var (verified, provider) = await Post("/api/backups/key/verify", new { recovery_key = File.ReadAllText(recovery).Trim() });
+        Assert.Equal(HttpStatusCode.OK, verified);
+        Assert.True((bool)provider!["escrow_verified"]!);
+
+        var (saved, status) = await Post("/api/backups/schedule", enabled);
+        Assert.Equal(HttpStatusCode.OK, saved);
+        Assert.Equal((1, true), ((int)status!["revision"]!, (bool)status["schedule"]!["enabled"]!));
+        Assert.NotEmpty(status["next_runs"]!.AsArray());
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/backups/schedule", enabled)).Status);         // stale revision
+
+        var backups = _app.Services.GetRequiredService<ApplicationBackups>();
+        var loader = _app.Services.GetRequiredService<DataLoadGate>();
+        var cursor = DateTimeOffset.UtcNow.Date.AddDays(1).AddHours(1);                                         // 01:00 UTC tomorrow
+        Assert.Equal("idle", await BackupSchedule.TickAsync(Data, backups, loader, cursor.AddMinutes(30), cursor, default));
+        Assert.Equal("ready", await BackupSchedule.TickAsync(Data, backups, loader, cursor.AddHours(2), cursor, default));
+        Assert.Equal("skipped", await BackupSchedule.TickAsync(Data, backups, loader, cursor.AddHours(2), cursor, default));  // never twice
+        var history = await Get("/api/backups/history");
+        Assert.Equal("scheduled", (string)history["items"]![0]!["origin"]!);
+        Assert.Equal("ready", (string)(await Get("/api/backups/schedule"))["attempts"]![0]!["status"]!);
+
+        // Retention: automatic archives older than the window are removed; manual ones stay.
+        await Post("/api/backups/create");
+        var factory = _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>();
+        var later = new ManualClock(DateTimeOffset.UtcNow.AddDays(91));
+        var pruned = await new ApplicationBackups(new DatabaseOptions { DataDirectory = Data }, factory, later).PruneAutomaticAsync(default);
+        Assert.Equal(1, pruned);
+        history = await Get("/api/backups/history");
+        Assert.Equal(["manual"], history["items"]!.AsArray().Select(i => (string)i!["origin"]!));
+    }
+
+    [Fact]
+    public async Task A_server_with_a_shared_token_refuses_application_backups()
+    {
+        await Stop();
+        await Start(HostMode.Server, AuthenticationMode.SharedToken);
+        var response = await _client.GetAsync("/api/backups");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await Post("/api/backups/create")).Status);
+    }
+}
