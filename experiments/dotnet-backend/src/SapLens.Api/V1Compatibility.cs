@@ -62,6 +62,7 @@ public static class V1Compatibility
         "GET /api/sod/periods", "POST /api/sod/periods", "GET /api/sod/periods/compare", "GET /api/sod/periods/{id}", "POST /api/sod/periods/{id}/transition",
         "POST /api/sod/periods/{id}/recapture", "POST /api/sod/periods/{id}/reviews/{finding_id}", "GET /api/sod/periods/{id}/deletion-impact", "POST /api/sod/periods/{id}/delete",
         "POST /api/sod/reviews/{finding_id}", "GET /api/sod/reviews/{finding_id}/history",
+        "GET /api/data-sources/sod/inspection", "POST /api/data-sources/sod/inspect",
         "POST /api/sod/reports/preview", "POST /api/sod/reports/{kind}", "POST /api/sod/reports/remediation/preview", "POST /api/sod/reports/remediation/{kind}", "POST /api/sod/reports/remediation/csv",
         "GET /api/account-review", "POST /api/account-review/decision/{username}", "GET /api/account-review/history/{username}",
         // Accounts mode (the Server default); in shared-token mode these answer 501.
@@ -155,6 +156,7 @@ public static class V1Compatibility
         SodPeriods.Map(api);
         V1SodGovernance.Map(api);
         SodReports.Map(api);
+        V1SodInspection.Map(api);
         V1ImportPreview.Map(api);
         V1Access.Map(api);
         V1DataHealth.Map(api);

@@ -157,7 +157,7 @@ public static partial class V1ImportPreview
 
     /// <summary>Desktop: the path as given (CsvImport requires an absolute .csv path). Server: only a file inside the server's own source folder, after
     /// resolving links, so a browser can never make the server read another file.</summary>
-    private static string Confine(HttpContext http, string path)
+    internal static string Confine(HttpContext http, string path)
     {
         var host = http.RequestServices.GetRequiredService<HostSettings>();
         if (host.Mode != HostMode.Server) return path;

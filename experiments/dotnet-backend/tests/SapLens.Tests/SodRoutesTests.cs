@@ -16,11 +16,11 @@ public sealed class SodRoutesTests : IAsyncLifetime
     private WebApplication _app = null!;
     private HttpClient _client = null!;
 
-    private static string Fixture(params string[] path) => Path.Combine([AppContext.BaseDirectory, "Fixtures", "sod", .. path]);
+    private static string Fixture(params string[] path) => System.IO.Path.Combine([AppContext.BaseDirectory, "Fixtures", "sod", .. path]);
 
     public async Task InitializeAsync()
     {
-        _app = SapLensHost.Build(new HostSettings { DataDirectory = Path.Combine(_root, "data"), Port = 0, AccessToken = _token, JsonConsoleLogging = false, Mode = HostMode.Desktop });
+        _app = SapLensHost.Build(new HostSettings { DataDirectory = System.IO.Path.Combine(_root, "data"), Port = 0, AccessToken = _token, JsonConsoleLogging = false, Mode = HostMode.Desktop });
         await _app.StartAsync();
         _client = new HttpClient { BaseAddress = new Uri(_app.Urls.First()) };
         _client.DefaultRequestHeaders.Add(RequestBoundary.TokenHeader, _token);
@@ -90,5 +90,26 @@ public sealed class SodRoutesTests : IAsyncLifetime
             failures.Add($"{name}: {string.Join(" | ", detail)}");
         }
         Assert.True(failures.Count == 0, string.Join("\n", failures));
+    }
+
+    [Fact]
+    public async Task Sod_source_inspection_describes_the_active_snapshot_and_a_candidate_file()
+    {
+        var active = JsonNode.Parse(await _client.GetStringAsync("/api/data-sources/sod/inspection"))!;
+        Assert.True((bool)active["loaded"]!);
+        Assert.Equal(7, active["checks"]!.AsArray().Count);
+        Assert.True((int)active["counts"]!["risks"]! > 0);
+        Assert.Equal(10, active["columns"]!.AsArray().Count);
+        Assert.Equal(5, active["descriptions"]!["indicators"]!.AsArray().Count);
+        Assert.True(active["samples"]!.AsArray().Count is > 0 and <= 20);
+
+        var file = System.IO.Path.Combine(_root, "candidate.csv");
+        File.Copy(Fixture("analysis", "sod.sod.txt"), file);
+        var request = new HttpRequestMessage(HttpMethod.Post, "/api/data-sources/sod/inspect") { Content = new StringContent(new JsonObject { ["path"] = file }.ToJsonString(), Encoding.UTF8, "application/json") };
+        request.Headers.Add("Origin", _client.BaseAddress!.GetLeftPart(UriPartial.Authority));
+        var candidate = JsonNode.Parse(await (await _client.SendAsync(request)).Content.ReadAsStringAsync())!;
+        Assert.True((bool)candidate["valid"]!, candidate.ToJsonString());
+        Assert.Equal((int)active["counts"]!["risks"]!, (int)candidate["counts"]!["risks"]!);
+        Assert.All(candidate["columns"]!.AsArray(), c => Assert.Equal("detected", (string)c!["state"]!));
     }
 }

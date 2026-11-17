@@ -119,7 +119,7 @@ public static class V1SodCatalogue
 
     // ---- sod_metadata.lookup
 
-    private static Dictionary<string, object?> Resolve(string? imported, string? local, string? reference)
+    internal static Dictionary<string, object?> Resolve(string? imported, string? local, string? reference)
     {
         var values = new[] { ("local", local), ("imported", imported), ("reference", reference) }.Select(v => (v.Item1, Value: (v.Item2 ?? "").Trim())).Where(v => v.Value.Length > 0).ToList();
         if (values.Count == 0) return new() { ["value"] = "", ["origin"] = null, ["alternate"] = "", ["alternate_origin"] = null };
