@@ -58,12 +58,26 @@ public static class V1Refresh
         finally { gate.Loading.Release(); }
     }
 
-    private static async Task<JsonObject> RefreshAsync(IServiceProvider services, string actor, CancellationToken ct)
+    /// <summary>MIG-002, csv_lifecycle.load(operation="import") from a settings save: the sources whose import format changed are imported again with
+    /// the candidate settings (whatever their mode); the others are not touched. The candidate settings are saved only when every forced source imported
+    /// (v1 commits the configuration with the data). Returns the report, or busy.</summary>
+    public static async Task<(JsonObject? Report, bool Busy)> ImportWithSettingsAsync(IServiceProvider services, string actor, JsonObject candidate, IReadOnlySet<string> forced,
+        Action<JsonObject> save, CancellationToken ct)
     {
+        var gate = services.GetRequiredService<DataLoadGate>();
+        if (!await gate.Loading.WaitAsync(0, ct)) return (null, true);
+        try { return (await RefreshAsync(services, actor, ct, candidate, forced, save), false); }
+        finally { gate.Loading.Release(); }
+    }
+
+    private static async Task<JsonObject> RefreshAsync(IServiceProvider services, string actor, CancellationToken ct, JsonObject? candidate = null,
+        IReadOnlySet<string>? forced = null, Action<JsonObject>? save = null)
+    {
+        var operation = forced is null ? "refresh" : "import";
         var store = services.GetRequiredService<V1Settings>();
         var factory = services.GetRequiredService<IDbContextFactory<SapLensDb>>();
         var clock = services.GetRequiredService<TimeProvider>();
-        var settings = await store.GetAsync(ct);
+        var settings = candidate ?? await store.GetAsync(ct);
         var stamp = V1DataSources.Stamp(clock);
         var lifecycle = settings["data_lifecycle"]!.AsObject();
         var features = settings["features"] as JsonObject ?? [];
@@ -86,9 +100,10 @@ public static class V1Refresh
             var mode = (string?)modes[source] ?? (source is "roles" or "users" ? "dynamic" : "static");
             var result = new JsonObject { ["source"] = source, ["name"] = V1DataSources.Names[source], ["mode"] = mode, ["checked_at"] = stamp };
             results.Add(result);
-            if (path.Length == 0 || !enabled || mode == "static")
+            var force = forced?.Contains(source) == true;
+            if (path.Length == 0 || !force && (!enabled || mode == "static" || forced is not null))
             {
-                var reason = path.Length == 0 ? "unconfigured" : !enabled ? "disabled" : "static";
+                var reason = path.Length == 0 ? "unconfigured" : forced is not null ? "not_selected" : !enabled ? "disabled" : "static";
                 result["status"] = "skipped"; result["reason"] = reason; result["message"] = $"Source skipped: {reason}.";
                 continue;
             }
@@ -146,7 +161,7 @@ public static class V1Refresh
         var reportId = V1DataSources.NewReportId();
         var report = new JsonObject
         {
-            ["version"] = 1, ["timestamp"] = stamp, ["operation"] = "refresh", ["sources"] = new JsonArray([.. results]),
+            ["version"] = 1, ["timestamp"] = stamp, ["operation"] = operation, ["sources"] = new JsonArray([.. results]),
             ["checked"] = results.Count - Count("skipped"), ["updated"] = updated, ["unchanged"] = Count("unchanged"), ["failed"] = failed, ["skipped"] = Count("skipped"),
             ["status"] = failed > 0 && successful > 0 ? "partial" : failed > 0 ? "failed" : updated > 0 ? "changed" : "unchanged", ["id"] = reportId,
         };
@@ -155,13 +170,14 @@ public static class V1Refresh
             if (changes.TryGetValue((string)result["source"]!, out var list)) result["changes"] = list;
         await services.GetRequiredService<WriteCoordinator>().WriteAsync((w, _) =>
         {
-            w.RefreshReports.Add(new RefreshReport { Id = reportId, TimestampUtc = clock.GetUtcNow().UtcDateTime, Operation = "refresh", Status = (string)report["status"]!, Json = stored.ToJsonString() });
+            w.RefreshReports.Add(new RefreshReport { Id = reportId, TimestampUtc = clock.GetUtcNow().UtcDateTime, Operation = operation, Status = (string)report["status"]!, Json = stored.ToJsonString() });
             return Task.CompletedTask;
         }, ct);
         await store.UpdateAsync(null, s =>
         {
             var lifecycleNow = s["data_lifecycle"]!.AsObject();
-            if ((int)report["checked"]! > 0) lifecycleNow[failed > 0 ? "last_failed_refresh" : "last_successful_refresh"] = stamp;
+            if (operation == "refresh" && (int)report["checked"]! > 0) lifecycleNow[failed > 0 ? "last_failed_refresh" : "last_successful_refresh"] = stamp;
+            if (save is not null && failed == 0) save(s);
             foreach (var (source, reference) in references)
             {
                 lifecycleNow["sources"]![source] = reference.DeepClone();

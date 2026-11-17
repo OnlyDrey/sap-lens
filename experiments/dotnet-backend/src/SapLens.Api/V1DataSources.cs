@@ -36,11 +36,41 @@ public static partial class V1DataSources
             if (body is null || body["revision"] is not JsonValue revisionValue || !revisionValue.TryGetValue<int>(out var revision)) return Detail(422, "A settings document with its revision is required.");
             var current = await store.GetAsync(ct);
             if (V1Settings.Validate(body, current) is { } problem) return Detail(problem.StartsWith("Source files", StringComparison.Ordinal) ? 400 : 422, problem);
-            await store.UpdateAsync(revision, settings =>
+            // perform_apply: an enabled schedule must also satisfy the run checks (minimum interval, time zone available).
+            if (body["refresh_schedule"] is JsonObject schedule && V1RefreshSchedule.Parse(schedule.DeepClone().AsObject()).Schedule is { Enabled: true } enabled)
+                try { SapLens.Domain.Scheduling.CronSchedule.Check(enabled.Expression, enabled.Timezone, DateTimeOffset.UtcNow); }
+                catch (ArgumentException error) { return Detail(422, error.Message); }
+            if ((int)current["revision"]! != revision) return Detail(409, "Settings changed. Reload before applying your edits.");
+            void Apply(JsonObject settings)
             {
                 foreach (var (key, value) in body)
                     if (!V1Settings.ServerManaged.Contains(key)) settings[key] = value?.DeepClone();
-            }, Actors.Name(http), ct);
+                // Profile versions increase automatically when their content changes.
+                foreach (var list in new[] { "import_profiles", "user_import_profiles" })
+                    foreach (var profile in settings[list]?.AsArray().OfType<JsonObject>() ?? [])
+                        if (current[list]?.AsArray().OfType<JsonObject>().FirstOrDefault(p => (string?)p["id"] == (string?)profile["id"]) is { } previous)
+                            Versioned(profile, previous);
+                if (settings["sod_import"] is JsonObject sod && current["sod_import"] is JsonObject previousSod) Versioned(sod, previousSod);
+            }
+            // MIG-002: a changed import format of a source with a file is applied by importing that source again before the settings are saved.
+            var candidate = current.DeepClone().AsObject();
+            Apply(candidate);
+            var forced = new HashSet<string>();
+            foreach (var source in new[] { "roles", "users", "sod" })
+                if ((string?)current[PathField[source]] is { Length: > 0 } && ActiveProfileJson(candidate, source) != ActiveProfileJson(current, source)) forced.Add(source);
+            if (forced.Count > 0)
+            {
+                var (report, busy) = await V1Refresh.ImportWithSettingsAsync(http.RequestServices, Actors.Name(http), candidate, forced, Apply, ct);
+                if (busy) return Detail(409, "A CSV is already loading. Wait or cancel it before trying another file.");
+                var failure = report!["sources"]!.AsArray().OfType<JsonObject>().FirstOrDefault(r => (string?)r["status"] == "failed");
+                if (failure is not null)
+                    return Detail((string?)failure["category"] == "needs_confirmation" ? 409 : 400, new JsonObject
+                    {
+                        ["status"] = "failed", ["source"] = failure["source"]!.DeepClone(), ["category"] = failure["category"]!.DeepClone(), ["message"] = failure["message"]!.DeepClone(),
+                        ["recovery"] = failure["recovery"]?.DeepClone(), ["previous_preserved"] = true,
+                    });
+            }
+            else await store.UpdateAsync(revision, Apply, Actors.Name(http), ct);
             return Results.Content((await V1Compatibility.ConfigurationResponse(store, factory, ct)).ToJsonString(), "application/json");
         });
         api.MapPost("/configuration/theme", async (HttpContext http, V1Settings store, IDbContextFactory<SapLensDb> factory, HostSettings host, CancellationToken ct) =>
@@ -296,6 +326,16 @@ public static partial class V1DataSources
             list.Add(copy);
         }
         return list;
+    }
+
+    private static string ActiveProfileJson(JsonObject settings, string source)
+    {
+        if (source == "sod") return settings["sod_import"]?.ToJsonString() ?? "";
+        var (list, active) = source == "roles" ? ("import_profiles", "active_import") : ("user_import_profiles", "active_user_import");
+        var profile = settings[list]?.AsArray().OfType<JsonObject>().FirstOrDefault(p => (string?)p["id"] == (string?)settings[active])?.DeepClone().AsObject();
+        profile?.Remove("version");
+        profile?.Remove("name");
+        return profile?.ToJsonString() ?? "";
     }
 
     internal static string NewReportId() => Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(32));
