@@ -65,9 +65,38 @@ public sealed class V1Settings(WriteCoordinator writer, IDbContextFactory<SapLen
         // The RefreshSchedule model (a readable daily time or cron expression, a valid zone name pattern).
         if (candidate["refresh_schedule"] is JsonObject schedule && V1RefreshSchedule.Parse(schedule.DeepClone().AsObject()).Error is { } scheduleError)
             return $"refresh_schedule: {scheduleError}";
+        if (candidate["module_overrides"] is JsonObject overrides && ValidateModuleOverrides(overrides) is { } moduleError) return moduleError;
         foreach (var field in PathFields)
             if (candidate.ContainsKey(field) && (string?)candidate[field] != (string?)current[field])
                 return "Source files change through Data Sources (choose or upload a file), not through a settings save.";
+        return null;
+    }
+
+    /// <summary>v1 AppConfig.module_overrides: at most 100 entries keyed by a stable registry id; ModuleOverride fields only (display_name up to 100
+    /// characters, a supported icon, a #rrggbb colour, enabled).</summary>
+    private static string? ValidateModuleOverrides(JsonObject overrides)
+    {
+        if (overrides.Count > 100) return "module_overrides: at most 100 entries.";
+        var icons = V1Compatibility.RegistryIcons().ToHashSet(StringComparer.Ordinal);
+        foreach (var (id, value) in overrides)
+        {
+            if (!V1Compatibility.IsRegistryId(id)) return "Module overrides must use a stable registry identifier.";
+            if (value is not JsonObject entry) return $"module_overrides.{id}: an object is required.";
+            foreach (var (field, item) in entry)
+            {
+                if (item is null) { if (field is "display_name" or "icon" or "color") continue; return $"module_overrides.{id}.{field}: a value is required."; }
+                var kind = item.GetValueKind();
+                var ok = field switch
+                {
+                    "display_name" => kind == System.Text.Json.JsonValueKind.String && ((string)item!).Length <= 100,
+                    "icon" => kind == System.Text.Json.JsonValueKind.String && icons.Contains((string)item!),
+                    "color" => kind == System.Text.Json.JsonValueKind.String && System.Text.RegularExpressions.Regex.IsMatch((string)item!, "^#[0-9a-fA-F]{6}$"),
+                    "enabled" => kind is System.Text.Json.JsonValueKind.True or System.Text.Json.JsonValueKind.False,
+                    _ => false,
+                };
+                if (!ok) return field == "icon" && kind == System.Text.Json.JsonValueKind.String ? "Choose a supported icon." : $"module_overrides.{id}.{field} is not valid.";
+            }
+        }
         return null;
     }
 

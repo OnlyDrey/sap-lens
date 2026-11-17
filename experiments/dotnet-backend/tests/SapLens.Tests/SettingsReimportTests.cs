@@ -87,4 +87,46 @@ public sealed class SettingsReimportTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync("/api/configuration", settings)).StatusCode);
         Assert.Equal(HttpStatusCode.Conflict, (await _client.PostAsJsonAsync("/api/configuration", settings)).StatusCode);
     }
+
+    [Fact]
+    public async Task Module_overrides_rename_catalogue_areas_and_are_validated_like_v1()
+    {
+        var file = Path.Combine(_root, "roles-modules.csv");
+        File.WriteAllText(file, "FUNCTION_KEY;AGR_NAME;TEXT;TCODE\n" + string.Join('\n', Enumerable.Range(0, 30).Select(i => $"{(i < 20 ? "FI" : "MM")};ZC:X:ROLE_{i:000};Role {i};T{i:000}")) + "\n");
+        Assert.True((await _client.PostAsJsonAsync("/api/data-sources/roles/select", new { path = file, revision = (int)(await Settings())["revision"]!, mode = "static" })).IsSuccessStatusCode);
+        async Task<string> RoleArea() => (string)JsonNode.Parse(await _client.GetStringAsync("/api/roles/ZC:X:ROLE_001"))!["module_name"]!;
+        Assert.Equal("Financial Accounting", await RoleArea());
+
+        // module_definition: a display name renames the area in catalogue responses (v1 rebuilds the catalogue), the registry keeps the defaults.
+        var settings = await Settings();
+        settings["module_overrides"] = new JsonObject { ["FI"] = new JsonObject { ["display_name"] = "Finance Core", ["color"] = "#112233", ["enabled"] = false } };
+        var saved = await _client.PostAsJsonAsync("/api/configuration", settings);
+        Assert.True(saved.IsSuccessStatusCode, await saved.Content.ReadAsStringAsync());
+        Assert.Equal("Finance Core", await RoleArea());
+        var fi = JsonNode.Parse(await _client.GetStringAsync("/api/registry/modules"))!["modules"]!.AsArray().Single(m => (string)m!["id"]! == "FI")!;
+        Assert.Equal(("Finance Core", "Financial Accounting", "#112233", "#6f8fc5", false), ((string)fi["name"]!, (string)fi["default_name"]!, (string)fi["color"]!, (string)fi["default_color"]!, (bool)fi["enabled"]!));
+        var modules = JsonNode.Parse(await _client.GetStringAsync("/api/modules"))!.AsArray();
+        Assert.Equal("Finance Core", (string)modules.Single(m => (string)m!["function_key"]! == "FI")!["module_name"]!);
+        Assert.Equal("Materials Management", (string)modules.Single(m => (string)m!["function_key"]! == "MM")!["module_name"]!);
+
+        // Clearing the override restores the registry name.
+        settings = await Settings();
+        settings["module_overrides"] = new JsonObject();
+        Assert.True((await _client.PostAsJsonAsync("/api/configuration", settings)).IsSuccessStatusCode);
+        Assert.Equal("Financial Accounting", await RoleArea());
+
+        // Refusals: unknown id, unsupported icon, bad colour, unknown field.
+        foreach (var bad in new JsonObject[]
+        {
+            new() { ["NOT_A_MODULE"] = new JsonObject { ["display_name"] = "X" } },
+            new() { ["FI"] = new JsonObject { ["icon"] = "NotAnIcon" } },
+            new() { ["FI"] = new JsonObject { ["color"] = "red" } },
+            new() { ["FI"] = new JsonObject { ["label"] = "X" } },
+        })
+        {
+            settings = await Settings();
+            settings["module_overrides"] = bad;
+            Assert.Equal(HttpStatusCode.UnprocessableEntity, (await _client.PostAsJsonAsync("/api/configuration", settings)).StatusCode);
+        }
+    }
 }

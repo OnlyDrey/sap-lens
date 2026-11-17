@@ -65,8 +65,10 @@ public static class CatalogueBuilder
         public readonly HashSet<(string, string, string)> Relationships = []; public readonly HashSet<string> Texts = new(StringComparer.Ordinal);
     }
 
-    public static RoleCatalogue Build(IEnumerable<IReadOnlyDictionary<string, string>> records)
+    /// <param name="moduleName">Display name per module id (v1 module_definition with the saved module_overrides); the registry name by default.</param>
+    public static RoleCatalogue Build(IEnumerable<IReadOnlyDictionary<string, string>> records, Func<string, string>? moduleName = null)
     {
+        moduleName ??= ModuleRegistry.Name;
         var order = new List<string>();
         var raw = new Dictionary<string, RoleDraft>(StringComparer.Ordinal);
         var assignments = new HashSet<string>(StringComparer.Ordinal);
@@ -118,7 +120,7 @@ public static class CatalogueBuilder
                 .Select(r => new AssignmentSource(Null(r.Item1), Null(r.Item2), Null(r.Item3))).ToList();
             var role = new Role
             {
-                AgrName = name, Text = data.Text, FunctionKey = moduleId, ModuleName = ModuleRegistry.Name(moduleId), TcodeCount = codes.Count, SingleRoles = singles,
+                AgrName = name, Text = data.Text, FunctionKey = moduleId, ModuleName = moduleName(moduleId), TcodeCount = codes.Count, SingleRoles = singles,
                 Relationships = relationships, ModuleAmbiguous = ambiguous, SourceModules = data.Modules,
                 AlternateDescriptions = data.Texts.Where(t => t != data.Text).Order(StringComparer.Ordinal).ToList(),
             };

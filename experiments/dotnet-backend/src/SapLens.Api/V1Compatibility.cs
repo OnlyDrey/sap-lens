@@ -87,7 +87,14 @@ public static class V1Compatibility
         }));
         api.MapGet("/configuration", Configuration);
         api.MapGet("/presentation", Configuration);
-        api.MapGet("/registry/modules", () => Results.Content(Registry.Value.ToJsonString(), "application/json"));
+        // registry_list(overrides): effective entries with the saved overrides, plus the canonical defaults the Settings editor needs.
+        api.MapGet("/registry/modules", async (V1Settings store, CancellationToken ct) =>
+        {
+            var overrides = (await store.GetAsync(ct))["module_overrides"] as JsonObject;
+            var registry = Registry.Value.DeepClone().AsObject();
+            registry["modules"] = new JsonArray([.. registry["modules"]!.AsArray().Select(m => (JsonNode)Effective(m!.AsObject(), overrides))]);
+            return Results.Content(registry.ToJsonString(), "application/json");
+        });
         api.MapGet("/version", () => new { app = "SAP Lens", version = Version, mode = "dotnet-preview" });
         api.MapGet("/application-info", () => new
         {
@@ -104,10 +111,11 @@ public static class V1Compatibility
             native_dialogs = false, source_path_policy = settings.Mode == HostMode.Server ? "configured_root" : "desktop_filesystem",
         });
 
-        api.MapGet("/modules", async (SnapshotService snapshots, CancellationToken ct) =>
+        api.MapGet("/modules", async (SnapshotService snapshots, V1Settings store, CancellationToken ct) =>
         {
             var snapshot = await snapshots.GetAsync(ct);
-            return snapshot.Catalogue.Ordered.Select(r => r.FunctionKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(ModuleInfo).ToList();
+            var overrides = (await store.GetAsync(ct))["module_overrides"] as JsonObject;
+            return snapshot.Catalogue.Ordered.Select(r => r.FunctionKey).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).Select(k => ModuleInfo(k, overrides)).ToList();
         });
 
         api.MapGet("/roles", async (SnapshotService snapshots, [FromQuery(Name = "function_key")] string? functionKey, [FromQuery(Name = "function_keys")] string[]? functionKeys,
@@ -188,11 +196,27 @@ public static class V1Compatibility
     private static JsonObject? RegistryEntry(string id) =>
         Registry.Value["modules"]!.AsArray().Select(m => m!.AsObject()).FirstOrDefault(m => (string?)m["id"] == id);
 
-    internal static bool ModuleEnabled(string functionKey) => (bool?)(RegistryEntry(functionKey) ?? RegistryEntry("UNCLASSIFIED")!)["enabled"] ?? true;
+    /// <summary>The registry ids a module override may use (v1: stable registry identifiers only).</summary>
+    internal static bool IsRegistryId(string id) => RegistryEntry(id) is not null;
+    internal static IEnumerable<string> RegistryIcons() => Registry.Value["icons"]!.AsArray().Select(i => (string)i!);
 
-    private static object ModuleInfo(string functionKey)
+    /// <summary>module_definition: the registry entry with its saved override applied (non-null fields), named by display_name when one is set.</summary>
+    private static JsonObject Effective(JsonObject entry, JsonObject? overrides)
     {
-        var entry = RegistryEntry(functionKey) ?? RegistryEntry("UNCLASSIFIED")!;
+        var item = entry.DeepClone().AsObject();
+        if (overrides?[(string)entry["id"]!] is JsonObject chosen)
+            foreach (var (key, value) in chosen)
+                if (value is not null) item[key] = value.DeepClone();
+        if (item["display_name"] is JsonValue name && name.TryGetValue<string>(out var text) && text.Length > 0) item["name"] = text;
+        return item;
+    }
+
+    internal static bool ModuleEnabled(string functionKey, JsonObject? overrides = null) =>
+        (bool?)Effective(RegistryEntry(functionKey) ?? RegistryEntry("UNCLASSIFIED")!, overrides)["enabled"] ?? true;
+
+    private static object ModuleInfo(string functionKey, JsonObject? overrides)
+    {
+        var entry = Effective(RegistryEntry(functionKey) ?? RegistryEntry("UNCLASSIFIED")!, overrides);
         return new
         {
             function_key = (string?)entry["id"], module_name = (string?)entry["name"], icon = (string?)entry["icon"], color = (string?)entry["color"],

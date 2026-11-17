@@ -29,7 +29,7 @@ public static class V1Dashboard
             });
             Add("roles", "Catalogue roles", catalogue ? state.Catalogue.Roles.Count : null, "roles", "Open the complete role catalogue.");
             Add("areas", "Enabled SAP areas", catalogue ? state.Catalogue.Ordered.Select(r => r.FunctionKey).Distinct(StringComparer.Ordinal)
-                .Select(k => V1Compatibility.ModuleEnabled(k) ? 1 : 0).Sum() : null, "roles", "Open Role Lookup and its SAP area filters.");
+                .Select(k => V1Compatibility.ModuleEnabled(k, settings["module_overrides"] as System.Text.Json.Nodes.JsonObject) ? 1 : 0).Sum() : null, "roles", "Open Role Lookup and its SAP area filters.");
             Add("mappings", "Role/T-code mappings", catalogue ? state.Catalogue.Ordered.Sum(r => r.TcodeCount) : null, "roles", "Distinct role/code pairs; open Role Lookup.");
             var reason = mappingEnabled ? "User Access CSV not loaded" : "User–Role Mapping disabled";
             var assignments = state.Users.Assignments;
