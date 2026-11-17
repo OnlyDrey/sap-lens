@@ -70,7 +70,7 @@ public static class PythonText
         string problem;
         try
         {
-            if ("ﬁ Ｆ Ⅻ".Normalize(NormalizationForm.FormKC) == "fi F XII") return CultureInfo.InvariantCulture.CompareInfo.Version?.ToString() ?? "unknown";
+            if ("ﬁ Ｆ Ⅻ".Normalize(NormalizationForm.FormKC) == "fi F XII") return CultureInfo.InvariantCulture.CompareInfo.Version is { } v ? $"sort version {v.FullVersion}" : "unknown";
             problem = "Unicode normalization (NFKC) is unavailable";
         }
         catch (PlatformNotSupportedException) { problem = "the runtime is in globalization-invariant mode"; }
