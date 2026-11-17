@@ -4,7 +4,8 @@
 
 .DESCRIPTION
   1. Builds the React UI from frontend/ (npm ci + npm run build; Node.js 24 or 25, as frontend/package.json requires).
-  2. Builds the .NET solution (Release) and runs the test suite (unless -SkipTests; -SkipPublishTests skips only the slow publish tests).
+  2. Builds the .NET solution (Release) and runs the test suite (unless -SkipTests; -SkipPublishTests skips only the slow publish tests;
+     -TestFilter runs only the matching tests, as a deployment's focused validation does).
   3. Publishes both self-contained single-file executables (no trimming, Native AOT or compression) into a new versioned release folder:
 
        <Output>\SAP-Lens-2-<version>-<yyyyMMdd-HHmmss>-<commit>-win-x64\
@@ -25,7 +26,9 @@
 param(
     [string]$Output = '',
     [switch]$SkipTests,
-    [switch]$SkipPublishTests
+    [switch]$SkipPublishTests,
+    # Runs only the tests matching this dotnet test filter (for example a deployment's focused selection) instead of the whole suite.
+    [string]$TestFilter = ''
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
@@ -71,7 +74,7 @@ try {
 # embedded from the dist just built), never older binaries left in tests\*\bin.
 Invoke-Step 'Build the .NET solution' { & dotnet build (Join-Path $root 'SapLens.slnx') -c Release $identity }
 if (-not $SkipTests) {
-    $filter = if ($SkipPublishTests) { 'Category!=Publish' } else { '' }
+    $filter = if ($TestFilter) { $TestFilter } elseif ($SkipPublishTests) { 'Category!=Publish' } else { '' }
     if ($filter) { Invoke-Step 'Run tests' { & dotnet test (Join-Path $root 'tests\SapLens.Tests') -c Release --no-build --filter $filter } }
     else { Invoke-Step 'Run tests' { & dotnet test (Join-Path $root 'tests\SapLens.Tests') -c Release --no-build } }
 }
