@@ -270,4 +270,43 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await Post("/api/backups/create")).Status);
     }
+
+    [Fact]
+    public async Task The_pre_migration_backup_waits_for_confirmation_is_kept_after_it_and_is_deleted_only_explicitly()
+    {
+        var status = await Get("/api/storage/status");
+        Assert.Equal(("ready", false), ((string)status["state"]!, (bool)status["requires_confirmation"]!));
+        Assert.True((int)status["schema_version"]! > 0);
+        Assert.Null(status["backup"]);
+
+        // A migration backup as DatabaseMaintenance records it before applying schema migrations.
+        var maintenance = _app.Services.GetRequiredService<DatabaseMaintenance>();
+        var record = await maintenance.BackupAsync(BackupKind.Migration, "before migrations Synthetic", recordInDatabase: true);
+        var id = record.Sha256[..32];
+        status = await Get("/api/storage/status");
+        Assert.True((bool)status["requires_confirmation"]!);
+        Assert.Equal(id, (string)status["backup"]!["id"]!);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post("/api/storage/migration/confirm", new { migration_id = id, confirm = false })).Status);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post("/api/storage/migration/confirm", new { migration_id = "x", confirm = true })).Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/storage/migration/delete-backup", new { migration_id = id, confirm = true })).Status);   // not confirmed yet
+        Assert.Equal(HttpStatusCode.Conflict, (await Post("/api/storage/migration/confirm", new { migration_id = new string('0', 32), confirm = true })).Status);
+        var (confirmed, after) = await Post("/api/storage/migration/confirm", new { migration_id = id, confirm = true });
+        Assert.Equal(HttpStatusCode.OK, confirmed);
+        Assert.False((bool)after!["requires_confirmation"]!);
+        Assert.Equal(("operator", id), ((string)after["retained"]!["confirmed_by"]!, (string)after["retained"]!["id"]!));
+        var file = Path.Combine(Data, "backups", record.FileName);
+        Assert.True(File.Exists(file));                                                                  // confirmation keeps the archive
+
+        // Neither automatic-backup retention nor the backup history touches it.
+        var factory = _app.Services.GetRequiredService<IDbContextFactory<SapLensDb>>();
+        await new ApplicationBackups(new DatabaseOptions { DataDirectory = Data }, factory, new ManualClock(DateTimeOffset.UtcNow.AddYears(2))).PruneAutomaticAsync(default);
+        Assert.True(File.Exists(file));
+        Assert.Equal(0, (int)(await Get("/api/backups/history"))["total"]!);
+
+        var (deleted, final) = await Post("/api/storage/migration/delete-backup", new { migration_id = id, confirm = true });
+        Assert.Equal(HttpStatusCode.OK, deleted);
+        Assert.Null(final!["retained"]);
+        Assert.False(File.Exists(file));
+    }
 }
