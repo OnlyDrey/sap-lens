@@ -43,11 +43,32 @@ Baseline 2026-11-16 at `902ddba`: route audit **83 of 145** UI route strings imp
 | Migration of existing v1 data (decisions, lifecycle memory, evidence, reviews, settings) | JSON stores | - | Missing | Pending | - | All stores above | Import with verification ([MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md)) | MIG-014 |
 | Packaging, versioning, Windows service, reverse proxy | v1 installers and scripts | `build-release.*`, `ProductIdentity`, `ProxyTrust` | Done (Linux) | Contract | `PublishTests`, `VersioningTests`, Pester | Windows VM | Native Windows acceptance of Server, Desktop, service and upgrade | - |
 
-## Blockers found during migration
+## Blockers and gap register (migration attempt 2026-11-17)
 
-| ID | Affects | Blocker | Decision needed |
+State: **MIGRATION_ATTEMPT_COMPLETE_WITH_GAPS** at `935f5ce` (route audit 93 of 145). Not production-ready. Root causes:
+
+| ID | Root cause | Affects | Decision needed |
 | --- | --- | --- | --- |
-| BLK-GLOBALIZATION | MIG-004 (name and Directory text folding), MIG-008 (IANA time zones on Windows) | `Directory.Build.props` builds the server with `InvariantGlobalization=true`. NFKC normalization of compatibility characters (ligatures, full-width letters, no-break space) is then unavailable, so v1's `normalize_text` differs for such text (test `Compatibility_characters_fold_like_python_v1` is skipped with this ID). On Windows, IANA zone names such as `Europe/Oslo` need ICU; `local` and `UTC` always work. | Yes: enable ICU for the server (Windows ships ICU; Linux needs libicu), or accept the gap |
+| BLK-GLOBALIZATION | `Directory.Build.props` builds the server with `InvariantGlobalization=true`: no NFKC folding of compatibility characters (ligatures, full-width letters, no-break space), and on Windows no IANA time zone names (`local` and `UTC` work) | MIG-004, MIG-003 text folding (test `Compatibility_characters_fold_like_python_v1` skipped with this ID); MIG-008 schedules in IANA zones on Windows | Yes: enable ICU for the server (Windows ships ICU; Linux needs libicu) or accept the gap |
+| BLK-IMAGE | No cross-platform image decoder/encoder in the .NET base library; v1 decodes, bounds and re-encodes logos with Pillow; AGENTS.md adds no dependencies without approval | MIG-001 (logo routes, `logo_base64` in configuration import), logos in SoD reports | Yes: approve an image library (licence check needed) or keep logos out of SAP Lens 2 |
+| BLK-REPORTS | No PDF or DOCX writer in the base library; v1 uses ReportLab and python-docx | MIG-018 (7 routes) | Yes: approve PDF and DOCX libraries (licence check needed) |
+| BLK-SOD-SCOPE | Every remaining SoD route resolves its review context through `sod_scope` (scope query, frozen period snapshots, review store) and `sod_periods`; neither exists in .NET, and they are interdependent | MIG-013, MIG-015, MIG-016, MIG-017, MIG-014 remainder, SoD part of MIG-007, SoD `functional_groups`/`managers` filters, Dashboard SoD card | No decision; next milestone, in order MIG-016 + `sod_scope` -> MIG-013 -> MIG-015/017 -> MIG-018 |
+| BLK-BACKUP-DESIGN | v1 backups are encrypted archives of JSON files restored at restart (scrypt or host-key AES-256-GCM); SAP Lens 2 stores SQLite. The v1 route contract can be served (AES-GCM in the base library, Argon2id already approved), but restore, key escrow and storage migration change all application data | MIG-005 (14 routes), import of encrypted v1 `.slbak` files (scrypt is not in the base library) | Yes: approve the SQLite-backed design (Argon2id instead of scrypt for new backups; v1 `.slbak` import only for unencrypted or host-key archives, or approve a scrypt implementation) |
+| BLK-V1-DATA | Importing existing v1 stores (decisions, lifecycle memory, evidence, review history, Functional Groups, settings) needs every target store; it is an irreversible data migration | v1 data migration | Yes: approval required before any data migration runs on real installations |
+
+| MIG | Feature | Status | Completed | Missing | Dependencies | Priority |
+| --- | --- | --- | --- | --- | --- | --- |
+| MIG-001 | Branding logo | BLOCKED (BLK-IMAGE) | - | `branding/*` routes, logo in configuration import, report logos | MIG-018 | Medium |
+| MIG-002 | Settings save re-import | PARTIALLY_MIGRATED | Format changes re-import, versions, schedule checks | Module display-name overrides in catalogue responses | - | Low |
+| MIG-004 | Functional Groups | PARTIALLY_MIGRATED | 22 routes, User Access and Account Review integration | NFKC (BLK-GLOBALIZATION), SoD filters (BLK-SOD-SCOPE) | MIG-013 | Medium |
+| MIG-005 | Backup and restore, storage status | NOT_MIGRATED | Native SQLite backups (`/api/v1/admin/backups`) | v1 contract (14 routes) | BLK-BACKUP-DESIGN | High |
+| MIG-007 | Data retention | NOT_MIGRATED | - | 4 routes; SoD datasets need periods and reviews | BLK-SOD-SCOPE | Medium |
+| MIG-010 | SoD source inspection, risk change summary | NOT_MIGRATED (part) | Report detail and export done | `data-sources/sod/inspect`, `inspection`, `risk_change_summary` | BLK-SOD-SCOPE | Low |
+| MIG-013/015/016/017 | SoD scope, explorer, matrix, queue, periods, remediation | NOT_MIGRATED | Decisions, bulk review, simulation, lifecycle (MIG-014 parts) | 22 routes | BLK-SOD-SCOPE | High |
+| MIG-014 | SoD legacy risk decisions, assignment decision read | PARTIALLY_MIGRATED | See row above | `sod/reviews/{x}`, `GET sod/decisions/assignment` | BLK-SOD-SCOPE | Medium |
+| MIG-018 | SoD reports | BLOCKED (BLK-REPORTS) | - | 7 routes | MIG-016, MIG-017 | Medium |
+| - | Migration of v1 data | NOT_MIGRATED | Strategy documented | Importers with verification | BLK-V1-DATA, all stores | High |
+| - | Windows acceptance (Desktop, Server, service, installer, upgrade, rollback) | UNVERIFIED (environment) | Linux builds and Pester tests | Native runs on a Windows VM | Windows environment | High |
 
 ## How this matrix is kept
 
