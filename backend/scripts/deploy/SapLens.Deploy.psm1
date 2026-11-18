@@ -13,7 +13,7 @@ $script:Lock = $null; $script:RunFolder = $null; $script:RunLog = $null; $script
 $script:ServiceName = 'SapLens'; $script:LegacyServiceName = 'SapLens2'
 # Configuration lookup when -ConfigFile is not given: the environment variable (current, then earlier name), then the default files in this order.
 $script:ConfigVariables = @('SAPLENS_DEPLOY_CONFIG', 'SAPLENS2_DEPLOY_CONFIG')
-$script:ConfigDefaults = @('C:\saplens\deploy.local.json', 'C:\saplens2\deploy.local.json')
+$script:ConfigDefaults = @('C:\sap-lens\deploy\deploy.local.json', 'C:\saplens\deploy.local.json', 'C:\saplens2\deploy.local.json')
 $script:FocusedTests = @('StartupTests', 'ApiTests', 'NetworkTests', 'ReverseProxyTests', 'SessionTests', 'AccountsTests', 'AccountCompatibilityTests',
     'PersistenceTests', 'ApplicationBackupTests', 'MaintenanceCommandsTests', 'V1CompatibilityTests', 'VersioningTests', 'V1DataMigrationTests')
 # Phases after which the running service may already be stopped or switched; an interrupted run in one of them needs recovery.

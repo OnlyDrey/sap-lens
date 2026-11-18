@@ -84,6 +84,13 @@ BeforeAll {
 }
 
 Describe 'Configuration' {
+    It 'offers canonical paths without changing legacy configuration-relative defaults' {
+        $template = Get-Content (Join-Path $PSScriptRoot '../deploy/deploy.example.json') -Raw | ConvertFrom-Json
+        $template.WorkRoot | Should -Be 'C:\sap-lens\deploy'
+        $template.ReleasesRoot | Should -Be 'C:\sap-lens\releases'
+        $template.BackupRoot | Should -Be 'C:\ProgramData\SapLens\predeploy-backups'
+        $template.DataDirectory | Should -Be 'C:\ProgramData\SapLens\data'
+    }
     It 'refuses unknown settings, missing values and relative paths' {
         $file = Join-Path $TestDrive 'bad.json'
         @{ RepositoryPath = 'C:\r'; Typo = 1 } | ConvertTo-Json | Set-Content $file

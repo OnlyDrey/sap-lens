@@ -2,9 +2,9 @@
   "RepositoryPath": "C:\\Users\\example\\Git\\sap-lens",
   "Remote": "origin",
   "Branch": "experiment/dotnet-backend",
-  "WorkRoot": "C:\\saplens\\deploy",
-  "ReleasesRoot": "C:\\saplens\\releases",
-  "BackupRoot": "C:\\saplens\\predeploy-backups",
+  "WorkRoot": "C:\\sap-lens\\deploy",
+  "ReleasesRoot": "C:\\sap-lens\\releases",
+  "BackupRoot": "C:\\ProgramData\\SapLens\\predeploy-backups",
   "ListenAddress": "192.168.10.20",
   "Port": 18795,
   "AllowedHosts": [
