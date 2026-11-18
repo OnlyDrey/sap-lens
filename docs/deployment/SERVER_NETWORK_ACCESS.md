@@ -50,7 +50,7 @@ Windows re-validation (CMD, one command per line):
 
 ```bat
 cd /d C:\src\sap-lens && git fetch origin experiment/dotnet-backend && git checkout experiment/dotnet-backend && git pull --ff-only
-cd /d C:\src\sap-lens\experiments\dotnet-backend && dotnet build SapLens.slnx -c Release
+cd /d C:\src\sap-lens\backend && dotnet build SapLens.slnx -c Release
 dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~In_memory_keys_are_prepared_for_the_windows_tls_stack" --logger "console;verbosity=detailed"
 dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~Startup_tls_self_check" --logger "console;verbosity=detailed"
 dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~LanHttpsTests" --logger "console;verbosity=detailed"
@@ -263,7 +263,7 @@ Windows yet** [U]. Treat every step as pending acceptance.
 
 ```powershell
 # On the build machine
-dotnet publish experiments\dotnet-backend\src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\Build\saplens2-server
+dotnet publish backend\src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\Build\saplens2-server
 
 # On the server
 $app = 'C:\Program Files\SapLens2\server'; $data = 'C:\ProgramData\SapLens2\data'; $tls = 'C:\ProgramData\SapLens2\tls'
@@ -285,7 +285,7 @@ Get-Content "$data\api-token"                                        # the token
 ### Linux (systemd)
 
 ```bash
-dotnet publish experiments/dotnet-backend/src/SapLens.Api -c Release -r linux-x64 --self-contained true -o /tmp/saplens2-server
+dotnet publish backend/src/SapLens.Api -c Release -r linux-x64 --self-contained true -o /tmp/saplens2-server
 sudo useradd --system --home-dir /var/lib/saplens2 --shell /usr/sbin/nologin saplens2
 sudo install -d -m 0755 /opt/saplens2 && sudo cp -r /tmp/saplens2-server /opt/saplens2/server
 sudo tee /etc/systemd/system/saplens2.service >/dev/null <<'UNIT'

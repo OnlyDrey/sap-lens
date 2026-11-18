@@ -15,7 +15,7 @@ and the `SAPLENS2_DEPLOY_CONFIG` variable (still read).
 
 | Concept | Example | Source | Changes |
 | --- | --- | --- | --- |
-| Product version | `2.0.0-alpha.1` | `experiments/dotnet-backend/product-version.json` (only source) | Only by an explicit, approved edit; never by a build |
+| Product version | `2.0.0-alpha.1` | `backend/product-version.json` (only source) | Only by an explicit, approved edit; never by a build |
 | Channel | `alpha` (then `beta`, `rc`, stable) | The pre-release label of the product version | With the product version |
 | Build identity | commit `2e24a23…`, build time `2026-11-16T18:12:48Z`, SHA-256 per file | The release scripts (`-p:SourceRevisionId`, `build-manifest.json`) | Every build |
 

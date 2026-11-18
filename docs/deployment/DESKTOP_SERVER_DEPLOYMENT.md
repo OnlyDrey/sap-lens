@@ -1,7 +1,7 @@
 # Desktop and Server: builds, run commands and packaging assessment
 
 Nothing here changes the production Desktop launcher, installers, services, workflows or release artifacts. All output goes to isolated
-directories outside the repository (`artifacts/`, `bin/`, `obj/`, `out/` are ignored in `experiments/dotnet-backend/.gitignore`).
+directories outside the repository (`artifacts/`, `bin/`, `obj/`, `out/` are ignored in `backend/.gitignore`).
 
 ## Status
 
@@ -35,7 +35,7 @@ Fix:
 ## Server
 
 ```bash
-cd experiments/dotnet-backend
+cd backend
 dotnet publish src/SapLens.Api -c Release -r linux-x64 --self-contained true -o <out>/server-linux-x64   # folder publish
 dotnet publish src/SapLens.Api -c Release -r win-x64 -o <out>/server   # single file: SapLens.Api.exe + e_sqlite3.dll (settings in the project)
 # run (no .NET or Python needed on the host)
@@ -129,7 +129,7 @@ zones need ICU at runtime.
   is set, instead of running with different text handling. The startup log names the ICU version.
 
 Case mapping does not depend on the installed ICU version: `str.casefold()`, `str.upper()` and `str.lower()` (full mappings, for example `ß` to `SS`) use
-tables generated from Python 3.12 (Unicode 15.0.0) by `experiments/dotnet-backend/tools/casefold_table.py`, so Norwegian and international names fold
+tables generated from Python 3.12 (Unicode 15.0.0) by `backend/tools/casefold_table.py`, so Norwegian and international names fold
 exactly as in SAP Lens 1. All sorting is ordinal (code point order, as in SAP Lens 1), never culture-dependent.
 
 ## Native AOT (evaluation only, not built)
@@ -158,7 +158,7 @@ cd /d C:\src\sap-lens
 git fetch origin experiment/dotnet-backend
 git checkout experiment/dotnet-backend
 git pull --ff-only
-cd experiments\dotnet-backend
+cd backend
 
 dotnet build SapLens.slnx -c Release
 dotnet test tests\SapLens.Tests -c Release --no-build --filter "Category!=Publish"

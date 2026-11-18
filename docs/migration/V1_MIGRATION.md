@@ -4,10 +4,10 @@ The administrator procedure for `SapLens.Api --migrate-v1`. The design, guarante
 [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md#implemented-procedure---migrate-v1).
 
 **Validation status.** The PowerShell steps below were run verbatim with PowerShell 7 on Linux against the Linux build, using the synthetic fixture
-`experiments/dotnet-backend/tests/SapLens.Tests/Fixtures/v1-data`. That fixture was written by the SAP Lens 1 application and backup engine and holds
+`backend/tests/SapLens.Tests/Fixtures/v1-data`. That fixture was written by the SAP Lens 1 application and backup engine and holds
 SoD decisions, an approved review period, remediation, legacy reviews and Account Review history.
 
-- `experiments/dotnet-backend/scripts/tests/v1-migration-procedure.ps1 -Exe <SapLens.Api> -Root <new folder>` repeats the procedure with 12 checks:
+- `backend/scripts/tests/v1-migration-procedure.ps1 -Exe <SapLens.Api> -Root <new folder>` repeats the procedure with 12 checks:
   host key, preview with the recovery key file, refusal of a wrong key, run, activation at the next start, HTTP check, status, rollback.
 - The passphrase mode is covered by `V1DataMigrationTests` and a CLI run with the passphrase on standard input.
 - **Not yet run:** on Windows (PowerShell 5.1 or 7, Windows paths and ACLs), or against a copy of a real installation. Run the script on the Windows

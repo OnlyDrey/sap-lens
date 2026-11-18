@@ -78,7 +78,7 @@ the new package runs side by side with its own data directory and port.
 
 ```bat
 cd /d C:\src\sap-lens && git fetch origin && git checkout experiment/dotnet-backend && git pull --ff-only
-cd /d C:\src\sap-lens\experiments\dotnet-backend
+cd /d C:\src\sap-lens\backend
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Output C:\saplens2\release-next
 ```
 
@@ -87,7 +87,7 @@ tests) and publishes `C:\saplens2\release-next\server-win-x64` and `C:\saplens2\
 
 ```bat
 cd /d C:\src\sap-lens\frontend && npm ci --no-audit --no-fund && npm run build
-cd /d C:\src\sap-lens\experiments\dotnet-backend && dotnet build SapLens.slnx -c Release
+cd /d C:\src\sap-lens\backend && dotnet build SapLens.slnx -c Release
 dotnet test tests\SapLens.Tests -c Release --no-build
 dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\saplens2\release-next\server-win-x64
 dotnet publish src\SapLens.Desktop -c Release -o C:\saplens2\release-next\desktop-win-x64

@@ -1,7 +1,7 @@
 # Database design: SQLite as the system of record
 
 One file, `sap-lens-v2.sqlite3`, in the data directory, for Desktop and Server. Schema in
-`experiments/dotnet-backend/src/SapLens.Persistence` (`SapLensDb`, `Entities.cs`, migration `Initial`, `ImmutabilitySql`).
+`backend/src/SapLens.Persistence` (`SapLensDb`, `Entities.cs`, migration `Initial`, `ImmutabilitySql`).
 
 ## Tables
 

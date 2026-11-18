@@ -26,7 +26,7 @@ tracked files at HEAD; untracked and ignored files of the working tree. Tool: `s
 | --- | --- | --- | --- |
 | No private key, certificate with key, PFX, real token, API key, connection-string password or credential file has ever been committed | None | All refs | Two `BEGIN ... PRIVATE KEY`/`CERTIFICATE` hits are synthetic test placeholders (`b'A'*100`) and PEM-parsing code; credential-like literals are labelled synthetic test passphrases |
 | The private addresses and the public host name of one test environment appeared in documentation, the test launcher defaults, a release README template and tests | Low (infrastructure detail, not a secret: private RFC 1918 addresses and a public DNS name) | Commits `0c04b52`, `848afe0`, `5be1658`, `f407dc4`, `7fc13e7`, only on `experiment/dotnet-backend` (pushed to `origin`); never on `main` or `work` | Removed from HEAD (replaced with reserved examples; launcher values now come from a git-ignored local file). Still present in those historical commits |
-| Two reference tools hard-coded the build container's checkout path | Low | `experiments/dotnet-backend/tools/sod_catalogue_reference.py`, `sod_fingerprints_reference.py` | Fixed (relative path, `SAP_LENS_V1_BACKEND` override) |
+| Two reference tools hard-coded the build container's checkout path | Low | `backend/tools/sod_catalogue_reference.py`, `sod_fingerprints_reference.py` | Fixed (relative path, `SAP_LENS_V1_BACKEND` override) |
 | `.gitignore` did not cover TLS material, secret files, SQLite databases or machine-specific configuration | Low (preventive) | `.gitignore` | Fixed; covered by `test_repository_privacy` |
 
 No credential or certificate rotation is needed: no secret was exposed. Rewriting history to remove the environment values is **not**
@@ -87,7 +87,7 @@ Next, in order, each a validated commit:
 
 ```bash
 git fetch origin && git checkout experiment/dotnet-backend && git pull --ff-only
-cd experiments/dotnet-backend && dotnet build SapLens.slnx -c Release && dotnet test tests/SapLens.Tests -c Release --no-build
-python -I tools/route_audit.py ../.. ../../docs/experiments/dotnet-backend/ROUTE_AUDIT.md     # regenerate parity after each step
+cd backend && dotnet build SapLens.slnx -c Release && dotnet test tests/SapLens.Tests -c Release --no-build
+python -I tools/route_audit.py .. ../docs/migration/ROUTE_AUDIT.md     # regenerate parity after each step
 scripts/build-release.sh /tmp/saplens-rc --skip-tests                                          # Linux; Windows: scripts\build-release.ps1 -Output C:\saplens\builds
 ```

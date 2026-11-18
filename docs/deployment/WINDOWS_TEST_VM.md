@@ -13,7 +13,7 @@ environment: the Server's own defaults are `127.0.0.1:18790` over HTTP with netw
 environment-specific is built into the executables or the scripts; the same release runs with any address, host name and port.
 
 Keep your environment's real values in a local file that is never committed: copy
-`experiments\dotnet-backend\scripts\start-server-test.example.json` to `C:\saplens2\start-server-test.local.json` (or
+`backend\scripts\start-server-test.example.json` to `C:\saplens2\start-server-test.local.json` (or
 `start-server-test.local.json` next to the script; `*.local.json` is git-ignored) and edit it. The launcher reads it automatically; explicit
 parameters still win, and the file must not contain secrets (the certificate password stays in its own protected file). To keep your real values
 out of future commits, list them one per line in `.secret-scan.local` at the repository root (git-ignored); `python scripts/check-secrets.py`
@@ -40,7 +40,7 @@ Prerequisites: .NET 10 SDK, Node.js 24 or 25, Git. PowerShell 5.1 or 7.
 ```powershell
 cd C:\src\sap-lens
 git fetch origin experiment/dotnet-backend; git checkout experiment/dotnet-backend; git pull --ff-only
-powershell -NoProfile -ExecutionPolicy Bypass -File .\experiments\dotnet-backend\scripts\build-release.ps1 -Output C:\saplens2\builds
+powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\scripts\build-release.ps1 -Output C:\saplens2\builds
 ```
 
 `-ExecutionPolicy Bypass` on the `powershell -File` call applies to that one process only; it changes no machine or user policy. `-Output` is the
@@ -69,7 +69,7 @@ replaced or deleted without touching data.
 
 ```powershell
 $release = Get-ChildItem C:\saplens2\builds -Directory -Filter 'SAP-Lens-*' | Sort-Object { (Get-Item (Join-Path $_.FullName 'build-manifest.json')).LastWriteTime } | Select-Object -Last 1
-powershell -NoProfile -ExecutionPolicy Bypass -File C:\src\sap-lens\experiments\dotnet-backend\scripts\verify-release.ps1 -ReleasePath $release.FullName   # after copying a release, too
+powershell -NoProfile -ExecutionPolicy Bypass -File C:\src\sap-lens\backend\scripts\verify-release.ps1 -ReleasePath $release.FullName   # after copying a release, too
 Get-Content (Join-Path $release.FullName 'build-manifest.json') | Select-Object -First 12
 & (Join-Path $release.FullName 'server\SapLens.Api.exe') --version
 & (Join-Path $release.FullName 'server\SapLens.Api.exe') --help
@@ -77,13 +77,13 @@ Get-Content (Join-Path $release.FullName 'build-manifest.json') | Select-Object 
 
 ## 2. Start the Server with the test launcher (recommended)
 
-`experiments\dotnet-backend\scripts\start-server-test.ps1` is a development and acceptance-testing utility, **not** a deployment mechanism.
+`backend\scripts\start-server-test.ps1` is a development and acceptance-testing utility, **not** a deployment mechanism.
 It picks the newest complete release under `C:\saplens2\builds` (one with `build-manifest.json`, `server\SapLens.Api.exe` and `e_sqlite3.dll`;
 earlier folder-publish releases with `manifest.json` and `server-win-x64\` are still recognized), validates the
 configuration and runs the Server in the foreground.
 
 ```powershell
-cd C:\src\sap-lens\experiments\dotnet-backend
+cd C:\src\sap-lens\backend
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -DryRun       # validate and show the command; starts nothing
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1              # foreground; Ctrl+C stops it gracefully
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -Background  # detached; logs and PID file in C:\saplens2\logs
@@ -118,7 +118,7 @@ Launcher tests (Pester 5; Windows ships Pester 3, so install 5 for the current u
 
 ```powershell
 Install-Module Pester -MinimumVersion 5.5 -Scope CurrentUser -Force -SkipPublisherCheck
-Invoke-Pester C:\src\sap-lens\experiments\dotnet-backend\scripts\tests -Output Detailed
+Invoke-Pester C:\src\sap-lens\backend\scripts\tests -Output Detailed
 ```
 
 On Windows the end-to-end block (a fake `SapLens.Api.exe` shell script) is skipped; it runs on Linux test hosts.
@@ -147,7 +147,7 @@ A fresh data directory starts with `setup_required`. Issue the one-time activati
 part of the release packages), then complete the setup in the browser:
 
 ```powershell
-cd C:\src\sap-lens\experiments\dotnet-backend
+cd C:\src\sap-lens\backend
 dotnet run --project src\SapLens.Cli -c Release -- accounts-code --data C:\saplens2\runtime-test
 ```
 
