@@ -54,7 +54,7 @@ public static class V1Backups
         group.MapPost("/cancel", (HttpContext http, ApplicationBackups backups) => Guard(http) ?? Run(backups.Cancel));
 
         group.MapGet("/schedule", async (HttpContext http, DatabaseOptions options, ApplicationBackups backups, TimeProvider clock, CancellationToken ct) =>
-            Guard(http) ?? await Run(async () => await BackupSchedule.StatusAsync(options.DataDirectory, backups, clock.GetUtcNow(), ct)));
+            Guard(http) ?? await Run(async () => await BackupSchedule.StatusAsync(options.DataDirectory, backups, clock.GetUtcNow(), ct, clock.LocalTimeZone)));
 
         group.MapPost("/schedule", async (HttpContext http, DatabaseOptions options, ApplicationBackups backups, TimeProvider clock, CancellationToken ct) =>
         {
@@ -69,7 +69,7 @@ public static class V1Backups
             return await Run(async () =>
             {
                 BackupSchedule.Save(options.DataDirectory, schedule, revision);
-                return await BackupSchedule.StatusAsync(options.DataDirectory, backups, clock.GetUtcNow(), ct);
+                return await BackupSchedule.StatusAsync(options.DataDirectory, backups, clock.GetUtcNow(), ct, clock.LocalTimeZone);
             });
         });
 
@@ -176,12 +176,13 @@ public static class V1Backups
 /// are removed by the approved backup retention (default 90 days), not by the keep count (v1: the legacy count limit cannot remove recent backups ahead of retention).</summary>
 public static class BackupSchedule
 {
-    public sealed record Definition(V1RefreshSchedule.Schedule Schedule, int Keep)
+    public sealed record Definition(V1RefreshSchedule.Schedule Schedule, int Keep, int? Weekday = null)
     {
-        public JsonObject ToJson() { var value = Schedule.ToJson(); value["keep"] = Keep; return value; }
+        public JsonObject ToJson() { var value = Schedule.ToJson(); value["keep"] = Keep; if (Weekday is not null) { value["mode"] = "weekly"; value["weekday"] = Weekday; } return value; }
     }
 
     private static readonly Lock Gate = new();
+    private static readonly SemaphoreSlim Evaluations = new(1, 1);
     private static string FileOf(string data) => Path.Combine(data, "backups", "schedule.json");
 
     public static (Definition? Value, string? Error) Parse(JsonObject draft)
@@ -193,8 +194,21 @@ public static class BackupSchedule
             if (k.GetValueKind() != JsonValueKind.Number || !k.AsValue().TryGetValue<int>(out keep) || keep is < 1 or > 100) return (null, "keep: Input should be an integer from 1 to 100");
             copy.Remove("keep");
         }
+        int? weekday = null;
+        if (copy["mode"] is JsonValue mode && mode.TryGetValue<string>(out var selected) && selected == "weekly")
+        {
+            var day = 1;
+            if (copy["weekday"] is { } node && (node is not JsonValue dayValue || !dayValue.TryGetValue<int>(out day) || day is < 0 or > 6)) return (null, "weekday: Choose Sunday (0) through Saturday (6).");
+            if (copy["time"] is not JsonValue time || !time.TryGetValue<string>(out var hour)) return (null, "time: A weekly execution time is required.");
+            try { var fields = CronSchedule.DailyCron(hour).Split(' '); copy["cron"] = $"{fields[0]} {fields[1]} * * {day}"; }
+            catch (ArgumentException problem) { return (null, problem.Message); }
+            copy["mode"] = "cron"; copy.Remove("weekday"); weekday = day;
+        }
         var (schedule, error) = V1RefreshSchedule.Parse(copy);
-        return schedule is null ? (null, error) : (new Definition(schedule, keep), null);
+        if (schedule is null) return (null, error);
+        try { CronSchedule.Check(schedule.Expression, schedule.Timezone, DateTimeOffset.UtcNow); }
+        catch (ArgumentException problem) { return (null, problem.Message); }
+        return (new Definition(schedule, keep, weekday), null);
     }
 
     public static JsonObject Read(string data)
@@ -207,9 +221,11 @@ public static class BackupSchedule
                 var file = FileOf(data);
                 if (!File.Exists(file)) return empty;
                 if (new FileInfo(file).Length > 32000) throw new BackupException("Backup schedule metadata exceeds its limit.");
-                return JsonNode.Parse(File.ReadAllText(file)) is JsonObject value && Parse((value["schedule"] as JsonObject) ?? []).Value is not null ? value : empty;
+                if (JsonNode.Parse(File.ReadAllText(file)) is JsonObject value && value["revision"] is JsonValue revision && revision.TryGetValue<long>(out var number) && number >= 0 && value["schedule"] is JsonObject definition && Parse(definition).Value is not null) return value;
+                empty["configuration_error"] = "The stored backup schedule is invalid. Automatic backups are disabled until an administrator reviews and saves it.";
+                return empty;
             }
-            catch (Exception error) when (error is IOException or JsonException) { return empty; }
+            catch (Exception error) when (error is IOException or JsonException) { empty["configuration_error"] = "The backup schedule could not be read. Check its protected storage and host logs."; return empty; }
         }
     }
 
@@ -233,13 +249,13 @@ public static class BackupSchedule
         BackupKeys.WriteAtomic(FileOf(data), value.ToJsonString());
     }
 
-    public static async Task<JsonObject> StatusAsync(string data, ApplicationBackups backups, DateTimeOffset now, CancellationToken ct)
+    public static async Task<JsonObject> StatusAsync(string data, ApplicationBackups backups, DateTimeOffset now, CancellationToken ct, TimeZoneInfo? localZone = null)
     {
         var value = Read(data);
         var definition = Parse(value["schedule"]!.AsObject()).Value!;
         var schedule = definition.Schedule;
         var items = (await backups.HistoryAsync(ct))["items"]!.AsArray();
-        value["next_runs"] = schedule.Enabled ? new JsonArray([.. CronSchedule.Check(schedule.Expression, schedule.Timezone, now).Select(r => (JsonNode)V1RefreshSchedule.Iso(r))]) : new JsonArray();
+        value["next_runs"] = schedule.Enabled ? new JsonArray([.. CronSchedule.Check(schedule.Expression, schedule.Timezone, now, localZone).Select(r => (JsonNode)V1RefreshSchedule.Iso(r))]) : new JsonArray();
         value["description"] = CronSchedule.Describe(schedule.Expression, schedule.Timezone);
         value["requires_restart"] = false;
         value["last_success"] = items.FirstOrDefault(r => (string?)r!["origin"] == "scheduled" && (string?)r["status"] == "ready")?["created_at"]?.DeepClone();
@@ -251,30 +267,73 @@ public static class BackupSchedule
     }
 
     /// <summary>One evaluation: claims the first due occurrence after the cursor once; returns idle, skipped, or the outcome.</summary>
-    public static async Task<string> TickAsync(string data, ApplicationBackups backups, DataLoadGate loader, DateTimeOffset now, DateTimeOffset cursor, CancellationToken ct)
+    public static async Task<string> TickAsync(string data, ApplicationBackups backups, DataLoadGate loader, DateTimeOffset now, DateTimeOffset cursor, CancellationToken ct, TimeZoneInfo? localZone = null)
     {
-        var value = Read(data);
-        var schedule = Parse(value["schedule"]!.AsObject()).Value!.Schedule;
-        if (!schedule.Enabled) return "idle";
-        var runs = CronSchedule.NextRuns(schedule.Expression, schedule.Timezone, cursor, 1);
-        if (runs.Count == 0 || runs[0] > now) return "idle";
-        var occurrence = V1RefreshSchedule.Iso(runs[0]);
-        if ((string?)value["last_occurrence"] == occurrence) return "skipped";
-        value["last_occurrence"] = occurrence;
-        string outcome;
-        if (BackupKeys.Status(data)["escrow_verified"]?.GetValue<bool>() != true) outcome = "skipped: recovery key copy not verified";
-        else if (loader.Loading.CurrentCount == 0) outcome = "skipped: another operation is running";
-        else
-            try { await backups.CreateAsync(BackupKind.Automatic, "", "scheduler", ct); outcome = "ready"; }
-            catch (BackupException error) { outcome = "failed: " + error.Message; value["last_failure"] = V1RefreshSchedule.Iso(now); }
-        value["last_attempt"] = V1RefreshSchedule.Iso(now);
-        value["last_outcome"] = outcome;
-        var attempts = value["attempts"] as JsonArray ?? [];
-        attempts.Add(new JsonObject { ["at"] = V1RefreshSchedule.Iso(now), ["occurrence"] = occurrence, ["status"] = outcome });
-        while (attempts.Count > 50) attempts.RemoveAt(0);
-        value["attempts"] = attempts.DeepClone();
-        lock (Gate) Write(data, value);
-        return outcome;
+        if (!await Evaluations.WaitAsync(0, ct)) return "skipped: another scheduler evaluation is running";
+        try
+        {
+            var value = Read(data);
+            var schedule = Parse(value["schedule"]!.AsObject()).Value!.Schedule;
+            if (!schedule.Enabled && value["running"] is null) return "idle";
+            Directory.CreateDirectory(Path.Combine(data, "backups"));
+            FileStream processLease;
+            try { processLease = new FileStream(Path.Combine(data, "backups", "schedule-execution.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+            catch (IOException) { return "skipped: another scheduler process is running"; }
+            using (processLease)
+            {
+                value = Read(data);
+                schedule = Parse(value["schedule"]!.AsObject()).Value!.Schedule;
+                if (!schedule.Enabled && value["running"] is null) return "idle";
+                if (value["running"] is JsonObject interrupted)
+                {
+                    var claimedId = (string?)interrupted["backup_id"] ?? "";
+                    var items = (await backups.HistoryAsync(ct))["items"]!.AsArray();
+                    var completed = items.Any(item => (string?)item!["id"] == claimedId && (bool?)item["verified"] == true);
+                    var recovered = completed ? "ready: completed archive recovered after interruption" : "failed: interrupted backup; retained partial files require operator review, and this occurrence will not be replayed";
+                    CompleteAttempt(data, (string?)interrupted["occurrence"] ?? "", claimedId, recovered, now);
+                    return recovered;
+                }
+                var runs = CronSchedule.NextRuns(schedule.Expression, schedule.Timezone, cursor, 1, localZone);
+                if (runs.Count == 0 || runs[0] > now) return "idle";
+                var occurrence = V1RefreshSchedule.Iso(runs[0]);
+                if ((string?)value["last_occurrence"] == occurrence) return "skipped";
+                var id = Guid.NewGuid().ToString("N");
+                lock (Gate)
+                {
+                    var current = Read(data);
+                    if ((long)current["revision"]! != (long)value["revision"]!) return "idle";
+                    current["last_occurrence"] = occurrence;
+                    current["running"] = new JsonObject { ["backup_id"] = id, ["occurrence"] = occurrence, ["started_at"] = V1RefreshSchedule.Iso(now) };
+                    Write(data, current); // flushed before any archive write: interruption cannot duplicate this claim
+                }
+                string outcome;
+                if (BackupKeys.Status(data)["escrow_verified"]?.GetValue<bool>() != true) outcome = "skipped: recovery key copy not verified";
+                else if (loader.Loading.CurrentCount == 0 || backups.Busy) outcome = "skipped: another operation is running";
+                else
+                    try { await backups.CreateAsync(BackupKind.Automatic, "", "scheduler", ct, id); outcome = "ready"; }
+                    catch (BackupException error) { outcome = "failed: " + error.Message; }
+                CompleteAttempt(data, occurrence, id, outcome, now);
+                return outcome;
+            }
+        }
+        finally { Evaluations.Release(); }
+    }
+
+    private static void CompleteAttempt(string data, string occurrence, string id, string outcome, DateTimeOffset now)
+    {
+        lock (Gate)
+        {
+            // Save may change/disable the schedule while an archive is written. Merge runtime state into
+            // the latest revision; never overwrite the administrator's new configuration with a stale copy.
+            var value = Read(data);
+            value["running"] = null; value["last_occurrence"] = occurrence;
+            value["last_attempt"] = V1RefreshSchedule.Iso(now); value["last_outcome"] = outcome;
+            if (outcome.StartsWith("failed:", StringComparison.Ordinal)) value["last_failure"] = V1RefreshSchedule.Iso(now);
+            var attempts = value["attempts"] as JsonArray ?? [];
+            attempts.Add(new JsonObject { ["at"] = V1RefreshSchedule.Iso(now), ["occurrence"] = occurrence, ["backup_id"] = id, ["status"] = outcome });
+            while (attempts.Count > 50) attempts.RemoveAt(0);
+            value["attempts"] = attempts.DeepClone(); Write(data, value);
+        }
     }
 }
 
@@ -293,7 +352,7 @@ public sealed class BackupScheduler(DatabaseOptions options, ApplicationBackups 
             {
                 var signature = BackupSchedule.Read(options.DataDirectory)["schedule"]!.ToJsonString();
                 if (signature != _signature) (_signature, _cursor) = (signature, now);     // a changed definition starts from now
-                var outcome = await BackupSchedule.TickAsync(options.DataDirectory, backups, loader, now, _cursor, stoppingToken);
+                var outcome = await BackupSchedule.TickAsync(options.DataDirectory, backups, loader, now, _cursor, stoppingToken, clock.LocalTimeZone);
                 if (outcome != "idle") { _cursor = now; logger.LogInformation("Scheduled backup: {Outcome}", outcome.Split(':')[0]); }
                 // The daily retention check (all categories); skipped while a restore waits or a load runs, never disturbs the application.
                 if (retention.Due() && loader.Loading.CurrentCount > 0 && !File.Exists(Path.Combine(options.DataDirectory, "restore", "pending.json")))

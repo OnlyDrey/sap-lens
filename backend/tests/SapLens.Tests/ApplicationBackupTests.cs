@@ -310,6 +310,74 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Weekly_schedules_validate_timezones_and_skip_DST_gaps_and_repeated_hours()
+    {
+        var (definition, error) = BackupSchedule.Parse(new JsonObject { ["enabled"] = false, ["mode"] = "weekly", ["weekday"] = 0, ["time"] = "02:30", ["timezone"] = "Europe/Oslo" });
+        Assert.Null(error); Assert.NotNull(definition);
+        Assert.Equal("weekly", (string)definition.ToJson()["mode"]!);
+        var expression = definition.Schedule.Expression;
+        Assert.Equal(DateTimeOffset.Parse("2026-04-05T00:30:00Z"), SapLens.Domain.Scheduling.CronSchedule.NextRuns(expression, "Europe/Oslo", DateTimeOffset.Parse("2026-03-28T00:00:00Z"), 1)[0]);
+        Assert.Equal(DateTimeOffset.Parse("2026-10-25T00:30:00Z"), SapLens.Domain.Scheduling.CronSchedule.NextRuns(expression, "Europe/Oslo", DateTimeOffset.Parse("2026-10-24T00:00:00Z"), 1)[0]);
+        Assert.Equal(DateTimeOffset.Parse("2026-11-01T01:30:00Z"), SapLens.Domain.Scheduling.CronSchedule.NextRuns(expression, "Europe/Oslo", DateTimeOffset.Parse("2026-10-25T00:31:00Z"), 1)[0]);
+        Assert.Null(BackupSchedule.Parse(new JsonObject { ["timezone"] = "Europe/Nowhere" }).Value);
+        var instant = DateTimeOffset.Parse("2026-11-16T08:00:00Z");
+        Assert.Equal(DateTimeOffset.Parse("2026-11-17T06:00:00Z"), SapLens.Domain.Scheduling.CronSchedule.NextRuns("0 6 * * *", "local", instant, 1, TimeZoneInfo.Utc)[0]);
+        Assert.Equal(DateTimeOffset.Parse("2026-11-17T05:00:00Z"), SapLens.Domain.Scheduling.CronSchedule.NextRuns("0 6 * * *", "local", instant, 1, TimeZoneInfo.FindSystemTimeZoneById("Europe/Oslo"))[0]);
+        var (status, saved) = await Post("/api/backups/schedule", new { revision = 0, schedule = definition.ToJson() });
+        Assert.Equal(HttpStatusCode.OK, status); Assert.Equal("weekly", (string)saved!["schedule"]!["mode"]!);
+        Assert.False((bool)saved["requires_restart"]!);
+        await Stop(); await Start();
+        Assert.Equal("weekly", (string)(await Get("/api/backups/schedule"))["schedule"]!["mode"]!);
+    }
+
+    [Fact]
+    public async Task Interrupted_scheduler_claims_are_reconciled_without_replaying_or_deleting_partial_work()
+    {
+        ConfigureKey(); BackupKeys.VerifyEscrow(File.ReadAllText(KeyFile), Data, "operator", DateTimeOffset.UtcNow);
+        var definition = BackupSchedule.Parse(new JsonObject { ["enabled"] = true, ["time"] = "02:00", ["timezone"] = "UTC" }).Value!;
+        BackupSchedule.Save(Data, definition, 0);
+        var backups = _app.Services.GetRequiredService<ApplicationBackups>(); var loader = _app.Services.GetRequiredService<DataLoadGate>();
+        var cursor = DateTimeOffset.UtcNow.Date.AddDays(1).AddHours(1); var now = cursor.AddHours(2);
+        var concurrent = await Task.WhenAll(BackupSchedule.TickAsync(Data, backups, loader, now, cursor, default), BackupSchedule.TickAsync(Data, backups, loader, now, cursor, default));
+        Assert.Single(concurrent, value => value == "ready"); Assert.Single(concurrent, value => value.StartsWith("skipped", StringComparison.Ordinal));
+        var history = await backups.HistoryAsync(default); var id = (string)history["items"]![0]!["id"]!;
+        var state = BackupSchedule.Read(Data);
+        state["running"] = new JsonObject { ["backup_id"] = id, ["occurrence"] = state["last_occurrence"]!.DeepClone() };
+        var file = Path.Combine(Data, "backups", "schedule.json"); BackupKeys.WriteAtomic(file, state.ToJsonString());
+        Assert.StartsWith("ready: completed archive recovered", await BackupSchedule.TickAsync(Data, backups, loader, now, cursor, default));
+        Assert.Equal(1, (int)(await backups.HistoryAsync(default))["total"]!);
+        state = BackupSchedule.Read(Data);
+        var partial = Path.Combine(Data, "backups", "retained-synthetic.partial"); File.WriteAllText(partial, "synthetic incomplete archive");
+        state["running"] = new JsonObject { ["backup_id"] = new string('f', 32), ["occurrence"] = state["last_occurrence"]!.DeepClone() };
+        BackupKeys.WriteAtomic(file, state.ToJsonString());
+        Assert.StartsWith("failed: interrupted", await BackupSchedule.TickAsync(Data, backups, loader, now, cursor, default));
+        Assert.True(File.Exists(partial)); Assert.NotNull(BackupSchedule.Read(Data)["last_failure"]);
+        Assert.Equal("skipped", await BackupSchedule.TickAsync(Data, backups, loader, now, cursor, default));
+    }
+
+    [Fact]
+    public async Task A_schedule_edit_during_a_snapshot_is_not_overwritten_by_completion()
+    {
+        ConfigureKey(); BackupKeys.VerifyEscrow(File.ReadAllText(KeyFile), Data, "operator", DateTimeOffset.UtcNow);
+        BackupSchedule.Save(Data, BackupSchedule.Parse(new JsonObject { ["enabled"] = true, ["time"] = "02:00", ["timezone"] = "UTC" }).Value!, 0);
+        // Hold the account writer: the snapshot can claim its job, but cannot finish before the policy edit.
+        var accounts = Path.Combine(Data, "security", "accounts.sqlite3");
+        var store = new SapLens.Application.Accounts.AccountStore(accounts, TimeProvider.System); store.Prepare();
+        var activation = await store.IssueAsync();
+        await store.CompleteAsync(activation.Code, "admin", "Synthetic administrator", "Synthetic snapshot password 123!", false);
+        using var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={accounts};Pooling=False"); connection.Open();
+        using var reservation = connection.BeginTransaction(deferred: false);
+        var cursor = DateTimeOffset.UtcNow.Date.AddDays(1).AddHours(1);
+        var task = BackupSchedule.TickAsync(Data, _app.Services.GetRequiredService<ApplicationBackups>(), _app.Services.GetRequiredService<DataLoadGate>(), cursor.AddHours(2), cursor, default);
+        while (!task.IsCompleted && BackupSchedule.Read(Data)["running"] is null) await Task.Yield();
+        BackupSchedule.Save(Data, BackupSchedule.Parse(new JsonObject { ["enabled"] = false, ["time"] = "04:00", ["timezone"] = "UTC" }).Value!, 1);
+        reservation.Rollback();
+        Assert.Equal("ready", await task);
+        var after = BackupSchedule.Read(Data);
+        Assert.Equal(2, (int)after["revision"]!); Assert.False((bool)after["schedule"]!["enabled"]!); Assert.Equal("04:00", (string)after["schedule"]!["time"]!);
+    }
+
+    [Fact]
     public async Task A_server_with_a_shared_token_refuses_application_backups()
     {
         await Stop();

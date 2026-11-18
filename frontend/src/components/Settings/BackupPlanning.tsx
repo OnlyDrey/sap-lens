@@ -9,31 +9,34 @@ import {Card,ErrorState,LoadingState,StatusBadge} from '@/components/Shared/Pres
 import {formatTimestamp} from '@/lib/dateFormat'
 import {TimeInput24} from '@/components/Shared/TimeInput24'
 
-type Schedule={enabled:boolean;mode:'daily'|'cron';time:string;cron:string;timezone:string;keep:number}
-type Status={encryption_ready?:boolean;revision:number;schedule:Schedule;next_runs:string[];description:string;last_success:string|null;last_failure:string|null;last_outcome?:string;attempts?:{at:string;status:string}[]}
+type Schedule={enabled:boolean;mode:'daily'|'weekly'|'cron';time:string;cron:string;timezone:string;keep:number;weekday?:number}
+type Status={encryption_ready?:boolean;configuration_error?:string;requires_restart?:boolean;revision:number;schedule:Schedule;next_runs:string[];description:string;last_success:string|null;last_failure:string|null;last_outcome?:string;attempts?:{at:string;status:string}[]}
 type History={items:{id:string;created_at:string;origin:string;status:string;size:number;verified:boolean}[];total:number;storage_bytes:number;destination:string}
 
 export function BackupScheduling(){
  const client=useQueryClient(),query=useQuery({queryKey:['backup-schedule'],queryFn:()=>apiRequest<Status>('/api/backups/schedule'),refetchOnMount:'always'})
- const [draft,setDraft]=useState<Schedule|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('')
+ const [draft,setDraft]=useState<Schedule|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState('')
  useEffect(()=>{if(query.data)setDraft(query.data.schedule)},[query.data])
- const patch=(value:Partial<Schedule>)=>setDraft(previous=>previous?{...previous,...value}:previous)
+ const patch=(value:Partial<Schedule>)=>{setMessage('');setDraft(previous=>previous?{...previous,...value}:previous)}
  return <Card aria-label="Automatic backup scheduling"><h3 className="ui-section-title flex items-center gap-2"><Clock size={18} aria-hidden="true"/>Automatic backup scheduling</h3>
-  <p className="ui-description">Queues a consistent backup for the next host restart. Editing and scheduled refresh pause until restart or cancellation. This does not restart the host or create an unattended online archive. Manual backups are preserved; retention applies only to successful scheduled archives.</p>
+  <p className="ui-description">Creates verified encrypted archives while the service runs. Database writes pause briefly for a consistent snapshot; no restart is required. Manual and migration backups are protected from automatic cleanup.</p>
   {query.isLoading?<LoadingState/>:query.error?<ErrorState error={query.error} onRetry={()=>void query.refetch()}/>:draft&&<>
-   <Checkbox disabled={!draft.enabled&&!query.data?.encryption_ready} checked={draft.enabled} onChange={event=>patch({enabled:event.target.checked})}>Enable scheduled backup requests (restart required)</Checkbox>
+   {query.data?.configuration_error&&<p role="alert">{query.data.configuration_error}</p>}
+   <Checkbox disabled={!draft.enabled&&!query.data?.encryption_ready} checked={draft.enabled} onChange={event=>patch({enabled:event.target.checked})}>Enable automatic backups</Checkbox>
    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-    <FormField label="Backup schedule type"><SettingsSelect value={draft.mode} onChange={event=>patch({mode:event.target.value as Schedule['mode']})}><option value="daily">Daily</option><option value="cron">Advanced cron</option></SettingsSelect></FormField>
-    {draft.mode==='daily'?<FormField label="Backup daily time" description="24-hour time, HH:mm."><TimeInput24 label="Backup daily time" value={draft.time} onChange={time=>patch({time})}/></FormField>:<FormField label="Backup cron expression"><Input value={draft.cron} onChange={event=>patch({cron:event.target.value})}/></FormField>}
+    <FormField label="Backup schedule type"><SettingsSelect value={draft.mode} onChange={event=>patch({mode:event.target.value as Schedule['mode'],weekday:event.target.value==='weekly'?(draft.weekday??1):undefined})}><option value="daily">Daily</option><option value="weekly">Weekly</option><option value="cron">Advanced cron</option></SettingsSelect></FormField>
+    {draft.mode!=='cron'?<FormField label={draft.mode==='weekly'?'Backup weekly time':'Backup daily time'} description="24-hour time, HH:mm."><TimeInput24 label={draft.mode==='weekly'?'Backup weekly time':'Backup daily time'} value={draft.time} onChange={time=>patch({time})}/></FormField>:<FormField label="Backup cron expression"><Input value={draft.cron} onChange={event=>patch({cron:event.target.value})}/></FormField>}
+    {draft.mode==='weekly'&&<FormField label="Backup day"><SettingsSelect value={draft.weekday??1} onChange={event=>patch({weekday:Number(event.target.value)})}>{['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'].map((day,index)=><option key={day} value={index}>{day}</option>)}</SettingsSelect></FormField>}
     <FormField label="Backup time zone" description="Local time, UTC or an installed IANA zone, for example Europe/Oslo."><Input value={draft.timezone} onChange={event=>patch({timezone:event.target.value})}/></FormField>
 
    </div>
    {!query.data?.encryption_ready&&<p className="ui-description">Verify a separately stored recovery copy above before enabling automatic backups.</p>}
    <p className="ui-description">Automatic backup retention defaults to 90 days and requires the existing retention approval. Manual and migration backups stay protected.</p>
-   <Button disabled={busy} onClick={()=>{setBusy(true);setError('');void apiRequest('/api/backups/schedule','POST',{revision:query.data?.revision,schedule:draft}).then(()=>client.invalidateQueries({queryKey:['backup-schedule']})).catch(reason=>setError(reason instanceof Error?reason.message:'Schedule could not be saved.')).finally(()=>setBusy(false))}}><Save size={16} aria-hidden="true"/>{busy?'Saving…':'Save backup schedule'}</Button>
-   <p className="ui-description">{query.data?.description}. Next requests: {query.data?.next_runs.length?query.data.next_runs.slice(0,3).map(value=>formatTimestamp(value)).join(' · '):'Disabled'}</p>
+   <Button disabled={busy} onClick={()=>{setBusy(true);setError('');setMessage('');void apiRequest<Status>('/api/backups/schedule','POST',{revision:query.data?.revision,schedule:draft}).then(async saved=>{await client.invalidateQueries({queryKey:['backup-schedule']});setMessage(saved.schedule.enabled?'Automatic backup schedule saved and enabled.':'Schedule saved. Automatic backups are disabled.')}).catch(reason=>setError(reason instanceof Error?reason.message:'Schedule could not be saved.')).finally(()=>setBusy(false))}}><Save size={16} aria-hidden="true"/>{busy?'Saving…':'Save backup schedule'}</Button>
+   {message&&<p role="status">{message}</p>}
+   <p className="ui-description">{query.data?.description}. Next execution (your device time): {query.data?.next_runs.length?query.data.next_runs.slice(0,3).map(value=>formatTimestamp(value)).join(' · '):'Disabled'}</p>
    <p className="ui-description">Last successful archive: {formatTimestamp(query.data?.last_success,'Never')} · Last failed archive: {formatTimestamp(query.data?.last_failure,'None')}{query.data?.last_outcome&&` · ${query.data.last_outcome}`}</p>
-   {!!query.data?.attempts?.length&&<details><summary>Scheduled request history</summary><ul className="ui-description">{query.data.attempts.map((entry,index)=><li key={index}>{formatTimestamp(entry.at)} · {entry.status}</li>)}</ul></details>}
+   {!!query.data?.attempts?.length&&<details><summary>Automatic backup history</summary><ul className="ui-description">{query.data.attempts.map((entry,index)=><li key={index}>{formatTimestamp(entry.at)} · {entry.status}</li>)}</ul></details>}
   </>}{error&&<p role="alert">{error}</p>}
  </Card>
 }

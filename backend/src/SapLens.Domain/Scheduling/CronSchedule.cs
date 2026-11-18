@@ -23,9 +23,9 @@ public static partial class CronSchedule
     private static partial Regex DailyTime();
 
     /// <summary>The zone for "local", "UTC" or an IANA name (TimeZoneInfo.Local, Utc, the platform database).</summary>
-    public static TimeZoneInfo Zone(string name)
+    public static TimeZoneInfo Zone(string name, TimeZoneInfo? localZone = null)
     {
-        if (name == "local") return TimeZoneInfo.Local;
+        if (name == "local") return localZone ?? TimeZoneInfo.Local;
         if (name == "UTC") return TimeZoneInfo.Utc;
         try { return TimeZoneInfo.FindSystemTimeZoneById(name); }
         catch (Exception error) when (error is TimeZoneNotFoundException or InvalidTimeZoneException or ArgumentException)
@@ -114,10 +114,10 @@ public static partial class CronSchedule
     }
 
     /// <summary>The next <paramref name="count"/> UTC run times strictly after <paramref name="after"/>.</summary>
-    public static List<DateTimeOffset> NextRuns(string expression, string zoneName, DateTimeOffset after, int count = 1)
+    public static List<DateTimeOffset> NextRuns(string expression, string zoneName, DateTimeOffset after, int count = 1, TimeZoneInfo? localZone = null)
     {
         var rule = Parse(expression);
-        var zone = Zone(zoneName);
+        var zone = Zone(zoneName, localZone);
         var local = TimeZoneInfo.ConvertTime(after, zone).DateTime;
         local = new DateTime(local.Year, local.Month, local.Day, local.Hour, local.Minute, 0);
         var day = DateOnly.FromDateTime(local);
@@ -141,9 +141,9 @@ public static partial class CronSchedule
     }
 
     /// <summary>Validation: parse, time zone and the minimum interval. The next five runs.</summary>
-    public static List<DateTimeOffset> Check(string expression, string zoneName, DateTimeOffset now)
+    public static List<DateTimeOffset> Check(string expression, string zoneName, DateTimeOffset now, TimeZoneInfo? localZone = null)
     {
-        var runs = NextRuns(expression, zoneName, now, 6);
+        var runs = NextRuns(expression, zoneName, now, 6, localZone);
         if (runs.Count == 0) throw new ArgumentException("The expression never runs within the next five years.");
         if (runs.Zip(runs.Skip(1)).Any(pair => pair.Second - pair.First < MinInterval)) throw new ArgumentException("Refreshes must be at least 5 minutes apart.");
         return runs.Take(5).ToList();

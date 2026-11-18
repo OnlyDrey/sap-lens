@@ -326,7 +326,7 @@ public static partial class V1RefreshSchedule
     public static void Map(RouteGroupBuilder api)
     {
         api.MapGet("/refresh-schedule", async (V1Settings settings, HostSettings host, RefreshScheduleState state, TimeProvider clock, CancellationToken ct) =>
-            Results.Content(Status(await settings.GetAsync(ct), host, state, clock.GetUtcNow()).ToJsonString(), "application/json"));
+            Results.Content(Status(await settings.GetAsync(ct), host, state, clock.GetUtcNow(), clock.LocalTimeZone).ToJsonString(), "application/json"));
 
         api.MapPost("/refresh-schedule/preview", async (HttpContext http, TimeProvider clock, CancellationToken ct) =>
         {
@@ -337,7 +337,7 @@ public static partial class V1RefreshSchedule
             if (schedule is null) return Results.Content(Invalid(error!).ToJsonString(), "application/json");
             try
             {
-                var runs = CronSchedule.Check(schedule.Expression, schedule.Timezone, clock.GetUtcNow());
+                var runs = CronSchedule.Check(schedule.Expression, schedule.Timezone, clock.GetUtcNow(), clock.LocalTimeZone);
                 return Results.Content(new JsonObject
                 {
                     ["valid"] = true, ["expression"] = schedule.Expression, ["description"] = CronSchedule.Describe(schedule.Expression, schedule.Timezone),
@@ -351,7 +351,7 @@ public static partial class V1RefreshSchedule
     internal static string Iso(DateTimeOffset value) => value.ToUniversalTime().ToString("yyyy-MM-dd'T'HH:mm:ss'+00:00'");
 
     /// <summary>Scheduler.status: the saved definition, the last outcome, what the deployment needs, and the next runs (or why there are none).</summary>
-    public static JsonObject Status(JsonObject settings, HostSettings host, RefreshScheduleState state, DateTimeOffset now)
+    public static JsonObject Status(JsonObject settings, HostSettings host, RefreshScheduleState state, DateTimeOffset now, TimeZoneInfo? localZone = null)
     {
         var saved = settings["refresh_schedule"] as JsonObject ?? [];
         var (schedule, parseError) = Parse(saved.DeepClone().AsObject());
@@ -367,7 +367,7 @@ public static partial class V1RefreshSchedule
             {
                 info["expression"] = schedule.Expression;
                 info["description"] = CronSchedule.Describe(schedule.Expression, schedule.Timezone);
-                info["next_runs"] = new JsonArray([.. CronSchedule.Check(schedule.Expression, schedule.Timezone, now).Select(r => (JsonNode)Iso(r))]);
+                info["next_runs"] = new JsonArray([.. CronSchedule.Check(schedule.Expression, schedule.Timezone, now, localZone).Select(r => (JsonNode)Iso(r))]);
             }
             catch (ArgumentException error) { info["error"] = error.Message; }
         var runs = info["next_runs"]!.AsArray();
@@ -447,7 +447,7 @@ public sealed class RefreshScheduler(IServiceProvider services, RefreshScheduleS
         var (schedule, _) = V1RefreshSchedule.Parse(saved.DeepClone().AsObject());
         if (schedule is null || !schedule.Enabled) { _cursor = now; return "idle"; }
         List<DateTimeOffset> due;
-        try { due = CronSchedule.NextRuns(schedule.Expression, schedule.Timezone, _cursor, 1); }
+        try { due = CronSchedule.NextRuns(schedule.Expression, schedule.Timezone, _cursor, 1, clock.LocalTimeZone); }
         catch (ArgumentException) { _cursor = now; return "idle"; }
         _cursor = now;   // slots missed while stopped or busy are skipped, never replayed in a burst
         if (due.Count == 0 || due[0] > now) return "idle";

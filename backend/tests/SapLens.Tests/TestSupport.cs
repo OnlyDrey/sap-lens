@@ -7,10 +7,11 @@ using SapLens.Persistence;
 
 namespace SapLens.Tests;
 
-public sealed class ManualClock(DateTimeOffset start) : TimeProvider
+public sealed class ManualClock(DateTimeOffset start, TimeZoneInfo? localZone = null) : TimeProvider
 {
     public DateTimeOffset Now { get; set; } = start;
     public override DateTimeOffset GetUtcNow() => Now;
+    public override TimeZoneInfo LocalTimeZone => localZone ?? base.LocalTimeZone;
     public void Advance(TimeSpan by) => Now += by;
 }
 

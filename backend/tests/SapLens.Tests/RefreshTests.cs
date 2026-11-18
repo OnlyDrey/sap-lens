@@ -17,7 +17,9 @@ public sealed class RefreshTests : IAsyncLifetime
     private static readonly JsonObject Reference = JsonNode.Parse(File.ReadAllText(Path.Combine(Fixtures, "schedule", "cron.python.json")))!.AsObject();
     private readonly string _root = Directory.CreateTempSubdirectory("saplens-refresh-").FullName;
     private readonly string _token = HostSettings.NewToken();
-    private readonly ManualClock _clock = new(DateTimeOffset.Parse((string)Reference["now"]!, System.Globalization.CultureInfo.InvariantCulture));
+    // The committed Python reference was generated with local=UTC. Inject the same clock zone;
+    // never change the developer PC's timezone or adjust the fixture's expected answers.
+    private readonly ManualClock _clock = new(DateTimeOffset.Parse((string)Reference["now"]!, System.Globalization.CultureInfo.InvariantCulture), TimeZoneInfo.Utc);
     private WebApplication _app = null!;
     private HttpClient _client = null!;
 

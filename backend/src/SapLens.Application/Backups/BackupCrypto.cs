@@ -194,7 +194,11 @@ public static class BackupKeys
     public static void WriteAtomic(string path, string text)
     {
         var temporary = path + "." + Guid.NewGuid().ToString("N") + ".tmp";
-        File.WriteAllText(temporary, text);
+        using (var stream = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None))
+        {
+            stream.Write(Encoding.UTF8.GetBytes(text));
+            stream.Flush(true);
+        }
         File.Move(temporary, path, overwrite: true);
     }
 }

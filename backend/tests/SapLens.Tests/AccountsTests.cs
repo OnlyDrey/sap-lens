@@ -83,6 +83,18 @@ public sealed class AccountsTests : IDisposable
         var status = await server.Client.GetStringAsync("/api/backups");
         Assert.True((bool)JsonNode.Parse(status)!["key_provider"]!["escrow_verified"]!);
         Assert.DoesNotContain(recovery, status); Assert.DoesNotContain(file, status);
+        var created = JsonNode.Parse(await (await server.Post("/api/backups/create")).Content.ReadAsStringAsync())!;
+        var archive = await server.Client.GetByteArrayAsync($"/api/backups/{(string)created["id"]!}/download");
+        var payload = Path.Combine(_root, "accounts-snapshot.zip");
+        using (var output = File.Create(payload))
+            SapLens.Application.Backups.BackupArchive.Unseal(new MemoryStream(archive), output, "", SapLens.Application.Backups.BackupKeys.Host(data));
+        var extracted = Path.Combine(_root, "accounts-snapshot");
+        SapLens.Application.Backups.ApplicationBackups.Extract(payload, extracted, MaintenanceCommands.KnownMigrations());
+        using var copy = new SqliteConnection($"Data Source={Path.Combine(extracted, "security", "accounts.sqlite3")};Mode=ReadOnly;Pooling=False");
+        copy.Open(); using var command = copy.CreateCommand();
+        command.CommandText = "SELECT (SELECT COUNT(*) FROM sessions) + (SELECT COUNT(*) FROM one_time)";
+        Assert.Equal(0L, command.ExecuteScalar());
+        Assert.Equal(HttpStatusCode.OK, (await server.Client.GetAsync("/api/auth/me")).StatusCode); // the live session is unchanged
     }
 
     [Fact]

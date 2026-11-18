@@ -27,6 +27,33 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
     [GeneratedRegex("\\A[a-f0-9]{32}\\z")] public static partial Regex Identity();
     [GeneratedRegex("^branding/[a-f0-9]{64}\\.png$")] private static partial Regex BrandingEntry();
     private static readonly SemaphoreSlim Gate = new(1, 1);
+    public bool Busy => Gate.CurrentCount == 0;
+
+    // Take SQLite write reservations in one order. Readers keep serving; all database writers are
+    // excluded only while the database/branding copies are made, before compression and encryption.
+    private sealed class SnapshotLocks : IDisposable
+    {
+        private readonly List<SqliteConnection> _connections = [];
+        private readonly List<SqliteTransaction> _transactions = [];
+        public SnapshotLocks(params string[] databases)
+        {
+            try
+            {
+                foreach (var database in databases.Where(File.Exists))
+                {
+                    var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = database, Mode = SqliteOpenMode.ReadWrite, Pooling = false }.ToString());
+                    _connections.Add(connection); connection.Open();
+                    _transactions.Add(connection.BeginTransaction(deferred: false));
+                }
+            }
+            catch { Dispose(); throw; }
+        }
+        public void Dispose()
+        {
+            foreach (var transaction in _transactions.AsEnumerable().Reverse()) transaction.Dispose();
+            foreach (var connection in _connections.AsEnumerable().Reverse()) connection.Dispose();
+        }
+    }
 
     /// <summary>Product version recorded in manifests (set by the host).</summary>
     public static string ProductVersion { get; set; } = "2.0.0";
@@ -126,19 +153,26 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
             void Add(string entry) { var path = Path.Combine(work, entry); files.Add(new JsonObject { ["path"] = entry, ["sha256"] = Sha(path), ["size"] = new FileInfo(path).Length }); }
             var database = Path.Combine(data, DatabaseEntry);
             if (!File.Exists(database)) throw new BackupException("There is no application database to back up yet.");
+            JsonNode? accounts = null;
+            var accountStore = Path.Combine(data, "security", "accounts.sqlite3");
+            using (var consistent = new SnapshotLocks(database, accountStore))
+            {
             OnlineCopy(database, Path.Combine(work, DatabaseEntry));
             Integrity(Path.Combine(work, DatabaseEntry));
             Add(DatabaseEntry);
-            JsonNode? accounts = null;
-            var accountStore = Path.Combine(data, "security", "accounts.sqlite3");
             if (File.Exists(accountStore))
             {
                 var copy = Path.Combine(work, AccountsEntry);
                 OnlineCopy(accountStore, copy);
-                Execute(copy, "DELETE FROM sessions; VACUUM;");                       // active sessions never leave the host
+                Execute(copy, "DELETE FROM sessions; DELETE FROM one_time; VACUUM;"); // sessions and live one-use credentials never leave the host
                 Integrity(copy);
-                accounts = new JsonObject { ["accounts"] = Count(copy, "SELECT COUNT(*) FROM users"), ["administrators"] = Count(copy, "SELECT COUNT(*) FROM users WHERE role='administrator' AND enabled=1") };
-                Add(AccountsEntry);
+                var accountCount = Count(copy, "SELECT COUNT(*) FROM users");
+                if (accountCount > 0)
+                {
+                    accounts = new JsonObject { ["accounts"] = accountCount, ["administrators"] = Count(copy, "SELECT COUNT(*) FROM users WHERE role='administrator' AND enabled=1") };
+                    if ((long)accounts["administrators"]! == 0) throw new BackupException("The account store has no enabled administrator. Complete local activation or recovery before creating an account-bearing archive.");
+                    Add(AccountsEntry);
+                }
             }
             var branding = Path.Combine(data, "branding");
             if (Directory.Exists(branding))
@@ -150,6 +184,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
                     File.Copy(image, Path.Combine(work, entry));
                     Add(entry);
                 }
+            }
             var manifest = new JsonObject
             {
                 ["format"] = 1, ["product"] = ManifestProduct, ["version"] = ProductVersion, ["kind"] = kind, ["created"] = Stamp(now), ["files"] = files,
@@ -179,14 +214,15 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
     }
 
     /// <summary>Creates a verified manual or automatic archive and records it. Needs the host key (the restore handoff and automatic backups depend on it).</summary>
-    public async Task<JsonObject> CreateAsync(string kind, string passphrase, string actor, CancellationToken ct)
+    public async Task<JsonObject> CreateAsync(string kind, string passphrase, string actor, CancellationToken ct, string? operationId = null)
     {
         var host = BackupKeys.Host(Data) ?? throw new BackupException("Configure a protected host backup key before creating backups.");
         if (File.Exists(PendingFile(Data))) throw new BackupException("A restore is waiting for the next restart. Cancel it before creating a backup.");
         await Gate.WaitAsync(ct);
         try
         {
-            var id = Guid.NewGuid().ToString("N");
+            var id = operationId ?? Guid.NewGuid().ToString("N");
+            if (!Identity().IsMatch(id)) throw new BackupException("Invalid backup operation identifier.");
             var now = clock.GetUtcNow();
             var (sha, size, manifest) = await Task.Run(() => WriteArchive(Data, Path.Combine(Data, "backups", ArchiveName(id)), passphrase, host, kind, now), ct);
             await _writer.WriteAsync((db, _) =>
