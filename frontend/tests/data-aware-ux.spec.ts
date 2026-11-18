@@ -3,7 +3,6 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { bootstrapDocument } from './bootstrap-fixture'
 import { headers, backendFixture, recordClipboard, copiedText } from './support'
 let directory = '', userSource = ''
 const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact:true }).click()
@@ -167,36 +166,7 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await expect(page.getByRole('heading',{name:'Loading CSV data…',exact:true})).toBeVisible()
   await shot('contextual-loading')
   await page.unroute('**/api/configuration'); await page.unroute('**/api/refresh')
-  // Actual authored bootstrap document and palette, browser-rendered; not native WebView2.
-  const html = bootstrapDocument(theme)
-  await page.route('**/synthetic-bootstrap-preview',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:html}))
-  await page.goto('/synthetic-bootstrap-preview')
-  await expect(page.getByRole('status')).toHaveText('Starting backend…')
-  expect(await page.evaluate(() => document.characterSet)).toBe('UTF-8')
-  await expect.poll(()=>page.evaluate(()=>getComputedStyle(document.documentElement).colorScheme)).toBe(theme)
-  await shot('bootstrap')
 })
-
-test('bootstrap handoff replaces its history entry and never reappears at the first app route', async ({page}) => {
-  const html = bootstrapDocument()
-  await page.route('**/synthetic-bootstrap',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:html}))
-  await page.goto('/synthetic-bootstrap')
-  await expect(page.getByRole('status')).toHaveText('Starting backend…')
-  expect(await page.evaluate(() => document.characterSet)).toBe('UTF-8')
-  const bootstrapLength = await page.evaluate(()=>history.length)
-  await page.evaluate(()=>window.location.replace('/#session=browser-test-session'))
-  await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()
-  expect(await page.evaluate(()=>history.length)).toBe(bootstrapLength + 1) // one app boundary, no added bootstrap entry
-  await navigate(page,'User Access'); await page.goBack()
-  await expect(page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Dashboard',exact:true})).toHaveAttribute('aria-current','page')
-  await page.goBack()
-  await expect.poll(()=>page.evaluate(()=>Boolean(history.state?.sapLensView && !history.state?.sapLensBoundary))).toBeTruthy()
-  await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()
-  await expect(page.getByText('Starting backend…',{exact:true})).toHaveCount(0)
-  await page.goForward()
-  await expect(page.getByRole('heading',{name:'User Access',exact:true})).toBeVisible()
-})
-
 
 test('first-launch setup retains an app history boundary before configuration is available', async ({page,request}) => {
   await request.post('/api/configuration/reset',{headers})
@@ -210,21 +180,6 @@ test('first-launch setup retains an app history boundary before configuration is
   await page.goForward()
   await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeVisible()
   await expect(page.locator('.startup-screen')).toHaveCount(0)
-})
-
-test('bootstrap Unicode survives legacy Python stdout and explicit UTF-8 HTTP delivery', async ({ page }) => {
-  const html = bootstrapDocument(undefined, 'cp1252')
-  expect(html).toContain('Starting backend…')
-  expect(html).not.toContain('\uFFFD')
-  await page.route('**/unicode-bootstrap', route => route.fulfill({
-    contentType: 'text/html; charset=utf-8', body: Buffer.from(html, 'utf8'),
-  }))
-  const response = await page.goto('/unicode-bootstrap')
-  expect(response?.headers()['content-type']).toBe('text/html; charset=utf-8')
-  expect(await page.evaluate(() => document.characterSet)).toBe('UTF-8')
-  await expect(page.getByRole('status')).toHaveText('Starting backend…')
-  await page.evaluate(() => (window as unknown as {sapLensStartup:{setState:(label:string)=>void}}).sapLensStartup.setState('Connecting to local service…'))
-  await expect(page.getByRole('status')).toHaveText('Connecting to local service…')
 })
 
 test('stale desktop session recovers through a trusted document without replaying failed writes',async({page})=>{

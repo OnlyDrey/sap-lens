@@ -6,11 +6,34 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** Shared browser-test helpers. Specs import these instead of redefining them. */
-/** Backend test fixture, resolved from this file (not the working directory): <root>/frontend/tests -> <root>/legacy/v1/backend/tests/fixtures. The same layout
- *  exists in the isolated build workspace, which mirrors legacy/v1/backend/tests/fixtures. A missing file fails with the path that was searched. */
+/** Parses delimited text (RFC 4180: quoted fields, doubled quotes, line breaks inside quotes, a leading BOM) into records keyed by the header row,
+ *  as Python's csv.DictReader does. */
+export function parseDelimited(text: string, delimiter = ','): Record<string, string>[] {
+  const rows: string[][] = []; let row: string[] = [], field = '', quoted = false
+  const input = text.replace(/^\uFEFF/, '')
+  for (let i = 0; i < input.length; i++) {
+    const c = input[i]
+    if (quoted) {
+      if (c === '"' && input[i + 1] === '"') { field += '"'; i++ }
+      else if (c === '"') quoted = false
+      else field += c
+    } else if (c === '"') quoted = true
+    else if (c === delimiter) { row.push(field); field = '' }
+    else if (c === '\n' || c === '\r') {
+      if (c === '\r' && input[i + 1] === '\n') i++
+      row.push(field); rows.push(row); row = []; field = ''
+    } else field += c
+  }
+  if (field !== '' || row.length) { row.push(field); rows.push(row) }
+  const [header = [], ...data] = rows
+  return data.filter(r => r.length > 1 || r[0] !== '').map(r => Object.fromEntries(header.map((name, index) => [name, r[index] ?? ''])))
+}
+
+/** Synthetic test fixture in frontend/tests/fixtures, resolved from this file (not the working directory). A missing file fails with the path
+ *  that was searched. */
 export function backendFixture(name: string): string {
-  const resolved = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'legacy', 'v1', 'backend', 'tests', 'fixtures', name)
-  if (!existsSync(resolved)) throw new Error(`Backend test fixture "${name}" not found at ${resolved}. The build workspace must mirror legacy/v1/backend/tests/fixtures (legacy/v1/scripts/build_system/frontend_workspace.py).`)
+  const resolved = path.resolve(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', name)
+  if (!existsSync(resolved)) throw new Error(`Test fixture "${name}" not found at ${resolved} (frontend/tests/fixtures).`)
   return resolved
 }
 

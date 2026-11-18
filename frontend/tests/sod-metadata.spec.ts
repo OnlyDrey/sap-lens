@@ -1,10 +1,11 @@
 import { test, expect, type Page } from '@playwright/test'
-import { writeFileSync } from 'node:fs'
-import { execFileSync } from 'node:child_process'
-import { PYTHON } from './python'
+import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { cleanup, enableSod, headers, openSod, seedGovernance } from './sod-fixture'
 import { openSettings } from './support'
+
+// Synthetic SoD reference workbooks (tests/fixtures/sod-reference): Risks and Activities sheets with exact IDs, generated once and versioned.
+const fixture = (name: string) => readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'fixtures', 'sod-reference', name))
 
 const HEAD = 'RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT'
 const rowsFor = (extra: (risk: string, activity: string) => string[] = () => []) => {
@@ -157,8 +158,7 @@ test('an existing file shows absent optional columns as normal, and the candidat
 
 test('reference workbook upload enriches exact active IDs with provenance and coverage without activating unmatched definitions @repository-only', async ({ page, request }, testInfo) => {
   await reseed(request, plain)
-  const workbook = (inactive = false) => execFileSync(PYTHON, ['-c',
-    "import sys;sys.path[:0]=['legacy/v1/backend','legacy/v1/backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('REF_UNUSED','Unused')] if sys.argv[1]=='yes' else [('R1','Curated risk'),('REF_UNUSED','Unused')],activities=[('REF_UNUSED_ACTIVITY','Unused')] if sys.argv[1]=='yes' else [('A','Curated activity')]))", inactive ? 'yes' : 'no'], { cwd: path.resolve('..'), env: { ...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('SAP_LENS_') && key !== 'DATA_CSV_PATH')), SAP_LENS_CONFIG_DIR: path.join(directory, 'reference-generator'), DATA_CSV_PATH: '' } })
+  const workbook = (inactive = false) => fixture(inactive ? 'unused.xlsx' : 'curated.xlsx')
   try {
     await openSettings(page, 'SoD Risk Configuration')
     const library = page.getByRole('region', { name: 'SoD reference library' })
@@ -206,7 +206,7 @@ test('reference workbook upload enriches exact active IDs with provenance and co
 
 test('risk and activity dialogs inherit reference fields without creating overrides and safely refresh unsaved drafts @repository-only', async ({page,request})=>{
   await reseed(request, plain.replaceAll('R1','F019').replaceAll(',A,',',AP01,'))
-  const referenceFile=(name='Synthetic reference risk')=>execFileSync(PYTHON,['-c',"import sys;sys.path[:0]=['legacy/v1/backend','legacy/v1/backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('F019',sys.argv[1])],activities=[('AP01','Synthetic reference activity')]))",name],{cwd:path.resolve('..'),env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>!key.startsWith('SAP_LENS_')&&key!=='DATA_CSV_PATH')),SAP_LENS_CONFIG_DIR:path.join(directory,'effective-generator'),DATA_CSV_PATH:''}})
+  const referenceFile=(name='Synthetic reference risk')=>fixture(name==='Updated synthetic risk' ? 'f019-updated.xlsx' : 'f019-synthetic.xlsx')
   try{
     await openSettings(page,'SoD Risk Configuration')
     const library=page.getByRole('region',{name:'SoD reference library'})
@@ -275,7 +275,7 @@ test('risk and activity dialogs inherit reference fields without creating overri
   }finally{
     const current=await(await request.get('/api/sod/reference',{headers})).json()
     // Leave no active reference matches for unrelated tests sharing this disposable server.
-    const unused=execFileSync(PYTHON,['-c',"import sys;sys.path[:0]=['legacy/v1/backend','legacy/v1/backend/tests'];from test_sod_reference import workbook;sys.stdout.buffer.write(workbook(risks=[('REF_UNUSED','Unused')],activities=[('REF_UNUSED_ACTIVITY','Unused')]))"],{cwd:path.resolve('..'),env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>!key.startsWith('SAP_LENS_')&&key!=='DATA_CSV_PATH')),SAP_LENS_CONFIG_DIR:path.join(directory,'effective-generator'),DATA_CSV_PATH:''}})
+    const unused=fixture('unused.xlsx')
     expect((await request.put('/api/sod/reference',{headers,data:{expected_revision:current.revision,workbook_base64:unused.toString('base64')}})).ok()).toBeTruthy()
   }
 })

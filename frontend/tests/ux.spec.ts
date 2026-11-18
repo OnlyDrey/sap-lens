@@ -1,4 +1,3 @@
-import { bootstrapDocument } from './bootstrap-fixture'
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
 import { headers } from './support'
@@ -136,25 +135,6 @@ test('startup connection failure has actionable recovery and configuration notic
  await expect(page.getByText(/File settings migrated to schema 2/)).toBeHidden()
  await page.reload()
  await expect(page.getByRole('button',{name:'Dismiss configuration notice'})).toBeHidden()
-})
-
-test('branded startup document displays real status messages and recovery without external requests',async({page},testInfo)=>{
- const document=bootstrapDocument()
- const external:string[]=[]
- page.on('request',request=>{if(request.url().startsWith('http'))external.push(request.url())})
- await page.setViewportSize({width:1280,height:720})
- await page.setContent(document)
- await expect(page.getByRole('img',{name:'SAP Lens',exact:true})).toBeVisible()
- await expect(page.getByRole('status')).toHaveText('Starting backend…')
- for(const label of ['Connecting to local service…','Loading configuration…']) {
-  await page.evaluate(label=>(window as unknown as {sapLensStartup:{setState:(label:string,error?:string)=>void}}).sapLensStartup.setState(label),label)
-  await expect(page.getByRole('status')).toHaveText(label)
- }
- await page.evaluate(()=>(window as unknown as {sapLensStartup:{setState:(label:string,error:string)=>void}}).sapLensStartup.setState('Startup needs attention','The local service did not become ready.'))
- await expect(page.getByRole('alert')).toHaveText('The local service did not become ready.')
- await expect(page.getByRole('button',{name:'Close SAP Lens'})).toBeVisible()
- expect(external).toEqual([])
- await page.screenshot({path:testInfo.outputPath('startup-recovery.png')})
 })
 
 test('active role loading is explained and a subsequent CSV error opens source recovery',async({page,request})=>{

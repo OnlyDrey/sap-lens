@@ -11,7 +11,9 @@ import tempfile
 from pathlib import Path
 
 os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp(prefix='saplens-v1-export-')
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'legacy' / 'v1' / 'backend'))
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # with -I the tool's own folder is not on sys.path
+from v1_location import v1_backend  # noqa: E402
+sys.path.insert(0, v1_backend())
 
 from config_models import ICONS, AppConfig  # noqa: E402
 from module_registry import registry_list  # noqa: E402

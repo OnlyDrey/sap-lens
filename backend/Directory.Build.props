@@ -10,7 +10,7 @@
   </PropertyGroup>
 
   <!-- Product version of SAP Lens (.NET Server and Desktop): product-version.json next to this file is the only source (see
-       docs/architecture/VERSIONING.md). It is independent of SAP Lens v1 (legacy/v1/backend/resources/product-version.json) and changes only by an
+       docs/architecture/VERSIONING.md). It is independent of SAP Lens v1's version (archived with SAP Lens 1) and changes only by an
        explicit, approved edit; builds never increment it. Build identity is separate: the release scripts pass -p:SourceRevisionId=<commit>, which the
        SDK appends to the informational version (2.0.0-alpha.1+<commit>); build time and artifact hashes live in build-manifest.json.
        FileVersion follows the v1 contract (MAJOR.MINOR.PATCH plus the alpha/beta/rc number, 0 for a stable release). -->

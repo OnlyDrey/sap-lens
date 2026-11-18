@@ -28,9 +28,9 @@ class WorkflowContracts(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     module('check-workflows').check(Path(directory))
 
-    def test_archived_workflows_cannot_run(self):
+    def test_only_the_main_push_workflow_exists(self):
+        # SAP Lens 1's workflows were archived with it outside the repository; only the .NET validation workflow remains.
         self.assertEqual(['validate.yml'], [p.name for p in (ROOT / '.github/workflows').glob('*.yml')])
-        self.assertEqual(4, len(list((ROOT / 'legacy/v1/.github/workflows').glob('*.yml'))))
 
 
 class DeploymentContracts(unittest.TestCase):

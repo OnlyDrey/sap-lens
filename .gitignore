@@ -3,7 +3,6 @@
 .env.*
 !.env.example
 
-legacy/v1/backend/.env
 frontend/.env
 
 # Local backups
@@ -23,11 +22,6 @@ __pycache__/
 venv/
 # Environments set aside by `build.ps1 -Mode prerequisites -Repair` (kept for inspection, never committed)
 .venv.broken-*/
-
-# PyInstaller (SAP Lens v1, archived under legacy/v1)
-legacy/v1/backend/build/
-legacy/v1/backend/dist/
-legacy/v1/backend/*.spec
 
 # .NET build output (backend/; nested .gitignore covers bin/obj)
 /backend/artifacts/
@@ -110,7 +104,7 @@ sod-periods.json
 /build/scm-*.json
 /build/service-auth-*.json
 
-# Every generated distributable (legacy/v1/scripts/build_system/layout.py): local, deployment, server, publication, versioned outputs and the cleanup lock
+# Generated distributables
 /dist/
 
 # Verified project-local build tools (never release inputs)

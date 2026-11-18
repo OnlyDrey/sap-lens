@@ -4,9 +4,8 @@ import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs'
 import {randomUUID} from 'node:crypto'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, parseDelimited } from './support'
 import { layoutMatrix } from './matrix'
-import { PYTHON } from './python'
 test.setTimeout(45_000)
 const columns='Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 let root:string,users:string,roles:string,userA:string,userB:string
@@ -127,8 +126,7 @@ async function prepareAssignmentExport(request:APIRequestContext){
 async function downloadAssignments(page:Page){
  const pending=page.waitForEvent('download');await page.getByRole('button',{name:'Export CSV',exact:true}).click();const file=await pending;const location=(await file.path())!
  const bytes=readFileSync(location);expect(bytes.subarray(0,3).equals(Buffer.from([0xef,0xbb,0xbf]))).toBeTruthy()
- const {execFileSync}=await import('node:child_process')
- const rows=JSON.parse(execFileSync(PYTHON,['-c',"import csv,json,sys; print(json.dumps(list(csv.DictReader(open(sys.argv[1],encoding='utf-8-sig',newline=''),delimiter=';'))))",location],{encoding:'utf8'})) as Record<string,string>[]
+ const rows=parseDelimited(bytes.toString('utf8'),';')
  return {rows,text:bytes.toString('utf8'),filename:file.suggestedFilename()}
 }
 test('task 31 directory exports all assignments for filtered users with explicit matches',async({page,request})=>{

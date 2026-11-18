@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def check(root=ROOT):
     workflows = sorted((root / '.github/workflows').glob('*.y*ml'))
     assert [p.name for p in workflows] == ['validate.yml'], 'Only the main-push validation workflow may be active'
-    data = yaml.load(workflows[0].read_text(), Loader=yaml.BaseLoader)
+    data = yaml.load(workflows[0].read_text(), Loader=yaml.BaseLoader)  # noqa: S506 BaseLoader builds only str/list/dict (keeps the key 'on' a string)
     assert data['on'] == {'push': {'branches': ['main']}}, 'CI must run only on push to main'
     assert data['permissions'] == {'contents': 'read'}, 'CI must not publish or deploy'
     assert set(data['jobs']) == {'frontend', 'backend', 'browser', 'docker'}
