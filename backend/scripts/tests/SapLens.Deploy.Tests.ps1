@@ -564,3 +564,43 @@ Describe 'Semantic comparison of service arguments' {
         @(Compare-SL2ServiceArguments (With (With $script:Base '--listen' '2001:0db8::0010') '--trusted-proxies' '2001:db8::1') $v6).Count | Should -Be 0
     }
 }
+
+Describe 'Managed service detection (binary_path_matches)' {
+    BeforeEach {
+        $script:Config = New-TestConfig
+        $script:Previous = New-TestRelease $script:Config 'old' $script:Old
+        $script:Target = New-TestRelease $script:Config 'new' $script:New
+        $c = $script:Config
+        $exe = [System.IO.Path]::Combine([System.IO.Path]::Combine([System.IO.Path]::Combine($c.ReleasesRoot, 'current'), 'server'), 'SapLens.Api.exe')
+        # How Windows can store the managed command line: executable unquoted (Windows PowerShell 5.1 passing binPath= to sc.exe), options
+        # and host list reordered, path case changed.
+        $script:Equivalent = ('{0} --port 18795 --listen 192.168.10.20 --network --allowed-hosts 192.168.10.20,lens.example.com --data-dir {1} ' +
+            '--cert {2} --cert-password-file {3} --trusted-proxies 192.168.10.10') -f $exe.ToUpperInvariant(), $c.DataDirectory, $c.CertificatePath, $c.CertificatePasswordFile
+    }
+
+    It 'reports an equivalent command line as managed and a real difference as not managed' {
+        Test-SL2ServiceBinary (Get-SL2BinaryPath $script:Config) $script:Config | Should -BeTrue
+        Test-SL2ServiceBinary $script:Equivalent $script:Config | Should -BeTrue
+        Test-SL2ServiceBinary ($script:Equivalent -replace '--port 18795', '--port 18796') $script:Config | Should -BeFalse
+        Test-SL2ServiceBinary ($script:Equivalent -replace '\\CURRENT\\', '\OTHER\' -replace '/CURRENT/', '/OTHER/') $script:Config | Should -BeFalse
+        Test-SL2ServiceBinary ($script:Equivalent + ' --auth none') $script:Config | Should -BeFalse
+        Test-SL2ServiceBinary '' $script:Config | Should -BeFalse
+    }
+
+    It 'shows binary_path_matches true in the status of an equivalent managed service' {
+        Use-FakeHost $script:Config $script:Previous
+        $script:Expected = $script:Equivalent
+        Mock -ModuleName $M Invoke-SL2Http { [pscustomobject]@{ Status = 200; Body = '{"source_sha":"a","version":"2.0.0-alpha.1"}' } }
+        (Get-SL2Status $script:Config).binary_path_matches | Should -BeTrue
+        $script:Expected = $script:Equivalent -replace '--port 18795', '--port 18796'
+        (Get-SL2Status $script:Config).binary_path_matches | Should -BeFalse
+    }
+
+    It 'deploys to an equivalent managed service without asking for adoption and without rewriting its command line' {
+        Use-FakeHost $script:Config $script:Previous
+        $script:Expected = $script:Equivalent
+        $script:State.Identity[$script:Target] = $script:New
+        Invoke-Deploy $script:Config $script:Target | Should -Be 0
+        ($script:Calls -join ' ') | Should -Be 'schema:new backup verify stop link:new start:new'
+    }
+}

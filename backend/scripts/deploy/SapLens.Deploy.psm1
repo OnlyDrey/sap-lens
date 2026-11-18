@@ -159,6 +159,22 @@ function Compare-SL2ServiceArguments([string[]]$Existing, [string[]]$Wanted) {
     $differences.ToArray()          # a plain sequence: callers wrap it in @(...)
 }
 
+# An executable path for comparison: surrounding quotes and whitespace removed, separators unified, no trailing separator. Case is compared
+# separately (Windows paths are case-insensitive). No drive or file-system lookup, so it behaves the same on Linux test hosts.
+function ConvertTo-SL2NormalPath([string]$Path) { ($Path.Trim().Trim('"') -replace '[\\/]+', '\').TrimEnd('\') }
+
+# Whether a service command line runs the managed release executable with the configured arguments. The raw command line is not compared:
+# Windows and sc.exe store equivalent command lines differently (quotes, option order, list order, case; Windows PowerShell 5.1 can drop the
+# quotes around the executable when it passes binPath= to sc.exe), which made a correctly managed service read as unmanaged.
+function Test-SL2ServiceBinary([string]$PathName, $Config) {
+    if (-not $PathName) { return $false }
+    $tokens = @(Split-SL2CommandLine $PathName)
+    if ($tokens.Count -eq 0) { return $false }
+    $exe = ConvertTo-SL2NormalPath $tokens[0]
+    if (-not [string]::Equals($exe, (ConvertTo-SL2NormalPath (Get-SL2ServiceExe $Config)), [StringComparison]::OrdinalIgnoreCase)) { return $false }
+    @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) @(Get-SL2ServiceArguments $Config)).Count -eq 0
+}
+
 function Get-SL2CurrentLink($Config) { Join-SL2 $Config.ReleasesRoot 'current' }
 function Get-SL2ServiceExe($Config) { Join-SL2 (Join-SL2 (Get-SL2CurrentLink $Config) 'server') $script:Exe }
 
@@ -468,7 +484,7 @@ function Invoke-SL2MigrateService($Config) {
     if (-not $legacy.Exists) { Stop-SL2 "No $($script:LegacyServiceName) service exists on this host; nothing to migrate." }
     $legacyConfig = $Config.PSObject.Copy(); $legacyConfig.ServiceName = $script:LegacyServiceName
     $binary = Get-SL2BinaryPath $Config
-    if ($legacy.PathName -ne $binary) { Stop-SL2 "$($script:LegacyServiceName) runs $($legacy.PathName), not the managed release link. Deploy once with -AdoptService first, then migrate." }
+    if (-not (Test-SL2ServiceBinary $legacy.PathName $Config)) { Stop-SL2 "$($script:LegacyServiceName) runs $($legacy.PathName), not the managed release link. Deploy once with -AdoptService first, then migrate." }
     $journal = Read-SL2Journal $Config
     if ($journal -and $journal.phase -in $script:CriticalPhases) { Stop-SL2 "An earlier deployment ($($journal.run)) was interrupted in phase '$($journal.phase)'. Run -Action Recover first." }
     $wasRunning = $legacy.State -eq 'Running'
@@ -553,7 +569,7 @@ function Get-SL2Status($Config) {
     [pscustomobject]@{
         service_model = $model; service_name = $Config.ServiceName; service = $service; expected_binary_path = Get-SL2BinaryPath $Config
         legacy_service_name = ($Config.ServiceName -eq $script:LegacyServiceName); other_service = Get-SL2OtherService $Config
-        binary_path_matches = ($service.Exists -and $service.PathName -eq (Get-SL2BinaryPath $Config))
+        binary_path_matches = ($service.Exists -and (Test-SL2ServiceBinary $service.PathName $Config))
         current_release = $current; current_commit = $(if ($manifest) { $manifest.source_sha } else { $null }); current_version = $(if ($manifest) { $manifest.version } else { $null })
         listeners = $listeners; ready = $ready; running_identity = $identity
         journal_phase = $(if ($journal) { $journal.phase } else { $null }); recovery_needed = ($journal -and $journal.phase -in $script:CriticalPhases)
@@ -668,7 +684,7 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
     $previous = Get-SL2Link $link
     if (-not $service.Exists -and -not $FirstInstall) { Stop-SL2 "Service $($Config.ServiceName) is not installed. Run the first deployment with -FirstInstall (see WINDOWS_DEPLOYMENT.md)." }
     $adopt = $false
-    if ($service.Exists -and $service.PathName -ne (Get-SL2BinaryPath $Config)) {
+    if ($service.Exists -and -not (Test-SL2ServiceBinary $service.PathName $Config)) {
         # A service installed by hand (or by an earlier procedure) runs another executable path. It is adopted only on request, and only when its
         # arguments are equivalent to the configured ones (data directory, network, TLS, hosts, proxies), so nothing about its runtime changes silently.
         # The comparison is semantic (option order and list order do not matter; every value must match), see Compare-SL2ServiceArguments.
