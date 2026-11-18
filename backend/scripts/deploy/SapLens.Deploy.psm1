@@ -281,11 +281,21 @@ function Set-SL2Link([string]$Link, [string]$Target) {
 
 # A readiness and identity probe of the local listener. TLS verification is skipped for this local probe only (it sends no credentials and reads
 # two public documents); clients and the reverse proxy validate the certificate as before.
-function Invoke-SL2Http([string]$Url) {
+function Invoke-SL2Http([string]$Url, [string]$HostHeader = '') {
     $ErrorActionPreference = 'Continue'
-    $body = & curl.exe --silent --show-error --insecure --max-time 10 --write-out "`n%{http_code}" $Url 2>&1
+    $headers = @()
+    if ($HostHeader) { $headers = @('--header', "Host: $HostHeader") }
+    $body = & curl.exe --silent --show-error --insecure --noproxy '*' --max-time 10 @headers --write-out "`n%{http_code}" $Url 2>&1
     $lines = @($body | ForEach-Object { "$_" })
     [pscustomobject]@{ Status = [int]($lines[-1]); Body = (($lines | Select-Object -SkipLast 1) -join "`n") }
+}
+
+function Invoke-SL2ConfiguredHttp($Config, [string]$Path) {
+    # Connect directly to the configured listener with an already allowed host.
+    # Never change DNS, host/origin policy or proxy configuration for a probe.
+    $hostName = @($Config.AllowedHosts | Where-Object { $_ -and $_ -ne '*' }) | Select-Object -First 1
+    if (-not $hostName) { Stop-SL2 'A configured allowed host is required for health inspection.' }
+    Invoke-SL2Http "https://$($Config.ListenAddress):$($Config.Port)$Path" "$hostName`:$($Config.Port)"
 }
 
 # ---- journal and lock
@@ -446,6 +456,11 @@ function Publish-SL2Release($Config, [string]$Release, $Manifest) {
 
 # The other SAP Lens service name on this host (SapLens beside SapLens2, or the reverse), when it exists: never create a second service.
 function Get-SL2OtherService($Config) {
+    if ($Config.ServiceName -cmatch '^(SapLens\.Acceptance-[a-f0-9]{32})-(old|new)$') {
+        $other = $Matches[1] + $(if ($Matches[2] -eq 'old') { '-new' } else { '-old' })
+        if ((Get-SL2Service $other).Exists) { return $other }
+        return $null
+    }
     foreach ($name in $script:ServiceName, $script:LegacyServiceName) { if ($name -ne $Config.ServiceName -and (Get-SL2Service $name).Exists) { return $name } }
     $null
 }
@@ -509,8 +524,8 @@ function Get-SL2Status($Config) {
     $identity = $null; $ready = $null
     if ($listeners.Count -gt 0) {
         $base = "https://$($Config.ListenAddress):$($Config.Port)"
-        $readyResponse = Invoke-SL2Http "$base/health/ready"; $ready = $readyResponse.Status -eq 200
-        $identityResponse = Invoke-SL2Http "$base/product-version.json"
+        $readyResponse = Invoke-SL2ConfiguredHttp $Config '/health/ready'; $ready = $readyResponse.Status -eq 200
+        $identityResponse = Invoke-SL2ConfiguredHttp $Config '/product-version.json'
         if ($identityResponse.Status -eq 200) { $identity = $identityResponse.Body | ConvertFrom-Json }
     }
     $journal = Read-SL2Journal $Config
@@ -538,9 +553,11 @@ function Wait-SL2Ready($Config, [string]$Commit, [string]$Version) {
         if ($service.State -eq 'Stopped') { Stop-SL2 'The service stopped during startup (see <data-dir>\logs\server-*.log).' 1 }
         $listeners = @(Get-SL2Listener $Config.ListenAddress ([int]$Config.Port))
         if ($service.State -eq 'Running' -and $service.ProcessId -gt 0 -and $listeners -contains $service.ProcessId) {
-            $ready = Invoke-SL2Http "$base/health/ready"
+            $ready = Invoke-SL2ConfiguredHttp $Config '/health/ready'
             if ($ready.Status -eq 200) {
-                $identity = (Invoke-SL2Http "$base/product-version.json").Body | ConvertFrom-Json
+                $identityResponse = Invoke-SL2ConfiguredHttp $Config '/product-version.json'
+                if ($identityResponse.Status -ne 200) { Stop-SL2 'Release identity could not be verified.' 1 }
+                $identity = $identityResponse.Body | ConvertFrom-Json
                 if ($Commit -and ($identity.source_sha -ne $Commit -or $identity.version -ne $Version)) {
                     Stop-SL2 "The service answers as $($identity.version) $($identity.source_sha), expected $Version $Commit." 1
                 }

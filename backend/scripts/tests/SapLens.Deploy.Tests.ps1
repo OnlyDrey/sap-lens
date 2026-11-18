@@ -355,6 +355,10 @@ Describe 'Service installation and host safety' {
         $output = & pwsh -NoProfile -File $script:EntryPath -Action Deploy -ConfigFile $file 2>&1
         $LASTEXITCODE | Should -Be 2
         ($output -join "`n") | Should -Match 'repeat with -Yes'
+        # Authorization is refused before config lookup or implicit host-service detection.
+        $output = & pwsh -NoProfile -File $script:EntryPath -Action MigrateService -ConfigFile (Join-Path $TestDrive 'missing.json') 2>&1
+        $LASTEXITCODE | Should -Be 2
+        ($output -join "`n") | Should -Match 'repeat with -Yes'
     }
 }
 

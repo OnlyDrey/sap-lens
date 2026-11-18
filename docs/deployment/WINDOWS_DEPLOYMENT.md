@@ -4,7 +4,7 @@ How the SAP Lens .NET server is built, validated and deployed on a Windows test 
 migrated to `SapLens`, and how the Desktop and Server installers are built. Every value below is an example (`192.0.2.0/24`, `lens.example.com`,
 `deployer`, `C:\Users\example`); real host names, addresses, paths and credentials stay in the host's own configuration file and are never committed.
 
-Status: the scripts are tested on Linux with mocks (Pester) and a fake SSH (Bash). **Native Windows acceptance is pending**; see
+Status: deployment state-machine tests use mocked SCM/network operations (Pester); SSH tests use a fake SSH (Bash). **Native Windows acceptance is pending**; see
 [Acceptance checklist](#acceptance-checklist-windows-pending). Nothing here claims that a Windows run passed.
 
 ## Components
@@ -47,7 +47,7 @@ On Linux: `ssh`, `bash`, `iconv`, `base64` and an SSH key or agent for the host 
 ## Configuration
 
 Copy `backend\scripts\deploy\deploy.example.json` to a folder outside the repository and edit it. Lookup when `-ConfigFile`/`--config` is not given, first
-match wins: `$env:SAPLENS_DEPLOY_CONFIG`, `$env:SAPLENS2_DEPLOY_CONFIG`, `C:\saplens\deploy.local.json`, `C:\saplens2\deploy.local.json`.
+match wins: `$env:SAPLENS_DEPLOY_CONFIG`, `$env:SAPLENS2_DEPLOY_CONFIG`, `C:\sap-lens\deploy\deploy.local.json`, `C:\saplens\deploy.local.json`, `C:\saplens2\deploy.local.json`.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
@@ -75,7 +75,7 @@ $D "${H[@]}" --mode deploy --tests focused --yes # build, test, verify, back up,
 $D "${H[@]}" --mode deploy --commit 1a2b3c4d --tests full --yes
 $D "${H[@]}" --mode rollback --yes               # previous release, only when it can open the current data
 $D "${H[@]}" --mode recover --yes                # finish an interrupted deployment (Ctrl+C, dropped SSH)
-$D "${H[@]}" --mode migrate-service --yes        # SapLens2 to SapLens (below)
+# Directory migration uses the explicit local PowerShell actions below; no SSH shortcut is implied.
 ```
 
 `--tests focused` runs the deployment-relevant test classes (startup, API, network, reverse proxy, sessions, accounts, persistence, backups,
@@ -118,20 +118,72 @@ restart on failure and least-privilege grants), then `--mode status`.
 
 ## Migrating SapLens2 to SapLens
 
-`SapLens` is the service name for new installations. An existing `SapLens2` keeps working (it is detected) until it is migrated once:
+This is an explicit, separate maintenance operation. Do not run it on the working VM during development. Native acceptance must pass first
+on [unique synthetic fixtures](WINDOWS_TEST_VM.md#isolated-native-migration-acceptance). Production cutover still needs authorization.
+An already activated v1 data migration is preserved; do not preview/run/activate it again and do not auto-confirm its functional acceptance.
 
-```bash
-$D "${H[@]}" --mode status                       # service_name SapLens2, legacy_service_name true, binary_path_matches true
-$D "${H[@]}" --mode migrate-service --yes
-$D "${H[@]}" --mode status                       # service_name SapLens, other_service null
+| Purpose | Canonical location |
+| --- | --- |
+| Verified immutable releases / current junction | `C:\sap-lens\releases` / `C:\sap-lens\releases\current` |
+| Deployment tools, private config and mirrored journal | `C:\sap-lens\deploy` |
+| Mutable application data | `C:\ProgramData\SapLens\data` |
+| Existing TLS certificate and password copy | `C:\ProgramData\SapLens\tls` |
+| Existing host key and recovery copies | `C:\ProgramData\SapLens\backup` |
+| Verified pre-deployment/migration archives | `C:\ProgramData\SapLens\predeploy-backups` |
+
+Prepare two private JSON configurations **outside the new target roots**. Source explicitly names `SapLens2` and its actual paths, arguments
+and account. Target explicitly names `SapLens` and the canonical paths above. Preserve `LocalSystem` when the source uses it; a source virtual
+account maps to `NT SERVICE\SapLens`. Custom credential accounts are refused. Never switch the account implicitly. Preserve the exact listen
+address, port, allowed hosts, trusted proxies and TLS filenames; no certificate regeneration, key rotation, proxy or firewall change occurs.
+Target roots must not exist, must be disjoint local NTFS directories, and must have private parent ACLs and adequate free space.
+
+Use the **new verified release's** server executable as an inspector. It supports `--inspect-data` but is never installed by migration: the
+source's verified release is copied unchanged. Legacy source releases need `--schema-info`, `--backup-local` and `--backup-verify` support.
+The inspector copies database/WAL/journal files into scratch and opens only those copies; it never opens live source SQLite. SHM is rebuilt in
+scratch because Windows locks the live WAL index. Inspection refuses concurrent changes; repeat at a quiet time, without weakening checks.
+
+```powershell
+$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
+$source = 'C:\private-operations\source.local.json'
+$target = 'C:\private-operations\target.local.json'
+$inspector = 'C:\private-operations\verified-release\server\SapLens.Api.exe'
+# Read-only: inspect result.safe and every check; no backup, journal, ACL or service change.
+& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector
+# ONLY in an explicitly authorized maintenance window after isolated acceptance:
+& $entry -Action MigrateService -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector -Yes
+& $entry -Action VerifyMigration -ConfigFile $source
+& $entry -Action Status -ConfigFile 'C:\sap-lens\deploy\deploy.local.json'
 ```
 
-Preconditions: `ServiceName`/`ServiceAccount` are not in the configuration (detection handles both names), `SapLens2` runs the managed release link
-(adopt first), no interrupted run, and `SapLens` does not exist yet. Sequence: create `SapLens` (manual start, same command line, account
-`NT SERVICE\SapLens`, restart on failure), grant that account the same access, stop `SapLens2` and disable it, start `SapLens`, verify readiness,
-version and commit, then set `SapLens` to `SapLens2`'s start mode and delete `SapLens2`. Its previous settings are kept in `legacy-service.json` in
-the run folder. Any failure before the end deletes `SapLens`, restores `SapLens2`'s start mode and starts it again (exit 1); if that also fails,
-`RECOVERY-REQUIRED.txt` lists the commands (exit 4). Data, TLS files, release folders and configuration are never moved or renamed.
+Preflight checks the actual SCM arguments/account/listener PID, readiness and running SHA/version against the verified release manifest,
+SQLite integrity/schema compatibility, private ACLs, TLS/private key/password validity, host/recovery key location, history and recovery state.
+Environment overrides and pending deployment, restore or v1 activation/rollback block migration. CSV source paths within the retiring
+installation also block it: re-import from an approved durable external location first, rather than blindly rewriting settings.
+
+The existing deployment framework serializes operations with a host mutex. It durably journals intent before service operations and mirrors
+`migration-journal.json` to both work roots. It takes an online encrypted backup, verifies it, stages release/TLS/key files, disables and stops
+the source, takes a final verified offline backup, copies all data and history with NTFS security, and verifies content/ACL inventories.
+Only the copied key pointer changes. It verifies decryption using the copied key, creates the target service with manual start, verifies
+readiness/SHA/version, then enables automatic start and publishes the canonical config. `SapLens2` remains stopped and disabled; its service,
+data, keys, TLS and releases are never deleted. Target partial copies are retained on failure. There is no automatic cleanup.
+
+After interruption use `Status`, inspect both journals, then explicitly recover:
+
+```powershell
+& $entry -Action RecoverMigration -ConfigFile $source -Yes
+# Explicit rollback request after completed cutover; subject to the same no-lost-writes proof:
+& $entry -Action RollbackMigration -ConfigFile $source -Yes
+```
+
+Recovery first disables/stops the owned target. It returns to the source only when inventories prove no writes would be discarded.
+After target startup, even normal log/database changes can make automatic rollback unsafe. Exit `4` and journal `recovery` instructions mean
+**manual recovery required**: retain and back up both trees, reconcile into a NEW directory, and enable only the chosen service. Recovery never
+restores over live data, deletes staging, guesses ownership or starts the source after a failed target stop. Completed reruns verify status.
+
+Subsequent Build & Replace uses the published **target** config and the usual `Deploy`/`Rollback` actions, retaining backups and data. The old
+source config is blocked. `VerifyMigration` follows the current release after later deployments, reporting both current and migration commits.
+Legacy cleanup needs separate authorization after acceptance and backup verification; once the retained old service is removed, use ordinary
+`Health`/`Status` rather than the migration verifier, which deliberately requires the retained rollback service.
 
 ## Service model and permissions
 
@@ -153,7 +205,7 @@ the run folder. Any failure before the end deletes `SapLens`, restores `SapLens2
 | Where | What |
 | --- | --- |
 | `${XDG_STATE_HOME:-~/.local/state}/saplens-deploy/<UTC>-<mode>-<host>.log` (Linux) | Complete remote output of each run |
-| `WorkRoot\runs\<run id>\` | `deploy.log`, `build.log`, `legacy-service.json`, `RECOVERY-REQUIRED.txt` when needed |
+| `WorkRoot\runs\<run id>\` | `deploy.log`, `build.log`, `RECOVERY-REQUIRED.txt` when needed |
 | `WorkRoot\deployment-journal.json`, `WorkRoot\deployment.lock` | Phase history of the last run; one operation at a time |
 | `WorkRoot\worktrees\<sha12>`, `WorkRoot\builds\<sha12>` | Isolated build checkouts and builder output |
 | `ReleasesRoot\SAP-Lens-<version>-<UTC>-<sha7>-win-x64`, `ReleasesRoot\current` | Verified server releases (manifest, SHA-256) and the junction the service runs |
@@ -193,6 +245,32 @@ powershell -NoProfile -File .\scripts\build-installers.ps1 -ReleasePath $release
 Silent: `SAP-Lens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=C:\saplens\install.log`. Installers are unsigned; signing,
 publishing and tagging are separate, authorized release steps. Upgrades replace executables only: the server and Desktop back the database up
 themselves before any schema migration.
+
+## Local Service Manager
+
+The release includes `Service-Manager.ps1` beside `server/`; the Server installer adds a local administration shortcut. It invokes the packaged
+server binary directly, needs no SDK, opens no listener and never controls the service. Select the exact data directory and executable explicitly
+when operating an older installation. Key export/provisioning stays local-only; no browser export endpoint exists.
+
+```powershell
+$manager='C:\sap-lens\releases\current\Service-Manager.ps1'
+$exe='C:\sap-lens\releases\current\server\SapLens.Api.exe'
+$data='C:\ProgramData\SapLens\data'
+& $manager -Action Status -DataDirectory $data -Executable $exe
+# Elevated, explicit local operations. Export refuses an existing destination.
+& $manager -Action ExportKey -DataDirectory $data -Executable $exe -Path 'D:\private-recovery\host-copy.key' -Yes
+& $manager -Action VerifyKey -DataDirectory $data -Executable $exe -Path 'D:\private-recovery\host-copy.key' -Yes
+# One-use codes are shown locally; never transcript or redirect these commands:
+& $manager -Action ActivationCode -DataDirectory $data -Executable $exe -Yes
+& $manager -Action RecoveryCode -DataDirectory $data -Executable $exe -Username 'existing-admin' -Yes
+```
+
+`CreateKey` is for an unconfigured installation only and never replaces a configured key. Export to separately secured recovery storage,
+then verify that copy before enabling automatic backups. Protect the full key directory; keep host and recovery keys out of data/releases/Git.
+For virtual accounts provision before service installation grants read access; existing-service grants require explicit reviewed Reconfigure.
+Do not change the service identity, regenerate a live key or weaken ACLs to make a key operation succeed. Accounts activation/recovery uses the
+existing one-use-code mechanism; a missing data directory or invalid administrator is refused. The browser can verify an entered recovery copy
+only after administrator/current-password reauthentication, with a session-bound one-use proof and CSRF; it cannot export or create the host key.
 
 ## Privacy and secrets
 

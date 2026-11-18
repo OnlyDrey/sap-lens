@@ -153,7 +153,24 @@ public static class MaintenanceCommands
                 results.Add(new JsonObject { ["file"] = relative, ["ok"] = integrity.Ok, ["sidecars"] = new JsonArray([.. sidecars.Select(f => (JsonNode?)f)]) });
             }
             var schema = SchemaInfo(scratch);
-            return new JsonObject { ["ok"] = results.All(r => (bool)r!["ok"]!), ["databases"] = results, ["schema"] = schema };
+            var sourcePaths = new JsonObject();
+            using (var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = Path.Combine(scratch, ApplicationBackups.DatabaseEntry), Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
+            {
+                connection.Open();
+                using var command = connection.CreateCommand();
+                command.CommandText = "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='Settings'";
+                if (Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture) > 0)
+                {
+                    command.CommandText = "SELECT Json FROM Settings WHERE Id=1";
+                    if (command.ExecuteScalar() is string json)
+                    {
+                        var settings = JsonNode.Parse(json)!.AsObject();
+                        foreach (var field in V1Settings.PathFields)
+                            if ((string?)settings[field] is { Length: > 0 } path) sourcePaths[field] = path;
+                    }
+                }
+            }
+            return new JsonObject { ["ok"] = results.All(r => (bool)r!["ok"]!), ["databases"] = results, ["schema"] = schema, ["source_paths"] = sourcePaths };
         }
         finally
         {

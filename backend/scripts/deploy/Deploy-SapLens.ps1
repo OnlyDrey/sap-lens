@@ -72,6 +72,8 @@ function Test-Elevated {
 }
 
 try {
+    $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover') -and -not $DryRun
+    if ($changing -and -not $Yes) { Stop-SL2 "$Action changes the service; repeat with -Yes after reviewing -Action Status (or -DryRun)." }
     $config = Read-SapLensSettings $ConfigFile
     if ($Action -eq 'PreflightMigration' -or ($Action -eq 'MigrateService' -and $DryRun)) {
         if (-not $ConfigFile -or -not $TargetConfigFile) { Stop-SL2 'Migration requires explicit -ConfigFile and -TargetConfigFile.' }
@@ -80,14 +82,12 @@ try {
     }
     if ($Action -eq 'VerifyMigration') { Write-Result (Test-SL2MigrationComplete $config) 0 }
     if ($Action -in @('RecoverMigration', 'RollbackMigration') -and $DryRun) { Stop-SL2 'Use Status or VerifyMigration for read-only inspection. Migration recovery has no DryRun mutation path.' }
-    $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover') -and -not $DryRun
-    if ($changing -and -not $Yes) { Stop-SL2 "$Action changes the service; repeat with -Yes after reviewing -Action Status (or -DryRun)." }
     if ($changing -and -not (Test-Elevated)) { Stop-SL2 "$Action needs an elevated session (an administrator account over SSH, or Run as administrator)." }
     switch ($Action) {
         'Status' { Write-Result (Get-SL2Status $config) 0 }
         'Health' {
             $base = "https://$($config.ListenAddress):$($config.Port)"
-            $ready = Invoke-SL2Http "$base/health/ready"; $identity = Invoke-SL2Http "$base/product-version.json"
+            $ready = Invoke-SL2ConfiguredHttp $config '/health/ready'; $identity = Invoke-SL2ConfiguredHttp $config '/product-version.json'
             $value = [pscustomobject]@{ ready = ($ready.Status -eq 200); ready_status = $ready.Status; identity = $(if ($identity.Status -eq 200) { $identity.Body | ConvertFrom-Json } else { $null }) }
             Write-Result $value $(if ($value.ready) { 0 } else { 1 })
         }

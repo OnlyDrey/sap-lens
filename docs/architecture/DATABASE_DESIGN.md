@@ -74,21 +74,45 @@ type check]
 
 - EF Core migrations generated with `dotnet ef`, applied by `DatabaseMaintenance.InitializeAsync` at startup, never by hand.
 - Existing database with pending migrations: an **online backup of kind `migration` is taken and integrity-checked first**, then migrations
-  run, then the backup is recorded. Migration backups are retained until an administrator confirms the upgrade
-  (Settings, Storage: `POST /api/storage/migration/confirm`; also `POST /api/v1/admin/backups/{id}/confirm-upgrade`). [T]
+  run, then the backup is recorded. Migration backups remain retained after an administrator confirms the upgrade; deletion is a separate explicit action
+  (Settings, Backup & Restore, Overview: `POST /api/storage/migration/confirm`; also `POST /api/v1/admin/backups/{id}/confirm-upgrade`). [T]
 - Database with migrations unknown to this build (written by a newer version): left byte-for-byte unchanged, readiness reports not ready,
   no backup is written. [T]
 - After initialization `PRAGMA integrity_check` and `PRAGMA foreign_key_check` must pass, otherwise the service stays not ready.
 
 ## Backups and retention
 
-- SQLite Online Backup API (`SqliteConnection.BackupDatabase`) into a `.partial` file, integrity-checked, then renamed and hashed. Readers
-  and writers continue during the copy. [T]
+- SQLite Online Backup API (`SqliteConnection.BackupDatabase`) into a `.partial` file, integrity-checked, then renamed and hashed. Application
+  archive creation briefly reserves the application and account writers in a fixed order while copying both databases; readers continue.
+  Compression and encryption happen after reservations are released. The copied account store excludes sessions and one-use codes. [T]
 - Retention (`DataRetention`, backup category): automatic backups older than the approved period (default 90 days) after a one-time
   administrator approval; manual backups until a person deletes them; migration backups until an administrator deletes them after confirming
   the upgrade (never by retention). [T]
 - Application backups, their schedule and restore: encrypted SLBAK3 archives of the database, account store and branding (`ApplicationBackups`,
   `BackupCrypto`), restored at the next start with rollback. See [MIGRATION_MATRIX.md](../migration/MIGRATION_MATRIX.md) (MIG-005). [T]
+
+### Backup administration and scheduling
+
+Settings keeps four tabs: Overview, Backup History, Scheduling and Retention. Create and schedule changes take effect online without a restart;
+restore alone is staged for an explicit host restart. History supports download, cryptographic/SQLite verification and separately confirmed deletion.
+Downloads accept standard Content-Disposition filenames, including UTF-8 filename*, and retain exact archive bytes. History rechecks recorded size/hash.
+
+Recovery key creation/export is local-only through the packaged Service Manager or server CLI: it needs no SDK, listener or service restart.
+Provision before installing a virtual-account service so installation grants that account read access; if already installed, use the exact reviewed
+configuration's explicit Reconfigure operation to apply grants. Never regenerate a configured key, change its cryptographic identifiers, overwrite a
+recovery export, print key bytes or log administrator codes. Browser recovery-copy verification requires current-password reauthentication on a Server,
+a five-minute session-bound one-use proof, administrator permission and CSRF. The browser keeps entered secrets only in memory and clears them.
+
+Daily/weekly schedules use a saved explicit timezone and 24-hour local time. Preview and execution use the same TimeProvider timezone and cron rules:
+nonexistent DST wall times are skipped; a repeated wall time runs once. A per-data exclusive lock and durable occurrence/job claim prevent duplicate
+execution. Completed interrupted jobs reconcile by their verified archive ID; unfinished jobs report failure and retain partial files rather than replay.
+Completion merges runtime history into the newest configuration revision, preserving concurrent edits. Status includes next runs, last success/failure
+and bounded execution history. No restart is required to enable, disable or edit a schedule. A verified separately stored recovery copy is required.
+
+Retention has separate source/review/automatic-backup approvals, previews/digests and configurable periods (24 months, 24 months and 90 days by default).
+Shortening a period invalidates approval. Manual/migration archives and immutable review evidence stay protected. A restore/v1 activation imposes a
+seven-day hold on both automatic and explicitly approved cleanup; previews remain available. Upgrade integrity is separate from functional acceptance:
+the UI never auto-confirms an activated migration and confirmation never deletes its backup.
 
 ## Storage cost
 

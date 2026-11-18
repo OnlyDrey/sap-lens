@@ -129,3 +129,15 @@ inspection of pre-promotion commits, and are not competing current entrypoints.
 The release scripts now read the frontend mirror, not archived v1 metadata. Their
 checksum, source identity, no-overwrite, backup/restore and private-data guards
 remain intact. No installed service or release is modified by repository checks.
+
+## Windows SQLite and clock fixtures
+
+Read-only migration inspection must copy the database plus WAL/journal into private scratch and open only the copy. Do not copy live SHM on Windows:
+its byte-range locks cause access failures; SQLite reconstructs that disposable index in scratch. Hash durable source files before/after the copy and
+refuse concurrent changes. Never call global ClearAllPools from inspection: it can close unrelated pooled connections and checkpoint their live WAL.
+Tests asserting unchanged sidecars keep a leased non-pooled source connection open across inspection, independently of other fixtures' pool cleanup.
+
+A fixture expecting UTC must explicitly supply a TimeProvider whose LocalTimeZone is UTC. Production schedule preview/execution use the provider's
+actual local zone; hardcoding UTC hides timezone/DST defects on a Paris Windows development PC. Test gaps and repeated wall times with synthetic clocks,
+never by changing a host clock. PowerShell 5.1 native stderr becomes ErrorRecords: negative subprocess tests must preserve exit code and raw ToString()
+lines instead of letting ErrorActionPreference=Stop or formatted Out-String terminate/wrap the expected refusal.

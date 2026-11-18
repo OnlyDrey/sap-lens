@@ -51,11 +51,18 @@ function Test-SL2MigrationTls($Source) {
     finally { $password = $null; if ($certificate) { $certificate.Dispose() } }
 }
 
-function Test-SL2MigrationEnvironment {
+function Test-SL2MigrationEnvironment([string]$ServiceName) {
     $machine = [Environment]::GetEnvironmentVariables('Machine')
     foreach ($name in $machine.Keys) { if ($name -like 'SAP_LENS_V2_*') { Stop-SL2 'Machine-level SAP Lens environment overrides require manual reconciliation before migration.' } }
-    $service = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\SapLens2' -ErrorAction Stop
+    $service = Get-ItemProperty -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName" -ErrorAction Stop
     if ($service.PSObject.Properties['Environment'] -and @($service.Environment).Count) { Stop-SL2 'Service-specific environment overrides require manual reconciliation before migration.' }
+}
+
+function Assert-SL2MigrationPair($Source, $Target) {
+    if ($Source.ServiceName -eq 'SapLens2' -and $Target.ServiceName -eq 'SapLens') { return }
+    if ($Source.ServiceName -cmatch '^SapLens\.Acceptance-([a-f0-9]{32})-old$' -and
+        $Target.ServiceName -ceq "SapLens.Acceptance-$($Matches[1])-new") { return }
+    Stop-SL2 'Select the explicit SapLens2/SapLens pair, or matching unique SapLens.Acceptance-<32 lowercase hex>-old/new test services.'
 }
 
 function Get-SL2MigrationAcl([string]$Path, [switch]$Secret, [switch]$Parent) {
@@ -195,13 +202,14 @@ function Assert-SL2DeploymentAllowed($Config) {
 }
 
 function Assert-SL2MigrationRecord($Journal) {
-    if ($Journal.format -ne 1 -or $Journal.source.ServiceName -ne 'SapLens2' -or $Journal.target.ServiceName -ne 'SapLens') { Stop-SL2 'Unsupported migration journal.' 4 }
+    if ($Journal.format -ne 1) { Stop-SL2 'Unsupported migration journal.' 4 }
+    Assert-SL2MigrationPair $Journal.source $Journal.target
     foreach ($pair in @(@($Journal.source.ConfigFile, $Journal.source_config_hash), @($Journal.target.ConfigFile, $Journal.target_config_hash))) {
         if (-not (Test-Path -LiteralPath $pair[0]) -or (Get-FileHash -LiteralPath $pair[0] -Algorithm SHA256).Hash -ne $pair[1]) { Stop-SL2 'A reviewed configuration changed since migration. Reconcile it with the journal before recovery.' 4 }
     }
-    $old = Get-SL2Service 'SapLens2'
+    $old = Get-SL2Service $journal.source.ServiceName
     if (-not $old.Exists -or $old.PathName -cne $Journal.service_before.PathName -or $old.Account -ne $Journal.service_before.Account) { Stop-SL2 'The retained source service changed. Manual recovery is required.' 4 }
-    $new = Get-SL2Service 'SapLens'
+    $new = Get-SL2Service $journal.target.ServiceName
     if ($new.Exists -and (-not $Journal.target_creation_intent -or -not (Test-SL2ServiceBinary $new.PathName $Journal.target) -or $new.Account -ne $Journal.target.ServiceAccount)) {
         Stop-SL2 'The canonical service cannot be proven to belong to this migration. It was left untouched.' 4
     }
@@ -210,7 +218,7 @@ function Assert-SL2MigrationRecord($Journal) {
 function Set-SL2MigrationManualRecovery($Journal, [string]$Reason) {
     $Journal.recovery = @"
 Automatic recovery cannot prove that no writes would be lost. Both data trees and all staged files are retained. Do not delete or overwrite either.
-Keep SapLens and SapLens2 stopped and disabled until the operator has reconciled their state.
+Keep $($Journal.target.ServiceName) and $($Journal.source.ServiceName) stopped and disabled until the operator has reconciled their state.
 Source configuration: $($Journal.source.ConfigFile)
 Target configuration: $($Journal.target.ConfigFile)
 Source data: $($Journal.source.DataDirectory)
@@ -235,12 +243,12 @@ function Invoke-SL2MigrationRecovery($Config, [switch]$Rollback) {
     if ($journal.phase -eq 'manual_recovery_required') { Stop-SL2 'Manual recovery is required; inspect the retained journal and data. Recovery never guesses after an unproven rollback.' 4 }
     $source = $journal.source; $target = $journal.target
     try {
-        $new = Get-SL2Service 'SapLens'
+        $new = Get-SL2Service $journal.target.ServiceName
         if ($new.Exists) {
             # Disable before stopping: an interruption cannot leave this service enabled beside the source.
             Set-SL2MigrationPhase $journal 'recovery_stopping_target'
-            Set-SL2MigrationStartup 'SapLens' 'disabled'
-            Stop-SL2Service 'SapLens' ([int]$target.StopTimeoutSeconds)
+            Set-SL2MigrationStartup $journal.target.ServiceName 'disabled'
+            Stop-SL2Service $journal.target.ServiceName ([int]$target.StopTimeoutSeconds)
         }
         if ($journal.target_start_intent) {
             if (-not @($journal.target_inventory).Count -or -not (Test-SL2InventoryEqual @($journal.target_inventory) @(Get-SL2TreeInventory $target.DataDirectory) -ContentOnly)) {
@@ -251,21 +259,21 @@ function Invoke-SL2MigrationRecovery($Config, [switch]$Rollback) {
             -not (Test-SL2InventoryEqual @($journal.source_inventory) @(Get-SL2TreeInventory $source.DataDirectory) -ContentOnly)) {
             Set-SL2MigrationManualRecovery $journal 'The original data changed after the stopped-source snapshot.'
         }
-        if (@(Get-SL2Listener $source.ListenAddress ([int]$source.Port)).Count -gt 0 -and (Get-SL2Service 'SapLens2').State -ne 'Running') {
+        if (@(Get-SL2Listener $source.ListenAddress ([int]$source.Port)).Count -gt 0 -and (Get-SL2Service $journal.source.ServiceName).State -ne 'Running') {
             Set-SL2MigrationManualRecovery $journal 'Another process still owns the listener.'
         }
         Set-SL2MigrationPhase $journal 'recovery_starting_source'
         $mode = if ($journal.service_before.StartMode -match '^Auto') { 'auto' } else { 'demand' }
-        Set-SL2MigrationStartup 'SapLens2' $mode
-        if ((Get-SL2Service 'SapLens2').State -ne 'Running') { Start-SL2Service 'SapLens2' }
+        Set-SL2MigrationStartup $journal.source.ServiceName $mode
+        if ((Get-SL2Service $journal.source.ServiceName).State -ne 'Running') { Start-SL2Service $journal.source.ServiceName }
         $null = Wait-SL2Ready $source $journal.manifest.source_sha $journal.manifest.version
         Set-SL2MigrationPhase $journal 'rolled_back'
-        [pscustomobject]@{ phase = 'rolled_back'; source_service = 'SapLens2'; target_retained = $new.Exists; data_deleted = $false }
+        [pscustomobject]@{ phase = 'rolled_back'; source_service = $journal.source.ServiceName; target_retained = $new.Exists; data_deleted = $false }
     } catch {
         if ($journal.phase -eq 'manual_recovery_required') { throw }
         # A failed stop is not followed by starting the other service.
-        try { Set-SL2MigrationStartup 'SapLens' 'disabled' } catch { }
-        try { Set-SL2MigrationStartup 'SapLens2' 'disabled' } catch { }
+        try { Set-SL2MigrationStartup $journal.target.ServiceName 'disabled' } catch { }
+        try { Set-SL2MigrationStartup $journal.source.ServiceName 'disabled' } catch { }
         Set-SL2MigrationManualRecovery $journal 'Service recovery or consistency verification failed. Inspect actual SCM state before any restart.'
     }
 }
@@ -274,13 +282,13 @@ function Test-SL2MigrationComplete($Config) {
     $journal = Read-SL2MigrationJournal $Config
     if (-not $journal -or $journal.phase -ne 'complete') { Stop-SL2 'Migration is not complete. Inspect the journal or use RecoverMigration.' }
     Assert-SL2MigrationRecord $journal
-    $old = Get-SL2Service 'SapLens2'
+    $old = Get-SL2Service $journal.source.ServiceName
     if ($old.State -ne 'Stopped' -or $old.StartMode -ne 'Disabled') { Stop-SL2 'The retained legacy service must be stopped and disabled.' 4 }
     $release = Get-SL2Link (Get-SL2CurrentLink $journal.target)
     if (-not $release) { $release = $journal.staged_release }
     $manifest = Get-Content -LiteralPath (Join-SL2 $release 'build-manifest.json') -Raw | ConvertFrom-Json
     $ready = Wait-SL2Ready $journal.target $manifest.source_sha $manifest.version
-    [pscustomobject]@{ phase = 'complete'; service = 'SapLens'; legacy_service = 'SapLens2'; legacy_service_deleted = $false
+    [pscustomobject]@{ phase = 'complete'; service = $journal.target.ServiceName; legacy_service = $journal.source.ServiceName; legacy_service_deleted = $false
         data_directory = $journal.target.DataDirectory; release = $release; commit = $manifest.source_sha; migration_commit = $journal.manifest.source_sha
         version = $manifest.version; identity = $ready.identity }
 }
@@ -310,8 +318,8 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
         # There is no safe live directory copy of SQLite. Journal the stop before invoking SCM, then copy only after it is quiescent.
         $journal.source_stop_intent = $true
         Set-SL2MigrationPhase $journal 'stopping_source'
-        Set-SL2MigrationStartup 'SapLens2' 'disabled'
-        Stop-SL2Service 'SapLens2' ([int]$Source.StopTimeoutSeconds)
+        Set-SL2MigrationStartup $Source.ServiceName 'disabled'
+        Stop-SL2Service $Source.ServiceName ([int]$Source.StopTimeoutSeconds)
         Set-SL2MigrationPhase $journal 'offline_backup'
         $journal.offline_backup = New-SL2MigrationBackup $Source $exe
         Copy-SL2MigrationTree $Source.BackupRoot $Target.BackupRoot
@@ -333,17 +341,17 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
         Set-SL2Link (Get-SL2CurrentLink $Target) $journal.staged_release
         $journal.target_creation_intent = $true
         Set-SL2MigrationPhase $journal 'service_cutover'
-        if ((Get-SL2Service 'SapLens').Exists) { Stop-SL2 'Canonical service appeared during migration. It was not modified.' 4 }
+        if ((Get-SL2Service $Target.ServiceName).Exists) { Stop-SL2 'Canonical service appeared during migration. It was not modified.' 4 }
         Set-SL2ServiceEntry $Target (Get-SL2BinaryPath $Target) $false 'demand'
         Grant-SL2Access $Target
         # Added service-account grants are expected; record the final pre-start content inventory.
         $journal.target_inventory = @(Get-SL2TreeInventory $Target.DataDirectory)
         $journal.target_start_intent = $true
         Set-SL2MigrationPhase $journal 'service_startup'
-        Start-SL2Service 'SapLens'
+        Start-SL2Service $Target.ServiceName
         Set-SL2MigrationPhase $journal 'identity_verification'
         $null = Wait-SL2Ready $Target $journal.manifest.source_sha $journal.manifest.version
-        Set-SL2MigrationStartup 'SapLens' 'auto'
+        Set-SL2MigrationStartup $Target.ServiceName 'auto'
         Set-SL2MigrationPhase $journal 'publishing_configuration'
         $canonical = Join-SL2 $Target.WorkRoot 'deploy.local.json'
         $json = $Target | Select-Object * -ExcludeProperty ConfigFile, ServiceNameConfigured | ConvertTo-Json -Depth 8
@@ -367,14 +375,14 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         try { & $Body; $checks.Add([pscustomobject]@{ name = $Name; passed = $true; message = 'ok' }) }
         catch { $checks.Add([pscustomobject]@{ name = $Name; passed = $false; message = $_.Exception.Message }) }
     }
+    Assert-SL2MigrationPair $Source $Target
     Check 'service_conflicts' {
-        $old = Get-SL2Service 'SapLens2'; $new = Get-SL2Service 'SapLens'
+        $old = Get-SL2Service $Source.ServiceName; $new = Get-SL2Service $Target.ServiceName
         $details.service = $old
         if ($new.Exists) { Stop-SL2 'SapLens already exists (including possible v1 installation). Nothing may be adopted or overwritten by migration.' }
         if (-not $old.Exists -or $old.State -ne 'Running') { Stop-SL2 'SapLens2 must exist and be running for initial migration.' }
-        if ($Source.ServiceName -ne 'SapLens2' -or $Target.ServiceName -ne 'SapLens') { Stop-SL2 'Source must explicitly select SapLens2; target must explicitly select SapLens.' }
-        if ($old.Account -notin @('LocalSystem', 'NT AUTHORITY\SYSTEM', 'NT SERVICE\SapLens2')) { Stop-SL2 'Custom service accounts require a separately reviewed credential and permission migration.' }
-        $expected = if ($old.Account -eq 'NT SERVICE\SapLens2') { 'NT SERVICE\SapLens' } else { 'LocalSystem' }
+        if ($old.Account -notin @('LocalSystem', 'NT AUTHORITY\SYSTEM', "NT SERVICE\$($Source.ServiceName)")) { Stop-SL2 'Custom service accounts require a separately reviewed credential and permission migration.' }
+        $expected = if ($old.Account -eq "NT SERVICE\$($Source.ServiceName)") { "NT SERVICE\$($Target.ServiceName)" } else { 'LocalSystem' }
         if ($Target.ServiceAccount -ne $expected) { Stop-SL2 "Target ServiceAccount must preserve the source identity: $expected." }
         $tokens = @(Split-SL2CommandLine $old.PathName)
         if (@(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) @(Get-SL2ServiceArguments $Source)).Count) { Stop-SL2 'Source configuration does not match the actual service arguments.' }
@@ -388,22 +396,28 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         }
     }
     Check 'source_release' {
-        $tokens = @(Split-SL2CommandLine (Get-SL2Service 'SapLens2').PathName)
+        $tokens = @(Split-SL2CommandLine (Get-SL2Service $Source.ServiceName).PathName)
         $release = Split-Path (Split-Path $tokens[0])
-        if (Test-SL2ServiceBinary (Get-SL2Service 'SapLens2').PathName $Source) { $release = Get-SL2Link (Get-SL2CurrentLink $Source) }
+        if (Test-SL2ServiceBinary (Get-SL2Service $Source.ServiceName).PathName $Source) { $release = Get-SL2Link (Get-SL2CurrentLink $Source) }
         Test-SL2PathTree $release
         $manifest = Get-Content -LiteralPath (Join-SL2 $release 'build-manifest.json') -Raw | ConvertFrom-Json
         if ($manifest.source_sha -notmatch '^[a-f0-9]{40}$' -or $manifest.version -ne '2.0.0-alpha.1' -or $manifest.source_dirty) { Stop-SL2 'A clean release manifest for version 2.0.0-alpha.1 is required.' }
         $verification = Invoke-SL2Process (Get-SL2Shell) @('-NoProfile', '-File', (Join-SL2 $PSScriptRoot '..\verify-release.ps1'), '-ReleasePath', $release) ''
         if ($verification.ExitCode -ne 0) { Stop-SL2 'Source release checksum verification failed.' }
         $details.release = $release; $details.manifest = $manifest
+        $ready = Invoke-SL2ConfiguredHttp $Source '/health/ready'
+        $identityResponse = Invoke-SL2ConfiguredHttp $Source '/product-version.json'
+        if ($ready.Status -ne 200 -or $identityResponse.Status -ne 200) { Stop-SL2 'The source is not ready or its release identity is unavailable.' }
+        $identity = $identityResponse.Body | ConvertFrom-Json
+        if ($identity.source_sha -ne $manifest.source_sha -or $identity.version -ne $manifest.version) { Stop-SL2 'Running source identity does not match the verified release manifest.' }
+        $details.running_identity = $identity
         # Ask the old binary only for its compiled migration list at a missing path. SQLite never opens source state.
         $probe = Join-SL2 $Source.WorkRoot ('.schema-probe-' + [guid]::NewGuid().ToString('N'))
         $schema = Invoke-SL2Maintenance $tokens[0] @('--schema-info', '--data-dir', $probe)
         $details.schema = $schema
     }
     Check 'private_state' {
-        Test-SL2MigrationEnvironment
+        Test-SL2MigrationEnvironment $Source.ServiceName
         $details.key = Get-SL2MigrationKey $Source
         foreach ($path in $Source.DataDirectory, $Source.CertificatePath, $Source.CertificatePasswordFile, $details.key, $Source.BackupRoot, $Source.WorkRoot) {
             if (-not (Test-Path -LiteralPath $path)) { Stop-SL2 'A required data, TLS, key or backup-history path is missing.' }
@@ -422,6 +436,15 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         $inspection = Invoke-SL2Maintenance $InspectorExecutable @('--inspect-data', '--data-dir', $Source.DataDirectory)
         $details.inspection = $inspection
         if (-not $inspection.ok) { Stop-SL2 'SQLite integrity inspection failed.' }
+        $hasPaths = if ($inspection -is [Collections.IDictionary]) { $inspection.Contains('source_paths') } else { [bool]$inspection.PSObject.Properties['source_paths'] }
+        if (-not $hasPaths) { Stop-SL2 'Inspector lacks source-path checks. Use the current inspector build.' }
+        foreach ($path in $inspection.source_paths.PSObject.Properties) {
+            if (-not $path.Value) { continue }
+            if (-not [IO.Path]::IsPathRooted($path.Value)) { Stop-SL2 'A configured source path is relative. Reconcile it explicitly before migration.' }
+            foreach ($root in $Source.DataDirectory, $Source.ReleasesRoot, $Source.WorkRoot, $Source.BackupRoot, (Split-Path $Source.CertificatePath), (Split-Path $details.key)) {
+                if ($root -and (Test-SL2PathOverlap $root $path.Value)) { Stop-SL2 'A configured CSV source depends on the old installation. Re-import from a durable external source before migration; paths are never rewritten blindly.' }
+            }
+        }
         if ($details.Contains('schema')) {
             $known = @($details.schema.known); $applied = @($inspection.schema.applied)
             if (-not $applied.Count -or @($applied | Where-Object { $known -notcontains $_ }).Count -or @($known | Where-Object { $applied -notcontains $_ }).Count) {
@@ -455,6 +478,9 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         if ($journal -and $journal.phase -notin $script:FinalPhases) { Stop-SL2 'An unfinished deployment requires recovery before migration.' }
         if (Test-Path -LiteralPath (Join-SL2 $Source.WorkRoot 'migration-journal.json')) { Stop-SL2 'A migration journal already exists. Use VerifyMigration or RecoverMigration; never repeat a cutover blindly.' }
         if (Test-Path -LiteralPath (Join-SL2 $Source.DataDirectory 'restore/pending.json')) { Stop-SL2 'An application restore is pending. Resolve it before directory migration.' }
+        foreach ($pending in 'migration/pending-activation.json', 'migration/pending-rollback.json') {
+            if (Test-Path -LiteralPath (Join-SL2 $Source.DataDirectory $pending)) { Stop-SL2 'A v1 migration activation or rollback is pending. Resolve it before directory migration.' }
+        }
         $operation = Join-SL2 $Source.DataDirectory 'backups/operation.json'
         if (Test-Path -LiteralPath $operation) {
             $state = Get-Content -LiteralPath $operation -Raw | ConvertFrom-Json

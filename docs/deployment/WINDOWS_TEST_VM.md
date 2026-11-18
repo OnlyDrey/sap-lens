@@ -251,3 +251,116 @@ Record each level separately. A successful build is **never** runtime acceptance
 | 11 Full Windows acceptance | Levels 1 to 10 on one commit | Not achieved |
 
 Levels 1 to 3 run without starting the product. Only levels 4 to 10, executed on Windows, count as runtime acceptance.
+
+## Fetch and validate without deployment
+
+On the VM, in its existing clean clone (do not change the running installation):
+
+```powershell
+git status --short
+git fetch origin experiment/dotnet-backend
+git switch experiment/dotnet-backend
+git merge --ff-only origin/experiment/dotnet-backend
+git rev-parse HEAD
+python scripts/check-docs.py
+python scripts/check-secrets.py
+python scripts/check-workflows.py
+Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
+$filter = Get-SL2TestFilter focused
+# Produces a separate acceptance package; never installs or starts it.
+& .\backend\scripts\build-release.ps1 -Output C:\sap-lens\acceptance\builds -TestFilter $filter
+if ($LASTEXITCODE) { throw 'Acceptance build failed' }
+$release = Get-ChildItem C:\sap-lens\acceptance\builds -Directory -Filter 'SAP-Lens-*-win-x64' | Sort-Object Name | Select-Object -Last 1
+& .\backend\scripts\verify-release.ps1 -ReleasePath $release.FullName
+```
+
+Stop on a dirty checkout, unexpected branch, divergent history, failed checks or dirty manifest. Do not reset local changes or run a service
+migration to validate a build. SDK/Node are needed for building, not for routine administration with the packaged Service Manager.
+
+## Isolated native migration acceptance
+
+**Pending; these commands were not executed against the working VM.** Run only after authorization for isolated native acceptance, from an
+elevated PowerShell 7 session. Use the verified package from above, a new GUID root, loopback and unique service names. The application uses
+synthetic/reserved-domain data only. This never selects the real `SapLens2` or `SapLens` service. Do not copy production data, TLS or keys.
+
+```powershell
+$run = [guid]::NewGuid().ToString('N')
+$root = Join-Path $env:TEMP "SapLens-Acceptance-$run"
+New-Item -ItemType Directory $root -ErrorAction Stop | Out-Null
+# Keep even temporary synthetic keys private; use SID grants independent of OS language.
+$operator = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
+icacls $root /inheritance:r /grant:r "*${operator}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F' '*S-1-5-32-544:(OI)(CI)F'
+if ($LASTEXITCODE) { throw 'Private fixture ACL failed' }
+$old = Join-Path $root 'old'
+$new = Join-Path $root 'new'
+foreach ($folder in 'data','tls','backup','history','work','releases') { New-Item -ItemType Directory (Join-Path $old $folder) -Force | Out-Null }
+# No cert-store, trust-store, firewall or reverse-proxy change.
+$rsa = [Security.Cryptography.RSA]::Create(2048)
+$request = [Security.Cryptography.X509Certificates.CertificateRequest]::new('CN=localhost', $rsa, [Security.Cryptography.HashAlgorithmName]::SHA256, [Security.Cryptography.RSASignaturePadding]::Pkcs1)
+$certificate = $request.CreateSelfSigned([DateTimeOffset]::UtcNow.AddMinutes(-5), [DateTimeOffset]::UtcNow.AddDays(2))
+$password = [Convert]::ToBase64String([Security.Cryptography.RandomNumberGenerator]::GetBytes(32))
+[IO.File]::WriteAllBytes((Join-Path $old 'tls/server.pfx'), $certificate.Export([Security.Cryptography.X509Certificates.X509ContentType]::Pfx, $password))
+[IO.File]::WriteAllText((Join-Path $old 'tls/password'), $password)
+$password = $null; $certificate.Dispose(); $rsa.Dispose()
+$listener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback,0)
+$listener.Start(); $port = $listener.LocalEndpoint.Port; $listener.Stop()
+$source = [ordered]@{
+ RepositoryPath=(Get-Location).Path; ServiceName="SapLens.Acceptance-$run-old"; ServiceAccount='LocalSystem'
+ WorkRoot=(Join-Path $old 'work'); ReleasesRoot=(Join-Path $old 'releases'); BackupRoot=(Join-Path $old 'history')
+ DataDirectory=(Join-Path $old 'data'); CertificatePath=(Join-Path $old 'tls/server.pfx'); CertificatePasswordFile=(Join-Path $old 'tls/password')
+ ListenAddress='127.0.0.1'; Port=$port; AllowedHosts=@('localhost'); TrustedProxies=@(); ReadyTimeoutSeconds=120; StopTimeoutSeconds=90
+}
+$target = [ordered]@{}
+foreach ($key in $source.Keys) { $target[$key] = $source[$key] }
+foreach ($key in 'WorkRoot','ReleasesRoot','BackupRoot','DataDirectory','CertificatePath','CertificatePasswordFile') { $target[$key]=$source[$key].Replace($old,$new) }
+$target.ServiceName="SapLens.Acceptance-$run-new"
+$sourceFile=Join-Path $root 'source.local.json'; $targetFile=Join-Path $root 'target.local.json'
+$source | ConvertTo-Json | Set-Content $sourceFile
+$target | ConvertTo-Json | Set-Content $targetFile
+Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
+$config=Read-SapLensSettings $sourceFile
+$seed=Join-Path $config.ReleasesRoot $release.Name
+Copy-SL2MigrationTree $release.FullName $seed
+Set-SL2Link (Get-SL2CurrentLink $config) $seed
+$exe=Join-Path $seed 'server/SapLens.Api.exe'
+$manager=Join-Path $seed 'Service-Manager.ps1'
+& $manager -Action CreateKey -DataDirectory $config.DataDirectory -Executable $exe -Path (Join-Path $old 'backup/host.key') -Yes
+if ($LASTEXITCODE) { throw 'Fixture key setup failed' }
+Install-SL2Service $config
+Start-SL2Service $config.ServiceName
+$null=Wait-SL2Ready $config (Get-Content (Join-Path $seed 'build-manifest.json') -Raw | ConvertFrom-Json).source_sha '2.0.0-alpha.1'
+# Displays a local one-use code: NEVER transcript this action or commit its output.
+& $manager -Action ActivationCode -DataDirectory $config.DataDirectory -Executable $exe -Yes
+```
+
+Open `https://localhost:<port>`, accept only this temporary self-signed fixture certificate, complete activation with synthetic credentials,
+and import synthetic CSVs from a durable fixture directory **outside** the old/new installation roots. Add account/SoD review evidence.
+Create/download a manual backup, verify its hash and independently decrypt/verify it, export the recovery key to a separate private file and
+verify it. Do not start a transcript around codes, passwords or key operations. Inspect the service command line and own-process SCM startup.
+
+```powershell
+$entry='.\backend\scripts\deploy\Deploy-SapLens.ps1'
+& $entry -Action PreflightMigration -ConfigFile $sourceFile -TargetConfigFile $targetFile -InspectorExecutable $exe
+if ($LASTEXITCODE) { throw 'Fixture preflight failed' }
+& $entry -Action MigrateService -ConfigFile $sourceFile -TargetConfigFile $targetFile -InspectorExecutable $exe -Yes
+if ($LASTEXITCODE) { throw 'Inspect retained migration journal before continuing' }
+& $entry -Action VerifyMigration -ConfigFile $targetFile
+Get-CimInstance Win32_Service -Filter "Name='$($source.ServiceName)' OR Name='$($target.ServiceName)'" | Select-Object Name,State,StartMode,StartName,PathName
+```
+
+Check unchanged imported revisions, immutable snapshots, decisions, account login, UI branding, TLS/key fingerprints, downloaded archive
+verification and both inventories. The old service must be stopped/disabled and retained. Exercise Build & Replace using the published target
+config and a separately verified newer fixture release, then ordinary release rollback; never feed the real deployment config to these tests.
+Test interruption/recovery on **fresh GUID fixtures**, at staging, stop, copy, creation and startup boundaries. A write after target startup
+must produce manual recovery (exit 4), retaining both trees; it must not silently return to stale source data. Test readiness/port conflicts,
+wrong SHA, bad key, pending v1 activation and insufficient space as refusal cases. Do not weaken ACLs or fill the VM disk to inject failures;
+use the mocked Pester cases for dangerous faults. Reboot/recovery and WebView2 acceptance remain separate authorized tests.
+
+For scheduling, choose a near-future daily/weekly local occurrence, save and re-open without restarting, observe exactly one automatic archive,
+its execution record and successful download/decryption. Check server restart and failed-job reporting. DST gap/repeat behavior is covered by
+synthetic clock tests; never change the VM clock/timezone. Retention previews must protect manual/migration archives and require fresh admin
+approval after shortening a period; restored data is held for seven days. Check all four backup tabs at the documented themes/widths.
+
+Retain failed fixture journals and logs privately. Cleanup is a **separate explicit** operation: verify both service names match this run's GUID,
+stop/delete only those services, verify the absolute root is exactly the recorded temporary GUID directory, and remove only that fixture.
+Do not provide a broad wildcard service deletion or recursive production-path cleanup command. Never include secrets in shared acceptance evidence.

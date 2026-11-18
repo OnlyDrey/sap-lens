@@ -31,10 +31,11 @@ BeforeAll {
         Mock -ModuleName $M Test-SL2MigrationTls { }
         Mock -ModuleName $M Get-SL2FreeSpace { 100GB }
         Mock -ModuleName $M Invoke-SL2Process { [pscustomobject]@{ ExitCode = 0; Output = @() } }
+        Mock -ModuleName $M Invoke-SL2Http { param($Url, $HostHeader) @{ Status = 200; Body = (@{ source_sha = ('a' * 40); version = '2.0.0-alpha.1' } | ConvertTo-Json) } }
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             switch ($Arguments[0]) {
-                '--inspect-data' { [pscustomobject]@{ ok = $true; databases = @('synthetic'); schema = @{ compatible = $true; applied = @('m1') } } }
+                '--inspect-data' { [pscustomobject]@{ source_paths = [pscustomobject]@{}; ok = $true; databases = @('synthetic'); schema = @{ compatible = $true; applied = @('m1') } } }
                 '--schema-info' { [pscustomobject]@{ database_exists = $false; compatible = $true; pending = @('m1'); applied = @(); known = @('m1') } }
             }
         }
@@ -114,7 +115,7 @@ Describe 'Journaled service cutover and interruption recovery' {
             param($ExePath, $Arguments)
             switch ($Arguments[0]) {
                 '--schema-info' { if ($Arguments[2] -like '*.schema-probe-*') { @{ database_exists = $false; compatible = $true; known = @('m1'); pending = @('m1'); applied = @() } } else { @{ database_exists = $true; compatible = $true; known = @('m1'); pending = @(); applied = @('m1') } } }
-                '--inspect-data' { @{ ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ applied = @('m1') } } }
+                '--inspect-data' { @{ source_paths = [pscustomobject]@{}; ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ applied = @('m1') } } }
                 '--backup-local' {
                     $script:BackupCount++
                     if ($script:Failure -eq 'backup') { throw 'synthetic backup failure' }
@@ -230,6 +231,41 @@ Describe 'Journaled service cutover and interruption recovery' {
 
 Describe 'Read-only identity and directory migration preflight' {
     BeforeEach { New-MigrationFixture }
+    It 'checks only a matching unique acceptance service pair without querying canonical services' {
+        $prefix = 'SapLens.Acceptance-' + [guid]::NewGuid().ToString('N')
+        $script:Source.ServiceName = "$prefix-old"; $script:Target.ServiceName = "$prefix-new"
+        $script:Services[$script:Source.ServiceName] = $script:Services.SapLens2
+        $script:Services.Remove('SapLens2')
+        (Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector).safe | Should -BeTrue
+        Should -Invoke -ModuleName $M Get-SL2Service -Times 0 -ParameterFilter { $Name -in @('SapLens', 'SapLens2') }
+        $script:Target.ServiceName = 'SapLens'
+        { Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector } | Should -Throw '*matching unique*'
+    }
+    It 'blocks a healthy listener answering with the wrong source release identity' {
+        Mock -ModuleName $M Invoke-SL2Http { @{ Status = 200; Body = '{"source_sha":"wrong","version":"2.0.0-alpha.1"}' } }
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        ($result.checks | Where-Object name -eq 'source_release').message | Should -Match 'identity does not match'
+        Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
+    }
+    It 'refuses runtime source paths inside the installation being retired' {
+        Mock -ModuleName $M Invoke-SL2Maintenance {
+            param($ExePath, $Arguments)
+            if ($Arguments[0] -eq '--schema-info') { return @{ known = @('m1') } }
+            @{ ok = $true; schema = @{ applied = @('m1') }; source_paths = [pscustomobject]@{ data_csv_path = (Join-Path $script:Source.DataDirectory 'roles.csv') } }
+        }
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -Match 'depends on the old installation'
+    }
+    It 'uses an existing allowed hostname for direct listener probes' {
+        $null = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        Should -Invoke -ModuleName $M Invoke-SL2Http -Times 1 -ParameterFilter { $Url -eq 'https://192.0.2.10:18795/health/ready' -and $HostHeader -eq 'lens.example.com:18795' }
+    }
+    It 'blocks pending v1 <Name> without changing completed migration evidence' -ForEach @(@{Name='activation'}, @{Name='rollback'}) {
+        New-Item -ItemType Directory (Join-Path $script:Source.DataDirectory 'migration') | Out-Null
+        Set-Content (Join-Path $script:Source.DataDirectory "migration/pending-$Name.json") '{}'
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        ($result.checks | Where-Object name -eq 'recovery_state').message | Should -Match 'v1 migration activation or rollback is pending'
+    }
     It 'checks all prerequisites without writing installation files or controlling services' {
         $before = @(Get-ChildItem (Split-Path $script:Source.ConfigFile) -Recurse -Force | ForEach-Object FullName)
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
