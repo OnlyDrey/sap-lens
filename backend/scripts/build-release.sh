@@ -51,7 +51,7 @@ sed -e "s/{{VERSION}}/$version/" -e "s/{{SHA}}/$sha/" -e "s/{{BUILT}}/$shown/" -
   "$root/scripts/release-README.txt" | sed 's/$/\r/' > "$win/README.txt"
 
 # Artifact validation, manifests and checksums (same schema as build-release.ps1).
-python3 - "$win" "$linux" "$sha" "${dirty:+true}" "$version" "$built" "$root/../.." <<'PY'
+python3 - "$win" "$linux" "$sha" "${dirty:+true}" "$version" "$built" "$root/.." <<'PY'
 import hashlib, json, re, subprocess, sys
 from pathlib import Path
 win, linux, sha, dirty, version, built = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3], sys.argv[4] == 'true', sys.argv[5], sys.argv[6]
@@ -74,7 +74,7 @@ for release, platform in ((win, 'win-x64'), (linux, 'linux-x64')):
     executables = {'server': 'server/SapLens.Api.exe', 'desktop': 'desktop/SapLens.exe'} if platform == 'win-x64' else {'server': 'server/SapLens.Api'}
     artifacts = [dict(path=p, bytes=(release / p).stat().st_size, sha256=digest(release / p)) for p in files(release)]
     match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?', version)
-    ui_version = json.loads((Path(sys.argv[7]) / 'legacy/v1/backend/resources/product-version.json').read_text())['version']   # recorded, never used as this version
+    ui_version = json.loads((Path(sys.argv[7]) / 'frontend/package.json').read_text())['version']   # checked by the frontend prebuild contract
     manifest = dict(schema=1, product='SAP Lens', version=version, channel=match[4] or 'stable', file_version=[int(match[1]), int(match[2]), int(match[3]), int(match[5] or 0)],
                     ui_source_version=ui_version, source_sha=sha, source_dirty=dirty,
                     source_committed_at=run('git', 'log', '-1', '--format=%cI'), branch=run('git', 'rev-parse', '--abbrev-ref', 'HEAD'), build_timestamp_utc=built,

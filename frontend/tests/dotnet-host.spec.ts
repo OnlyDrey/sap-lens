@@ -1,10 +1,11 @@
 import { test, expect } from '@playwright/test'
+import { readFileSync } from 'node:fs'
 import { seedSources, sessionUrl, goTo } from './support'
 
 test('the isolated .NET host serves its identity and rejects unauthenticated API requests', async ({ request, baseURL }) => {
   const identity = await (await request.get('/product-version.json')).json()
   expect(identity.mode).toBe('dotnet')
-  expect(identity.version).toBe('2.0.0-alpha.1')
+  expect(identity.version).toBe(JSON.parse(readFileSync(new URL('../../backend/product-version.json', import.meta.url), 'utf8')).version)
   expect((await request.get('/health/ready')).status()).toBe(200)
   expect((await fetch(`${baseURL}/api/configuration`)).status).toBe(401)
 })

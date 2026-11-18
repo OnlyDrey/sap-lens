@@ -55,3 +55,12 @@ UI bundle is built with v1's version; the .NET host reports its own version wher
 `VersioningTests` (the file is the only source, assemblies and file version follow it, `--version` content, every HTTP identity equal, v1
 independence and v1's own mirror, release scripts read the file and check `<version>+<commit>` in every executable); Pester `Release verification`
 (folder name, file version and version format); the release scripts refuse an invalid version and executables without `<version>+<commit>`.
+
+## Active frontend and build metadata
+
+`backend/product-version.json` also controls the React package and lockfile root
+versions. `node scripts/product-version.mjs` checks them; `--write` explicitly
+synchronizes mirrors without changing the source. Vite emits `product-version.json`
+with that version and the source commit. CI refuses a mismatched GitHub commit.
+Release manifests record the same UI source version. Historical v1 metadata stays
+under `legacy/v1/` and is never consulted by an active build.

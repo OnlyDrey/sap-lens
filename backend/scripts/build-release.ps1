@@ -58,7 +58,7 @@ $version = (Get-Content (Join-Path $root 'product-version.json') -Raw | ConvertF
 if ($version -notmatch '^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})(-(alpha|beta|rc)\.([1-9]\d{0,4}))?$') { throw "product-version.json: '$version' is not MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N]." }
 $channel = if ($Matches[5]) { $Matches[5] } else { 'stable' }
 $fileVersion = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $(if ($Matches[6]) { [int]$Matches[6] } else { 0 }))
-$uiVersion = (Get-Content (Join-Path $root '..\legacy\v1\backend\resources\product-version.json') -Raw | ConvertFrom-Json).version   # recorded, never used as this version
+$uiVersion = (Get-Content (Join-Path $root '..\frontend\package.json') -Raw | ConvertFrom-Json).version   # checked by the frontend prebuild contract
 $built = [DateTime]::UtcNow
 $release = Join-Path $Output ('SAP-Lens-{0}-{1}-{2}-{3}' -f $version, $built.ToString('yyyyMMdd-HHmmss'), $sha.Substring(0, 7), $platform)
 if (Test-Path -LiteralPath $release) { throw "Release folder $release exists; an existing release is never overwritten." }
