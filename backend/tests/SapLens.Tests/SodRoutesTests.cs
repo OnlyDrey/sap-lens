@@ -67,15 +67,28 @@ public sealed class SodRoutesTests : IAsyncLifetime
         foreach (var spec in JsonNode.Parse(File.ReadAllText(Fixture("routes", "queries.json")))!.AsArray().Select(s => s!.AsObject()))
         {
             var name = (string)spec["name"]!;
+            // Golden output was captured on this evaluation date. Exercise that same
+            // public filter rather than comparing today's live date to yesterday's fixture.
+            spec["as_of"] ??= (string)expected["context"]!["as_of"]!;
             var query = string.Join('&', spec.Where(p => p.Key is not ("name" or "route" or "table")).SelectMany(p => p.Value is JsonArray values
                 ? values.Select(v => $"{p.Key}={Uri.EscapeDataString(Value(v!))}") : [$"{p.Key}={Uri.EscapeDataString(Value(p.Value!))}"]));
+            var dayBefore = DateTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
             var response = await _client.GetAsync(RoutePath(spec) + (query.Length > 0 ? "?" + query : ""));
             var text = await response.Content.ReadAsStringAsync();
             if (response.StatusCode != HttpStatusCode.OK) { failures.Add($"{name}: {(int)response.StatusCode} {text}"); continue; }
             var actual = JsonNode.Parse(text)!.AsObject();
             actual.Remove("generation");
             actual.Remove("revision");
-            var want = expected[name]!.AsObject();
+            var want = expected[name]!.DeepClone().AsObject();
+            if ((string)spec["route"]! == "context")
+            {
+                // /context describes the live context and deliberately has no as_of
+                // override. Assert its current-day contract before comparing the
+                // remaining captured fields; account for a request crossing midnight.
+                var dayAfter = DateTime.Today.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture);
+                Assert.Contains((string)actual["as_of"]!, new[] { dayBefore, dayAfter });
+                want["as_of"] = actual["as_of"]!.DeepClone();
+            }
             if (JsonNode.DeepEquals(want, actual)) continue;
             var keys = want.Select(p => p.Key).Union(actual.Select(p => p.Key)).Where(k => !JsonNode.DeepEquals(want[k], actual[k])).ToList();
             var detail = keys.Select(k =>

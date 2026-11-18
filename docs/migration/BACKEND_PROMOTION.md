@@ -33,26 +33,29 @@ Gates for merging the promoted layout into `work` and `main` (the move itself is
 | 1 | Functional parity of every UI route | Passed on Linux | [ROUTE_AUDIT.md](ROUTE_AUDIT.md), [MIGRATION_MATRIX.md](MIGRATION_MATRIX.md); full .NET suite |
 | 2 | v1 data migration (`.slbak` and data directory) | Passed on synthetic fixtures | [V1_MIGRATION.md](V1_MIGRATION.md); `V1DataMigrationTests`. **A rehearsal on a real (private) v1 installation has not run** |
 | 3 | Native Windows acceptance: Server service, Desktop, installers, deployment | **Pending** | [WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending), [WINDOWS_TEST_VM.md](../deployment/WINDOWS_TEST_VM.md). Nothing ran on Windows from this environment |
-| 4 | CI validates the .NET backend | **Blocked by policy; merge blocker** | `validate.yml` runs only on `main` and still installs and tests the Python backend at the root paths (`backend/requirements*.txt`, `scripts/build.py`, `scripts/testing/ci.py`), which no longer exist there. Merging without a CI change makes the first `main` run fail. Changing CI needs explicit owner authorization |
+| 4 | CI validates the .NET backend | **Implemented, remote execution pending** | Owner-authorized .NET-first main-only workflow; local contracts and actionlint pass. No GitHub Actions run was requested or triggered |
 | 5 | Release path | **Blocked** | The v1 installer (`legacy/v1/deploy/windows/desktop-installer.iss`) packages the Python app; the .NET installers are new and uncompiled |
 | 6 | Owner decision: the .NET Desktop replaces v1, or installs beside it | **Open** | The .NET installers use their own AppIds and folders (beside v1). Replacing v1 needs one identity and an upgrade path that runs the v1 migration |
 | 7 | Merge into `work`/`main` | Not requested | Requires an approved pull request, after gate 4 |
 
-## Remaining dependencies of active code on `legacy/v1`
+## Post-migration infrastructure update (2026-11-18)
 
-| Consumer | Dependency | Resolution |
-| --- | --- | --- |
-| `frontend/package.json` (`prebuild`), `frontend/vite.config.ts`, `scripts/product-version.mjs` | The frontend mirrors v1's product version (`legacy/v1/backend/resources/product-version.json`, `1.0.0-beta.2`) | Decide whether the frontend carries the SAP Lens 2 version; then point the mirror at `backend/product-version.json` |
-| `frontend/playwright.config.ts`, `frontend/tests/*` | The browser suite starts the v1 Python server and uses v1 test fixtures | Port the harness to the .NET Server |
-| `frontend/package.json` (`dev:backend`) | Development backend is the v1 server | Switch to `dotnet run` of `SapLens.Api` with a development data directory |
-| `backend/scripts/build-release.*` | Records v1's version as `ui_source_version` (informational) | Follows the frontend version decision |
-| `backend/tools/*_reference.py` | Import v1 code to write comparison fixtures | Keep while v1 comparisons are maintained |
-| `.github/workflows/*` | v1 pipeline with root paths | Gate 4 |
-| Migration fixtures (`backend/tests/SapLens.Tests/Fixtures/v1-data`, `Fixtures/backups`) | Written by the real v1 code | Keep; evidence for the v1 import |
+The default browser/dev backend is .NET with disposable data. Frontend version and
+release UI metadata now use `backend/product-version.json`. The main-only .NET CI
+workflow and optional Docker definition replace the active v1 pipeline; original
+workflow definitions remain archived. See [development](../development/README.md),
+[CI](../development/CI.md) and [Docker](../deployment/DOCKER.md) for validation limits.
+
+Remaining v1 dependencies are intentional: synthetic golden fixtures and their
+optional Python reference generators, plus historical deployment/rollback lookup.
+Four Python-runtime browser specs remain under `legacy/v1/frontend/tests` awaiting
+.NET fixture adapters. Two active specs generate workbook/reference fixtures with
+Python. Route parity is not a claim of complete browser parity. Historical gates
+and migration decisions above are retained; no release approval is implied.
 
 ## Before merging
 
-1. Owner decision on CI (gate 4) and Desktop identity (gate 6).
+1. Remote validation of the new CI definition (only after an approved merge), and owner decision on Desktop identity (gate 6).
 2. Validate: full .NET suite from a clean clone, frontend checks, `check-docs.py`, release build on Linux and Windows, installers on Windows,
    deployment acceptance, and a v1 migration rehearsal on a copy of real data.
 3. Merge only with explicit approval; release only with explicit authorization.

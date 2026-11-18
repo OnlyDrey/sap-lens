@@ -3,15 +3,16 @@
 - Preserve the README `<!-- LOGO -->` block, including the logo path, SAP Lens title, and SAP S/4HANA description, unless the user explicitly requests a change. Keep the navigation links immediately below the description in the centered paragraph.
 - Each cloud task is isolated. Use the existing checkout; do not create a Git worktree unless requested.
 - SAP role exports, local settings, logs, .env files and credentials must not be committed or included in release artifacts.
-- The desktop server binds only to 127.0.0.1, preferring port 18743 and securely falling back to an OS-assigned port. Do not weaken local host/origin checks, expose the API to a LAN, or cache role data in a service worker.
+- The .NET Desktop binds only to 127.0.0.1 on an OS-assigned port. Do not weaken local host/origin checks, expose the API to a LAN, or cache role data in a service worker.
 - Validate every change with the Progressive test validation policy below (Level 1 and 2 during development). The whole .NET suite
   (`dotnet test backend/tests/SapLens.Tests`) and the complete browser suite are explicit FULL checks, not automatic development steps. Keep
   frontend type/build checks proportional to affected code.
 - **SAP Lens 2 (.NET, `backend/`) is the primary implementation. SAP Lens 1 (Python, `legacy/v1/`) is archived:** no new features there; change it
   only to keep shared tooling (the browser-test server, migration reference tools) working. Active tooling never lives under `legacy/`, and
   archived tooling never moves back to the root.
-- The GitHub workflows in `.github/workflows` still describe the SAP Lens 1 pipeline with pre-promotion paths; moving CI to .NET needs owner
-  authorization (see CI policy). SAP Lens 2 Windows release, installer and deployment scripts are in `backend/scripts`.
+- `.github/workflows/validate.yml` validates .NET, the frontend, focused Playwright and Docker only on push to `main`. No dispatch, PR,
+  schedule or experiment/work trigger is permitted. Archived v1 workflow definitions live under `legacy/v1/.github/workflows` and cannot run.
+  SAP Lens 2 Windows release, installer and deployment scripts are in `backend/scripts`.
 
 ## Stack and conventions
 
@@ -53,12 +54,12 @@ From the repository root ([development](docs/development/README.md)).
 - Scripts: `pwsh -NoProfile -Command "Invoke-Pester backend/scripts/tests"` (deployment state machine, test launcher),
   `bash backend/scripts/tests/deploy-windows.test.sh` (SSH orchestrator), PowerShell syntax via the parser for changed scripts.
 - Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run test:unit`, `npm run build`,
-  `npm run test:browser`. Build first: Playwright serves `dist` through the SAP Lens 1 server
-  (`legacy/v1/scripts/testing/serve-browser-tests.py`) on 127.0.0.1:18745, and a stale server on that
+  `npm run test:browser`. Build first: Playwright serves `dist` through the isolated .NET test host
+  (`scripts/browser-server.mjs`, `backend/tests/SapLens.BrowserHost`) on 127.0.0.1:18745, and a stale server on that
   port blocks the run. A prepared Chromium may need `PLAYWRIGHT_EXECUTABLE_PATH`;
   report the override. Target with `npm run test:browser -- tests/<file>.spec.ts --grep <name>`.
 - Static: `python scripts/check-docs.py`, `python scripts/check-secrets.py`, `python -m ruff check scripts legacy/v1 backend/tools`,
-  `python legacy/v1/scripts/check-workflows.py`, `node legacy/v1/scripts/sync-lucide-catalog.mjs --check`, `git diff --check`, `npm audit --omit=dev`.
+  `python scripts/check-workflows.py`, `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`, `npm audit --omit=dev`.
 - Legacy v1 (Python 3.12 venv with `legacy/v1/backend/requirements-dev.txt`): `cd legacy/v1 && python -m unittest discover -s backend/tests`.
   The v1 runner profiles (`legacy/v1/scripts/run-tests.py`, `validate.py`) and packaging assume the pre-promotion layout; use a checkout of
   `604f21e` for them ([legacy/v1](legacy/v1/README.md), [v1 testing guide](docs/legacy/v1/development/TESTING.md)).
@@ -78,14 +79,12 @@ From the repository root ([development](docs/development/README.md)).
 
 ## Git workflow
 
-- Develop on `work` (tracking `origin/work`). If a checkout is detached at `main`:
-  `git checkout -b work --track origin/work`. `main` receives `work` only through
-  pull requests; do not push to `main`, tag, release or dispatch workflows without
-  explicit authorization.
+- During the .NET migration, develop only on `experiment/dotnet-backend`, tracking `origin/experiment/dotnet-backend`. Fetch and safely
+  fast-forward the requested branch; preserve unrelated local commits and uncommitted files. Never change `main`, historical `work` or `work-v1`.
 - Deliver in logically complete, validated increments with conventional subjects
-  (`feat(scope):`, `fix(scope):`, `docs:`). Push each phase to `origin/work` once its
+  (`feat(scope):`, `fix(scope):`, `docs:`). Push each phase to `origin/experiment/dotnet-backend` once its
   Level 2 validation passes (see Progressive test validation), never force-push or rewrite
-  history, and verify the result with `git ls-remote origin work`. Do not tag,
+  history, and verify the result with `git ls-remote origin experiment/dotnet-backend`. Do not tag,
   release or manually dispatch workflows without authorization. A passing Fast
   Validation run is not proof that deployment packages were built; report package
   availability only after checking the workflow runs and artifacts.
@@ -95,13 +94,12 @@ From the repository root ([development](docs/development/README.md)).
 - **CI runs only on push to `main`** (completed merges): `validate.yml` is the single automatic workflow and its only trigger is `push: branches: [main]`.
   The trigger is the push to `main`, not `pull_request`. No workflow runs on `work`, feature branches or pull requests, and none may be triggered
   indirectly from them (no `workflow_run`, `workflow_call`, `schedule`, `pull_request(_target)` or repository-event triggers anywhere).
-- Intermediate and final development pushes to `work` do not trigger CI. Do not run CI manually (`workflow_dispatch` of Full Validation, Build Windows
-  Application or Build Deployment Packages) unless the repository owner explicitly authorizes it for that run.
+- Intermediate and final development pushes to `work` do not trigger CI. No manual workflow is configured; do not execute GitHub Actions during development.
 - Validation moves local: run QUICK/TARGETED (the affected .NET test classes, Pester and the affected browser specs) during a phase, REGRESSION
   (the focused deployment set and affected suites) before pushing a finished phase, and FULL (the whole .NET suite, scripts tests, frontend and
   browser suites) before merging into `main`.
-- Existing validation jobs, security checks and release protections stay in place; they only run on `main` pushes or on an authorized manual dispatch.
-  `legacy/v1/scripts/check-workflows.py` and `legacy/v1/backend/tests/test_workflows.py` enforce the trigger policy; changing a trigger requires updating those contracts deliberately.
+- Existing validation jobs, security checks and release protections stay in place; they only run on `main` pushes ; no manual dispatch is configured.
+  `scripts/check-workflows.py` and `scripts/tests/test_infrastructure.py` enforce the trigger policy; changing a trigger requires explicit authorization and matching contracts.
 - Never merge into `main`, publish a release or tag without explicit authorization. When a commit that only changes workflows must be pushed to `work`,
   `[skip ci]` in its message is an additional safeguard.
 
@@ -141,7 +139,7 @@ planned checkpoints, never after every correction. Commands: [development](docs/
 - Do not rerun passed tests unless a later change can affect them. Reuse build outputs (the runner rebuilds only stale assets).
 - Record which tests ran and why; when a change has no relevant automated test, say so and report the coverage gap.
 - Never substitute longer timeouts, sleeps, retries or weaker assertions for a fix. Isolation and correctness come before speed.
-- Commit and push validated, independently functional phases to `origin/work`; report targeted results separately from pending
+- Commit and push validated, independently functional phases to `origin/experiment/dotnet-backend`; report targeted results separately from pending
   REGRESSION/FULL and from GitHub Actions. Preserve user instructions that explicitly delay a push.
 - Test storage is disposable and isolated from production paths. One browser worker per Playwright process; parallelism uses
   separate processes with their own server, port and storage.
@@ -232,7 +230,7 @@ planned checkpoints, never after every correction. Commands: [development](docs/
   **Remaining in this phase:** specific unfinished requirements
   **Validation:** Level 1/2 (exact tests run) Passed/Failed/Pending; Level 3/4 results;
   FULL pending unless explicitly requested or required for release
-  **Git:** Commit SHA or Not committed; Push Verified/Pending; Branch `work`
+  **Git:** Commit SHA or Not committed; Push Verified/Pending; Branch `experiment/dotnet-backend`
   **Next:** next concrete milestone
 
 - Report implemented work, not activity; distinguish implemented, tested, committed

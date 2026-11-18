@@ -11,7 +11,9 @@
 !frontend/src/
 !frontend/src/**
 !frontend/public/
-!frontend/public/**
+!frontend/public/favicon.png
+!frontend/public/sap-lens.png
+!frontend/public/theme.js
 !backend/
 !backend/Directory.Build.props
 !backend/product-version.json
@@ -34,3 +36,12 @@
 **/*.pfx
 **/*.pem
 **/settings.json
+
+**/.env*
+**/*.secret
+**/*.p12
+**/*.slbak
+**/*.db
+**/api-token
+**/backup-key-location.json
+**/server-settings.json

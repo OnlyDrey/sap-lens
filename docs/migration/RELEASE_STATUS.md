@@ -3,6 +3,17 @@
 Durable checkpoint for the next session. Evidence tags as in [README](README.md). Branch `experiment/dotnet-backend`; `work` and `main` are not
 touched; CI runs only on pushes to `main` (`validate.yml`), so experiment pushes trigger nothing.
 
+## Post-migration infrastructure checkpoint (2026-11-18)
+
+.NET is now the default browser/dev host, active frontend version metadata uses
+`backend/product-version.json`, CI definitions are .NET-first/main-only, and an
+optional TLS-first non-root Docker deployment is available. This is infrastructure
+stabilization, not production certification. Docker image download is blocked by
+the managed network; Pester acquisition is blocked by PowerShell Gallery access.
+Native Windows service/Desktop/installers and real-data migration remain separate
+acceptance gates. Consolidated local evidence is recorded below after validation.
+The earlier dated tables below remain historical evidence.
+
 ## Release decision: NO-GO (not a Release Candidate), updated 2026-11-17
 
 SAP Lens (.NET, `2.0.0-alpha.1`) is **not** a Release Candidate. Functional migration is complete on Linux: **145 of 145** API routes the React UI
@@ -91,3 +102,74 @@ cd backend && dotnet build SapLens.slnx -c Release && dotnet test tests/SapLens.
 python -I tools/route_audit.py .. ../docs/migration/ROUTE_AUDIT.md     # regenerate parity after each step
 scripts/build-release.sh /tmp/saplens-rc --skip-tests                                          # Linux; Windows: scripts\build-release.ps1 -Output C:\saplens\builds
 ```
+
+## Infrastructure stabilization evidence (2026-11-18)
+
+Starting source: `6fa0c7f0b1b9fbeb3727cec5b9597d33469665a3` on
+`experiment/dotnet-backend`. Product version remains `2.0.0-alpha.1`.
+
+| Phase | Implementation and validation | Commit/checkpoint |
+| --- | --- | --- |
+| A — Playwright/dev | .NET is default; disposable Desktop-capability host, owned child cleanup, occupied ports fail closed. Four Python-runtime specs preserved under `legacy/v1/frontend/tests`; two active reference-generator specs still need optional Python. No claim of complete browser parity | `2d5741f` |
+| B — Versioning | Frontend manifests, generated identity and release UI metadata use `backend/product-version.json`; v1 metadata unchanged | `45579d6` |
+| C — Docker | Multi-stage Node 24/.NET 10, non-root app user, persistent volume, mandatory TLS/private bind, exact-host readiness and loopback-only published port. Compose/shell/contracts pass; actual image build blocked at MCR redirected layer download (403) | `03f7e10`, **partial validation** |
+| D — CI | One pinned/read-only main-push workflow, .NET Linux/Windows, frontend, focused browser, Docker; no dispatch/PR/schedule/deploy/publisher. Historical workflows archived; actionlint and trigger tests pass | `6e7b7ba` |
+| E — Scripts | SDK selection, canonical paths, no-reuse browser compiler settings, fail-fast missing SDK, isolated fake deployment remote. Historical root fallback retained only for older-commit compatibility | `3f1e6c0` |
+| F — Windows | Host/TLS/proxy/installer/location contracts, PowerShell syntax and fake SSH orchestration pass on Linux; exact native follow-up commands recorded. Existing service/release/data/key paths unchanged | `faea923` |
+| G — Docs/verification | Current guides, agent instructions, migration gates and security checks aligned; evidence below. No merge, version bump, release or workflow execution | This checkpoint |
+
+Validation performed:
+
+- SDK 10.0.404 solution build: **0 warnings, 0 errors**. SDK and Linux PowerShell
+  7.7.0 were downloaded into temporary storage and checked against official hashes.
+- Initial focused .NET group: **23 passed, 1 failed** (outdated frontend=v1 version
+  assertion). The contract now requires the canonical v2 frontend version and keeps
+  the v1 resource distinct. Corrected version/startup/TLS/proxy/installer/Desktop
+  group: **25 passed, 0 failed/skipped**.
+- Consolidated non-publish/non-build .NET selection: **411 passed, 1 failed, 0 skipped**
+  (412 total). The failure compared a November 17 golden `as_of` value with the
+  November 18 live context. Initial historical-date recheck showed `/context`
+  deliberately ignores `as_of`; final test explicitly asserts its current-day
+  contract (including midnight boundary), while historical query comparisons use
+  the fixture evaluation date. Final complete affected class: **2 passed**. No
+  production SoD rule or response assertion was removed. The broad selection was
+  not rerun; this is not reported as a clean single-run full regression.
+- Embedded-UI incremental build contract passed in the initial focused group;
+  its expensive rebuilds were reused rather than repeated in the consolidated run.
+  Publish/package acceptance (`Category=Publish`) was intentionally not executed.
+- Frontend typecheck and production build passed; **41 unit tests passed**. ESLint:
+  **0 errors, 114 existing warnings** (threshold 115).
+- Final .NET Playwright selection: **12 passed, 0 failed/skipped**, one worker,
+  system Chromium (`PLAYWRIGHT_EXECUTABLE_PATH=/usr/bin/chromium`), private port
+  18856. Component interactions, focus and light/dark at 375/1280px, host identity,
+  unauthenticated rejection, CSV activation and Role Lookup. No complete browser
+  regression was requested/executed. Owned host exited and its port was released.
+- Repository tests: **5 Node tests** (version, source commit, missing SDK cleanup,
+  invalid ports); **8 Python infrastructure contracts** (CI triggers/permissions,
+  Docker boundaries, structure, incomplete/vulnerable advisory reports).
+- PowerShell parsing: **10 scripts, 0 errors**, Linux PowerShell 7 only. Fake SSH
+  deployment tests: **18/18 passed**, disposable local clones, no remote operations.
+  Pester 5.7.1 acquisition failed because the managed proxy blocks PowerShell
+  Gallery; Pester was **not executed**. No native PowerShell 5.1 result is claimed.
+- NuGet advisory report (9 projects) and production npm audit: **0 vulnerabilities**.
+  The audit parser separately rejects incomplete/error reports. Tracked secret
+  scan: **0 findings**. Icon catalogue: **1,447 icons verified**. Docs: **99 Markdown
+  files, 0 broken links**. Workflow YAML/contracts, actionlint, Bash syntax and
+  whitespace checks passed. No runtime dependency or product version was changed; PyYAML 6.0.3 is a new development-only workflow-check dependency.
+- No GitHub Actions were dispatched. API inspection showed **0 workflow runs** for
+  pushed commit `45579d6`; final push verification is recorded by the delivery report.
+
+External follow-up:
+
+1. Allow the official MCR layer host `centralus.data.mcr.microsoft.com` in the
+   managed network, then run the exact image build in [Docker](../deployment/DOCKER.md).
+   Registry manifest access works; layer access returns 403. Image/runtime acceptance
+   remains unverified, and no production container was deployed.
+2. Obtain pinned Pester from an approved source and run the commands in
+   [Windows verification](../deployment/WINDOWS_DEPLOYMENT.md#post-promotion-infrastructure-verification).
+3. Run native Windows service/Desktop/installer, ACL/firewall and recovery checks
+   on disposable data. Preserve the real installation and all release/backup/key
+   directories. Rehearse real-data v1 migration separately before release approval.
+
+Private production hosts, keys, configuration and data are not included in this
+record. `main`, local historical `work`, and remote `work-v1` were preserved.

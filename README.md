@@ -42,7 +42,7 @@ Product version `2.0.0-alpha.1` (pre-release; [versioning](docs/architecture/VER
 | Data | SQLite system of record, immutable evidence and review history, encrypted backups ([database design](docs/architecture/DATABASE_DESIGN.md)) |
 | SAP Lens 1 data | Preview, verified migration and rollback of a v1 data directory or `.slbak` backup ([procedure](docs/migration/V1_MIGRATION.md)); tested on synthetic fixtures |
 | Windows Server | Runs as a Windows service behind a reverse proxy over HTTPS; SSH-driven build, verified deployment and rollback ([Windows deployment](docs/deployment/WINDOWS_DEPLOYMENT.md)) |
-| Pending | Parts of the native Windows acceptance checklist, compiled and signed installers, a v1 migration rehearsal on real data, CI for the .NET backend ([release status](docs/migration/RELEASE_STATUS.md)) |
+| Pending | Parts of the native Windows acceptance checklist, compiled and signed installers, a v1 migration rehearsal on real data, native installer acceptance and Docker runtime verification ([release status](docs/migration/RELEASE_STATUS.md)) |
 
 SAP Lens 2 is not declared feature-complete or production-certified: see [release status](docs/migration/RELEASE_STATUS.md) and
 [backend promotion](docs/migration/BACKEND_PROMOTION.md) for what is verified and what is not.
@@ -61,8 +61,9 @@ SAP Lens 2 is not declared feature-complete or production-certified: see [releas
 ## Quick commands
 
 ```bash
-cd backend && dotnet build SapLens.slnx -c Release && dotnet test tests/SapLens.Tests -c Release --no-build
-cd frontend && npm ci && npm run build
+npm --prefix frontend ci && npm --prefix frontend run build
+dotnet build backend/SapLens.slnx -c Release
+dotnet test backend/tests/SapLens.Tests -c Release --no-build --filter "Category!=Publish"
 backend/scripts/build-release.sh <output>                     # Linux; Windows: backend\scripts\build-release.ps1 -Output <folder>
 ```
 

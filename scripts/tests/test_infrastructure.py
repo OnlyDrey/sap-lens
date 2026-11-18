@@ -56,5 +56,21 @@ class DeploymentContracts(unittest.TestCase):
         self.assertNotIn('!legacy', ignore)
 
 
+class DependencyAuditContracts(unittest.TestCase):
+    def test_complete_reports_preserve_vulnerability_findings(self):
+        audit = module('check-dependencies')
+        self.assertEqual([], audit.findings({'version': 1, 'projects': [{'path': 'app.csproj'}]}))
+        report = {'version': 1, 'projects': [{'path': 'app.csproj', 'frameworks': [{'transitivePackages': [
+            {'id': 'Synthetic.Package', 'resolvedVersion': '1.0.0', 'vulnerabilities': [{'severity': 'High'}]}
+        ]}]}]}
+        self.assertEqual([('app.csproj', 'Synthetic.Package', '1.0.0')], audit.findings(report))
+
+    def test_incomplete_or_failed_advisory_queries_never_pass(self):
+        for report in ({}, {'version': 1, 'projects': []}, {'version': 2, 'projects': [{}]},
+                       {'version': 1, 'projects': [{}], 'logs': [{'level': 'Warning', 'code': 'NU1900'}]}):
+            with self.subTest(report=report), self.assertRaises(ValueError):
+                module('check-dependencies').findings(report)
+
+
 if __name__ == '__main__':
     unittest.main()
