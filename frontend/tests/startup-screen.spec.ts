@@ -41,7 +41,7 @@ test.describe('desktop startup document', () => {
     directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-startup-'))
     file = path.join(directory, 'startup.html')
     try {
-      execFileSync(PYTHON, ['-c', `import sys\nfrom pathlib import Path\nsys.path.insert(0, 'backend')\nfrom startup_screen import startup_html\nPath(sys.argv[1]).write_text(startup_html(Path('assets/sap-lens.png'), 'synthetic-capability'))`, file], { cwd: repository })
+      execFileSync(PYTHON, ['-c', `import sys\nfrom pathlib import Path\nsys.path.insert(0, 'legacy/v1/backend')\nfrom startup_screen import startup_html\nPath(sys.argv[1]).write_text(startup_html(Path('assets/sap-lens.png'), 'synthetic-capability'))`, file], { cwd: repository })
     } catch { file = '' }
   })
   test.afterAll(() => rmSync(directory, { recursive: true, force: true }))

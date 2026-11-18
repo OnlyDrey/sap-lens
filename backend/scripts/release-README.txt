@@ -28,4 +28,4 @@ VERIFY
   build-manifest.json lists the size and SHA-256 of every file; SHA256SUMS covers all files. Check with scripts\verify-release.ps1 -ReleasePath <this folder>.
 
 DOCUMENTATION (repository)
-  docs/experiments/dotnet-backend/WINDOWS_TEST_VM.md, SERVER_NETWORK_ACCESS.md (configuration reference, reverse proxy, Windows service).
+  docs/deployment/WINDOWS_TEST_VM.md, SERVER_NETWORK_ACCESS.md (configuration reference, reverse proxy, Windows service).

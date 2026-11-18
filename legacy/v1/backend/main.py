@@ -26,8 +26,9 @@ from request_limits import RequestBodyLimit
 from version import VERSION, BUILD_INFO
 from configuration_routes import configuration_router
 
+# From source, the shared React frontend is at the repository root (this file is legacy/v1/backend/main.py since v1 was archived).
 frontend_dir = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False)
-                else Path(__file__).resolve().parent.parent) / 'frontend' / 'dist'
+                else Path(__file__).resolve().parents[3]) / 'frontend' / 'dist'
 
 
 class DataSettings(BaseModel):

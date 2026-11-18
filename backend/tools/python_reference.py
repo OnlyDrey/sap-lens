@@ -12,11 +12,11 @@ import time
 from datetime import date
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[3]
+REPO = Path(__file__).resolve().parents[2]
 os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp(prefix='saplens-v1-ref-')
 for name in ('SAP_LENS_DATA_DIR', 'SAP_LENS_DEPLOYMENT_MODE', 'DATA_CSV_PATH', 'USER_CSV_PATH', 'SOD_CSV_PATH'):
     os.environ.pop(name, None)
-sys.path.insert(0, str(REPO / 'backend'))
+sys.path.insert(0, str(REPO / 'legacy' / 'v1' / 'backend'))
 
 import cache  # noqa: E402
 import csv_lifecycle  # noqa: E402

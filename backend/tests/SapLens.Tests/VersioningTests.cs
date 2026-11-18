@@ -6,7 +6,7 @@ using SapLens.Api;
 
 namespace SapLens.Tests;
 
-/// <summary>One product version for SAP Lens 2 (experiments/dotnet-backend/product-version.json), the same in the assemblies, --version, every HTTP
+/// <summary>One product version for SAP Lens 2 (backend/product-version.json), the same in the assemblies, --version, every HTTP
 /// identity and the release scripts; independent of SAP Lens v1, whose own version source and frontend mirror stay as they are.</summary>
 public sealed class VersioningTests : IAsyncLifetime
 {
@@ -17,7 +17,7 @@ public sealed class VersioningTests : IAsyncLifetime
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "SapLens.slnx"))) dir = dir.Parent;
         return dir!;
     }
-    private static string Repository => Path.GetFullPath(Path.Combine(Solution.FullName, "..", ".."));
+    private static string Repository => Path.GetFullPath(Path.Combine(Solution.FullName, ".."));
     private static string FileVersionOf(string version)
     {
         var match = Regex.Match(version, @"^(\d+)\.(\d+)\.(\d+)(?:-(?:alpha|beta|rc)\.(\d+))?$");
@@ -73,7 +73,7 @@ public sealed class VersioningTests : IAsyncLifetime
     [Fact]
     public void Sap_lens_2_is_versioned_independently_of_v1_and_v1_keeps_its_own_contract()
     {
-        var v1 = (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "backend", "resources", "product-version.json")))!["version"]!;
+        var v1 = (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "legacy", "v1", "backend", "resources", "product-version.json")))!["version"]!;
         Assert.NotEqual(v1, ProductIdentity.Version);
         Assert.Equal(v1, (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "frontend", "package.json")))!["version"]!);   // v1's mirror untouched
     }

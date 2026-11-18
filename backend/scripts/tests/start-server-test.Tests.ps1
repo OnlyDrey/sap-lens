@@ -1,4 +1,4 @@
-# Pester 5 tests for scripts/start-server-test.ps1. Run: Invoke-Pester experiments/dotnet-backend/scripts/tests
+# Pester 5 tests for scripts/start-server-test.ps1. Run: Invoke-Pester backend/scripts/tests
 # Synthetic files only: fake releases, certificates and password files live in TestDrive; nothing is installed or started for real.
 BeforeAll {
     $script:Launcher = (Resolve-Path (Join-Path $PSScriptRoot '..\start-server-test.ps1')).Path

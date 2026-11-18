@@ -19,7 +19,7 @@ public sealed class BuildIntegrationTests
         return dir ?? throw new InvalidOperationException("SapLens.slnx not found above the test output.");
     }
 
-    private static string FrontendDist() => Path.GetFullPath(Path.Combine(SolutionRoot().FullName, "..", "..", "frontend", "dist"));
+    private static string FrontendDist() => Path.GetFullPath(Path.Combine(SolutionRoot().FullName, "..", "frontend", "dist"));
 
     [Fact]
     public void Missing_ui_files_are_refused_with_every_missing_name()

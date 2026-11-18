@@ -6,11 +6,11 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 /** Shared browser-test helpers. Specs import these instead of redefining them. */
-/** Backend test fixture, resolved from this file (not the working directory): <root>/frontend/tests -> <root>/backend/tests/fixtures. The same layout
- *  exists in the isolated build workspace, which mirrors backend/tests/fixtures. A missing file fails with the path that was searched. */
+/** Backend test fixture, resolved from this file (not the working directory): <root>/frontend/tests -> <root>/legacy/v1/backend/tests/fixtures. The same layout
+ *  exists in the isolated build workspace, which mirrors legacy/v1/backend/tests/fixtures. A missing file fails with the path that was searched. */
 export function backendFixture(name: string): string {
-  const resolved = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'backend', 'tests', 'fixtures', name)
-  if (!existsSync(resolved)) throw new Error(`Backend test fixture "${name}" not found at ${resolved}. The build workspace must mirror backend/tests/fixtures (scripts/build_system/frontend_workspace.py).`)
+  const resolved = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'legacy', 'v1', 'backend', 'tests', 'fixtures', name)
+  if (!existsSync(resolved)) throw new Error(`Backend test fixture "${name}" not found at ${resolved}. The build workspace must mirror legacy/v1/backend/tests/fixtures (legacy/v1/scripts/build_system/frontend_workspace.py).`)
   return resolved
 }
 

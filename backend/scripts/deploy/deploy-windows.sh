@@ -118,8 +118,9 @@ read -r -d '' bootstrap <<PWSH || true
 \$sha = @(& \$git @('rev-parse', \$(if (\$commit) { "\$commit^{commit}" } else { "origin/\$branch^{commit}" })))[0]
 Write-Host "locked commit \$sha (\$branch)"
 \$dir = Join-Path ([System.IO.Path]::GetTempPath()) ('saplens-deploy-' + \$sha.Substring(0, 12))
-# The .NET project is experiments/dotnet-backend, or backend/ after the promotion; take the deployment scripts from whichever the commit has.
-\$source = @(& \$git @('ls-tree', '-d', '--name-only', \$sha, '--', 'experiments/dotnet-backend/scripts/deploy', 'backend/scripts/deploy'))[0]
+# The .NET project is backend/ (or experiments/dotnet-backend in commits from before the promotion); take the deployment scripts from whichever the commit has.
+# backend/ wins: in later commits experiments/dotnet-backend/scripts/deploy holds only a forwarding wrapper.
+\$source = @(& \$git @('ls-tree', '-d', '--name-only', \$sha, '--', 'backend/scripts/deploy', 'experiments/dotnet-backend/scripts/deploy') | Sort-Object { -not "\$_".StartsWith('backend/') })[0]
 if (-not \$source) { throw "commit \$sha has no Windows deployment scripts" }
 \$deploy = Join-Path \$dir \$source
 if (-not (Test-Path -LiteralPath \$deploy)) {

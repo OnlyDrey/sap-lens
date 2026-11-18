@@ -5,14 +5,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- The official multi-size icon for the Windows server executable (SapLens.Api.exe). -->
-    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\..\assets\sap-lens.ico</ApplicationIcon>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\assets\sap-lens.ico</ApplicationIcon>
     <!-- The production React UI (frontend/, the same sources as origin/work) and the server's sign-in page are compiled into this assembly, so every host
          (Server, Desktop single-file, tests) serves the same files regardless of working directory or publish layout. Each file is a manifest resource
          named "SapLensUi/<relative path>" (explicit LogicalName), served by UiAssets/EmbeddedUiFileProvider. The embedded-files manifest
          (GenerateEmbeddedFilesManifest) is not used: it splits paths on the build machine's separator only and can stay stale across incremental
          builds, which broke Windows release builds. -->
     <!-- Overridable only so the build-integration tests can embed a synthetic dist from a temporary folder. -->
-    <SapLensFrontendRoot Condition="'$(SapLensFrontendRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../../../frontend'))</SapLensFrontendRoot>
+    <SapLensFrontendRoot Condition="'$(SapLensFrontendRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)/../../../frontend'))</SapLensFrontendRoot>
     <SapLensFrontendDist>$(SapLensFrontendRoot)/dist</SapLensFrontendDist>
   </PropertyGroup>
 

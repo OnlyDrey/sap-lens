@@ -15,13 +15,13 @@ test.beforeAll(async()=>{
  const port=(reservation.address() as AddressInfo).port
  await new Promise<void>((resolve,reject)=>reservation.close(error=>error?reject(error):resolve()))
  origin=`http://127.0.0.1:${port}`;root=mkdtempSync(path.join(tmpdir(),'sap-lens-session-auth-'))
- server=observeTestServer(spawn(PYTHON,['../backend/server.py'],{env:{...process.env,SAP_LENS_DATA_DIR:root,SAP_LENS_CONFIG_DIR:root,SAP_LENS_SOURCE_DIR:path.join(root,'sources'),SAP_LENS_HOST:'127.0.0.1',SAP_LENS_PORT:String(port),SAP_LENS_ALLOWED_HOSTS:'127.0.0.1',SAP_LENS_PUBLIC_ORIGIN:origin,SAP_LENS_AUTH:'sessions',SAP_LENS_TRUSTED_PROXIES:''},stdio:'ignore',detached:process.platform!=='win32',windowsHide:true}))
+ server=observeTestServer(spawn(PYTHON,['../legacy/v1/backend/server.py'],{env:{...process.env,SAP_LENS_DATA_DIR:root,SAP_LENS_CONFIG_DIR:root,SAP_LENS_SOURCE_DIR:path.join(root,'sources'),SAP_LENS_HOST:'127.0.0.1',SAP_LENS_PORT:String(port),SAP_LENS_ALLOWED_HOSTS:'127.0.0.1',SAP_LENS_PUBLIC_ORIGIN:origin,SAP_LENS_AUTH:'sessions',SAP_LENS_TRUSTED_PROXIES:''},stdio:'ignore',detached:process.platform!=='win32',windowsHide:true}))
  await expect.poll(async()=>{if(server.startupError())throw server.startupError();try{return(await fetch(origin+'/health/ready')).status}catch{return 0}},{timeout:10000}).toBe(200)
 })
 test.afterAll(async()=>{if(server)await stopTestServer(server);if(root)await removeTestServerDirectory(root)})
 
 test('activation, application accounts, session logout and viewer isolation @workflow',async({page})=>{
- const activation=JSON.parse(execFileSync(PYTHON,['../backend/server.py','--identity-code','--data-directory',root],{encoding:'utf8',timeout:20000})) as {code:string}
+ const activation=JSON.parse(execFileSync(PYTHON,['../legacy/v1/backend/server.py','--identity-code','--data-directory',root],{encoding:'utf8',timeout:20000})) as {code:string}
  await page.goto(origin)
  await expect(page.getByRole('heading',{name:'Set up SAP Lens'})).toBeVisible()
  await page.getByLabel('Username',{exact:true}).fill('admin')

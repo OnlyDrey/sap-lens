@@ -4,7 +4,7 @@ import { PYTHON } from './python'
 import path from 'node:path'
 import { layoutMatrix } from './matrix'
 const headers={'X-SAP-Lens':'browser-test-session'}
-function archive(secret=''){return execFileSync(PYTHON,[path.resolve('../scripts/testing/synthetic-backup.py'),...(secret?['--encrypted']:[])],{cwd:path.resolve('..'),input:secret+'\n'})}
+function archive(secret=''){return execFileSync(PYTHON,[path.resolve('../legacy/v1/scripts/testing/synthetic-backup.py'),...(secret?['--encrypted']:[])],{cwd:path.resolve('..'),input:secret+'\n'})}
 test.afterEach(async({request})=>{await request.post('/api/backups/cancel',{headers})})
 test('Settings backup requires restart; restore validates before explicit replacement confirmation',{ tag: '@workflow' }, async({page,request})=>{
  await request.post('/api/backups/cancel',{headers})

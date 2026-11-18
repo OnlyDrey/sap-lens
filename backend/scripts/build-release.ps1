@@ -17,7 +17,7 @@
          SHA256SUMS                      checksums of every file above, build-manifest.json included
 
   The UI is embedded in the executables. Runtime data, databases, certificates, logs and secrets never belong in the release folder (the Server
-  refuses a data directory inside it). Output defaults to experiments\dotnet-backend\artifacts\release (git-ignored); an existing release folder is
+  refuses a data directory inside it). Output defaults to backend\artifacts\release (git-ignored); an existing release folder is
   never overwritten. Nothing is installed, started or changed on this machine.
 
 .EXAMPLE
@@ -32,7 +32,7 @@ param(
 )
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$frontend = (Resolve-Path (Join-Path $root '..\..\frontend')).Path
+$frontend = (Resolve-Path (Join-Path $root '..\frontend')).Path
 if (-not $Output) { $Output = Join-Path $root 'artifacts\release' }
 $platform = 'win-x64'
 
@@ -51,14 +51,14 @@ Write-Host "Node.js $nodeVersion, .NET SDK $sdk"
 
 $sha = (& git -C $root rev-parse HEAD).Trim()
 $committed = (& git -C $root log -1 --format=%cI).Trim()
-$dirty = [bool](& git -C $root status --porcelain -- . ..\..\frontend)
+$dirty = [bool](& git -C $root status --porcelain -- . ..\frontend)
 if ($dirty) { Write-Warning 'The working tree has uncommitted changes; the manifest records source_dirty=true.' }
-# Product version: product-version.json is the only source (docs/experiments/dotnet-backend/VERSIONING.md); a build never changes it.
+# Product version: product-version.json is the only source (docs/architecture/VERSIONING.md); a build never changes it.
 $version = (Get-Content (Join-Path $root 'product-version.json') -Raw | ConvertFrom-Json).version
 if ($version -notmatch '^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})(-(alpha|beta|rc)\.([1-9]\d{0,4}))?$') { throw "product-version.json: '$version' is not MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N]." }
 $channel = if ($Matches[5]) { $Matches[5] } else { 'stable' }
 $fileVersion = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $(if ($Matches[6]) { [int]$Matches[6] } else { 0 }))
-$uiVersion = (Get-Content (Join-Path $root '..\..\backend\resources\product-version.json') -Raw | ConvertFrom-Json).version   # recorded, never used as this version
+$uiVersion = (Get-Content (Join-Path $root '..\legacy\v1\backend\resources\product-version.json') -Raw | ConvertFrom-Json).version   # recorded, never used as this version
 $built = [DateTime]::UtcNow
 $release = Join-Path $Output ('SAP-Lens-{0}-{1}-{2}-{3}' -f $version, $built.ToString('yyyyMMdd-HHmmss'), $sha.Substring(0, 7), $platform)
 if (Test-Path -LiteralPath $release) { throw "Release folder $release exists; an existing release is never overwritten." }
@@ -144,7 +144,7 @@ $sums = Get-Artifacts $release @('SHA256SUMS') | ForEach-Object { '{0}  ./{1}' -
 # No secrets or environment-specific values in the release (key/certificate/secret files, token formats, and the personal values listed in the
 # git-ignored .secret-scan.local). Needs Python; without it the scan is reported as not run.
 $python = @('python', 'py', 'python3') | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
-if ($python) { Invoke-Step 'Secret scan of the release folder' { & $python (Join-Path $root '..\..\scripts\check-secrets.py') --path $release } }
+if ($python) { Invoke-Step 'Secret scan of the release folder' { & $python (Join-Path $root '..\scripts\check-secrets.py') --path $release } }
 else { Write-Warning 'Python not found: the release secret scan (scripts/check-secrets.py --path) was NOT run.' }
 & (Join-Path $PSScriptRoot 'verify-release.ps1') -ReleasePath $release
 if ($LASTEXITCODE -ne 0) { throw 'Release verification failed.' }

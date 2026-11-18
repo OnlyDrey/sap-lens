@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace SapLens.Api;
 
 /// <summary>Product version and build identity of SAP Lens (.NET), read from this assembly's attributes, which Directory.Build.props derives from
-/// experiments/dotnet-backend/product-version.json (the only source). Version (2.0.0-alpha.1) is the product version; Commit is build identity (set by the
+/// backend/product-version.json (the only source). Version (2.0.0-alpha.1) is the product version; Commit is build identity (set by the
 /// release scripts through SourceRevisionId, null for a local build without it). Desktop and Server share this class, so they cannot disagree.</summary>
 public static partial class ProductIdentity
 {

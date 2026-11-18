@@ -17,7 +17,7 @@ args = parser.parse_args()
 os.environ['SAP_LENS_CONFIG_DIR'] = args.config_dir
 for name in ('SAP_LENS_DATA_DIR', 'SAP_LENS_DEPLOYMENT_MODE'):
     os.environ.pop(name, None)
-sys.path.insert(0, str(Path(__file__).resolve().parents[3] / 'backend'))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'legacy' / 'v1' / 'backend'))
 
 import uvicorn  # noqa: E402
 from config import get_settings, save_configuration  # noqa: E402

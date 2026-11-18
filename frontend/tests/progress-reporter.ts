@@ -1,5 +1,5 @@
 /**
- * Live progress for scripts/run-tests.py. Playwright's own reporters write for a terminal; when the runner captures several processes they
+ * Live progress for legacy/v1/scripts/run-tests.py. Playwright's own reporters write for a terminal; when the runner captures several processes they
  * either buffer or carry box-drawing glyphs that Windows PowerShell 5.1 shows as `ΓÇ║`. This reporter writes one JSON object per line
  * (UTF-8, appended synchronously) to SAP_LENS_PROGRESS_FILE, and the runner renders the counts, each finished test and each failure as it
  * happens. Without that variable it does nothing, so a plain `npx playwright test` is unaffected.

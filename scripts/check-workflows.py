@@ -189,9 +189,9 @@ def validate(workflows):
         require(all('workflow_run' not in job.get('if', '') and 'full-validation' not in str(job).lower() for job in workflows[name]['jobs'].values()), f'{name} may not depend on a Full Regression result')
         require('workflow_run' not in workflows[name]['on'] and 'workflow_call' not in workflows[name]['on'], f'{name} is dispatched by hand only')
     for script in ('deployment-release.py', 'release-windows.py', 'deployment-package.py'):
-        source = next((ROOT / 'scripts').rglob(script)).read_text(encoding='utf-8').lower()
+        source = next((ROOT / 'legacy/v1/scripts').rglob(script)).read_text(encoding='utf-8').lower()
         require('full-validation' not in source and 'full validation' not in source and "'backend', 'browser'" not in source, f'{script} may not require a Full Regression result or the complete suites')
-    require(not ({'backend', 'browser'} & set(re.findall(r"CHECKS=\{([^}]*)\}", (ROOT / 'scripts/deployment-package.py').read_text(encoding='utf-8'))[0].replace("'", '').split(','))), 'The sealed validation receipt may not require the complete suites')
+    require(not ({'backend', 'browser'} & set(re.findall(r"CHECKS=\{([^}]*)\}", (ROOT / 'legacy/v1/scripts/deployment-package.py').read_text(encoding='utf-8'))[0].replace("'", '').split(','))), 'The sealed validation receipt may not require the complete suites')
     require(set(windows['on']) == {'workflow_dispatch'}, 'Windows must be manual-only')
     require(fast['concurrency']['cancel-in-progress'] == 'false' and 'github.ref' in fast['concurrency']['group'] and 'pull_request' not in str(fast), 'Every push to main is validated; Fast Validation has no pull request context')
     require(full['concurrency']['cancel-in-progress'] == 'false' and 'github.ref' in full['concurrency']['group'], 'A manual Full Regression is never cancelled by another dispatch')
@@ -261,5 +261,5 @@ if __name__ == '__main__':
     try:
         validate(load_workflows())
     except (ValueError, KeyError, TypeError, yaml.YAMLError):
-        sys.exit('Workflow contract validation failed; run backend/tests/test_workflows.py for details.')
+        sys.exit('Workflow contract validation failed; run legacy/v1/backend/tests/test_workflows.py for details.')
     print('Workflow triggers, permissions, concurrency, job graph and artifact contracts passed.')

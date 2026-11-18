@@ -2,7 +2,7 @@
 Usage: python -I tools/sod_fingerprints_reference.py FILE.csv OUT.json  (compare with SapLens.Cli sod-fingerprints)."""
 import json, os, sys, tempfile
 os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
-sys.path.insert(0, os.environ.get('SAP_LENS_V1_BACKEND') or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', '..', 'backend'))  # v1 backend; override with SAP_LENS_V1_BACKEND
+sys.path.insert(0, os.environ.get('SAP_LENS_V1_BACKEND') or os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'legacy', 'v1', 'backend'))  # v1 backend; override with SAP_LENS_V1_BACKEND
 from sod_import import parse_sod
 from sod_catalogue import definition_version
 s = parse_sod(sys.argv[1])

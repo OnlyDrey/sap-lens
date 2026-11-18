@@ -5,7 +5,7 @@ import { PYTHON } from './python'
 // Write bytes explicitly; Node and the synthetic HTTP response both consume UTF-8.
 export function bootstrapDocument(theme?: string, encoding = 'cp1252'): string {
   const script = `import sys
-sys.path.insert(0, '../backend')
+sys.path.insert(0, '../legacy/v1/backend')
 from pathlib import Path
 from startup_screen import startup_html, palette_script
 from config_models import AppConfig

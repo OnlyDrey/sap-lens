@@ -2,11 +2,11 @@
 # Tests of scripts/deploy/deploy-windows.sh with a fake ssh. The fake records the remote command and, in "run" mode, executes the encoded
 # PowerShell locally with pwsh against a clone of this repository, so validation, quoting, encoding, commit locking, git archive of the locked
 # deployment scripts and the Windows entry script (Status and DryRun paths) run for real. Nothing connects anywhere; no service is touched.
-# Run: bash experiments/dotnet-backend/scripts/tests/deploy-windows.test.sh   (needs git and pwsh)
+# Run: bash backend/scripts/tests/deploy-windows.test.sh   (needs git and pwsh)
 set -uo pipefail
 here=$(cd "$(dirname "$0")" && pwd)
 script="$here/../deploy/deploy-windows.sh"
-repo_root=$(cd "$here/../../../.." && pwd)
+repo_root=$(cd "$here/../../.." && pwd)
 work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 failures=0; count=0

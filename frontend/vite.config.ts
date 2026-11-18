@@ -4,8 +4,8 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { fileURLToPath } from 'node:url'
 
-const product=JSON.parse(readFileSync(new URL('../backend/resources/product-version.json',import.meta.url),'utf8')).version
-const identityPath=new URL('../backend/build/build-version.json',import.meta.url)
+const product=JSON.parse(readFileSync(new URL('../legacy/v1/backend/resources/product-version.json',import.meta.url),'utf8')).version
+const identityPath=new URL('../legacy/v1/backend/build/build-version.json',import.meta.url)
 let identity=existsSync(identityPath)?JSON.parse(readFileSync(identityPath,'utf8')):{version:product,mode:'local',source_sha:''}
 
 if(existsSync(new URL('../.git',import.meta.url))&&identity.source_sha&&identity.source_sha!==execFileSync('git',['rev-parse','HEAD'],{cwd:fileURLToPath(new URL('../',import.meta.url)),encoding:'utf8'}).trim()){

@@ -2,9 +2,9 @@
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 const root = fileURLToPath(new URL('../', import.meta.url))
-const source = JSON.parse(fs.readFileSync(root+'backend/resources/product-version.json','utf8')).version
+const source = JSON.parse(fs.readFileSync(root+'legacy/v1/backend/resources/product-version.json','utf8')).version
 let product=source
-const identity=root+'backend/build/build-version.json'
+const identity=root+'legacy/v1/backend/build/build-version.json'
 if(process.env.GITHUB_ACTIONS==='true'&&fs.existsSync(identity)){
  const build=JSON.parse(fs.readFileSync(identity,'utf8'))
  if(build.base_version!==source.split('-')[0])throw Error('Build version differs from product base')

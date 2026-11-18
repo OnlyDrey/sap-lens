@@ -84,7 +84,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
     /// <summary>The largest image of the official icon, assets/sap-lens.ico (ICONDIR, then 16-byte entries with size at +8 and offset at +12).</summary>
     private static byte[] LargestIconImage()
     {
-        var ico = File.ReadAllBytes(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RepoProject("SapLens.Api"))!, "..", "..", "..", "..", "assets", "sap-lens.ico")));
+        var ico = File.ReadAllBytes(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RepoProject("SapLens.Api"))!, "..", "..", "..", "assets", "sap-lens.ico")));
         var (size, offset) = Enumerable.Range(0, BitConverter.ToUInt16(ico, 4)).Select(i => (BitConverter.ToInt32(ico, 14 + 16 * i), BitConverter.ToInt32(ico, 18 + 16 * i))).MaxBy(e => e.Item1);
         return ico[offset..(offset + size)];
     }

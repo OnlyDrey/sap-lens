@@ -6,7 +6,7 @@
 # Self-contained single-file executables; no trimming, Native AOT or compression. Nothing is installed or started.
 #   scripts/build-release.sh [OUTPUT_DIR] [--skip-tests] [--skip-publish-tests] [--allow-unsupported-node]
 set -euo pipefail
-root="$(cd "$(dirname "$0")/.." && pwd)"; frontend="$(cd "$root/../../frontend" && pwd)"
+root="$(cd "$(dirname "$0")/.." && pwd)"; frontend="$(cd "$root/../frontend" && pwd)"
 output="$root/artifacts/release"; tests=1; publish_tests=1; allow_node=0
 for arg in "$@"; do case "$arg" in
   --skip-tests) tests=0 ;; --skip-publish-tests) publish_tests=0 ;; --allow-unsupported-node) allow_node=1 ;; -*) echo "unknown option $arg" >&2; exit 2 ;; *) output="$arg" ;;
@@ -17,9 +17,9 @@ if [ "$major" -lt 24 ] || [ "$major" -gt 25 ]; then
   else echo "Node.js $(node --version) is not supported (24 or 25 required); use --allow-unsupported-node only for development builds" >&2; exit 2; fi
 fi
 sha="$(git -C "$root" rev-parse HEAD)"
-dirty="$(git -C "$root" status --porcelain -- . ../../frontend | head -1)"
+dirty="$(git -C "$root" status --porcelain -- . ../frontend | head -1)"
 if [ -n "$dirty" ]; then echo "warning: the working tree has uncommitted changes; the manifest records source_dirty=true" >&2; fi
-# Product version: product-version.json is the only source (docs/experiments/dotnet-backend/VERSIONING.md); a build never changes it.
+# Product version: product-version.json is the only source (docs/architecture/VERSIONING.md); a build never changes it.
 version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$root/product-version.json")"
 echo "$version" | grep -Eq '^(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})\.(0|[1-9][0-9]{0,4})(-(alpha|beta|rc)\.[1-9][0-9]{0,4})?$' \
   || { echo "product-version.json: '$version' is not MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N]" >&2; exit 2; }
@@ -74,7 +74,7 @@ for release, platform in ((win, 'win-x64'), (linux, 'linux-x64')):
     executables = {'server': 'server/SapLens.Api.exe', 'desktop': 'desktop/SapLens.exe'} if platform == 'win-x64' else {'server': 'server/SapLens.Api'}
     artifacts = [dict(path=p, bytes=(release / p).stat().st_size, sha256=digest(release / p)) for p in files(release)]
     match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?', version)
-    ui_version = json.loads((Path(sys.argv[7]) / 'backend/resources/product-version.json').read_text())['version']   # recorded, never used as this version
+    ui_version = json.loads((Path(sys.argv[7]) / 'legacy/v1/backend/resources/product-version.json').read_text())['version']   # recorded, never used as this version
     manifest = dict(schema=1, product='SAP Lens', version=version, channel=match[4] or 'stable', file_version=[int(match[1]), int(match[2]), int(match[3]), int(match[5] or 0)],
                     ui_source_version=ui_version, source_sha=sha, source_dirty=dirty,
                     source_committed_at=run('git', 'log', '-1', '--format=%cI'), branch=run('git', 'rev-parse', '--abbrev-ref', 'HEAD'), build_timestamp_utc=built,
@@ -87,5 +87,5 @@ for release, platform in ((win, 'win-x64'), (linux, 'linux-x64')):
     (release / 'SHA256SUMS').write_text('\n'.join(sums) + '\n')
     print(f'{release.name}: ' + ', '.join(f"{a['path']} {a['bytes'] / 1048576:.1f} MB" for a in artifacts if a['path'] in executables.values()))
 PY
-for release in "$win" "$linux"; do (cd "$release" && sha256sum --quiet -c SHA256SUMS); python3 "$root/../../scripts/check-secrets.py" --path "$release"; done
+for release in "$win" "$linux"; do (cd "$release" && sha256sum --quiet -c SHA256SUMS); python3 "$root/../scripts/check-secrets.py" --path "$release"; done
 echo "Release build complete: $win and $linux. Nothing was installed or started."

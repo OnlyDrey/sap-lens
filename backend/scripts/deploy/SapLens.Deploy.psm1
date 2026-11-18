@@ -1,5 +1,5 @@
 # SAP Lens controlled deployment to a Windows host (build, validate, install service, deploy, verify, roll back, recover).
-# Windows PowerShell 5.1 and PowerShell 7. Entry point: Deploy-SapLens.ps1. Operator guide: docs/experiments/dotnet-backend/WINDOWS_DEPLOYMENT.md.
+# Windows PowerShell 5.1 and PowerShell 7. Entry point: Deploy-SapLens.ps1. Operator guide: docs/deployment/WINDOWS_DEPLOYMENT.md.
 #
 # Every operating-system action goes through a small function below (git, service control, the release link, HTTP, the server's own maintenance
 # commands), so the deployment state machine is tested with mocks (scripts/tests/SapLens.Deploy.Tests.ps1). Nothing here reads, prints or passes a
@@ -325,10 +325,10 @@ function New-SL2Run($Config, [string]$Action) {
 
 # ---- source, build, validation
 
-# The .NET project inside a checkout: experiments\dotnet-backend today, backend\ after the promotion (BACKEND_PROMOTION.md). The Python backend has
+# The .NET project inside a checkout: backend\ (since the promotion), or experiments\dotnet-backend in commits from before it, which can still be deployed. The Python backend has
 # no SapLens.slnx, so the choice is unambiguous.
 function Get-SL2ProjectRoot([string]$Worktree) {
-    foreach ($relative in 'experiments/dotnet-backend', 'backend') {
+    foreach ($relative in 'backend', 'experiments/dotnet-backend') {
         $candidate = Join-SL2 $Worktree $relative
         if (Test-Path -LiteralPath (Join-SL2 $candidate 'SapLens.slnx')) { return $candidate }
     }

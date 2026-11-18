@@ -14,7 +14,7 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <AssemblyName>SapLens</AssemblyName>
     <!-- The official multi-size icon (16 to 256 px), embedded in SapLens.exe and used for the window. -->
-    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\..\assets\sap-lens.ico</ApplicationIcon>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\assets\sap-lens.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <InvariantGlobalization>false</InvariantGlobalization>
     <!-- SapLens.Api is also the Server executable; Desktop uses it as a library. -->

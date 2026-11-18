@@ -148,7 +148,7 @@ Describe 'Source' {
         Resolve-SL2Commit $config 'experiment/dotnet-backend' '' | Should -Be ('e' * 40)
     }
 
-    It 'finds the .NET project under experiments\dotnet-backend today and under backend after the promotion' {
+    It 'finds the .NET project under backend and, for commits from before the promotion, under experiments\dotnet-backend' {
         $tree = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         New-Item -ItemType Directory -Force (Join-Path $tree 'backend'), (Join-Path $tree 'experiments/dotnet-backend') | Out-Null
         Set-Content (Join-Path $tree 'backend/requirements.txt') 'python backend'

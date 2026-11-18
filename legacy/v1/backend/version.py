@@ -209,7 +209,7 @@ def product_version():
 
 def sync_frontend_version(value):
     """CI-generated mirrors; product resource remains unchanged in the source commit."""
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[3]          # repository root: frontend/ is shared (v1 is archived in legacy/v1)
     for name in ('frontend/package.json', 'frontend/package-lock.json'):
         path = root / name
         data = json.loads(path.read_text(encoding='utf-8'))
@@ -273,7 +273,7 @@ def read_build_info(path=None, *, frozen=None):
     if path.is_symlink() or not path.is_file() or path.stat().st_size > 4096:
         raise ValueError("Required build metadata is missing or unsafe.")
     info = parse_build_info(json.loads(path.read_text(encoding="utf-8")))
-    root = Path(__file__).resolve().parents[1]
+    root = Path(__file__).resolve().parents[3]          # repository root (v1 is archived in legacy/v1)
     if source_default and (root / '.git').exists():
         source = subprocess.check_output(['git','rev-parse','HEAD'],cwd=root,text=True).strip()
         if info['source_sha'] != source:

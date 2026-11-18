@@ -30,9 +30,9 @@ test.beforeAll(async()=>{
   root=mkdtempSync(path.join(tmpdir(),'sap-lens-server-'))
   mkdirSync(path.join(root,'sources'))
   writeFileSync(path.join(root,'access.secret'),password,{mode:0o600})
-  execFileSync(PYTHON,['-c',`import json,sys,os;from pathlib import Path;sys.path.insert(0,str(Path('../backend').resolve()));from server_access import manage_user;from config_models import AppConfig;import backup_crypto;import windows_identity;p=json.load(sys.stdin);root=Path(p['root']);windows_identity.make_private(root,True) if os.name=='nt' else None;data=root/'data';data.mkdir();(data/'settings.json').write_text(AppConfig().model_dump_json(),encoding='utf8');manage_user(root/'legacy-users.json',dict(username='admin',password=p['password'],role='administrator',enabled=True));backup_crypto.create_key(root/'backup.key',data)`],{input:JSON.stringify({root,password}),timeout:20000})
+  execFileSync(PYTHON,['-c',`import json,sys,os;from pathlib import Path;sys.path.insert(0,str(Path('../legacy/v1/backend').resolve()));from server_access import manage_user;from config_models import AppConfig;import backup_crypto;import windows_identity;p=json.load(sys.stdin);root=Path(p['root']);windows_identity.make_private(root,True) if os.name=='nt' else None;data=root/'data';data.mkdir();(data/'settings.json').write_text(AppConfig().model_dump_json(),encoding='utf8');manage_user(root/'legacy-users.json',dict(username='admin',password=p['password'],role='administrator',enabled=True));backup_crypto.create_key(root/'backup.key',data)`],{input:JSON.stringify({root,password}),timeout:20000})
   legacyAccounts=readFileSync(path.join(root,'legacy-users.json'))
-  server=observeTestServer(spawn(PYTHON,['../backend/server.py'],{env:{...globalThis.process.env,
+  server=observeTestServer(spawn(PYTHON,['../legacy/v1/backend/server.py'],{env:{...globalThis.process.env,
     SAP_LENS_DEPLOYMENT_MODE:'server',SAP_LENS_DATA_DIR:path.join(root,'data'),SAP_LENS_CONFIG_DIR:path.join(root,'data'),
     SAP_LENS_SOURCE_DIR:path.join(root,'sources'),SAP_LENS_PORT:String(port),SAP_LENS_HOST:'127.0.0.1',
     SAP_LENS_PUBLIC_ORIGIN:origin,SAP_LENS_ALLOWED_HOSTS:'127.0.0.1',SAP_LENS_AUTH:'users',SAP_LENS_USERS_FILE:path.join(root,'legacy-users.json'),SAP_LENS_BACKUP_KEY_FILE:path.join(root,'backup.key'),

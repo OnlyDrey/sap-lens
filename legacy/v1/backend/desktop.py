@@ -496,7 +496,8 @@ class ManagedBackend:
 
 
 def resource_path(name: str) -> Path:
-    base = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parent.parent
+    # From source, frontend/ and assets/ are at the repository root (this file is legacy/v1/backend/desktop.py since v1 was archived).
+    base = Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else Path(__file__).resolve().parents[3]
     return base / name
 
 

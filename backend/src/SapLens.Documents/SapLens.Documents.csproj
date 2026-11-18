@@ -1,6 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Document and image processing (MIG-001, MIG-018): rendering of frozen report models and untrusted-image sanitizing. No business logic, no data
-       access. Dependencies and licences: docs/experiments/dotnet-backend/REPORTING_ARCHITECTURE.md (all MIT; Bitstream Vera fonts under their own licence). -->
+       access. Dependencies and licences: docs/architecture/REPORTING_ARCHITECTURE.md (all MIT; Bitstream Vera fonts under their own licence). -->
   <ItemGroup>
     <PackageReference Include="DocumentFormat.OpenXml" Version="3.3.0" />
     <PackageReference Include="SkiaSharp" Version="3.119.1" />

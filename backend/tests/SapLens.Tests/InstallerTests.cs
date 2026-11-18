@@ -8,13 +8,13 @@ namespace SapLens.Tests;
 public sealed partial class InstallerTests
 {
     private static readonly string Repo = FindRepo();
-    private static readonly string Desktop = File.ReadAllText(Path.Combine(Repo, "experiments", "dotnet-backend", "installer", "SapLens-Desktop.iss"));
-    private static readonly string Server = File.ReadAllText(Path.Combine(Repo, "experiments", "dotnet-backend", "installer", "SapLens-Server.iss"));
+    private static readonly string Desktop = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "SapLens-Desktop.iss"));
+    private static readonly string Server = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "SapLens-Server.iss"));
 
     private static string FindRepo()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
-        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "experiments", "dotnet-backend", "SapLens.slnx"))) dir = dir.Parent;
+        while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "backend", "SapLens.slnx"))) dir = dir.Parent;
         return dir!.FullName;
     }
 
@@ -27,7 +27,7 @@ public sealed partial class InstallerTests
     [Fact]
     public void Each_installer_has_its_own_identity_distinct_from_sap_lens_v1()
     {
-        var v1 = Define(File.ReadAllText(Path.Combine(Repo, "deploy", "windows", "desktop-installer.iss")), "ProductionAppId");
+        var v1 = Define(File.ReadAllText(Path.Combine(Repo, "legacy", "v1", "deploy", "windows", "desktop-installer.iss")), "ProductionAppId");
         string[] ids = [Define(Desktop, "AppIdGuid"), Define(Server, "AppIdGuid")];
         Assert.All(ids, id => Assert.True(Guid.TryParse(id, out _)));
         Assert.Equal(3, ids.Append(v1).Distinct(StringComparer.OrdinalIgnoreCase).Count());
@@ -92,7 +92,7 @@ public sealed partial class InstallerTests
     [Fact]
     public void The_build_script_verifies_the_release_and_passes_every_required_define()
     {
-        var script = File.ReadAllText(Path.Combine(Repo, "experiments", "dotnet-backend", "scripts", "build-installers.ps1"));
+        var script = File.ReadAllText(Path.Combine(Repo, "backend", "scripts", "build-installers.ps1"));
         Assert.Contains("verify-release.ps1", script);
         foreach (var define in new[] { "FullVersion", "NumericVersion", "ReleaseDir" })
         {

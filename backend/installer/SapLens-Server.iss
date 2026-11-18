@@ -14,7 +14,7 @@
 #ifndef ReleaseDir
   #error ReleaseDir is required (a release folder verified by verify-release.ps1)
 #endif
-#define RepoRoot AddBackslash(SourcePath) + "..\..\.."
+#define RepoRoot AddBackslash(SourcePath) + "..\.."
 #define ProductIcon RepoRoot + "\assets\sap-lens.ico"
 #define AppIdGuid "F11EE7F5-465D-42C3-9781-85149985043C"
 #define VersionKey "Software\SAP Lens\Server"

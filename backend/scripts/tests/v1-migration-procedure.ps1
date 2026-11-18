@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Runs the SAP Lens 1 to SAP Lens 2 .slbak migration procedure of docs/experiments/dotnet-backend/V1_MIGRATION.md against the synthetic fixture.
+  Runs the SAP Lens 1 to SAP Lens 2 .slbak migration procedure of docs/migration/V1_MIGRATION.md against the synthetic fixture.
 .DESCRIPTION
   Uses only synthetic data (tests/SapLens.Tests/Fixtures/v1-data, written by the SAP Lens 1 application) and a scratch folder; never a real
   installation. Steps: host key, preview with the recovery key file, refusal of a wrong key, run, activation at the next start, HTTP check, status,
