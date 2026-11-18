@@ -54,6 +54,30 @@ public sealed class MaintenanceCommandsTests : IAsyncLifetime
     }
 
     [Fact]
+    public void Inspection_checks_private_copies_and_leaves_source_files_unchanged()
+    {
+        var files = Directory.GetFiles(Data, "*", SearchOption.AllDirectories);
+        static string Hash(string path)
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(stream));
+        }
+        var before = files.Where(f => !f.EndsWith("-shm", StringComparison.Ordinal)).ToDictionary(f => f, Hash);
+        var shmBefore = files.Where(f => f.EndsWith("-shm", StringComparison.Ordinal)).ToDictionary(f => f, File.GetLastWriteTimeUtc);
+        var inspection = MaintenanceCommands.InspectData(Data);
+        Assert.True((bool)inspection["ok"]!);
+        Assert.NotEmpty(inspection["databases"]!.AsArray());
+        Assert.Equal(files.Order(), Directory.GetFiles(Data, "*", SearchOption.AllDirectories).Order());
+        foreach (var file in before.Keys) Assert.Equal(before[file], Hash(file));
+        foreach (var file in shmBefore.Keys) Assert.Equal(shmBefore[file], File.GetLastWriteTimeUtc(file));
+        Assert.Throws<InvalidOperationException>(() => MaintenanceCommands.InspectData(Path.Combine(_root, "missing")));
+        Assert.False(Directory.Exists(Path.Combine(_root, "missing")));
+        var bad = Path.Combine(Data, "broken.sqlite3");
+        File.WriteAllText(bad, "not SQLite");
+        Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => MaintenanceCommands.InspectData(Data));
+    }
+
+    [Fact]
     public async Task A_pre_deployment_backup_is_encrypted_verified_and_taken_while_the_server_runs()
     {
         var folder = Path.Combine(_root, "predeploy");

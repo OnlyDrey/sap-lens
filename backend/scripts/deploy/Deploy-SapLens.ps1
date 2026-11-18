@@ -33,9 +33,11 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'MigrateService', 'Rollback', 'Recover', 'Health')]
+    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'PreflightMigration', 'MigrateService', 'Rollback', 'Recover', 'Health')]
     [string]$Action = 'Status',
     [string]$ConfigFile = '',
+    [string]$TargetConfigFile = '',
+    [string]$InspectorExecutable = '',
     [string]$Branch = '',
     [string]$Commit = '',
     [ValidateSet('focused', 'full', 'none')]
@@ -66,6 +68,11 @@ function Test-Elevated {
 
 try {
     $config = Read-SapLensSettings $ConfigFile
+    if ($Action -eq 'PreflightMigration') {
+        if (-not $ConfigFile -or -not $TargetConfigFile) { Stop-SL2 'Migration requires explicit -ConfigFile and -TargetConfigFile.' }
+        $preflight = Get-SL2MigrationPreflight $config (Read-SapLensSettings $TargetConfigFile) $InspectorExecutable
+        Write-Result $preflight $(if ($preflight.safe) { 0 } else { 2 })
+    }
     $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'Rollback', 'Recover') -and -not $DryRun
     if ($changing -and -not $Yes) { Stop-SL2 "$Action changes the service; repeat with -Yes after reviewing -Action Status (or -DryRun)." }
     if ($changing -and -not (Test-Elevated)) { Stop-SL2 "$Action needs an elevated session (an administrator account over SSH, or Run as administrator)." }

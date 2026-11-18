@@ -20,7 +20,7 @@ namespace SapLens.Api;
 /// </list></summary>
 public static class MaintenanceCommands
 {
-    public static readonly string[] Names = ["--schema-info", "--backup-local", "--backup-verify"];
+    public static readonly string[] Names = ["--schema-info", "--inspect-data", "--backup-local", "--backup-verify"];
 
     public static bool Handles(string[] args) => Names.Any(args.Contains);
 
@@ -33,7 +33,8 @@ public static class MaintenanceCommands
             if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
             data = Path.GetFullPath(data);
             JsonObject result;
-            if (args.Contains("--schema-info")) result = SchemaInfo(data);
+            if (args.Contains("--inspect-data")) result = InspectData(data);
+            else if (args.Contains("--schema-info")) result = SchemaInfo(data);
             else if (Value("--backup-local") is { } folder) result = BackupLocal(data, folder, DateTimeOffset.UtcNow);
             else if (Value("--backup-verify") is { } file) result = BackupVerify(data, file);
             else throw new InvalidOperationException("--backup-local and --backup-verify need a path.");
@@ -84,6 +85,67 @@ public static class MaintenanceCommands
             // This build opens the database unchanged or after its own migrations; a database with migrations it does not know was written by a newer build.
             ["compatible"] = unknown.Count == 0,
         };
+    }
+
+    /// <summary>Inspect a private scratch copy, including WAL, without opening any source database in SQLite.
+    /// A changing source is refused; the final authoritative inspection is repeated after service shutdown.</summary>
+    public static JsonObject InspectData(string data)
+    {
+        if (!Directory.Exists(data)) throw new InvalidOperationException("The data directory does not exist.");
+        var files = new List<string>();
+        void Visit(string folder)
+        {
+            foreach (var entry in Directory.EnumerateFileSystemEntries(folder))
+            {
+                var attributes = File.GetAttributes(entry);
+                if ((attributes & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("Data contains a reparse point; inspect it manually.");
+                if ((attributes & FileAttributes.Directory) != 0) Visit(entry);
+                else files.Add(entry);
+            }
+        }
+        Visit(data);
+        var databases = files.Where(f => f.EndsWith(".sqlite3", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".db", StringComparison.OrdinalIgnoreCase)).ToArray();
+        if (!databases.Contains(Path.Combine(data, ApplicationBackups.DatabaseEntry), StringComparer.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The SAP Lens database is missing.");
+        var scratch = Directory.CreateTempSubdirectory("saplens-inspect-").FullName;
+        static string SharedHash(string path)
+        {
+            using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(input));
+        }
+        try
+        {
+            var results = new JsonArray();
+            foreach (var database in databases)
+            {
+                var relative = Path.GetRelativePath(data, database);
+                var target = Path.Combine(scratch, relative);
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                // SHM is a disposable WAL index with Windows byte-range locks, not durable data.
+                // SQLite rebuilds it in scratch from the copied database and WAL. Never read the live lock bytes.
+                var inputs = new[] { database, database + "-wal", database + "-journal" }.Where(File.Exists).ToArray();
+                var sidecars = new[] { database + "-wal", database + "-shm", database + "-journal" }.Where(File.Exists).Select(Path.GetFileName).ToArray();
+                var hashes = inputs.ToDictionary(f => f, SharedHash);
+                foreach (var input in inputs)
+                {
+                    using var source = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                    using var destination = new FileStream(target + input[database.Length..], FileMode.CreateNew, FileAccess.Write);
+                    source.CopyTo(destination);
+                }
+                if (inputs.Any(f => !File.Exists(f) || hashes[f] != SharedHash(f)) ||
+                    new[] { database + "-wal", database + "-journal" }.Any(f => File.Exists(f) && !inputs.Contains(f)))
+                    throw new InvalidOperationException("The database changed during inspection. Repeat during a quiet period.");
+                var integrity = DatabaseMaintenance.VerifyFileAsync(target).GetAwaiter().GetResult();
+                results.Add(new JsonObject { ["file"] = relative, ["ok"] = integrity.Ok, ["sidecars"] = new JsonArray([.. sidecars.Select(f => (JsonNode?)f)]) });
+            }
+            var schema = SchemaInfo(scratch);
+            return new JsonObject { ["ok"] = results.All(r => (bool)r!["ok"]!), ["databases"] = results, ["schema"] = schema };
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            Directory.Delete(scratch, true);
+        }
     }
 
     public static JsonObject BackupLocal(string data, string folder, DateTimeOffset now)
