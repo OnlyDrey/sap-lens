@@ -1,8 +1,8 @@
 import {test,expect} from '@playwright/test'
 import {execFileSync} from 'node:child_process'
-import { PYTHON } from './python'
+import { PYTHON } from '../../../../frontend/tests/python'
 import path from 'node:path'
-import { layoutMatrix } from './matrix'
+import { layoutMatrix } from '../../../../frontend/tests/matrix'
 const headers={'X-SAP-Lens':'browser-test-session'}
 function archive(secret=''){return execFileSync(PYTHON,[path.resolve('../legacy/v1/scripts/testing/synthetic-backup.py'),...(secret?['--encrypted']:[])],{cwd:path.resolve('..'),input:secret+'\n'})}
 test.afterEach(async({request})=>{await request.post('/api/backups/cancel',{headers})})

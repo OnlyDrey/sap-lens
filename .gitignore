@@ -145,3 +145,7 @@ api-token
 !backend/tests/SapLens.Tests/Fixtures/v1-data/**
 !backend/tests/SapLens.Tests/Fixtures/v1-data/data/csv-data/
 !backend/tests/SapLens.Tests/Fixtures/accounts/build-970d219/accounts.sqlite3
+
+# Preserved local validation artifacts from earlier layouts
+/backend/build/
+/build/

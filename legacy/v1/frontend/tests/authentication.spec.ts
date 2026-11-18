@@ -4,8 +4,8 @@ import {mkdtempSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
 import {createServer,type AddressInfo} from 'node:net'
-import {observeTestServer,stopTestServer,removeTestServerDirectory,type OwnedTestServer} from './server-process'
-import {PYTHON} from './python'
+import {observeTestServer,stopTestServer,removeTestServerDirectory,type OwnedTestServer} from '../../../../frontend/tests/server-process'
+import {PYTHON} from '../../../../frontend/tests/python'
 
 let root:string,origin:string,server:OwnedTestServer
 const password='Synthetic browser passphrase æ 123!'

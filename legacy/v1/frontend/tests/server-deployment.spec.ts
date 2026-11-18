@@ -1,12 +1,12 @@
 import { test, expect } from '@playwright/test'
 import { spawn,execFileSync } from 'node:child_process'
-import { observeTestServer, stopTestServer, removeTestServerDirectory, type OwnedTestServer } from './server-process'
-import { PYTHON } from './python'
+import { observeTestServer, stopTestServer, removeTestServerDirectory, type OwnedTestServer } from '../../../../frontend/tests/server-process'
+import { PYTHON } from '../../../../frontend/tests/python'
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync,existsSync,readdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createServer, type AddressInfo } from 'node:net'
-import { layoutMatrix } from './matrix'
+import { layoutMatrix } from '../../../../frontend/tests/matrix'
 
 // A real headless server, separate from the desktop-capability browser fixture.
 let server:OwnedTestServer, root:string

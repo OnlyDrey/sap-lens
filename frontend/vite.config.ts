@@ -18,7 +18,7 @@ if(process.env.GITHUB_ACTIONS==='true'&&identity.source_sha&&identity.source_sha
 export default defineConfig({
   server: {
     host: '127.0.0.1', port: 18743, strictPort: true,
-    proxy: { '/api': 'http://127.0.0.1:18744', '/health': 'http://127.0.0.1:18744' },
+    proxy: Object.fromEntries(['/api', '/health'].map(prefix => [prefix, { target: 'http://127.0.0.1:18744', headers: { 'X-SAP-Lens-Token': 'synthetic-browser-capability-0000000000000000' } }])),
   },
   plugins: [react(),{name:'sap-lens-product-identity',generateBundle(){this.emitFile({type:'asset',fileName:'product-version.json',source:JSON.stringify(identity)})}}],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },

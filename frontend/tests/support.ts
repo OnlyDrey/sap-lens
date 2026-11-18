@@ -50,16 +50,15 @@ export interface SeededSources { directory: string; cleanup: () => Promise<void>
 export async function seedSources(request: APIRequestContext, sources: { roles?: string; users?: string }): Promise<SeededSources> {
   await resetConfiguration(request)
   const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-test-'))
-  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
-  for (const [name, key] of [['roles', 'data_csv_path'], ['users', 'user_csv_path']] as const) {
+  for (const name of ['roles', 'users'] as const) {
     const text = sources[name]
     if (text === undefined) continue
     const file = path.join(directory, `${name}.csv`)
     writeFileSync(file, text)
-    settings[key] = file
+    const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
+    const saved = await request.post(`/api/data-sources/${name}/select`, { headers, data: { path: file, revision: settings.revision, mode: 'static' } })
+    if (!saved.ok()) throw new Error(`Seeding ${name} failed: ${saved.status()} ${await saved.text()}`)
   }
-  const saved = await request.post('/api/configuration', { headers, data: settings })
-  if (!saved.ok()) throw new Error(`Seeding sources failed: ${saved.status()} ${await saved.text()}`)
   return { directory, cleanup: async () => { await resetConfiguration(request); rmSync(directory, { recursive: true, force: true }) } }
 }
 

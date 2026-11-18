@@ -9,6 +9,7 @@
     <Project Path="src/SapLens.Persistence/SapLens.Persistence.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/SapLens.BrowserHost/SapLens.BrowserHost.csproj" />
     <Project Path="tests/SapLens.Tests/SapLens.Tests.csproj" />
   </Folder>
 </Solution>

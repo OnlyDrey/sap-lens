@@ -8,7 +8,7 @@
     "dev:frontend": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "dev:backend": "cd ../legacy/v1/backend && python -m uvicorn main:app --host 127.0.0.1 --port 18744 --reload",
+    "dev:backend": "node ../scripts/browser-server.mjs --dev",
     "test:browser": "playwright test",
     "test:functional": "playwright test --grep-invert \"@visual|@a11y|@component\"",
     "test:component": "playwright test --grep @component",

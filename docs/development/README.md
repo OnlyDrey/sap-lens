@@ -25,9 +25,24 @@ python scripts/check-docs.py && python scripts/check-secrets.py && git diff --ch
 Run the smallest relevant selection while developing and the whole suite at checkpoints (AGENTS.md, progressive validation). The .NET build
 embeds `frontend/dist`: build the frontend first, or the server serves the previously built UI.
 
-**Browser tests:** the Playwright suite in `frontend/tests` (`npm run test:browser`) still starts the SAP Lens 1 Python server
-(`legacy/v1/scripts/testing/serve-browser-tests.py`); it exercises the shared UI but not the .NET backend. Porting the harness to the .NET server is
-open work ([release status](../migration/RELEASE_STATUS.md)).
+**Browser tests:** `npm --prefix frontend run test:browser` starts the test-only
+.NET host (`backend/tests/SapLens.BrowserHost`) through `scripts/browser-server.mjs`.
+It embeds the current `frontend/dist`; build the frontend first. One worker, one
+loopback port and a new disposable data directory per Playwright process. Readiness
+uses `/health/ready`; an occupied port fails without contacting or terminating its
+owner. Shutdown is bounded, waits for the owned child and removes only its temp
+directory. `SAP_LENS_BROWSER_TEST_PORT` selects a separate port when needed.
+`npm run dev:backend` uses the same disposable host on 18744 (Vite on 18743).
+These are synthetic Desktop-capability fixtures, not a deployed Accounts server.
+The synthetic capability is injected by Playwright/Vite only; production hosts
+retain their normal token/session policy.
+
+Migration gaps are explicit: four Python-runtime specs are preserved under
+`legacy/v1/frontend/tests` ([inventory](../../legacy/v1/frontend/README.md)).
+Two active specs still use optional Python reference generators. Run the .NET
+smoke with `npm --prefix frontend run test:browser -- tests/dotnet-host.spec.ts`.
+The rest of the preserved suite is available for discovering API/UI parity gaps;
+passing the smoke is not a claim that every migrated browser workflow passes.
 
 ## Backend layout
 
