@@ -10,6 +10,10 @@ BeforeAll {
     foreach ($name in 'New-Service', 'Stop-Service', 'Start-Service', 'Get-NetTCPConnection') {
         if (-not (Get-Command $name -ErrorAction SilentlyContinue)) { New-Item -Path "function:global:$name" -Value { throw "stub $($MyInvocation.MyCommand.Name)" } | Out-Null }
     }
+    # New-Service's stub carries the cmdlet's parameters, so mocks can filter on -Name and -DisplayName on Linux as on Windows.
+    if (-not (Get-Command New-Service -CommandType Cmdlet -ErrorAction SilentlyContinue)) {
+        New-Item -Path 'function:global:New-Service' -Force -Value { param([string]$Name, [string]$DisplayName, [string]$BinaryPathName, [string]$StartupType, [string]$Description) throw 'stub New-Service' } | Out-Null
+    }
     $script:Old = 'a' * 40; $script:New = 'b' * 40
     $script:Missing = [pscustomobject]@{ Exists = $false; State = 'Missing'; StartMode = ''; Account = ''; PathName = ''; ProcessId = 0 }
     # No real service is ever queried, also on Windows (where the host may run SapLens or SapLens2): tests decide which services exist.

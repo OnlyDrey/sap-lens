@@ -49,7 +49,7 @@ BeforeAll {
 
 Describe 'Migration backup, journal and staging contracts' {
     BeforeEach { New-MigrationFixture }
-    It 'durably records intent on the source and mirrors it once the target work directory exists' {
+    It 'durably records intent on the source and mirrors it once the target work directory exists' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         $journal = New-SL2MigrationJournal $script:Source $script:Target $preflight $script:Inspector
         Set-SL2MigrationPhase $journal 'backup'
@@ -68,7 +68,7 @@ Describe 'Migration backup, journal and staging contracts' {
         { New-SL2MigrationBackup $script:Source $script:Inspector } | Should -Throw '*verification failed*'
         Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
     }
-    It 'never mirrors a journal into a target directory that it has not created' {
+    It 'never mirrors a journal into a target directory that it has not created' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         $journal = New-SL2MigrationJournal $script:Source $script:Target $preflight $script:Inspector
         New-Item -ItemType Directory $script:Target.WorkRoot | Out-Null
@@ -79,7 +79,7 @@ Describe 'Migration backup, journal and staging contracts' {
         Test-Path "$sentinel.previous" | Should -BeFalse
         (Read-SL2MigrationJournal $script:Source).phase | Should -Be 'target_preparation'
     }
-    It 'copies disjoint trees with their NTFS security and verifies content before allowing use' {
+    It 'copies disjoint trees with their NTFS security and verifies content before allowing use' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         Mock -ModuleName $M Invoke-SL2Process {
             param($File, $Arguments)
             $from = $Arguments[0]; $to = $Arguments[1]
@@ -90,7 +90,7 @@ Describe 'Migration backup, journal and staging contracts' {
         (Test-SL2InventoryEqual @(Get-SL2TreeInventory $script:Source.DataDirectory) @(Get-SL2TreeInventory $script:Target.DataDirectory)) | Should -BeTrue
         { Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory } | Should -Throw '*never merges*'
     }
-    It 'retains partial copies and refuses a robocopy failure or content mismatch' {
+    It 'retains partial copies and refuses a robocopy failure or content mismatch' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         Mock -ModuleName $M Invoke-SL2Process { [pscustomobject]@{ ExitCode = 8; Output = @() } }
         { Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory } | Should -Throw '*staging failed*'
         Test-Path $script:Target.DataDirectory | Should -BeTrue
@@ -105,7 +105,8 @@ Describe 'Migration backup, journal and staging contracts' {
     }
 }
 
-Describe 'Journaled service cutover and interruption recovery' {
+# Windows only: drives C:\ target roots, NTFS ACLs (Get-Acl) and robocopy; runs in CI's windows-latest job.
+Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
     BeforeEach {
         New-MigrationFixture
         $script:Failure = ''; $script:BackupCount = 0; $script:ActiveLink = ''
@@ -257,7 +258,7 @@ Describe 'Journaled service cutover and interruption recovery' {
 
 Describe 'Read-only identity and directory migration preflight' {
     BeforeEach { New-MigrationFixture }
-    It 'checks only a matching unique acceptance service pair without querying canonical services' {
+    It 'checks only a matching unique acceptance service pair without querying canonical services' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         $prefix = 'SapLens.Acceptance-' + [guid]::NewGuid().ToString('N')
         $script:Source.ServiceName = "$prefix-old"; $script:Target.ServiceName = "$prefix-new"
         $script:Services[$script:Source.ServiceName] = $script:Services.SapLens2
@@ -282,7 +283,7 @@ Describe 'Read-only identity and directory migration preflight' {
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -Match 'depends on the old installation'
     }
-    It 'plans managed-upload rebasing without changing any source files' {
+    It 'plans managed-upload rebasing without changing any source files' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             if ($Arguments[0] -eq '--schema-info') { return @{ known = @('m1') } }
@@ -315,7 +316,7 @@ Describe 'Read-only identity and directory migration preflight' {
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         ($result.checks | Where-Object name -eq 'recovery_state').message | Should -Match 'v1 migration activation or rollback is pending'
     }
-    It 'checks all prerequisites without writing installation files or controlling services' {
+    It 'checks all prerequisites without writing installation files or controlling services' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         $before = @(Get-ChildItem (Split-Path $script:Source.ConfigFile) -Recurse -Force | ForEach-Object FullName)
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         $result.safe | Should -BeTrue
@@ -351,7 +352,7 @@ Describe 'Read-only identity and directory migration preflight' {
         @($result.checks | Where-Object { -not $_.passed }).name | Should -Contain 'recovery_state'
         @($result.checks | Where-Object { -not $_.passed }).name | Should -Contain 'targets_and_capacity'
     }
-    It 'rejects source path aliases and source service argument drift' {
+    It 'rejects source path aliases and source service argument drift' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         $script:Services.SapLens2.PathName += ' --unexpected-option x'
         (Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector).safe | Should -BeFalse
         (Test-SL2PathOverlap 'C:\old\data' 'C:\old\data\child') | Should -BeTrue
