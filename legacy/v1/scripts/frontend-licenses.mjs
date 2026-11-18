@@ -2,7 +2,7 @@
 import { readFileSync, writeFileSync, readdirSync } from 'node:fs'
 import { dirname, resolve, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-const root=resolve(dirname(fileURLToPath(import.meta.url)),'..')
+const root=resolve(dirname(fileURLToPath(import.meta.url)),'..','..','..')   // repository root (frontend/); this file is in legacy/v1/scripts
 const lock=JSON.parse(readFileSync(join(root,'frontend/package-lock.json'),'utf8'))
 const sections=['Third-party frontend licenses (production dependency tree)']
 for(const [name,row] of Object.entries(lock.packages).sort()){

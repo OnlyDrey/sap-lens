@@ -10,7 +10,7 @@ import sys
 
 import yaml
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[3]          # repository root (.github/workflows); this file is in legacy/v1/scripts
 EXPECTED = {'validate.yml': 'Fast Validation', 'full-validation.yml': 'Full Validation',
             'build-windows.yml': 'Build Windows Application', 'build-deployments.yml':'Build Deployment Packages'}
 
