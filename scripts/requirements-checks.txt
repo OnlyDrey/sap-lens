@@ -1,0 +1,2 @@
+# Development/CI YAML contracts only; no Python application runtime.
+PyYAML==6.0.3
