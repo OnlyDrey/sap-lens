@@ -102,6 +102,11 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
         Assert.Equal($"SAP-Lens-backup-{id}.slbak", download.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
         var bytes = await download.Content.ReadAsByteArrayAsync();
         Assert.Equal((string)created["archive_sha256"]!, Convert.ToHexStringLower(SHA256.HashData(bytes)));
+        var downloadedFile = Path.Combine(_root, "downloaded.slbak");
+        File.WriteAllBytes(downloadedFile, bytes);
+        var independentlyVerified = MaintenanceCommands.BackupVerify(Data, downloadedFile);
+        Assert.True((bool)independentlyVerified["verified"]!);
+        Assert.Equal((string)created["archive_sha256"]!, (string)independentlyVerified["sha256"]!);
         Assert.True(BackupArchive.IsV2(bytes));
         // The archive holds the database and account-free payload sealed with the host key; the plaintext is a zip with a manifest.
         using (var plain = new MemoryStream())
@@ -122,6 +127,9 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
         altered[^1] ^= 1;
         File.WriteAllBytes(file, altered);
         Assert.Equal(HttpStatusCode.Conflict, (await _client.GetAsync($"/api/backups/{id}/download")).StatusCode);
+        var alteredHistory = (await Get("/api/backups/history"))["items"]![0]!;
+        Assert.Equal("failed", (string)alteredHistory["status"]!);
+        Assert.False((bool)alteredHistory["verified"]!);
         File.WriteAllBytes(file, original);
 
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Post($"/api/backups/{id}/delete", new { confirm = false })).Status);

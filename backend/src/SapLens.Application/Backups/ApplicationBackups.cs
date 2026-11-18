@@ -24,7 +24,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
     /// build can still restore an archive written by a later one. "SAP Lens" is also accepted on restore for archives written under the new name.</summary>
     public const string ManifestProduct = "SAP Lens 2";
     private static readonly string[] AcceptedManifestProducts = [ManifestProduct, "SAP Lens"];
-    [GeneratedRegex("^[a-f0-9]{32}$")] public static partial Regex Identity();
+    [GeneratedRegex("\\A[a-f0-9]{32}\\z")] public static partial Regex Identity();
     [GeneratedRegex("^branding/[a-f0-9]{64}\\.png$")] private static partial Regex BrandingEntry();
     private static readonly SemaphoreSlim Gate = new(1, 1);
 
@@ -221,11 +221,14 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         var items = new JsonArray();
         foreach (var b in rows.Take(200))
         {
-            var exists = File.Exists(Path.Combine(Data, "backups", b.FileName));
+            var path = Path.Combine(Data, "backups", b.FileName);
+            var verified = false;
+            try { verified = File.Exists(path) && new FileInfo(path).Length == b.SizeBytes && Sha(path) == b.Sha256; }
+            catch (IOException) { } catch (UnauthorizedAccessException) { }
             items.Add(new JsonObject
             {
                 ["id"] = IdOf(b), ["created_at"] = DateTime.SpecifyKind(b.CreatedUtc, DateTimeKind.Utc).ToString("yyyy-MM-dd'T'HH:mm:ss'+00:00'"), ["origin"] = b.Kind == BackupKind.Automatic ? "scheduled" : "manual",
-                ["status"] = exists ? "ready" : "failed", ["size"] = b.SizeBytes, ["verified"] = exists,
+                ["status"] = verified ? "ready" : "failed", ["size"] = b.SizeBytes, ["verified"] = verified,
             });
         }
         return new JsonObject { ["items"] = items, ["total"] = rows.Count, ["storage_bytes"] = rows.Sum(b => b.SizeBytes), ["destination"] = "Private application data / backups / archives" };

@@ -8,6 +8,7 @@ import {Archive,CalendarClock,DatabaseBackup,Download,History,RotateCcw,RefreshC
 import {ContentTabs} from '@/components/Shared/Navigation'
 import {apiRequest,applicationToken,applicationHeaders} from '@/api/client'
 import {formatTimestamp} from '@/lib/dateFormat'
+import {backupDownloadFilename} from '@/lib/backupDownload'
 import {Button} from '@/components/Shared/Button'
 import {Checkbox,FormField,Input} from '@/components/Shared/Controls'
 import {Card,ErrorState,LoadingState,StatusBadge,Toolbar} from '@/components/Shared/Presentation'
@@ -22,15 +23,15 @@ export function BackupRestore(){
  const uploadController=useRef<AbortController|null>(null)
  // Unsaved input (passphrase, staged restore preview) lives here, so switching tabs never discards it.
  const [tab,setTab]=useState('overview')
- const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await action();await Promise.all([client.invalidateQueries({queryKey:['application-backups']}),client.invalidateQueries({queryKey:['backup-history']})])}catch(reason){setError(reason instanceof Error?reason.message:'Backup operation failed. Existing data is preserved.')}finally{setBusy(false)}}
+ const [errorTab,setErrorTab]=useState('overview')
+ const run=async(action:()=>Promise<unknown>)=>{if(busy)return;setBusy(true);setError('');try{await action();await Promise.all([client.invalidateQueries({queryKey:['application-backups']}),client.invalidateQueries({queryKey:['backup-history']})])}catch(reason){setErrorTab(tab);setError(reason instanceof Error?reason.message:'Backup operation failed. Existing data is preserved.')}finally{setBusy(false)}}
  const current=status.data,pending=['pending','waiting_for_restart','preparing','creating'].includes(current?.status||'')||Boolean(current?.recovery_required)
  const labels:Record<string,string>={idle:'Idle',pending:'Waiting for restart',waiting_for_restart:'Waiting for restart',preparing:'Preparing',creating:'Creating',ready:'Ready',completed:'Completed',failed:'Failed',cancelled:'Cancelled'}
  const download=async(kind:string,identity=current?.id)=>{if(!identity)return
   if(window.pywebview){if(!window.pywebview.api.save_application_backup)throw Error('Update the desktop application for backup downloads.');await window.pywebview.api.save_application_backup(applicationToken(),identity,kind);return}
-  const response=await fetch(`/api/backups/${identity}/download?kind=${kind}`,{headers:applicationHeaders(),cache:'no-store'})
-  if(!response.ok)throw Error('Backup download is unavailable. Check the operation status.')
-  const name=response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]
-  if(!name||!/^SAP-Lens-(backup|destination-before-restore)-[a-f0-9]{32}\.(slbak|tar\.gz)$/.test(name))throw Error('Invalid backup filename.')
+  const response=await fetch(`/api/backups/${encodeURIComponent(identity)}/download?kind=${encodeURIComponent(kind)}`,{headers:applicationHeaders(),cache:'no-store'})
+  if(!response.ok){const problem=await response.json().catch(()=>null);throw Error(typeof problem?.detail==='string'?problem.detail:'Backup download is unavailable. Check the operation status.')}
+  const name=backupDownloadFilename(response.headers.get('Content-Disposition'),kind,identity)
   const url=URL.createObjectURL(await response.blob()),link=document.createElement('a');link.href=url;link.download=name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
  }
  const upload=async(file:File)=>{
@@ -77,6 +78,6 @@ export function BackupRestore(){
    {tab==='retention'&&<DataRetention/>}
    </ContentTabs>
   </>}
-  {busy&&<div role="status"><LoadingState>{uploadController.current?'Uploading and validating archive…':'Preparing operation…'}</LoadingState>{uploadController.current&&<Button variant="ghost" onClick={()=>uploadController.current?.abort()}>Cancel validation</Button>}</div>}{error&&<p role="alert">{error}</p>}
+  {busy&&<div role="status"><LoadingState>{uploadController.current?'Uploading and validating archive…':'Preparing operation…'}</LoadingState>{uploadController.current&&<Button variant="ghost" onClick={()=>uploadController.current?.abort()}>Cancel validation</Button>}</div>}{error&&errorTab===tab&&<p role="alert">{error}</p>}
  </section>
 }
