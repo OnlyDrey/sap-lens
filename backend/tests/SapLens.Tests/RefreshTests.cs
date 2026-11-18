@@ -122,6 +122,24 @@ public sealed class RefreshTests : IAsyncLifetime
     private static JsonObject Result(JsonObject body, string source) => body["refresh"]!["sources"]!.AsArray().OfType<JsonObject>().Single(r => (string)r["source"]! == source);
 
     [Fact]
+    public async Task A_dynamic_source_whose_export_became_empty_keeps_its_data_on_refresh()
+    {
+        var file = Path.Combine(_root, "roles.csv");
+        File.Copy(Path.Combine(Fixtures, "imports", "report_roles_before.txt"), file);
+        await Select("roles", file);
+        var before = JsonNode.Parse(await _client.GetStringAsync("/api/roles"))!.AsArray().Count;
+        Assert.True(before > 0);
+        // The exporter wrote only the header (an interrupted or empty export): the scheduled or manual refresh must not wipe the catalogue.
+        File.WriteAllText(file, File.ReadLines(Path.Combine(Fixtures, "imports", "report_roles_before.txt")).First() + "\n");
+        var response = await _client.PostAsync("/api/refresh", null);
+        var text = await response.Content.ReadAsStringAsync();
+        Assert.True(response.IsSuccessStatusCode, text);
+        var roles = Result(JsonNode.Parse(text)!.AsObject(), "roles");
+        Assert.Equal(("failed", "validation", true), ((string)roles["status"]!, (string)roles["category"]!, (bool)roles["previous_preserved"]!));
+        Assert.Equal(before, JsonNode.Parse(await _client.GetStringAsync("/api/roles"))!.AsArray().Count);
+    }
+
+    [Fact]
     public async Task Refresh_rereads_dynamic_sources_reports_changes_and_keeps_previous_data_on_failure()
     {
         var file = Path.Combine(_root, "roles.csv");

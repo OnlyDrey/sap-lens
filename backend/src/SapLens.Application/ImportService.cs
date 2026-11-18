@@ -67,6 +67,11 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
         var payload = JsonSerializer.Deserialize<ImportPayload>(context.Job.PayloadJson, Sources.Json) ?? throw new DomainValidationException("Invalid import payload.");
         if (!Sources.IsKnown(payload.Source)) throw new DomainValidationException("Unknown import source.");
         var (records, report) = Sources.Read(payload.Source, payload.UploadPath, ct, payload.Profile);
+        // A file without records (empty, header only, blank lines) never replaces or removes an active snapshot, not even with a confirmed
+        // anomaly: removing a dataset is the explicit Clear source data action (v1 csv_lifecycle). Checked before anything is staged.
+        using var enumerator = records.GetEnumerator();
+        if (!enumerator.MoveNext())
+            throw new DomainValidationException("The CSV contains no usable records. Previous data is retained; use Clear source data to remove it intentionally.");
 
         var dataset = await writer.WriteAsync(async (db, c) =>
         {
@@ -87,14 +92,16 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Sap
             await writer.WriteAsync((db, _) => { db.DatasetRecords.AddRange(rows); return Task.CompletedTask; }, ct);
             await context.ReportAsync(0.05 + 0.75 * Math.Min(1, staged.Count / (double)Math.Max(1, report.ParsedRows + 1)), $"Staged {staged.Count} records");
         }
-        foreach (var record in records)
+        do
         {
+            var record = enumerator.Current;
             var json = Sources.Serialize(record);
             hasher.Add(json);
             batch.Add(new DatasetRecord { DatasetId = dataset.Id, Ordinal = staged.Count, Payload = json });
             staged.Add(record);
             if (batch.Count == BatchSize) await FlushAsync();
         }
+        while (enumerator.MoveNext());
         await FlushAsync();
         var contentHash = hasher.Finish();
         await context.ReportAsync(0.85, "Validating");

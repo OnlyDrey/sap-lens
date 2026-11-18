@@ -170,6 +170,35 @@ public sealed class DataSourcesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task An_empty_or_header_only_file_never_replaces_or_removes_an_active_snapshot()
+    {
+        Assert.Equal(HttpStatusCode.OK, (await Upload("roles", Csv.Roles(60), await Revision())).Item1);
+        var header = Csv.RolesHeader + "\n";
+        foreach (var (content, confirm) in new[] { (header, false), (header, true), ("", false), ("\n\n", true), (header + "\n\n", true) })
+        {
+            var (status, body) = await Upload("roles", content, await Revision(), confirm: confirm);
+            Assert.False(status == HttpStatusCode.OK, $"a file without records was accepted (confirm {confirm}): {body.ToJsonString()}");
+            Assert.Equal(60, JsonNode.Parse(await _client.GetStringAsync("/api/roles"))!.AsArray().Count);   // previous data retained
+            Assert.Single(StoredSources());
+        }
+        var (refused, detail) = await Upload("roles", header, await Revision(), confirm: true);
+        Assert.Equal(HttpStatusCode.BadRequest, refused);
+        Assert.Contains("no usable records", detail.ToJsonString());
+        Assert.Contains("Clear source data", detail.ToJsonString());
+
+        // The same for the other CSV sources, with existing data in place.
+        Assert.Equal(HttpStatusCode.OK, (await Upload("users", Csv.Users(Csv.Assignments(30, 2, 60)), await Revision())).Item1);
+        Assert.Equal(HttpStatusCode.OK, (await Upload("sod", Csv.Sod(), await Revision())).Item1);
+        foreach (var (source, sourceHeader) in new[] { ("users", Csv.UsersHeader), ("sod", Csv.SodHeader) })
+        {
+            var (status, body) = await Upload(source, sourceHeader + "\n", await Revision(), confirm: true);
+            Assert.True(status == HttpStatusCode.BadRequest, $"{source}: {body.ToJsonString()}");
+            Assert.Contains("no usable records", body.ToJsonString());
+        }
+        Assert.Equal(30, JsonNode.Parse(await _client.GetStringAsync("/api/access/users?show_expired=true"))!["total"]!.GetValue<int>());
+    }
+
+    [Fact]
     public async Task Invalid_stale_or_unsupported_selections_are_refused_and_change_nothing()
     {
         var (status, body) = await Upload("roles", "FUNCTION_KEY;TEXT\nFI;x\n", await Revision());
