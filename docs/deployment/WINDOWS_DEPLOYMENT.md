@@ -180,9 +180,9 @@ Built on Windows with Inno Setup 6 from a release folder written by `build-relea
 
 ```powershell
 cd C:\Users\example\Git\sap-lens\backend
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Output C:\saplens\builds
+powershell -NoProfile -File .\scripts\build-release.ps1 -Output C:\saplens\builds
 $release = Get-ChildItem C:\saplens\builds -Directory -Filter 'SAP-Lens-*-win-x64' | Sort-Object Name | Select-Object -Last 1
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-installers.ps1 -ReleasePath $release.FullName -Output C:\saplens\installers
+powershell -NoProfile -File .\scripts\build-installers.ps1 -ReleasePath $release.FullName -Output C:\saplens\installers
 ```
 
 | Installer | Scope and folder | Behavior |
@@ -220,3 +220,33 @@ Run in this order on the Windows test host and record the result of each step. U
 | 9 | Failure rollback | Deploy a release whose start fails (for example an invalid `AllowedHosts` entry in a copy of the configuration) | Exit 1; previous release ready |
 | 10 | Installers | `build-installers.ps1`, then both setups interactively and with `/VERYSILENT` | Desktop starts with the icon and title "SAP Lens"; Server upgrade restarts its service; uninstall keeps data |
 | 11 | Desktop self-check | `"%LOCALAPPDATA%\Programs\SAP Lens Desktop\SapLens.exe" --self-check` | Exit 0; log in `%LOCALAPPDATA%\SAP Lens Desktop\logs` (or the kept prototype folder) |
+
+## Post-promotion infrastructure verification
+
+Active tooling resolves the current checkout under `backend/`; only the historical
+commit resolver recognizes `experiments/dotnet-backend` for older releases. No
+service executable path, installed release, data directory, TLS setting, recovery
+key or service name is changed by this infrastructure stabilization. Existing
+semantic service-command comparison, manifest hashes, verified backup before
+replacement and rollback gates remain in place. Frontend and backend now share
+`backend/product-version.json`; no product version was incremented.
+
+Safe native follow-up commands from the repository root (no service operations):
+
+```powershell
+git switch experiment/dotnet-backend
+git pull --ff-only origin experiment/dotnet-backend
+node scripts/product-version.mjs
+powershell -NoProfile -File .\backend\scripts\check-powershell.ps1
+pwsh -NoProfile -Command "Invoke-Pester -Path backend/scripts/tests -CI"
+dotnet build backend/SapLens.slnx -c Release
+dotnet test backend/tests/SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~StartupTests|FullyQualifiedName~NetworkTests|FullyQualifiedName~ReverseProxyTests|FullyQualifiedName~DesktopLocationTests|FullyQualifiedName~InstallerTests|FullyQualifiedName~VersioningTests"
+```
+
+Pester requires version 5.7.1 (`Install-Module Pester -RequiredVersion 5.7.1 -Scope
+CurrentUser` through the approved repository, if not already available). Respect
+corporate signing/execution policy; do not disable WDAC or bypass script policy.
+These checks do not certify native service restart, Desktop/WebView2, installer,
+ACL/firewall, backup recovery or real-data migration acceptance. Those remain the
+separate existing checklist above, and must use disposable installations/data.
+The running service and all existing release/backup directories must stay untouched.
