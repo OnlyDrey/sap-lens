@@ -120,7 +120,7 @@ system-wide .NET.
 
 ## Unicode and ICU (runtime requirement)
 
-SAP Lens 2 builds with `InvariantGlobalization=false`: Unicode normalization (NFKC, used for Employee Directory and Functional Group text) and IANA time
+SAP Lens builds with `InvariantGlobalization=false`: Unicode normalization (NFKC, used for Employee Directory and Functional Group text) and IANA time
 zones need ICU at runtime.
 
 - **Windows:** Windows 10 1903, Windows Server 2019 and later include ICU (`icu.dll`); nothing to install.

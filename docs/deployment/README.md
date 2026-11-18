@@ -1,4 +1,4 @@
-# Installation and deployment (SAP Lens 2)
+# Installation and deployment (SAP Lens)
 
 | Guide | Content |
 | --- | --- |

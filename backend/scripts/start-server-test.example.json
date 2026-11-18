@@ -1,11 +1,11 @@
 {
-  "ListenAddress": "192.168.10.20",
+  "ListenAddress": "192.0.2.10",
   "Port": 18791,
-  "AllowedHosts": ["lens.example.com", "192.168.10.20"],
+  "AllowedHosts": ["lens.example.com", "192.0.2.10"],
   "TrustedProxies": [],
-  "DataDirectory": "C:\\saplens2\\runtime-test",
-  "CertificatePath": "C:\\ProgramData\\SapLens2\\tls\\server.pfx",
-  "CertificatePasswordFile": "C:\\ProgramData\\SapLens2\\tls\\cert-password",
-  "BuildsRoot": "C:\\saplens2\\builds",
-  "LogDirectory": "C:\\saplens2\\logs"
+  "DataDirectory": "C:\\sap-lens\\acceptance\\server-test",
+  "CertificatePath": "C:\\sap-lens\\acceptance\\tls\\server.pfx",
+  "CertificatePasswordFile": "C:\\sap-lens\\acceptance\\tls\\cert-password",
+  "BuildsRoot": "C:\\sap-lens\\acceptance\\builds",
+  "LogDirectory": "C:\\sap-lens\\acceptance\\logs"
 }

@@ -1,6 +1,6 @@
 # Versioning and release identity (SAP Lens .NET, 2.x)
 
-SAP Lens 2 (the .NET Server and Desktop) has its own product version, independent of SAP Lens v1. Decision of 2026-11-16: SAP Lens 2 is the
+SAP Lens (the .NET Server and Desktop) has its own product version, independent of SAP Lens v1. Decision of 2026-11-16: the .NET implementation is the
 next major version of the product in pre-release, so it uses its own `2.0.0-alpha.N` line instead of sharing v1's version or keeping the
 former placeholder `0.0.0-experiment`.
 

@@ -4,7 +4,7 @@
   SHA-256, no unlisted file was added, and SHA256SUMS matches (it also covers build-manifest.json). Read-only. Exit code 0 valid, 1 invalid.
 
 .EXAMPLE
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -ReleasePath C:\saplens2\builds\SAP-Lens-...-win-x64
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -ReleasePath C:\sap-lens\acceptance\builds\SAP-Lens-...-win-x64
 #>
 param([Parameter(Mandatory = $true)][string]$ReleasePath)
 $ErrorActionPreference = 'Stop'

@@ -1,4 +1,4 @@
-# Local validation and GitHub Actions (SAP Lens 2)
+# Local validation and GitHub Actions (SAP Lens)
 
 The sole active workflow is `.github/workflows/validate.yml`, triggered **only by
 push to main**. No experiment/work/PR, dispatch, schedule, downstream workflow or

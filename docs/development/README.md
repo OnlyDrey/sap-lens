@@ -1,6 +1,6 @@
-# Development and testing (SAP Lens 2)
+# Development and testing (SAP Lens .NET)
 
-How to build and test SAP Lens 2. Deployment: [deployment](../deployment/README.md). Architecture: [architecture](../architecture/README.md).
+How to build and test SAP Lens. Deployment: [deployment](../deployment/README.md). Architecture: [architecture](../architecture/README.md).
 SAP Lens 1 development (Python, `legacy/v1/scripts/run-tests.py`) is documented in [legacy v1 development](../legacy/v1/development/README.md).
 
 ## Everyday commands

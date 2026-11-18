@@ -98,12 +98,12 @@ public static class ServerConfiguration
           --backup-local <folder>                                  With --data-dir: a verified, host-key encrypted archive of the data (online copy).
           --backup-verify <file>                                   With --data-dir: decrypt and validate an archive like a restore would.
           --migrate-v1 preview --source <dir|.slbak|.tar.gz>       With --data-dir: dry run of a SAP Lens 1 data migration (read-only for the source;
-                                                                   add --replace-existing to allow replacing existing SAP Lens 2 data). Prints a digest.
+                                                                   add --replace-existing to allow replacing existing .NET data). Prints a digest.
                                                                    An encrypted .slbak asks for its passphrase, or for the recovery key of a
                                                                    host-key archive; --v1-key-file <file> reads that recovery key from its file.
           --migrate-v1 run --id <id> --approve <digest>            Build and verify the migrated data separately, with a migration backup.
           --migrate-v1 activate --id <id> --approve <digest>       Activate the verified migration at the next start (previous data is kept).
-          --migrate-v1 rollback --id <id>                          Return to the previous SAP Lens 2 data at the next start.
+          --migrate-v1 rollback --id <id>                          Return to the previous .NET application data at the next start.
           --migrate-v1 status --id <id>                            Show a migration report.
 
         Secrets are never accepted as options: --cert-password and --token are refused.

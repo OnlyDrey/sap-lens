@@ -61,6 +61,8 @@ public sealed class VersioningTests : IAsyncLifetime
         Assert.Equal(FileVersionOf(version), assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()!.Version);
         Assert.Equal("SAP Lens", assembly.GetCustomAttribute<AssemblyProductAttribute>()!.Product);
         Assert.StartsWith(version, assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion);
+        Assert.Equal(version, typeof(SapLens.Application.Backups.ApplicationBackups).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0]);
+        Assert.Equal(version, SapLens.Application.Backups.ApplicationBackups.ProductVersion);
         // Every project of the solution builds from the same props: the domain and persistence assemblies carry the same file version.
         Assert.Equal(FileVersionOf(version), typeof(SapLens.Domain.Json.CanonicalJson).Assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()!.Version);
         // No version text is maintained anywhere else in the build.

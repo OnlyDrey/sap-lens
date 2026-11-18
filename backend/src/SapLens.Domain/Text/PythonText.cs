@@ -74,7 +74,7 @@ public static class PythonText
             problem = "Unicode normalization (NFKC) is unavailable";
         }
         catch (PlatformNotSupportedException) { problem = "the runtime is in globalization-invariant mode"; }
-        throw new InvalidOperationException($"SAP Lens 2 needs ICU for Unicode text handling, but {problem}. Install the ICU libraries (libicu) on Linux and do not set " +
+        throw new InvalidOperationException($"SAP Lens needs ICU for Unicode text handling, but {problem}. Install the ICU libraries (libicu) on Linux and do not set " +
             "DOTNET_SYSTEM_GLOBALIZATION_INVARIANT; Windows 10 1903 or later includes ICU.");
     }
 }

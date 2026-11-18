@@ -80,7 +80,7 @@ public static class V1Retention
         if (!SapLens.Application.Backups.ApplicationBackups.Identity().IsMatch(operation)) return Invalid("body", "operation", "string_pattern_mismatch", "String should match pattern '^[a-f0-9]{32}$'");
         if (body["confirm"] is not { } c || c.GetValueKind() is not (JsonValueKind.True or JsonValueKind.False)) return Invalid("body", "confirm", "bool_type", "Input should be a valid boolean");
         if (!c.GetValue<bool>()) return Results.Json(new { detail = "Confirm that the removed review periods should be restored." }, statusCode: 422);
-        return Results.Json(new { detail = "There is no review cleanup to undo: SAP Lens 2 keeps completed review periods as immutable audit evidence." }, statusCode: 409);
+        return Results.Json(new { detail = "There is no review cleanup to undo: SAP Lens keeps completed review periods as immutable audit evidence." }, statusCode: 409);
     }
 
     private static IResult? Guard(HttpContext http) => V1Backups.Guard(http);

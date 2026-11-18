@@ -1,4 +1,5 @@
 using System.IO.Compression;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
@@ -56,7 +57,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
     }
 
     /// <summary>Product version recorded in manifests (set by the host).</summary>
-    public static string ProductVersion { get; set; } = "2.0.0";
+    public static string ProductVersion { get; set; } = typeof(ApplicationBackups).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0] ?? "0.0.0";
 
     private string Data => options.DataDirectory;
     private static string OperationFile(string data) => Path.Combine(data, "backups", "operation.json");
@@ -380,8 +381,8 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
             var head = new byte[8];
             await using (var probe = File.OpenRead(archive)) _ = await probe.ReadAsync(head, ct);
             if (BackupArchive.IsV1(head) || head[0] == 0x1f)
-                throw new BackupException("This is a SAP Lens 1 backup. SAP Lens 2 imports it through the v1 data migration (SapLens.Api --migrate-v1 preview), never by replacing data here.", 422);
-            if (!BackupArchive.IsV2(head)) throw new BackupException("Select an encrypted SAP Lens 2 .slbak backup.", 422);
+                throw new BackupException("This is a SAP Lens 1 backup. Import it through the separate v1 data migration (SapLens.Api --migrate-v1 preview), never by replacing data here.", 422);
+            if (!BackupArchive.IsV2(head)) throw new BackupException("Select an encrypted SAP Lens .slbak backup.", 422);
             var host = BackupKeys.Host(Data);
             var payload = Path.Combine(folder, "payload.zip");
             await Task.Run(() =>

@@ -30,9 +30,9 @@ and investigate and review potential Segregation of Duties conflicts with frozen
 is investigation evidence, not proof of effective authorization or license consumption. No direct SAP connection or third-party data-upload
 service is required.
 
-## SAP Lens 2 (primary implementation)
+## SAP Lens (.NET implementation)
 
-This repository's primary implementation is **SAP Lens 2**: an ASP.NET Core (.NET 10) backend in [`backend/`](backend) serving the React/Vite
+This repository's primary implementation is **SAP Lens**: an ASP.NET Core (.NET 10) backend in [`backend/`](backend) serving the React/Vite
 frontend in [`frontend/`](frontend), as a Windows service or console **Server** (browser access over HTTPS) and a WebView2 **Desktop** for one user.
 Product version `2.0.0-alpha.1` (pre-release; [versioning](docs/architecture/VERSIONING.md)).
 
@@ -42,18 +42,18 @@ Product version `2.0.0-alpha.1` (pre-release; [versioning](docs/architecture/VER
 | Data | SQLite system of record, immutable evidence and review history, encrypted backups ([database design](docs/architecture/DATABASE_DESIGN.md)) |
 | SAP Lens 1 data | Preview, verified migration and rollback of a v1 data directory or `.slbak` backup ([procedure](docs/migration/V1_MIGRATION.md)); tested on synthetic fixtures |
 | Windows Server | Runs as a Windows service behind a reverse proxy over HTTPS; SSH-driven build, verified deployment and rollback ([Windows deployment](docs/deployment/WINDOWS_DEPLOYMENT.md)) |
-| Pending | Parts of the native Windows acceptance checklist, compiled and signed installers, a v1 migration rehearsal on real data, native installer acceptance and Docker runtime verification ([release status](docs/migration/RELEASE_STATUS.md)) |
+| Pending | Parts of the native Windows acceptance checklist, compiled and signed installers, deployment-specific functional acceptance of migrated data, native installer acceptance and Docker runtime verification ([release status](docs/migration/RELEASE_STATUS.md)) |
 
-SAP Lens 2 is not declared feature-complete or production-certified: see [release status](docs/migration/RELEASE_STATUS.md) and
+SAP Lens is not declared feature-complete or production-certified: see [release status](docs/migration/RELEASE_STATUS.md) and
 [backend promotion](docs/migration/BACKEND_PROMOTION.md) for what is verified and what is not.
 
 ## Repository layout
 
 | Path | Content |
 | --- | --- |
-| [`backend/`](backend) | SAP Lens 2: .NET solution (`src/`, `tests/`), build, release, installer and deployment scripts (`scripts/`, `installer/`), migration reference tools (`tools/`) |
-| [`frontend/`](frontend) | React/Vite UI, shared by SAP Lens 2 and v1 |
-| [`docs/`](docs/README.md) | Documentation (canonical for SAP Lens 2) |
+| [`backend/`](backend) | SAP Lens .NET solution (`src/`, `tests/`), build, release, installer and deployment scripts (`scripts/`, `installer/`), migration reference tools (`tools/`) |
+| [`frontend/`](frontend) | React/Vite UI, shared by SAP Lens and archived v1 |
+| [`docs/`](docs/README.md) | Documentation (canonical for SAP Lens) |
 | [`scripts/`](scripts/README.md) | Repository-wide checks (documentation links, secrets, workflow contracts, frontend version and icon catalogue) |
 | [`legacy/v1/`](legacy/v1/README.md) | SAP Lens 1 (Python/FastAPI backend, desktop, packaging, tooling): archived, not the development target |
 | [`examples/`](examples/README.md), [`assets/`](assets) | Synthetic example data; product icon and logo |
@@ -81,7 +81,7 @@ Details: [development](docs/development/README.md), [deployment](docs/deployment
 
 The Python/FastAPI implementation is archived in [`legacy/v1/`](legacy/v1/README.md) with its documentation in
 [`docs/legacy/v1/`](docs/legacy/v1/README.md). It is kept for reference and recovery, receives no new features, and installed v1 applications are
-not changed by this repository's SAP Lens 2 tooling.
+not changed by this repository's .NET tooling.
 
 ## Licensing
 

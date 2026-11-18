@@ -14,15 +14,20 @@
                     -DryRun resolves the commit and prints the plan without building, backing up or touching the service. Needs -Yes.
     InstallService  Creates (or with -Reconfigure updates) the SapLens service from the configuration. Needs -Yes.
                     An existing service of an earlier installation (SapLens2) is detected and used; a second service is never created.
-    MigrateService  Renames an earlier SapLens2 service to SapLens (same release, data, TLS, hosts, proxies; own virtual account), verifies
-                    readiness and identity, then removes SapLens2. Any failure restores SapLens2. Needs -Yes.
-                    -AdoptService brings a hand-installed service (another executable path, same arguments) under managed releases once.
+    PreflightMigration Read-only inspection of explicit source/target configurations, release, data, TLS, keys, ACLs and recovery state.
+    MigrateService  Journaled directory and service cutover to SapLens; preserves the source release, network settings and account requirements.
+                    Takes verified backups, stages private state, and retains SapLens2 stopped/disabled. Needs -TargetConfigFile,
+                    -InspectorExecutable and -Yes. -DryRun performs only preflight. No automatic deletion of either installation.
+    VerifyMigration Verifies the completed cutover and current release (including later Build & Replace deployments).
+    RecoverMigration Recovers interrupted migration state when no writes would be discarded; otherwise requires manual recovery. Needs -Yes.
+    RollbackMigration Explicitly requests migration rollback with the same data-preservation proof. Needs -Yes.
+                    Deploy -AdoptService brings a hand-installed service under managed releases without renaming it.
     Rollback        Returns to the previous release (or -ToRelease), only when it can open the current data. Needs -Yes.
     Recover         Completes an interrupted deployment (Ctrl+C, a dropped SSH session): returns to the previous release. Needs -Yes.
     Health          Readiness and identity of the running server.
 
   Configuration: a JSON file that is not committed (-ConfigFile, $env:SAPLENS_DEPLOY_CONFIG, $env:SAPLENS2_DEPLOY_CONFIG,
-  C:\saplens\deploy.local.json or C:\saplens2\deploy.local.json, the first that is set or exists; template deploy.example.json). It holds paths,
+  C:\sap-lens\deploy\deploy.local.json, C:\saplens\deploy.local.json or C:\saplens2\deploy.local.json, the first that is set or exists; template deploy.example.json). It holds paths,
   addresses and host names, never a secret. The last output line is 'SAPLENS-RESULT: <json>'.
   Exit codes: 0 success, 1 failed (nothing changed, or rolled back and ready again), 2 refused before any change, 4 manual action required.
 

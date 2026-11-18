@@ -318,7 +318,7 @@ Describe 'Local configuration file' -Skip:([System.IO.Path]::DirectorySeparatorC
     It 'ships an example file with reserved addresses and known keys only' {
         $example = Join-Path (Split-Path -Parent $script:Launcher) 'start-server-test.example.json'
         { Read-LocalConfig $example } | Should -Not -Throw
-        (Get-Content $example -Raw) | Should -Match '192\.168\.10\.20'
+        (Get-Content $example -Raw) | Should -Match '192\.0\.2\.10'
         (Get-Content $example -Raw) | Should -Match 'lens\.example\.com'
     }
 }
@@ -342,8 +342,14 @@ Describe 'Release verification' {
             [System.IO.File]::WriteAllText((Join-Path $Path 'SHA256SUMS'), (($sums -join "`n") + "`n"))
         }
         function Invoke-Verify([string]$Path) {
-            $output = & pwsh -NoProfile -NonInteractive -File $script:Verify -ReleasePath $Path 2>&1
-            @{ Code = $LASTEXITCODE; Output = ($output | Out-String) }
+            # Windows PowerShell converts redirected native stderr into ErrorRecords.
+            # Expected verifier refusals must reach the exit-code/output assertions.
+            $previousPreference = $ErrorActionPreference
+            try {
+                $ErrorActionPreference = 'Continue'
+                $output = & pwsh -NoProfile -NonInteractive -File $script:Verify -ReleasePath $Path 2>&1
+                @{ Code = $LASTEXITCODE; Output = (($output | ForEach-Object { $_.ToString() }) -join "`n") }
+            } finally { $ErrorActionPreference = $previousPreference }
         }
     }
 

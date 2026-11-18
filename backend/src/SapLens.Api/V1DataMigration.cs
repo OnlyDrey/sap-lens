@@ -132,7 +132,7 @@ public static partial class V1DataMigration
         v1.Settings = settings;
         var defaults = V1Compatibility.DefaultSettingsDocument();
         var unknown = settings.Select(p => p.Key).Where(k => !defaults.ContainsKey(k)).ToList();
-        if (unknown.Count > 0) v1.Warnings.Add($"Settings fields not known to SAP Lens 2 are kept only in the migration backup: {string.Join(", ", unknown)}.");
+        if (unknown.Count > 0) v1.Warnings.Add($"Settings fields not known to this SAP Lens build are kept only in the migration backup: {string.Join(", ", unknown)}.");
         Store(v1, "Settings", "settings.json", "import", 1, unknown.Count > 0 ? $"{unknown.Count} unknown field(s) not imported" : "");
 
         // Source revisions: every content-addressed v1 snapshot of a known source kind; the ones settings point at are active.
@@ -224,7 +224,7 @@ public static partial class V1DataMigration
         var accounts = Path.Combine(root, "security", "accounts.sqlite3");
         if (File.Exists(accounts)) { v1.Accounts = accounts; Store(v1, "Accounts (Server mode)", "security/accounts.sqlite3", "import", 1, "sessions are not carried over"); }
         foreach (var name in Copied.Where(n => File.Exists(Path.Combine(root, n)))) { v1.Copied.Add(name); Store(v1, name, name, "import", 1); }
-        Store(v1, "Data retention approvals", "data-retention.json", "not migrated", File.Exists(Path.Combine(root, "data-retention.json")) ? 1 : 0, "approvals are bound to the installation; approve again in SAP Lens 2");
+        Store(v1, "Data retention approvals", "data-retention.json", "not migrated", File.Exists(Path.Combine(root, "data-retention.json")) ? 1 : 0, "approvals are bound to the installation; approve again in SAP Lens");
         Store(v1, "Application backups of SAP Lens 1", ".application-backups", "not migrated", Directory.Exists(Path.Combine(root, ".application-backups")) ? 1 : 0, "they stay in the SAP Lens 1 directory");
         Store(v1, "Derived SQLite cache", "store/", "not migrated", Directory.Exists(Path.Combine(root, "store")) ? 1 : 0, "rebuilt from the imported data");
         return v1;
@@ -299,16 +299,16 @@ public static partial class V1DataMigration
         else throw new MigrationException("The source does not exist.");
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         if (kind == "directory" && (full.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison) || root.StartsWith(full + Path.DirectorySeparatorChar, comparison) || full.Equals(root, comparison)))
-            throw new MigrationException("The SAP Lens 2 data directory and the SAP Lens 1 source must be separate directories.");
+            throw new MigrationException("The SAP Lens .NET data directory and the SAP Lens 1 source must be separate directories.");
         var inventory = Inventory(root);
         var v1 = Read(root);
         var uncovered = inventory.Select(f => (string)f!["path"]!).Where(p => !Covered(p)).ToList();
-        if (uncovered.Count > 0) v1.Warnings.Add($"{uncovered.Count} file(s) are not used by SAP Lens 2 and are kept only in the migration backup: {string.Join(", ", uncovered.Take(10))}{(uncovered.Count > 10 ? ", ..." : "")}.");
+        if (uncovered.Count > 0) v1.Warnings.Add($"{uncovered.Count} file(s) are not used by the .NET application and are kept only in the migration backup: {string.Join(", ", uncovered.Take(10))}{(uncovered.Count > 10 ? ", ..." : "")}.");
         var target = TargetState(full);
         if ((bool)target["has_data"]! && !replaceExisting)
-            v1.Blockers.Add("The SAP Lens 2 data directory already contains data. Use an empty data directory, or preview again with --replace-existing to replace it at activation (the current data is kept for rollback).");
+            v1.Blockers.Add("The .NET application data directory already contains data. Use an empty data directory, or preview again with --replace-existing to replace it at activation (the current data is kept for rollback).");
         if ((bool)target["accounts_exist"]! && v1.Accounts is not null && !replaceExisting)
-            v1.Blockers.Add("SAP Lens 2 already has an account store and the source has one too; preview again with --replace-existing to replace it.");
+            v1.Blockers.Add("The .NET application already has an account store and the source has one too; preview again with --replace-existing to replace it.");
         if (BackupKeys.Host(full) is null) v1.Warnings.Add("No host backup key is configured: the migration backup is stored unencrypted in the private data directory. Configure one first (--backup-key create) to encrypt it.");
         var fingerprint = source.Length > 0 && kind == "archive" ? Sha(source) : Fingerprint(inventory);
         var preview = new JsonObject
@@ -783,7 +783,7 @@ public static partial class V1DataMigration
             report["activated"] = Stamp(now);
             Save(Path.Combine(folder, "report.json"), report);
             Application.Retention.DataRetention.AfterRestore(data, now);       // no automatic cleanup right after the data changed
-            return $"SAP Lens 1 migration {id} activated; the previous SAP Lens 2 files are kept in migration/{id}/previous";
+            return $"SAP Lens 1 migration {id} activated; the previous .NET application files are kept in migration/{id}/previous";
         }
         catch (Exception error) when (error is MigrationException or IOException or UnauthorizedAccessException or JsonException or SqliteException)
         {

@@ -1,4 +1,4 @@
-# Docker (SAP Lens 2)
+# Docker (SAP Lens)
 
 Optional Linux deployment of the same ASP.NET Core Server; no Windows service is
 changed. SAP Lens 1 Docker files remain archived in `legacy/v1/`.

@@ -181,7 +181,7 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
         var items = (row is null ? null : JsonNode.Parse(row.Json)?["items"] as JsonArray) ?? [];
         var completed = items.Where(p => Frozen.Contains((string?)p?["state"])).ToList();
         var reasons = new JsonObject();
-        if (completed.Count > 0) reasons["Completed review periods are immutable audit evidence in SAP Lens 2 and are never removed automatically"] = completed.Count;
+        if (completed.Count > 0) reasons["Completed review periods are immutable SAP Lens audit evidence and are never removed automatically"] = completed.Count;
         return new JsonObject
         {
             ["months"] = months, ["generated"] = Iso(now), ["count"] = 0, ["bytes"] = 0, ["protected"] = completed.Count, ["reasons"] = reasons, ["sample"] = new JsonArray(),

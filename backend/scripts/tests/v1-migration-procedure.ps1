@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Runs the SAP Lens 1 to SAP Lens 2 .slbak migration procedure of docs/migration/V1_MIGRATION.md against the synthetic fixture.
+  Runs the SAP Lens 1 to .NET .slbak migration procedure of docs/migration/V1_MIGRATION.md against the synthetic fixture.
 .DESCRIPTION
   Uses only synthetic data (tests/SapLens.Tests/Fixtures/v1-data, written by the SAP Lens 1 application) and a scratch folder; never a real
   installation. Steps: host key, preview with the recovery key file, refusal of a wrong key, run, activation at the next start, HTTP check, status,
@@ -34,7 +34,7 @@ $Expected = Get-Content (Join-Path $Fixture 'expected.json') -Raw | ConvertFrom-
 Set-Content -NoNewline -Path (Join-Path $Escrow 'saplens1-recovery.key') -Value $Expected.recovery_key
 
 & $Exe --backup-key create (Join-Path $Root 'keys/backup.key') --data-dir $DataDir | Out-Null
-Check ($LASTEXITCODE -eq 0) 'SAP Lens 2 host backup key created'
+Check ($LASTEXITCODE -eq 0) 'SAP Lens host backup key created'
 & $Exe --backup-key export (Join-Path $Escrow 'saplens2-recovery.key') --data-dir $DataDir | Out-Null
 Check ($LASTEXITCODE -eq 0) 'recovery copy exported'
 

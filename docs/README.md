@@ -1,6 +1,6 @@
 # SAP Lens documentation
 
-Canonical documentation of **SAP Lens 2** (the .NET backend in `backend/` with the React frontend in `frontend/`). SAP Lens 1 (Python/FastAPI)
+Canonical documentation of **SAP Lens** (the .NET backend in `backend/` with the React frontend in `frontend/`). SAP Lens 1 (Python/FastAPI)
 is archived; its documentation is under [legacy/v1](legacy/v1/README.md).
 
 | Topic | Guides |
@@ -26,7 +26,7 @@ is archived; its documentation is under [legacy/v1](legacy/v1/README.md).
    [network access](deployment/SERVER_NETWORK_ACCESS.md) and [Windows deployment](deployment/WINDOWS_DEPLOYMENT.md).
 4. Import data as described in [data and CSV formats](data/README.md); synthetic examples are in [`examples/`](../examples/README.md).
 
-The feature and data guides describe product behaviour shared by SAP Lens 2 and SAP Lens 1 (the same React UI and API contract). Where they link
+The feature and data guides describe product behaviour shared by SAP Lens and archived SAP Lens 1 (the same React UI and API contract). Where they link
 implementation internals, those links point into the v1 archive; the .NET implementation is described in [architecture](architecture/README.md)
 and its parity with v1 in the [migration matrix](migration/MIGRATION_MATRIX.md).
 

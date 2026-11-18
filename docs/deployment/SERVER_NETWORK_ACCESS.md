@@ -8,6 +8,8 @@ machine's non-loopback interface [T] on Linux. On Windows 11 that test failed at
 not yet re-run on Windows [U]. Access **from another device** (desktop or mobile) has **not** been verified, and nothing ran on
 Windows [U]. Use the checklist at the end.
 
+Existing installations may retain the `SapLens2` service, older CA subjects and older firewall-rule labels. Do not recreate services, reissue TLS certificates or change firewall/proxy settings for branding. Use the explicit [Windows migration preflight](WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-saplens) before an authorized cutover. The setup examples below describe new installations.
+
 ## 1. Secure defaults and fail-closed rules
 
 | Rule | Behaviour |
@@ -137,12 +139,12 @@ Examples (replace every address, name and path):
 & .\SapLens.Api.exe --data-dir C:\saplens2\local-test
 # Windows: LAN HTTPS, password from a protected file
 & .\SapLens.Api.exe --data-dir C:\saplens2\runtime-test --network --listen 192.168.10.20 --port 18795 `
-  --allowed-hosts saplens2.test.example,192.168.10.20 --cert C:\ProgramData\SapLens2\tls\server.pfx `
-  --cert-password-file C:\ProgramData\SapLens2\tls\cert-password
+  --allowed-hosts saplens2.test.example,192.168.10.20 --cert C:\ProgramData\SapLens\tls\server.pfx `
+  --cert-password-file C:\ProgramData\SapLens\tls\cert-password
 # Windows: the same through environment variables (current session only)
 $env:SAP_LENS_V2_DATA_DIR = 'C:\saplens2\runtime-test'; $env:SAP_LENS_V2_NETWORK = 'true'; $env:SAP_LENS_V2_LISTEN = '192.168.10.20'
-$env:SAP_LENS_V2_PORT = '18795'; $env:SAP_LENS_V2_ALLOWED_HOSTS = '192.168.10.20'; $env:SAP_LENS_V2_CERT = 'C:\ProgramData\SapLens2\tls\server.pfx'
-$env:SAP_LENS_V2_CERT_PASSWORD_FILE = 'C:\ProgramData\SapLens2\tls\cert-password'
+$env:SAP_LENS_V2_PORT = '18795'; $env:SAP_LENS_V2_ALLOWED_HOSTS = '192.168.10.20'; $env:SAP_LENS_V2_CERT = 'C:\ProgramData\SapLens\tls\server.pfx'
+$env:SAP_LENS_V2_CERT_PASSWORD_FILE = 'C:\ProgramData\SapLens\tls\cert-password'
 & .\SapLens.Api.exe
 ```
 
@@ -221,8 +223,8 @@ commands below create a small private CA for a lab; keep the CA private key off 
 
 ```powershell
 $dns = 'saplens2.corp.example'; $ip = '192.168.10.20'
-New-Item -ItemType Directory -Force C:\ProgramData\SapLens2\tls | Out-Null
-$ca = New-SelfSignedCertificate -Subject 'CN=SAP Lens 2 LAN CA' -KeyUsage CertSign,CRLSign,DigitalSignature -KeyLength 3072 -HashAlgorithm SHA256 `
+New-Item -ItemType Directory -Force C:\ProgramData\SapLens\tls | Out-Null
+$ca = New-SelfSignedCertificate -Subject 'CN=SAP Lens LAN CA' -KeyUsage CertSign,CRLSign,DigitalSignature -KeyLength 3072 -HashAlgorithm SHA256 `
   -NotAfter (Get-Date).AddYears(5) -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable `
   -TextExtension @('2.5.29.19={critical}{text}ca=1&pathlength=0')
 $server = New-SelfSignedCertificate -Subject "CN=$dns" -Signer $ca -KeyLength 2048 -HashAlgorithm SHA256 -NotAfter (Get-Date).AddDays(397) `
@@ -230,9 +232,9 @@ $server = New-SelfSignedCertificate -Subject "CN=$dns" -Signer $ca -KeyLength 20
   -TextExtension @("2.5.29.17={text}DNS=$dns&IPAddress=$ip", '2.5.29.37={text}1.3.6.1.5.5.7.3.1')
 # Random PFX password, written only to an ACL-protected file the service reads (--cert-password-file).
 $bytes = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); $plain = [Convert]::ToBase64String($bytes)
-Export-PfxCertificate -Cert $server -FilePath C:\ProgramData\SapLens2\tls\server.pfx -Password (ConvertTo-SecureString $plain -AsPlainText -Force) | Out-Null
-Set-Content -Path C:\ProgramData\SapLens2\tls\cert-password -Value $plain -NoNewline -Encoding ASCII; Remove-Variable plain
-Export-Certificate -Cert $ca -FilePath C:\ProgramData\SapLens2\tls\saplens2-ca.cer | Out-Null   # public CA certificate for clients
+Export-PfxCertificate -Cert $server -FilePath C:\ProgramData\SapLens\tls\server.pfx -Password (ConvertTo-SecureString $plain -AsPlainText -Force) | Out-Null
+Set-Content -Path C:\ProgramData\SapLens\tls\cert-password -Value $plain -NoNewline -Encoding ASCII; Remove-Variable plain
+Export-Certificate -Cert $ca -FilePath C:\ProgramData\SapLens\tls\saplens2-ca.cer | Out-Null   # public CA certificate for clients
 # Lab only: remove the CA and server keys from the user store (export the CA with a password to offline media first if you need it again).
 Remove-Item $server.PSPath; Remove-Item $ca.PSPath
 ```
@@ -241,7 +243,7 @@ Remove-Item $server.PSPath; Remove-Item $ca.PSPath
 
 ```bash
 DNS=saplens2.corp.example; IP=192.168.10.20; sudo install -d -m 0750 -o root -g saplens2 /etc/saplens2/tls; cd "$(mktemp -d)"
-openssl req -x509 -newkey rsa:3072 -sha256 -days 1825 -noenc -keyout ca.key -out ca.crt -subj "/CN=SAP Lens 2 LAN CA" \
+openssl req -x509 -newkey rsa:3072 -sha256 -days 1825 -noenc -keyout ca.key -out ca.crt -subj "/CN=SAP Lens LAN CA" \
   -addext "basicConstraints=critical,CA:TRUE,pathlen:0" -addext "keyUsage=critical,keyCertSign,cRLSign"
 openssl req -newkey rsa:2048 -noenc -keyout server.key -out server.csr -subj "/CN=$DNS"
 printf "subjectAltName=DNS:%s,IP:%s\nextendedKeyUsage=serverAuth\nkeyUsage=critical,digitalSignature,keyEncipherment\nbasicConstraints=CA:FALSE\n" "$DNS" "$IP" > ext.cnf
@@ -258,7 +260,7 @@ cp ca.crt ~/saplens2-ca.crt                                                     
 ### Windows Server (PowerShell as administrator)
 
 **Status:** this procedure uses only standard Windows tooling (`New-Service`, `sc.exe`, `icacls`); SAP Lens ships no installer or service
-tool. The executable contains the service host (`AddWindowsService`, service name `SapLens2`), but the procedure has **not been run on
+tool. The executable contains the service host (`AddWindowsService`, service name `SapLens`), but the procedure has **not been run on
 Windows yet** [U]. Treat every step as pending acceptance.
 
 ```powershell
@@ -266,18 +268,18 @@ Windows yet** [U]. Treat every step as pending acceptance.
 dotnet publish backend\src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\Build\saplens2-server
 
 # On the server
-$app = 'C:\Program Files\SapLens2\server'; $data = 'C:\ProgramData\SapLens2\data'; $tls = 'C:\ProgramData\SapLens2\tls'
+$app = 'C:\Program Files\SapLens\server'; $data = 'C:\ProgramData\SapLens\data'; $tls = 'C:\ProgramData\SapLens\tls'
 New-Item -ItemType Directory -Force $app, $data | Out-Null
 Copy-Item C:\Build\saplens2-server\* $app -Recurse -Force
 $bin = "`"$app\SapLens.Api.exe`" --data-dir `"$data`" --network --listen 192.168.10.20 --port 18791 " +
        "--allowed-hosts saplens2.corp.example,192.168.10.20 --cert `"$tls\server.pfx`" --cert-password-file `"$tls\cert-password`""
-New-Service -Name SapLens2 -DisplayName 'SAP Lens 2 prototype server' -BinaryPathName $bin -StartupType Automatic
-sc.exe config SapLens2 obj= "NT SERVICE\SapLens2"                 # virtual service account, no password
-sc.exe failure SapLens2 reset= 86400 actions= restart/60000
+New-Service -Name SapLens -DisplayName 'SAP Lens server' -BinaryPathName $bin -StartupType Automatic
+sc.exe config SapLens obj= "NT SERVICE\SapLens"                 # virtual service account, no password
+sc.exe failure SapLens reset= 86400 actions= restart/60000
 foreach ($dir in $data, $tls) {                                     # only the service and administrators
-  icacls $dir /inheritance:r /grant:r 'Administrators:(OI)(CI)F' 'SYSTEM:(OI)(CI)F' 'NT SERVICE\SapLens2:(OI)(CI)M' | Out-Null }
-icacls "$tls\cert-password" /inheritance:r /grant:r 'Administrators:F' 'NT SERVICE\SapLens2:R' | Out-Null
-Start-Service SapLens2; Get-Service SapLens2
+  icacls $dir /inheritance:r /grant:r 'Administrators:(OI)(CI)F' 'SYSTEM:(OI)(CI)F' 'NT SERVICE\SapLens:(OI)(CI)M' | Out-Null }
+icacls "$tls\cert-password" /inheritance:r /grant:r 'Administrators:F' 'NT SERVICE\SapLens:R' | Out-Null
+Start-Service SapLens; Get-Service SapLens
 Get-Content "$data\logs\server-*.log" -Tail 20                       # startup line: address, port, https, certificate expiry
 Get-Content "$data\api-token"                                        # the token users enter at sign-in; share it through a secure channel
 ```
@@ -290,7 +292,7 @@ sudo useradd --system --home-dir /var/lib/saplens2 --shell /usr/sbin/nologin sap
 sudo install -d -m 0755 /opt/saplens2 && sudo cp -r /tmp/saplens2-server /opt/saplens2/server
 sudo tee /etc/systemd/system/saplens2.service >/dev/null <<'UNIT'
 [Unit]
-Description=SAP Lens 2 prototype server
+Description=SAP Lens server
 Wants=network-online.target
 After=network-online.target
 
@@ -325,16 +327,16 @@ The Server never creates firewall rules. An administrator adds exactly one inbou
 
 ```powershell
 # Windows: only from 192.168.10.0/24, only to this address and port, only on Domain/Private profiles, only for this program
-New-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (trusted LAN)' -Direction Inbound -Action Allow -Protocol TCP `
+New-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' -Direction Inbound -Action Allow -Protocol TCP `
   -LocalAddress 192.168.10.20 -LocalPort 18791 -RemoteAddress 192.168.10.0/24 -Profile Domain,Private `
-  -Program 'C:\Program Files\SapLens2\server\SapLens.Api.exe'
-Get-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (trusted LAN)' | Get-NetFirewallAddressFilter
-# Remove: Remove-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (trusted LAN)'
+  -Program 'C:\Program Files\SapLens\server\SapLens.Api.exe'
+Get-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' | Get-NetFirewallAddressFilter
+# Remove: Remove-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)'
 ```
 
 ```bash
 # Linux, ufw
-sudo ufw allow in from 192.168.10.0/24 to 192.168.10.20 port 18791 proto tcp comment 'SAP Lens 2 trusted LAN'
+sudo ufw allow in from 192.168.10.0/24 to 192.168.10.20 port 18791 proto tcp comment 'SAP Lens trusted LAN'
 # Linux, firewalld
 sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="192.168.10.0/24" destination address="192.168.10.20" port port="18791" protocol="tcp" accept'
 sudo firewall-cmd --reload
@@ -400,7 +402,7 @@ From a device **outside** the trusted subnet the connection must time out (firew
 
 1. Copy the **public** CA certificate (`saplens2-ca.cer`/`.crt`, never the PFX or a key) to the device (mail, MDM, AirDrop).
 2. iOS/iPadOS: open it, Settings → Profile Downloaded → Install; then Settings → General → About → Certificate Trust Settings → enable full
-   trust for "SAP Lens 2 LAN CA". Android: Settings → Security → Encryption & credentials → Install a certificate → CA certificate
+   trust for "SAP Lens LAN CA". Android: Settings → Security → Encryption & credentials → Install a certificate → CA certificate
    (Chrome honours user CAs; menu names vary by vendor). Managed devices: deploy the CA through MDM instead.
 3. Connect to the corporate Wi-Fi in the trusted subnet (not a guest network), open `https://saplens2.corp.example:18791/`: the browser must
    show a valid lock without warnings. Never accept a certificate warning: it means the trust setup is wrong.
@@ -411,19 +413,19 @@ From a device **outside** the trusted subnet the connection must time out (firew
 ## 9. Secure shutdown and restart
 
 ```powershell
-Stop-Service SapLens2      # graceful: running import handed back (Queued), SQLite closed; Start-Service / Restart-Service SapLens2
-Get-Content 'C:\ProgramData\SapLens2\data\logs\server-*.log' -Tail 5
+Stop-Service SapLens      # graceful: running import handed back (Queued), SQLite closed; Start-Service / Restart-Service SapLens
+Get-Content 'C:\ProgramData\SapLens\data\logs\server-*.log' -Tail 5
 ```
 
 Windows service operation (pending native verification [U]):
 
 ```powershell
-Get-Service SapLens2 | Format-List Name, Status, StartType
-Get-CimInstance Win32_Service -Filter "Name='SapLens2'" | Format-List State, StartName, PathName, ProcessId   # identity and command line
-Restart-Service SapLens2
+Get-Service SapLens | Format-List Name, Status, StartType
+Get-CimInstance Win32_Service -Filter "Name='SapLens'" | Format-List State, StartName, PathName, ProcessId   # identity and command line
+Restart-Service SapLens
 # Service Control Manager: start/stop (7036), failures to start (7000, 7009), unexpected exits and recovery (7031, 7034)
 Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Service Control Manager'; StartTime = (Get-Date).AddHours(-1) } |
-  Where-Object Message -like '*SAP Lens 2*' | Format-Table TimeCreated, Id, Message -Wrap
+  Where-Object Message -like '*SAP Lens*' | Format-Table TimeCreated, Id, Message -Wrap
 # Application log: the Windows service host can write warnings and errors under the source of the executable; not observed yet [U].
 Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddHours(-1) } | Where-Object ProviderName -like 'SapLens*'
 ```
@@ -434,10 +436,10 @@ which a service does not show, so reproduce a start failure by running the same 
 Safe removal (keeps data, certificates and the firewall rule unless removed explicitly):
 
 ```powershell
-Stop-Service SapLens2
-sc.exe delete SapLens2                                        # removes the registration only
-Remove-NetFirewallRule -DisplayName 'SAP Lens 2 HTTPS (trusted LAN)' -ErrorAction SilentlyContinue
-# Data (C:\ProgramData\SapLens2\data) and TLS files stay; back them up or delete them deliberately.
+Stop-Service SapLens
+sc.exe delete SapLens                                        # removes the registration only
+Remove-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' -ErrorAction SilentlyContinue
+# Data (C:\ProgramData\SapLens\data) and TLS files stay; back them up or delete them deliberately.
 ```
 
 ```bash
@@ -505,8 +507,8 @@ configuring it.
 
 ```powershell
 & .\SapLens.Api.exe --data-dir C:\saplens2\runtime-test --network --listen 192.168.10.20 --port 18795 `
-  --allowed-hosts lens.example.com,192.168.10.20 --cert C:\ProgramData\SapLens2\tls\server.pfx `
-  --cert-password-file C:\ProgramData\SapLens2\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
+  --allowed-hosts lens.example.com,192.168.10.20 --cert C:\ProgramData\SapLens\tls\server.pfx `
+  --cert-password-file C:\ProgramData\SapLens\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
 ```
 
 With the test launcher: `.\scripts\start-server-test.ps1 -AllowedHosts 'lens.example.com','192.168.10.20' -TrustedProxies '<PANGOLIN_PEER_IP>'`.
