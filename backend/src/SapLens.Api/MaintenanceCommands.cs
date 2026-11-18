@@ -7,10 +7,14 @@ using SapLens.Persistence;
 
 namespace SapLens.Api;
 
-/// <summary>Local, non-listening maintenance commands of the server binary for operators and the deployment script. None of them starts the server or
-/// changes application data; output is one JSON document on standard output, refusals go to standard error with exit code 3.
+/// <summary>Local, non-listening maintenance commands of the server binary for operators and the deployment script. None starts the server.
+/// Inspection/backup commands do not change source data; explicit account administration and copy-only upload rebasing do write
+/// their selected local store. Output is one JSON document on standard output, refusals go to standard error with exit code 3.
 ///
 /// <list type="bullet">
+/// <item><c>--inspect-data --data-dir D</c>: integrity/schema/source-path inspection of private scratch copies; original SQLite is never opened.</item>
+/// <item><c>--rebase-upload-paths OLD --migration-copy --expected-db-sha SHA --data-dir COPY</c>: checked private-upload location changes in a
+/// separate offline migration copy; external paths and immutable imported records remain unchanged.</item>
 /// <item><c>--schema-info --data-dir D</c>: migrations this build knows, migrations the database applied, and whether this build can open it
 /// (opened read-only; a missing database is reported, never created).</item>
 /// <item><c>--backup-local DIR --data-dir D</c>: a verified, host-key encrypted archive of the data directory (online SQLite copies, so the running
@@ -20,7 +24,7 @@ namespace SapLens.Api;
 /// </list></summary>
 public static class MaintenanceCommands
 {
-    public static readonly string[] Names = ["--schema-info", "--inspect-data", "--backup-local", "--backup-verify", "--accounts-code"];
+    public static readonly string[] Names = ["--schema-info", "--inspect-data", "--backup-local", "--backup-verify", "--accounts-code", "--rebase-upload-paths"];
 
     public static bool Handles(string[] args) => Names.Any(args.Contains);
 
@@ -33,7 +37,14 @@ public static class MaintenanceCommands
             if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
             data = Path.GetFullPath(data);
             JsonObject result;
-            if (args.Contains("--accounts-code"))
+            if (args.Contains("--rebase-upload-paths"))
+            {
+                if (!args.Contains("--migration-copy") || Names.Count(args.Contains) != 1)
+                    throw new InvalidOperationException("Upload rebasing requires --migration-copy and exactly one maintenance command.");
+                result = RebaseUploadedPaths(data, Value("--rebase-upload-paths") ?? throw new InvalidOperationException("Select the original data directory."),
+                    Value("--expected-db-sha") ?? throw new InvalidOperationException("The verified copy's --expected-db-sha is required."));
+            }
+            else if (args.Contains("--accounts-code"))
             {
                 result = AdministratorCode(data, Value("--recover-administrator"));
             }
@@ -45,11 +56,68 @@ public static class MaintenanceCommands
             Console.Out.WriteLine(result.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             return 0;
         }
-        catch (Exception error) when (error is InvalidOperationException or BackupException or IOException or UnauthorizedAccessException or SqliteException or SapLens.Application.Accounts.AuthException)
+        catch (Exception error) when (error is InvalidOperationException or BackupException or IOException or UnauthorizedAccessException or SqliteException or System.Text.Json.JsonException or SapLens.Application.Accounts.AuthException)
         {
             Console.Error.WriteLine($"maintenance refused: {error.Message}");
             return 3;
         }
+    }
+
+    /// <summary>Rebase only verified copies of application-managed uploads after a directory move. Never opens the original database.</summary>
+    public static JsonObject RebaseUploadedPaths(string data, string sourceData, string expectedHash)
+    {
+        if (!Path.IsPathFullyQualified(data) || !Path.IsPathFullyQualified(sourceData)) throw new InvalidOperationException("Select absolute source and copy directories.");
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        data = Path.GetFullPath(data).TrimEnd(Path.DirectorySeparatorChar);
+        sourceData = Path.GetFullPath(sourceData).TrimEnd(Path.DirectorySeparatorChar);
+        var oldPrefix = sourceData + Path.DirectorySeparatorChar;
+        var newPrefix = data + Path.DirectorySeparatorChar;
+        if (data.Equals(sourceData, comparison) || data.StartsWith(oldPrefix, comparison) || sourceData.StartsWith(newPrefix, comparison))
+            throw new InvalidOperationException("Upload rebasing requires a separate, disjoint migration copy.");
+        void Plain(string path)
+        {
+            for (string? item = path; item is not null; item = Path.GetDirectoryName(item))
+                if ((File.Exists(item) || Directory.Exists(item)) && (File.GetAttributes(item) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Migration copy paths must not traverse links.");
+        }
+        Plain(data); Plain(sourceData);
+        var database = Path.Combine(data, ApplicationBackups.DatabaseEntry);
+        if (expectedHash.Length != 64 || !expectedHash.All(Uri.IsHexDigit) || !File.Exists(database) || !Digests.File(database).Equals(expectedHash, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("The migration copy does not match its expected database SHA-256.");
+        if (!(bool)SchemaInfo(data)["compatible"]! || !DatabaseMaintenance.VerifyFileAsync(database).GetAwaiter().GetResult().Ok)
+            throw new InvalidOperationException("The migration copy has incompatible schema or failed integrity checks.");
+        using var connection = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = database, Mode = SqliteOpenMode.ReadWrite, Pooling = false }.ToString());
+        connection.Open();
+        using var transaction = connection.BeginTransaction(deferred: false);
+        using var command = connection.CreateCommand(); command.Transaction = transaction;
+        command.CommandText = "SELECT Revision,Json FROM Settings WHERE Id=1";
+        JsonObject? settings = null; var revision = 0;
+        using (var reader = command.ExecuteReader())
+            if (reader.Read()) { revision = reader.GetInt32(0); settings = JsonNode.Parse(reader.GetString(1))!.AsObject(); }
+        var changed = new JsonArray();
+        foreach (var (field, source) in new[] { ("data_csv_path", "roles"), ("user_csv_path", "users"), ("employee_csv_path", "employees"), ("sod_csv_path", "sod") })
+        {
+            if ((string?)settings?[field] is not { Length: > 0 } path || !Path.IsPathFullyQualified(path)) continue;
+            path = Path.GetFullPath(path);
+            if (!path.StartsWith(oldPrefix, comparison)) continue;
+            var relative = Path.GetRelativePath(sourceData, path);
+            if (!System.Text.RegularExpressions.Regex.IsMatch(relative.Replace('\\', '/'), @"\Asources/" + source + @"-[a-f0-9]{16}\.csv\z"))
+                throw new InvalidOperationException("A source inside the old data directory is not an application-managed upload; review it explicitly.");
+            var target = Path.Combine(data, relative); Plain(path); Plain(target);
+            if (File.Exists(path) != File.Exists(target) || File.Exists(path) && Digests.File(path) != Digests.File(target))
+                throw new InvalidOperationException("An application-managed upload differs from its copied source.");
+            settings![field] = target; changed.Add(field);
+        }
+        if (changed.Count > 0)
+        {
+            command.CommandText = "UPDATE Settings SET Json=$json,Revision=Revision+1,UpdatedUtc=$now,UpdatedBy='directory-migration' WHERE Id=1 AND Revision=$revision";
+            command.Parameters.AddWithValue("$json", settings!.ToJsonString());
+            command.Parameters.AddWithValue("$now", DateTime.UtcNow);
+            command.Parameters.AddWithValue("$revision", revision);
+            if (command.ExecuteNonQuery() != 1) throw new InvalidOperationException("Migration copy settings changed during rebasing.");
+        }
+        transaction.Commit();
+        return new JsonObject { ["rebased"] = changed.Count, ["changed_fields"] = changed, ["settings_revision"] = revision + (changed.Count > 0 ? 1 : 0) };
     }
 
     /// <summary>The migrations compiled into this build.</summary>
@@ -170,7 +238,8 @@ public static class MaintenanceCommands
                     }
                 }
             }
-            return new JsonObject { ["ok"] = results.All(r => (bool)r!["ok"]!), ["databases"] = results, ["schema"] = schema, ["source_paths"] = sourcePaths };
+            return new JsonObject { ["ok"] = results.All(r => (bool)r!["ok"]!), ["databases"] = results, ["schema"] = schema, ["source_paths"] = sourcePaths,
+                ["capabilities"] = new JsonArray("rebase-upload-paths-v1") };
         }
         finally
         {

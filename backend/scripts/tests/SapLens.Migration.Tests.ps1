@@ -6,7 +6,7 @@ BeforeAll {
         $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))
         $old = Join-Path $root 'old'; $new = Join-Path $root 'new'
         foreach ($name in 'data', 'tls', 'backup', 'history', 'work', 'releases/release/server') { New-Item -ItemType Directory -Force (Join-Path $old $name) | Out-Null }
-        foreach ($name in 'tls/server.pfx', 'tls/password', 'backup/host.key', 'data/saplens.sqlite3', 'releases/release/server/SapLens.Api.exe') { Set-Content -LiteralPath (Join-Path $old $name) 'synthetic' }
+        foreach ($name in 'tls/server.pfx', 'tls/password', 'backup/host.key', 'data/sap-lens-v2.sqlite3', 'releases/release/server/SapLens.Api.exe') { Set-Content -LiteralPath (Join-Path $old $name) 'synthetic' }
         Set-Content -LiteralPath (Join-Path $old 'backup/host.key') ([Convert]::ToBase64String([byte[]](1..32)))
         @{ schema = 1; path = (Join-Path $old 'backup/host.key') } | ConvertTo-Json | Set-Content (Join-Path $old 'data/backup-key-location.json')
         @{ source_sha = ('a' * 40); version = '2.0.0-alpha.1'; source_dirty = $false } | ConvertTo-Json | Set-Content (Join-Path $old 'releases/release/build-manifest.json')
@@ -35,7 +35,8 @@ BeforeAll {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             switch ($Arguments[0]) {
-                '--inspect-data' { [pscustomobject]@{ source_paths = [pscustomobject]@{}; ok = $true; databases = @('synthetic'); schema = @{ compatible = $true; applied = @('m1') } } }
+                '--inspect-data' { [pscustomobject]@{ capabilities = @('rebase-upload-paths-v1'); source_paths = [pscustomobject]@{}; ok = $true; databases = @('synthetic'); schema = @{ compatible = $true; applied = @('m1') } } }
+                '--rebase-upload-paths' { @{ rebased = 0; changed_fields = @() } }
                 '--schema-info' { [pscustomobject]@{ database_exists = $false; compatible = $true; pending = @('m1'); applied = @(); known = @('m1') } }
             }
         }
@@ -126,8 +127,9 @@ Describe 'Journaled service cutover and interruption recovery' {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             switch ($Arguments[0]) {
+                '--rebase-upload-paths' { @{ rebased = 0; changed_fields = @() } }
                 '--schema-info' { if ($Arguments[2] -like '*.schema-probe-*') { @{ database_exists = $false; compatible = $true; known = @('m1'); pending = @('m1'); applied = @() } } else { @{ database_exists = $true; compatible = $true; known = @('m1'); pending = @(); applied = @('m1') } } }
-                '--inspect-data' { @{ source_paths = [pscustomobject]@{}; ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ applied = @('m1') } } }
+                '--inspect-data' { @{ capabilities = @('rebase-upload-paths-v1'); source_paths = [pscustomobject]@{}; ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ applied = @('m1') } } }
                 '--backup-local' {
                     $script:BackupCount++
                     if ($script:Failure -eq 'target-race' -and $script:BackupCount -eq 1) {
@@ -158,7 +160,7 @@ Describe 'Journaled service cutover and interruption recovery' {
                 $script:Services.SapLens2.State | Should -Be 'Stopped'
                 $script:Services.SapLens2.StartMode | Should -Be 'Disabled'
                 if ($script:Failure -eq 'startup') { throw 'synthetic startup failure' }
-                if ($script:Failure -eq 'written') { Add-Content -LiteralPath (Join-Path $script:Target.DataDirectory 'saplens.sqlite3') 'new committed data' }
+                if ($script:Failure -eq 'written') { Add-Content -LiteralPath (Join-Path $script:Target.DataDirectory 'sap-lens-v2.sqlite3') 'new committed data' }
             }
             $script:Services[$Name].State = 'Running'
         }
@@ -207,7 +209,7 @@ Describe 'Journaled service cutover and interruption recovery' {
         $journal.recovery | Should -Match 'NEW directory'
         $script:Services.SapLens2.State | Should -Be 'Stopped'
         $script:Services.SapLens.State | Should -Be 'Stopped'
-        Get-Content (Join-Path $script:Target.DataDirectory 'saplens.sqlite3') | Should -Contain 'new committed data'
+        Get-Content (Join-Path $script:Target.DataDirectory 'sap-lens-v2.sqlite3') | Should -Contain 'new committed data'
     }
     It 'recovers a persisted cutover intent after interruption and retains both service records' {
         $null = Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector
@@ -275,10 +277,33 @@ Describe 'Read-only identity and directory migration preflight' {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             if ($Arguments[0] -eq '--schema-info') { return @{ known = @('m1') } }
-            @{ ok = $true; schema = @{ applied = @('m1') }; source_paths = [pscustomobject]@{ data_csv_path = (Join-Path $script:Source.DataDirectory 'roles.csv') } }
+            @{ capabilities = @('rebase-upload-paths-v1'); ok = $true; schema = @{ applied = @('m1') }; source_paths = [pscustomobject]@{ data_csv_path = (Join-Path $script:Source.WorkRoot 'roles.csv') } }
         }
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -Match 'depends on the old installation'
+    }
+    It 'plans managed-upload rebasing without changing any source files' {
+        Mock -ModuleName $M Invoke-SL2Maintenance {
+            param($ExePath, $Arguments)
+            if ($Arguments[0] -eq '--schema-info') { return @{ known = @('m1') } }
+            @{ capabilities = @('rebase-upload-paths-v1'); ok = $true; schema = @{ applied = @('m1') }; source_paths = [pscustomobject]@{ data_csv_path = (Join-Path $script:Source.DataDirectory 'sources/roles-0123456789abcdef.csv') } }
+        }
+        $before = @(Get-SL2TreeInventory $script:Source.DataDirectory)
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $result.safe | Should -BeTrue
+        $result.details.source_paths_to_rebase | Should -Contain 'data_csv_path'
+        (Test-SL2InventoryEqual $before @(Get-SL2TreeInventory $script:Source.DataDirectory)) | Should -BeTrue
+        Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 0 -ParameterFilter { $Arguments[0] -eq '--rebase-upload-paths' }
+    }
+    It 'refuses an inspector without upload-copy rebasing support before service control' {
+        Mock -ModuleName $M Invoke-SL2Maintenance {
+            param($ExePath, $Arguments)
+            if ($Arguments[0] -eq '--schema-info') { return @{ known = @('m1') } }
+            @{ capabilities = @(); ok = $true; schema = @{ applied = @('m1') }; source_paths = [pscustomobject]@{} }
+        }
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -Match 'lacks verified upload rebasing'
+        Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
     }
     It 'uses an existing allowed hostname for direct listener probes' {
         $null = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector

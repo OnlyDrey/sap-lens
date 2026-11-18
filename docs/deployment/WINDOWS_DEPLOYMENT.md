@@ -139,7 +139,8 @@ Target roots must not exist, must be disjoint local NTFS directories, and must h
 Prepare only their containing application/persistent roots with administrator/SYSTEM access before preflight; a public parent that lets ordinary
 users create children is refused. Staging creates its work directory exclusively and never adopts a directory that appeared after inspection.
 
-Use the **new verified release's** server executable as an inspector. It supports `--inspect-data` but is never installed by migration: the
+Use the **new verified release's** server executable as an inspector. Its read-only `--inspect-data` advertises verified upload-rebasing support;
+older inspectors are refused before service control. The inspector is never installed by migration: the
 source's verified release is copied unchanged. Legacy source releases need `--schema-info`, `--backup-local` and `--backup-verify` support.
 The inspector copies database/WAL/journal files into scratch and opens only those copies; it never opens live source SQLite. SHM is rebuilt in
 scratch because Windows locks the live WAL index. Inspection refuses concurrent changes; repeat at a quiet time, without weakening checks.
@@ -160,12 +161,16 @@ $inspector = 'C:\private-operations\verified-release\server\SapLens.Api.exe'
 Preflight checks the actual SCM arguments/account/listener PID, readiness and running SHA/version against the verified release manifest,
 SQLite integrity/schema compatibility, private ACLs, TLS/private key/password validity, host/recovery key location, history and recovery state.
 Environment overrides and pending deployment, restore or v1 activation/rollback block migration. CSV source paths within the retiring
-installation also block it: re-import from an approved durable external location first, rather than blindly rewriting settings.
+executable/tool installation also block it: re-import from an approved durable external location first, rather than blindly rewriting settings.
+Recognized private uploads (`data/sources/<source>-<16 hex>.csv`) are recorded for checked rebasing in the staged copy; preflight never changes them.
 
 The existing deployment framework serializes operations with a host mutex. It durably journals intent before service operations and mirrors
 `migration-journal.json` to both work roots. It takes an online encrypted backup, verifies it, stages release/TLS/key files, disables and stops
 the source, takes a final verified offline backup, copies all data and history with NTFS security, and verifies content/ACL inventories.
-Only the copied key pointer changes. It verifies decryption using the copied key, creates the target service with manual start, verifies
+The copied key pointer and recognized private-upload paths are updated. The copy-only maintenance command requires the original data root, expected
+database SHA-256 and an explicit migration-copy flag; it compares copied CSV bytes, keeps external locations unchanged, advances only the settings
+revision and preserves immutable source/review records. Missing CSVs never erase valid imported records. It verifies decryption using the copied key,
+creates the target service with manual start, verifies
 readiness/SHA/version, then enables automatic start and publishes the canonical config. `SapLens2` remains stopped and disabled; its service,
 data, keys, TLS and releases are never deleted. Target partial copies are retained on failure. There is no automatic cleanup.
 

@@ -180,7 +180,7 @@ function New-SL2MigrationJournal($Source, $Target, $Preflight, [string]$Inspecto
         target_config_hash = (Get-FileHash -LiteralPath $Target.ConfigFile -Algorithm SHA256).Hash
         key_before = $Preflight.details.key; key_after = Join-SL2 (Join-SL2 (Split-Path $Target.DataDirectory) 'backup') (Split-Path $Preflight.details.key -Leaf)
         staged_release = Join-SL2 $Target.ReleasesRoot (Split-Path $Preflight.details.release -Leaf)
-        online_backup = $null; offline_backup = $null; source_inventory = @(); target_inventory = @()
+        online_backup = $null; offline_backup = $null; upload_rebase = $null; source_inventory = @(); target_inventory = @()
         target_prepared = $false; target_creation_intent = $false; target_start_intent = $false; source_stop_intent = $false
         error = ''; recovery = ''
     }
@@ -332,7 +332,13 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
         $location = Get-Content -LiteralPath $pointer -Raw | ConvertFrom-Json
         $location.path = $journal.key_after
         [IO.File]::WriteAllText($pointer, ($location | ConvertTo-Json))
-        # The copy is byte/ACL identical except for the reviewed host-key pointer. Confirm it can decrypt the frozen backup with the copied key.
+        # Rebase only application-managed uploads in the verified OFFLINE copy. External source locations never change.
+        Set-SL2MigrationPhase $journal 'rebasing_upload_paths'
+        $databaseHash = (Get-FileHash -LiteralPath (Join-SL2 $Target.DataDirectory 'sap-lens-v2.sqlite3') -Algorithm SHA256).Hash
+        $journal.upload_rebase = Invoke-SL2Maintenance $InspectorExecutable @('--rebase-upload-paths', $Source.DataDirectory, '--migration-copy', '--expected-db-sha', $databaseHash, '--data-dir', $Target.DataDirectory)
+        if ($null -eq $journal.upload_rebase -or $journal.upload_rebase.rebased -lt 0) { Stop-SL2 'Copied upload path verification failed.' 1 }
+        Set-SL2MigrationPhase $journal 'upload_paths_rebased'
+        # Apart from the key pointer and journaled managed-upload locations, the copy retains its original content and ACLs.
         $inspection = Invoke-SL2Maintenance $InspectorExecutable @('--inspect-data', '--data-dir', $Target.DataDirectory)
         if (-not $inspection.ok) { Stop-SL2 'Staged SQLite integrity verification failed.' 1 }
         $archive = Join-SL2 $Target.BackupRoot (Split-Path $journal.offline_backup.file -Leaf)
@@ -441,9 +447,19 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         if (-not $inspection.ok) { Stop-SL2 'SQLite integrity inspection failed.' }
         $hasPaths = if ($inspection -is [Collections.IDictionary]) { $inspection.Contains('source_paths') } else { [bool]$inspection.PSObject.Properties['source_paths'] }
         if (-not $hasPaths) { Stop-SL2 'Inspector lacks source-path checks. Use the current inspector build.' }
+        if (@($inspection.capabilities) -notcontains 'rebase-upload-paths-v1') { Stop-SL2 'Inspector lacks verified upload rebasing. Use the current inspector build.' }
+        $details.source_paths_to_rebase = @()
+        $sourceKinds = @{ data_csv_path = 'roles'; user_csv_path = 'users'; employee_csv_path = 'employees'; sod_csv_path = 'sod' }
         foreach ($path in $inspection.source_paths.PSObject.Properties) {
             if (-not $path.Value) { continue }
             if (-not [IO.Path]::IsPathRooted($path.Value)) { Stop-SL2 'A configured source path is relative. Reconcile it explicitly before migration.' }
+            if (Test-SL2PathOverlap $Source.DataDirectory $path.Value) {
+                $prefix = [IO.Path]::GetFullPath($Source.DataDirectory).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+                $relative = [IO.Path]::GetFullPath($path.Value).Substring($prefix.Length).Replace('\', '/')
+                if ($relative -cnotmatch ('\Asources/' + $sourceKinds[$path.Name] + '-[a-f0-9]{16}\.csv\z')) { Stop-SL2 'A source inside data is not an application-managed upload. Review its location explicitly before migration.' }
+                $details.source_paths_to_rebase += $path.Name
+                continue
+            }
             foreach ($root in $Source.DataDirectory, $Source.ReleasesRoot, $Source.WorkRoot, $Source.BackupRoot, (Split-Path $Source.CertificatePath), (Split-Path $details.key)) {
                 if ($root -and (Test-SL2PathOverlap $root $path.Value)) { Stop-SL2 'A configured CSV source depends on the old installation. Re-import from a durable external source before migration; paths are never rewritten blindly.' }
             }
