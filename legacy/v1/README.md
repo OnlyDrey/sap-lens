@@ -20,6 +20,17 @@ Documentation: [docs/legacy/v1](../../docs/legacy/v1/README.md).
 - The Playwright browser suite in `frontend/tests` starts this server through `scripts/testing/serve-browser-tests.py`.
 - The .NET migration reference tools (`backend/tools/*_reference.py`) import this code to write comparison fixtures.
 
+## Test status in place
+
+`cd legacy/v1 && python -m unittest discover -s backend/tests` (Python 3.12, `backend/requirements-dev.txt`), measured after the promotion:
+2,099 tests, 2,026 passed, 31 skipped, 73 failed or errored. Every failing module tests v1 build, packaging or repository-layout contracts that
+assume the pre-promotion layout: `test_test_profiles` (the `run-tests.py` runner), `test_validation_tracker` and `test_documentation`
+(documentation paths), `test_prerequisites`, `test_python_env`, `test_unified_build`, `test_local_build`, `test_build_diagnostics`,
+`test_scripts_layout`, `test_artifact_layout`, `test_powershell`, `test_windows_package`, `test_windows_ports`, `test_repository_privacy`,
+`test_repository_integrity`, `test_deployment_release`, `test_deployment_contracts`. The runtime modules (API, imports, SoD, reviews, backups,
+server process, desktop host, example datasets) pass. The v1 runtime resolves `frontend/` next to `backend/` (installed and packaged layouts)
+or, in this repository, at the root (`version.source_root()`).
+
 ## What does not run in place
 
 The v1 build, packaging and repository-contract tooling (`scripts/build.py`, `scripts/run-tests.py` profiles, `scripts/build_system`,

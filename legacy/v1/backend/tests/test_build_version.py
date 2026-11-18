@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import version
 
 ROOT = Path(__file__).resolve().parents[2]
+REPOSITORY = Path(__file__).resolve().parents[4]   # shared frontend/ (SAP Lens 1 is archived in legacy/v1)
 
 
 class BuildVersionTests(unittest.TestCase):
@@ -159,8 +160,8 @@ class BuildVersionTests(unittest.TestCase):
 
 class ProductVersionTests(unittest.TestCase):
     def test_frontend_mirrors_product_source(self):
-        self.assertEqual(json.loads((ROOT/'frontend/package.json').read_text())['version'],version.product_version())
-        lock=json.loads((ROOT/'frontend/package-lock.json').read_text())
+        self.assertEqual(json.loads((REPOSITORY/'frontend/package.json').read_text())['version'],version.product_version())
+        lock=json.loads((REPOSITORY/'frontend/package-lock.json').read_text())
         self.assertEqual(lock['version'],version.product_version())
         self.assertEqual(lock['packages']['']['version'],version.product_version())
 

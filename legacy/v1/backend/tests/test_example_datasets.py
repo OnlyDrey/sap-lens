@@ -8,6 +8,7 @@ import sys
 import unittest
 
 ROOT=Path(__file__).resolve().parents[2]
+EXAMPLES=Path(__file__).resolve().parents[4]/'examples'   # shared synthetic examples at the repository root (SAP Lens 1 is archived in legacy/v1)
 sys.path.insert(0,str(ROOT/'backend'))
 import cache
 import config
@@ -22,7 +23,7 @@ H=employee_tests.H
 
 class ExampleDatasetTests(unittest.TestCase):
     def rows(self,name,delimiter=','):
-        with (ROOT/'examples'/name).open(encoding='utf-8-sig',newline='') as stream:return list(csv.DictReader(stream,delimiter=delimiter))
+        with (EXAMPLES/name).open(encoding='utf-8-sig',newline='') as stream:return list(csv.DictReader(stream,delimiter=delimiter))
 
     def test_schemas_volumes_reserved_domains_and_patterns(self):
         roles=self.rows('role-catalogue.example.csv');users=self.rows('user-access.example.csv');employees=self.rows('employee-directory.example.csv',';')
@@ -38,13 +39,13 @@ class ExampleDatasetTests(unittest.TestCase):
         release_names={row['ROLE_NAME'] for row in users if row['ROLE_NAME'].startswith('ZO:MM:')}
         self.assertEqual({parse_release_role(name)['document_type'] for name in release_names},{'PR','PO'})
         for name in ['role-catalogue.example.csv','user-access.example.csv','employee-directory.example.csv']:
-            text=(ROOT/'examples'/name).read_text(encoding='utf-8-sig')
+            text=(EXAMPLES/name).read_text(encoding='utf-8-sig')
             self.assertFalse(re.search(r'\b(?:ENP|ENO|ENK|ENS|SCOM)\b',text))
             domains=re.findall(r'\b[A-Za-z0-9._%+-]+@([A-Za-z0-9.-]+\.[A-Za-z]{2,})',text)
             self.assertTrue(all(domain.lower() in {'example.org','example.com','example.net'} for domain in domains))
 
     def test_sod_matrix_example_parses_with_supported_two_sided_policy_and_catalogue_tcodes(self):
-        path=ROOT/'examples'/'sod-matrix.example.csv';parsed=parse_sod(path)
+        path=EXAMPLES/'sod-matrix.example.csv';parsed=parse_sod(path)
         self.assertEqual((parsed['report']['unique_records'],len(parsed['risks'])),(4,2))
         self.assertTrue(all(risk['supported'] and risk['evaluation_policy']=='sod-two-sided-v1' for risk in parsed['risks']))
         self.assertTrue(all(risk['risk_id'].startswith('SYN') for risk in parsed['risks']))
@@ -56,7 +57,7 @@ class ExampleDatasetTests(unittest.TestCase):
         fixture=employee_tests.EmployeeDirectoryTests();fixture.setUp();self.addCleanup(fixture.tearDown)
         paths={}
         for source,name in [('roles','role-catalogue.example.csv'),('users','user-access.example.csv'),('employees','employee-directory.example.csv')]:
-            paths[source]=fixture.root/name;shutil.copyfile(ROOT/'examples'/name,paths[source])
+            paths[source]=fixture.root/name;shutil.copyfile(EXAMPLES/name,paths[source])
         fixture.path=paths['employees'];fixture.enable()
         settings=config.get_settings().model_dump();settings.update(data_csv_path=str(paths['roles']),user_csv_path=str(paths['users']))
         settings['features']['user_role_mapping']=True

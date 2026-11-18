@@ -598,7 +598,7 @@ class DesktopTests(unittest.TestCase):
 
     def test_startup_document_has_brand_status_and_no_external_resources(self):
         from startup_screen import startup_html
-        document=startup_html(Path(__file__).resolve().parents[2]/'assets/sap-lens.png','synthetic-capability')
+        document=startup_html(Path(__file__).resolve().parents[4]/'assets/sap-lens.png','synthetic-capability')
         self.assertIn('Starting backend',document)
         self.assertIn('data:image/png;base64,',document)
         self.assertIn('role="status"',document)

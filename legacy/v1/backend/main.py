@@ -23,12 +23,10 @@ from data_loader import DataLoader
 from routers import comparison, modules, roles, access, employees, dashboard, account_review, user_comparison, data_health, saved_filters, data_sources, sod, sod_analysis, sod_reviews, sod_periods, sod_reports, sod_governance
 from routers import functional_groups as functional_groups_router
 from request_limits import RequestBodyLimit
-from version import VERSION, BUILD_INFO
+from version import VERSION, BUILD_INFO, source_root
 from configuration_routes import configuration_router
 
-# From source, the shared React frontend is at the repository root (this file is legacy/v1/backend/main.py since v1 was archived).
-frontend_dir = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False)
-                else Path(__file__).resolve().parents[3]) / 'frontend' / 'dist'
+frontend_dir = (Path(sys._MEIPASS) if getattr(sys, 'frozen', False) else source_root()) / 'frontend' / 'dist'
 
 
 class DataSettings(BaseModel):
