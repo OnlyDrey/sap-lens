@@ -75,6 +75,17 @@ public static class V1Backups
 
         group.MapGet("/history", async (HttpContext http, ApplicationBackups backups, CancellationToken ct) => Guard(http) ?? await Run(() => backups.HistoryAsync(ct)));
 
+        group.MapPost("/{identity}/verify", async (HttpContext http, string identity, ApplicationBackups backups, CancellationToken ct) =>
+        {
+            if (Guard(http) is { } refused) return refused;
+            var (body, invalid) = await Body(http, ct);
+            if (invalid is not null) return invalid;
+            if (Extra(body!, "secret") is { } extra) return extra;
+            var secret = "";
+            if (body!["secret"] is { } value && (value is not JsonValue text || !text.TryGetValue<string>(out secret) || secret.Length > 1024)) return Invalid("secret", "Use a passphrase or recovery copy of at most 1024 characters");
+            return await Run(() => backups.VerifyAsync(identity, secret, ct));
+        });
+
         group.MapPost("/{identity}/delete", async (HttpContext http, string identity, ApplicationBackups backups, CancellationToken ct) =>
         {
             if (Guard(http) is { } refused) return refused;
@@ -126,9 +137,12 @@ public static class V1Backups
             {
                 var path = await backups.DownloadAsync(identity, kind, ct);
                 http.Response.Headers.CacheControl = "no-store";
-                return Results.File(path, "application/octet-stream", $"SAP-Lens-{kind}-{identity}.slbak");
+                // Open before returning the result: a concurrent deletion is a meaningful refusal,
+                // and a successful response retains one stable stream until the download completes.
+                return Results.File(File.OpenRead(path), "application/octet-stream", $"SAP-Lens-{kind}-{identity}.slbak");
             }
             catch (BackupException error) { return Results.Json(new { detail = error.Message }, statusCode: error.Status); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return Results.Json(new { detail = "The archive is unavailable or in use. Retry after the active archive operation finishes." }, statusCode: 409); }
         });
     }
 
@@ -258,7 +272,7 @@ public static class BackupSchedule
         value["next_runs"] = schedule.Enabled ? new JsonArray([.. CronSchedule.Check(schedule.Expression, schedule.Timezone, now, localZone).Select(r => (JsonNode)V1RefreshSchedule.Iso(r))]) : new JsonArray();
         value["description"] = CronSchedule.Describe(schedule.Expression, schedule.Timezone);
         value["requires_restart"] = false;
-        value["last_success"] = items.FirstOrDefault(r => (string?)r!["origin"] == "scheduled" && (string?)r["status"] == "ready")?["created_at"]?.DeepClone();
+        value["last_success"] ??= items.FirstOrDefault(r => (string?)r!["origin"] == "scheduled" && (string?)r["status"] == "ready")?["created_at"]?.DeepClone();
         value["last_failure"] = value["last_failure"]?.DeepClone();
         value["encryption_ready"] = BackupKeys.Status(data)["escrow_verified"]?.GetValue<bool>() == true;
         value["attempts"] ??= new JsonArray();
@@ -329,6 +343,7 @@ public static class BackupSchedule
             value["running"] = null; value["last_occurrence"] = occurrence;
             value["last_attempt"] = V1RefreshSchedule.Iso(now); value["last_outcome"] = outcome;
             if (outcome.StartsWith("failed:", StringComparison.Ordinal)) value["last_failure"] = V1RefreshSchedule.Iso(now);
+            if (outcome.StartsWith("ready", StringComparison.Ordinal)) value["last_success"] = V1RefreshSchedule.Iso(now);
             var attempts = value["attempts"] as JsonArray ?? [];
             attempts.Add(new JsonObject { ["at"] = V1RefreshSchedule.Iso(now), ["occurrence"] = occurrence, ["backup_id"] = id, ["status"] = outcome });
             while (attempts.Count > 50) attempts.RemoveAt(0);

@@ -18,6 +18,7 @@ test('recovery-copy verification reauthenticates once and clears ephemeral secre
     await route.fulfill({json: {configured: true, escrow_verified: true}})
   })
   await openSettings(page, 'Backup & Restore')
+  await page.getByText('Recovery key details', {exact: true}).click()
   await page.getByText('Verify a separately stored recovery copy', {exact: true}).click()
   await page.getByLabel('Recovery key', {exact: true}).fill(key)
   await page.getByLabel('Current administrator password', {exact: true}).fill(password)

@@ -289,10 +289,44 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         return path;
     }
 
+    /// <summary>Independently authenticates, decrypts and validates an existing archive without restoring data.</summary>
+    public async Task<JsonObject> VerifyAsync(string id, string secret, CancellationToken ct)
+    {
+        await Gate.WaitAsync(ct);
+        string? work = null;
+        try
+        {
+            var archive = await DownloadAsync(id, "backup", ct);
+            work = Path.Combine(Data, "backups", "verify-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(work);
+            var payload = Path.Combine(work, "payload.zip");
+            await Task.Run(() =>
+            {
+                using var input = File.OpenRead(archive);
+                using var output = new FileStream(payload, FileMode.CreateNew, FileAccess.Write);
+                BackupArchive.Unseal(input, output, secret, BackupKeys.Host(Data));
+            }, ct);
+            await using var db = await factory.CreateDbContextAsync(ct);
+            Extract(payload, Path.Combine(work, "checked"), db.Database.GetMigrations().ToList());
+            return new JsonObject { ["id"] = id, ["verified"] = true, ["sha256"] = Sha(archive), ["checked_at"] = Stamp(clock.GetUtcNow()) };
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or SqliteException)
+        { throw new BackupException("Archive verification could not finish. Check archive availability, storage and the recovery key."); }
+        finally
+        {
+            try { if (work is not null) Directory.Delete(work, true); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
+            finally { Gate.Release(); }
+        }
+    }
+
     /// <summary>Deletes a manual or automatic archive on explicit request. Migration backups are released through the storage routes only.</summary>
     public async Task<JsonObject> DeleteAsync(string id, bool confirm, string actor, CancellationToken ct)
     {
         if (!confirm) throw new BackupException("Confirm backup deletion.", 422);
+        await Gate.WaitAsync(ct);
+        try
+        {
         if (File.Exists(PendingFile(Data))) throw new BackupException("An active operation prevents archive deletion.");
         var name = Identity().IsMatch(id) ? ArchiveName(id) : "";
         await _writer.WriteAsync(async (db, token) =>
@@ -310,6 +344,10 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         var operation = ReadOperation(Data);
         if ((string?)operation["id"] == id) { operation["status"] = "cancelled"; operation["message"] = "Backup archive deleted by request."; WriteOperation(Data, operation); }
         return await HistoryAsync(ct);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { throw new BackupException("The archive is in use or cannot be removed. Retry after active downloads or verification finish; existing records were preserved."); }
+        finally { Gate.Release(); }
     }
 
     // ---- restore: staging, validation, preview

@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
-import {Clock,Download,Trash2,Save} from 'lucide-react'
+import {Clock,Download,Trash2,Save,ShieldCheck} from 'lucide-react'
 import {apiRequest} from '@/api/client'
 import {Button} from '@/components/Shared/Button'
 import {Checkbox,FormField,Input} from '@/components/Shared/Controls'
@@ -8,6 +8,8 @@ import {SettingsSelect} from './Controls'
 import {Card,ErrorState,LoadingState,StatusBadge} from '@/components/Shared/Presentation'
 import {formatTimestamp} from '@/lib/dateFormat'
 import {TimeInput24} from '@/components/Shared/TimeInput24'
+import {ActionMenu} from '@/components/Shared/ActionMenu'
+import {Dialog} from '@/components/Shared/Dialog'
 
 type Schedule={enabled:boolean;mode:'daily'|'weekly'|'cron';time:string;cron:string;timezone:string;keep:number;weekday?:number}
 type Status={encryption_ready?:boolean;configuration_error?:string;requires_restart?:boolean;revision:number;schedule:Schedule;next_runs:string[];description:string;last_success:string|null;last_failure:string|null;last_outcome?:string;attempts?:{at:string;status:string}[]}
@@ -43,14 +45,20 @@ export function BackupScheduling(){
 
 export function BackupHistory({download,disabled}:{download:(id:string)=>Promise<void>;disabled:boolean}){
  const client=useQueryClient(),query=useQuery({queryKey:['backup-history'],queryFn:()=>apiRequest<History>('/api/backups/history'),refetchOnMount:'always'})
- const [busy,setBusy]=useState(''),[error,setError]=useState('')
- return <Card aria-label="Backup history"><h3 className="ui-section-title">Backup history</h3>
+ const [busy,setBusy]=useState(''),[error,setError]=useState(''),[message,setMessage]=useState(''),[secret,setSecret]=useState('')
+ const [action,setAction]=useState<{kind:'verify'|'delete';id:string}|null>(null)
+ const close=()=>{if(!busy){setAction(null);setSecret('');setError('')}}
+ const run=async(id:string,work:()=>Promise<void>)=>{setBusy(id);setError('');setMessage('');try{await work()}catch(reason){setError(reason instanceof Error?reason.message:'The archive action failed.')}finally{setBusy('');setSecret('')}}
+ return <Card aria-label="Backup history" className="gap-2 p-3"><h3 className="ui-section-title">Backup history</h3>
   {query.isLoading?<LoadingState/>:query.error?<ErrorState error={query.error} onRetry={()=>void query.refetch()}/>:<>
-   <p className="ui-description">{query.data?.destination} · {((query.data?.storage_bytes||0)/1024/1024).toFixed(1)} MiB · {query.data?.total||0} operations. Showing the latest 200.</p>
-   {!query.data?.items.length?<p className="ui-description">No retained backup operations yet.</p>:<div className="overflow-x-auto"><table className="data-table"><thead><tr>{['Created','Source','Status','Size','Verification','Actions'].map(label=><th key={label}>{label}</th>)}</tr></thead><tbody>{query.data.items.map(row=><tr key={row.id}><td>{formatTimestamp(row.created_at)}</td><td>{row.origin==='scheduled'?'Scheduled':'Manual'}</td><td><StatusBadge tone={row.verified?'success':row.status==='failed'?'error':'neutral'}>{row.status.replace(/_/g,' ')}</StatusBadge></td><td>{(row.size/1024/1024).toFixed(1)} MiB</td><td>{row.verified?'Verified':'Not available'}</td><td><div className="flex gap-2">
-    <Button variant="ghost" disabled={disabled||query.isFetching||!!busy||!row.verified} onClick={()=>{setBusy(row.id);setError('');void download(row.id).catch(reason=>setError(reason instanceof Error?reason.message:'Download failed.')).finally(()=>setBusy(''))}}><Download size={16} aria-hidden="true"/>Download</Button>
-    <Button variant="ghost" disabled={disabled||query.isFetching||!!busy||!['ready','failed','cancelled'].includes(row.status)} onClick={()=>{if(!window.confirm('Delete this backup archive? Application data and other backups are preserved.'))return;setBusy(row.id);setError('');void apiRequest(`/api/backups/${row.id}/delete`,'POST',{confirm:true}).then(()=>Promise.all([client.invalidateQueries({queryKey:['backup-history']}),client.invalidateQueries({queryKey:['application-backups']})])).catch(reason=>setError(reason instanceof Error?reason.message:'Backup could not be deleted.')).finally(()=>setBusy(''))}}><Trash2 size={16} aria-hidden="true"/>Delete</Button>
-   </div></td></tr>)}</tbody></table></div>}
-  </>}{error&&<p role="alert">{error}</p>}
+   <p className="ui-description">{query.data?.total||0} archives · {((query.data?.storage_bytes||0)/1024/1024).toFixed(1)} MiB · Latest 200 shown</p>
+   {!query.data?.items.length?<p className="ui-description">No retained archives. Create a backup from Overview.</p>:<div className="min-w-0 overflow-x-auto"><table className="data-table"><thead><tr>{['Created','Type','Status','Size','Verification','Actions'].map(label=><th key={label}>{label}</th>)}</tr></thead><tbody>{query.data.items.map(row=><tr key={row.id}><td className="whitespace-nowrap">{formatTimestamp(row.created_at)}</td><td>{row.origin==='scheduled'?'Automatic':row.origin==='migration'?'Migration':'Manual'}</td><td><StatusBadge tone={row.verified?'success':row.status==='failed'?'error':'neutral'}>{row.status.replace(/_/g,' ')}</StatusBadge></td><td className="whitespace-nowrap">{(row.size/1024/1024).toFixed(1)} MiB</td><td>{row.verified?'Verified':'Unavailable'}</td><td>
+    <ActionMenu label={`Actions for backup ${formatTimestamp(row.created_at)}`} disabled={disabled||query.isFetching||!!busy} items={[{id:'download',label:'Download',icon:<Download size={16} aria-hidden="true"/>,disabled:!row.verified},{id:'verify',label:'Verify archive',icon:<ShieldCheck size={16} aria-hidden="true"/>,disabled:!row.verified},{id:'delete',label:'Delete archive',icon:<Trash2 size={16} aria-hidden="true"/>,tone:'destructive',disabled:!['manual','scheduled'].includes(row.origin)||!['ready','failed','cancelled'].includes(row.status)}]} onSelect={kind=>{setError('');setMessage('');if(kind==='download')void run(row.id,()=>download(row.id));else setAction({kind:kind as 'verify'|'delete',id:row.id})}}/>
+   </td></tr>)}</tbody></table></div>}
+  </>}{message&&<p role="status">{message}</p>}{error&&!action&&<p role="alert">{error}</p>}
+  {action&&<Dialog title={action.kind==='verify'?'Verify backup archive':'Delete backup archive'} size="narrow" onClose={close} footer={<><Button disabled={!!busy} onClick={close}>Cancel</Button><Button variant={action.kind==='delete'?'destructive':'primary'} loading={!!busy} onClick={()=>void run(action.id,async()=>{if(action.kind==='verify'){await apiRequest(`/api/backups/${encodeURIComponent(action.id)}/verify`,'POST',{secret});setMessage('Archive verified. Encryption, file hashes and SQLite integrity passed.')}else{await apiRequest(`/api/backups/${encodeURIComponent(action.id)}/delete`,'POST',{confirm:true});await Promise.all([client.invalidateQueries({queryKey:['backup-history']}),client.invalidateQueries({queryKey:['application-backups']})]);setMessage('Backup archive deleted. Application data and other archives were preserved.')}setAction(null)})}>{action.kind==='verify'?'Verify archive':'Delete archive'}</Button></>}>
+   {action.kind==='verify'?<><p className="ui-description">Checks this archive without restoring or replacing data.</p><FormField label="Archive passphrase or recovery copy" description="Leave empty to use this host’s protected key."><Input type="password" autoComplete="off" maxLength={1024} value={secret} onChange={event=>setSecret(event.target.value)}/></FormField></>:<p className="ui-description">Permanently delete this archive? This cannot be undone. Application data and other backups are preserved.</p>}
+   {error&&<p role="alert">{error}</p>}
+  </Dialog>}
  </Card>
 }

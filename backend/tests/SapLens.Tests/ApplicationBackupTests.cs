@@ -108,6 +108,9 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
         Assert.True((bool)independentlyVerified["verified"]!);
         Assert.Equal((string)created["archive_sha256"]!, (string)independentlyVerified["sha256"]!);
         Assert.True(BackupArchive.IsV2(bytes));
+        var (checkedStatus, checkedArchive) = await Post($"/api/backups/{id}/verify");
+        Assert.Equal(HttpStatusCode.OK, checkedStatus); Assert.True((bool)checkedArchive!["verified"]!);
+        Assert.Equal((string)created["archive_sha256"]!, (string)checkedArchive["sha256"]!);
         // The archive holds the database and account-free payload sealed with the host key; the plaintext is a zip with a manifest.
         using (var plain = new MemoryStream())
         {
