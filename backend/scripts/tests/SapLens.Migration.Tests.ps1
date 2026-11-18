@@ -88,6 +88,115 @@ Describe 'Migration backup, journal and staging contracts' {
     }
 }
 
+Describe 'Journaled service cutover and interruption recovery' {
+    BeforeEach {
+        New-MigrationFixture
+        $script:Failure = ''; $script:BackupCount = 0
+        Mock -ModuleName $M Invoke-SL2Process {
+            param($File, $Arguments)
+            if ($File -eq 'robocopy.exe') {
+                if ($script:Failure -eq 'copy') { return @{ ExitCode = 8; Output = @() } }
+                foreach ($item in Get-ChildItem -LiteralPath $Arguments[0] -Force) { Copy-Item -LiteralPath $item.FullName -Destination $Arguments[1] -Recurse }
+            }
+            if ($File -eq 'sc.exe') {
+                $script:Mutations.Add(($Arguments -join ' '))
+                if ($Arguments[0] -eq 'config') {
+                    if ($script:Services.ContainsKey($Arguments[1])) { $script:Services[$Arguments[1]].StartMode = $(if ($Arguments[3] -eq 'disabled') { 'Disabled' } elseif ($Arguments[3] -eq 'auto') { 'Auto' } else { 'Manual' }) }
+                }
+            }
+            @{ ExitCode = 0; Output = @() }
+        }
+        Mock -ModuleName $M Invoke-SL2Maintenance {
+            param($ExePath, $Arguments)
+            switch ($Arguments[0]) {
+                '--schema-info' { @{ database_exists = $false; compatible = $true; known = @('m1'); pending = @('m1'); applied = @() } }
+                '--inspect-data' { @{ ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ applied = @('m1') } } }
+                '--backup-local' {
+                    $script:BackupCount++
+                    if ($script:Failure -eq 'backup') { throw 'synthetic backup failure' }
+                    $file = Join-Path $Arguments[1] ('backup-' + $script:BackupCount + '.slbak')
+                    Set-Content -LiteralPath $file 'synthetic sealed archive'
+                    @{ file = $file; sha256 = 'verified'; size = 1 }
+                }
+                '--backup-verify' { @{ verified = $true; sha256 = 'verified' } }
+            }
+        }
+        Mock -ModuleName $M Stop-SL2Service { param($Name) $script:Mutations.Add("stop:$Name"); $script:Services[$Name].State = 'Stopped'; if ($script:Failure -eq 'stop' -and $Name -eq 'SapLens2') { throw 'interrupted after stopping' } }
+        Mock -ModuleName $M Set-SL2ServiceEntry {
+            param($Config, $Binary, $Exists, $StartMode)
+            $script:Mutations.Add('create:SapLens')
+            $script:Services.SapLens = [pscustomobject]@{ Exists = $true; State = 'Stopped'; Account = $Config.ServiceAccount; StartMode = 'Manual'; ProcessId = 43; PathName = $Binary }
+            if ($script:Failure -eq 'create') { throw 'interrupted after creating' }
+        }
+        Mock -ModuleName $M Grant-SL2Access { }
+        Mock -ModuleName $M Set-SL2Link { }
+        Mock -ModuleName $M Start-SL2Service {
+            param($Name)
+            $script:Mutations.Add("start:$Name")
+            if ($Name -eq 'SapLens') {
+                $script:Services.SapLens2.State | Should -Be 'Stopped'
+                $script:Services.SapLens2.StartMode | Should -Be 'Disabled'
+                if ($script:Failure -eq 'startup') { throw 'synthetic startup failure' }
+                if ($script:Failure -eq 'written') { Add-Content -LiteralPath (Join-Path $script:Target.DataDirectory 'saplens.sqlite3') 'new committed data' }
+            }
+            $script:Services[$Name].State = 'Running'
+        }
+        Mock -ModuleName $M Wait-SL2Ready { param($Config, $Commit, $Version) if ($Config.ServiceName -eq 'SapLens' -and $script:Failure -in @('readiness', 'written')) { throw 'synthetic readiness failure' }; @{ process_id = 43; identity = @{ source_sha = $Commit; version = $Version } } }
+    }
+    It 'backs up online and offline, preserves identity, moves private state and retains the disabled legacy service' {
+        $result = Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector
+        $result.phase | Should -Be 'complete'
+        $script:BackupCount | Should -Be 2
+        $script:Services.SapLens2.State | Should -Be 'Stopped'
+        $script:Services.SapLens2.StartMode | Should -Be 'Disabled'
+        $script:Services.SapLens.State | Should -Be 'Running'
+        $script:Services.SapLens.Account | Should -Be 'LocalSystem'
+        $journal = Read-SL2MigrationJournal $script:Target
+        (Get-Content (Join-Path $script:Target.DataDirectory 'backup-key-location.json') -Raw | ConvertFrom-Json).path | Should -Be $journal.key_after
+        Test-Path $journal.key_before | Should -BeTrue
+        Test-Path $journal.key_after | Should -BeTrue
+        @($script:Mutations | Where-Object { $_ -match 'delete' }).Count | Should -Be 0
+        $calls = $script:Mutations.Count
+        (Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector).phase | Should -Be 'complete'
+        $script:Mutations.Count | Should -Be $calls
+    }
+    It 'returns to the untouched source after <Failure> failure' -ForEach @(
+        @{ Failure = 'backup' }, @{ Failure = 'copy' }, @{ Failure = 'stop' }, @{ Failure = 'integrity' }, @{ Failure = 'create' }, @{ Failure = 'startup' }, @{ Failure = 'readiness' }
+    ) {
+        $script:Failure = $Failure
+        { Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector } | Should -Throw '*safely returned*'
+        (Read-SL2MigrationJournal $script:Source).phase | Should -Be 'rolled_back'
+        $script:Services.SapLens2.State | Should -Be 'Running'
+        Test-Path $script:Source.DataDirectory | Should -BeTrue
+        if ($script:Services.ContainsKey('SapLens')) { $script:Services.SapLens.StartMode | Should -Be 'Disabled'; $script:Services.SapLens.State | Should -Be 'Stopped' }
+    }
+    It 'stops for manual recovery when target writes make rollback unproven' {
+        $script:Failure = 'written'
+        { Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector } | Should -Throw '*manual recovery*'
+        $journal = Read-SL2MigrationJournal $script:Source
+        $journal.phase | Should -Be 'manual_recovery_required'
+        $journal.recovery | Should -Match 'NEW directory'
+        $script:Services.SapLens2.State | Should -Be 'Stopped'
+        $script:Services.SapLens.State | Should -Be 'Stopped'
+        Get-Content (Join-Path $script:Target.DataDirectory 'saplens.sqlite3') | Should -Contain 'new committed data'
+    }
+    It 'recovers a persisted cutover intent after interruption and retains both service records' {
+        $null = Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector
+        $journal = Read-SL2MigrationJournal $script:Source
+        $journal.phase = 'service_startup'; Write-SL2MigrationJournal $journal
+        (Invoke-SL2MigrationRecovery $script:Source).phase | Should -Be 'rolled_back'
+        (Invoke-SL2MigrationRecovery $script:Source).changed | Should -BeFalse
+        $script:Services.SapLens2.State | Should -Be 'Running'
+        $script:Services.SapLens.StartMode | Should -Be 'Disabled'
+    }
+    It 'refuses recovery after configuration drift or an unrelated canonical service appears' {
+        $null = Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector
+        Add-Content -LiteralPath $script:Target.ConfigFile ' '
+        { Invoke-SL2MigrationRecovery $script:Source -Rollback } | Should -Throw '*configuration changed*'
+        $script:Services.SapLens.State | Should -Be 'Running'
+    }
+}
+
 Describe 'Read-only identity and directory migration preflight' {
     BeforeEach { New-MigrationFixture }
     It 'checks all prerequisites without writing installation files or controlling services' {

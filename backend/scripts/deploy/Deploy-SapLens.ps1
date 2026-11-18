@@ -33,7 +33,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'PreflightMigration', 'MigrateService', 'Rollback', 'Recover', 'Health')]
+    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'PreflightMigration', 'MigrateService', 'VerifyMigration', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover', 'Health')]
     [string]$Action = 'Status',
     [string]$ConfigFile = '',
     [string]$TargetConfigFile = '',
@@ -68,12 +68,14 @@ function Test-Elevated {
 
 try {
     $config = Read-SapLensSettings $ConfigFile
-    if ($Action -eq 'PreflightMigration') {
+    if ($Action -eq 'PreflightMigration' -or ($Action -eq 'MigrateService' -and $DryRun)) {
         if (-not $ConfigFile -or -not $TargetConfigFile) { Stop-SL2 'Migration requires explicit -ConfigFile and -TargetConfigFile.' }
         $preflight = Get-SL2MigrationPreflight $config (Read-SapLensSettings $TargetConfigFile) $InspectorExecutable
         Write-Result $preflight $(if ($preflight.safe) { 0 } else { 2 })
     }
-    $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'Rollback', 'Recover') -and -not $DryRun
+    if ($Action -eq 'VerifyMigration') { Write-Result (Test-SL2MigrationComplete $config) 0 }
+    if ($Action -in @('RecoverMigration', 'RollbackMigration') -and $DryRun) { Stop-SL2 'Use Status or VerifyMigration for read-only inspection. Migration recovery has no DryRun mutation path.' }
+    $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover') -and -not $DryRun
     if ($changing -and -not $Yes) { Stop-SL2 "$Action changes the service; repeat with -Yes after reviewing -Action Status (or -DryRun)." }
     if ($changing -and -not (Test-Elevated)) { Stop-SL2 "$Action needs an elevated session (an administrator account over SSH, or Run as administrator)." }
     switch ($Action) {
@@ -118,7 +120,12 @@ try {
             Write-Result (Invoke-SL2Deploy $config $published $sha -DryRun:$DryRun -FirstInstall:$FirstInstall -AdoptService:$AdoptService) 0
         }
         'InstallService' { Install-SL2Service $config -Reconfigure:$Reconfigure; Write-Result (Get-SL2Status $config) 0 }
-        'MigrateService' { Write-Result (Invoke-SL2MigrateService $config) 0 }
+        'MigrateService' {
+            if (-not $ConfigFile -or -not $TargetConfigFile) { Stop-SL2 'Migration requires explicit -ConfigFile and -TargetConfigFile.' }
+            Write-Result (Invoke-SL2MigrateService $config (Read-SapLensSettings $TargetConfigFile) $InspectorExecutable) 0
+        }
+        'RecoverMigration' { Write-Result (Invoke-SL2MigrationRecovery $config) 0 }
+        'RollbackMigration' { Write-Result (Invoke-SL2MigrationRecovery $config -Rollback) 0 }
         'Rollback' { Write-Result (Invoke-SL2Rollback $config $ToRelease) 0 }
         'Recover' { Write-Result (Invoke-SL2Recover $config) 0 }
     }

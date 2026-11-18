@@ -444,7 +444,7 @@ function Get-SL2OtherService($Config) {
 # Creates the service (automatic start, its virtual account, restart on failure) or, for an existing one, sets its command line and account.
 function Set-SL2ServiceEntry($Config, [string]$Binary, [bool]$Exists, [string]$StartMode = 'auto') {
     if (-not $Exists) {
-        New-Service -Name $Config.ServiceName -DisplayName 'SAP Lens Server' -BinaryPathName $Binary -StartupType Manual -Description 'SAP Lens (.NET) server' | Out-Null
+        New-Service -Name $Config.ServiceName -DisplayName 'SAP Lens' -BinaryPathName $Binary -StartupType Manual -Description 'SAP Lens (.NET) server' | Out-Null
     }
     foreach ($arguments in @(@('config', $Config.ServiceName, 'binPath=', $Binary, 'start=', $StartMode), @('config', $Config.ServiceName, 'obj=', $Config.ServiceAccount),
             @('failure', $Config.ServiceName, 'reset=', '86400', 'actions=', 'restart/60000/restart/60000//'))) {
@@ -469,68 +469,6 @@ function Install-SL2Service($Config, [switch]$Reconfigure) {
     Set-SL2ServiceEntry $Config $binary $service.Exists
     Grant-SL2Access $Config
     Write-SL2Log "service $($Config.ServiceName) configured: $binary, account $($Config.ServiceAccount)"
-}
-
-# Renames an earlier SapLens2 installation to the SapLens service, keeping its release, data, TLS, hosts and trusted proxies. The new service gets
-# its own virtual account (NT SERVICE\SapLens) with the same grants. Order: create SapLens (manual start), grant, stop SapLens2 and disable it,
-# start SapLens and verify readiness and identity; only then SapLens gets automatic start and SapLens2 is deleted (its settings are recorded in the
-# run folder). Any failure before that removes the new service and starts SapLens2 again, so there is never a second running or enabled service.
-function Invoke-SL2MigrateService($Config) {
-    if ($Config.ServiceNameConfigured) { Stop-SL2 "$($Config.ConfigFile) names the service ('ServiceName'/'ServiceAccount'). Remove both settings, then repeat: the service is detected automatically before and after the migration." }
-    $legacy = Get-SL2Service $script:LegacyServiceName
-    $target = Get-SL2Service $script:ServiceName
-    if ($target.Exists -and $legacy.Exists) { Stop-SL2 "Both $($script:ServiceName) and $($script:LegacyServiceName) exist. Nothing was changed; keep the one that runs the managed release and remove the other by hand (sc.exe delete) after checking -Action Status." }
-    if ($target.Exists) { Stop-SL2 "The service is already named $($script:ServiceName); nothing to migrate." }
-    if (-not $legacy.Exists) { Stop-SL2 "No $($script:LegacyServiceName) service exists on this host; nothing to migrate." }
-    $legacyConfig = $Config.PSObject.Copy(); $legacyConfig.ServiceName = $script:LegacyServiceName
-    $binary = Get-SL2BinaryPath $Config
-    if (-not (Test-SL2ServiceBinary $legacy.PathName $Config)) { Stop-SL2 "$($script:LegacyServiceName) runs $($legacy.PathName), not the managed release link. Deploy once with -AdoptService first, then migrate." }
-    $journal = Read-SL2Journal $Config
-    if ($journal -and $journal.phase -in $script:CriticalPhases) { Stop-SL2 "An earlier deployment ($($journal.run)) was interrupted in phase '$($journal.phase)'. Run -Action Recover first." }
-    $wasRunning = $legacy.State -eq 'Running'
-    $legacyStart = if ($legacy.StartMode -match '^Auto') { 'auto' } elseif ($legacy.StartMode -match '^Disabled') { 'disabled' } else { 'demand' }
-    $record = [pscustomobject]@{ service = $script:LegacyServiceName; binary_path = $legacy.PathName; account = $legacy.Account; start_mode = $legacy.StartMode; state = $legacy.State }
-    [System.IO.File]::WriteAllText((Join-SL2 $script:RunFolder 'legacy-service.json'), ($record | ConvertTo-Json))
-    $current = Get-SL2Link (Get-SL2CurrentLink $Config)
-    $manifest = Get-Content -LiteralPath (Join-SL2 $current 'build-manifest.json') -Raw | ConvertFrom-Json
-    $migrated = $Config.PSObject.Copy(); $migrated.ServiceName = $script:ServiceName; $migrated.ServiceAccount = "NT SERVICE\$($script:ServiceName)"
-    Write-SL2Log "migrating service $($script:LegacyServiceName) ($($legacy.State), $($legacy.StartMode)) to $($script:ServiceName); release $current"
-    $created = $false; $legacyTouched = $false
-    try {
-        Set-SL2ServiceEntry $migrated $binary $false 'demand'; $created = $true
-        Grant-SL2Access $migrated
-        $legacyTouched = $true
-        Stop-SL2Service $script:LegacyServiceName ([int]$Config.StopTimeoutSeconds)
-        $null = Invoke-SL2Process 'sc.exe' @('config', $script:LegacyServiceName, 'start=', 'disabled') ''
-        Start-SL2Service $script:ServiceName
-        $ready = Wait-SL2Ready $migrated $manifest.source_sha $manifest.version
-    } catch {
-        $reason = $_.Exception.Message
-        Write-SL2Log "service migration failed: $reason; returning to $($script:LegacyServiceName)"
-        try {
-            if ($created) {
-                if ((Get-SL2Service $script:ServiceName).State -ne 'Stopped') { Stop-SL2Service $script:ServiceName ([int]$Config.StopTimeoutSeconds) }
-                $null = Invoke-SL2Process 'sc.exe' @('delete', $script:ServiceName) ''
-            }
-            if ($legacyTouched) {
-                $null = Invoke-SL2Process 'sc.exe' @('config', $script:LegacyServiceName, 'start=', $legacyStart) ''
-                if ($wasRunning) { Start-SL2Service $script:LegacyServiceName; $null = Wait-SL2Ready $legacyConfig $manifest.source_sha $manifest.version }
-            }
-        } catch {
-            $text = "SAP Lens service migration needs a manual decision. Migration error: $reason`r`nRestore error: $($_.Exception.Message)`r`n" +
-                "Original service settings: $(Join-SL2 $script:RunFolder 'legacy-service.json')`r`nTo return: sc.exe delete $($script:ServiceName) (if present); " +
-                "sc.exe config $($script:LegacyServiceName) start= $legacyStart; Start-Service $($script:LegacyServiceName)`r`n"
-            [System.IO.File]::WriteAllText((Join-SL2 $script:RunFolder 'RECOVERY-REQUIRED.txt'), $text)
-            Stop-SL2 "Service migration failed and $($script:LegacyServiceName) could not be restored automatically; see RECOVERY-REQUIRED.txt in $script:RunFolder." 4
-        }
-        Stop-SL2 "Service migration failed; $($script:LegacyServiceName) is unchanged and $(if ($wasRunning) { 'running again' } else { 'as it was' }): $reason" 1
-    }
-    $null = Invoke-SL2Process 'sc.exe' @('config', $script:ServiceName, 'start=', $legacyStart) ''
-    $deleted = Invoke-SL2Process 'sc.exe' @('delete', $script:LegacyServiceName) ''
-    if ($deleted.ExitCode -ne 0) { Write-SL2Log "warning: $($script:LegacyServiceName) is disabled but could not be deleted ($(($deleted.Output | Select-Object -Last 1))); remove it with sc.exe delete" }
-    Write-SL2Log "service migrated: $($script:ServiceName) runs $($manifest.version) $($manifest.source_sha), account $($migrated.ServiceAccount); $($script:LegacyServiceName) removed"
-    [pscustomobject]@{ service = $script:ServiceName; previous_service = $script:LegacyServiceName; account = $migrated.ServiceAccount; release = $current
-        commit = $manifest.source_sha; version = $manifest.version; process_id = $ready.process_id; legacy_service_deleted = ($deleted.ExitCode -eq 0); data_directory = $Config.DataDirectory }
 }
 
 # Least privilege for the virtual service account: modify the data directory, read the releases, the certificate, its password file and the backup

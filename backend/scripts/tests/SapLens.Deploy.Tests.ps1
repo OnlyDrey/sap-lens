@@ -442,65 +442,6 @@ Describe 'Adopting a hand-installed service' {
     }
 }
 
-Describe 'Migrating an earlier SapLens2 service to SapLens' {
-    BeforeEach {
-        $script:Config = New-TestConfig
-        $script:Current = New-TestRelease $script:Config 'current' $script:Old
-        # Two services by name; the fake host listens with the running one's process.
-        $script:Svc = @{ SapLens2 = @{ State = 'Running'; Pid = 100; StartMode = 'Auto'; Path = (Get-SL2BinaryPath $script:Config) } }
-        $script:Calls = [System.Collections.Generic.List[string]]::new()
-        $script:Fail = @{}
-        Mock -ModuleName $M Get-SL2Service { param($Name) $s = $script:Svc[$Name]; if (-not $s) { return $script:Missing }
-            [pscustomobject]@{ Exists = $true; State = $s.State; StartMode = $s.StartMode; Account = "NT SERVICE\$Name"; PathName = $s.Path; ProcessId = $(if ($s.State -eq 'Running') { $s.Pid } else { 0 }) } }
-        Mock -ModuleName $M New-Service { param($Name, $DisplayName, $BinaryPathName) $script:Calls.Add("create:$Name"); $script:Svc[$Name] = @{ State = 'Stopped'; Pid = 200; StartMode = 'Manual'; Path = $BinaryPathName } }
-        Mock -ModuleName $M Invoke-SL2Process { param($File, $Arguments) $script:Calls.Add(($Arguments | Select-Object -First 4) -join ' ')
-            if ($Arguments[0] -eq 'delete') { $script:Svc.Remove($Arguments[1]) }
-            if ($Arguments[0] -eq 'config' -and $Arguments[2] -eq 'start=') { $script:Svc[$Arguments[1]].StartMode = $Arguments[3] }
-            [pscustomobject]@{ ExitCode = 0; Output = @() } }
-        Mock -ModuleName $M Stop-SL2Service { param($Name) $script:Calls.Add("stop:$Name"); $script:Svc[$Name].State = 'Stopped' }
-        Mock -ModuleName $M Start-SL2Service { param($Name) $script:Calls.Add("start:$Name"); $script:Svc[$Name].State = 'Running' }
-        Mock -ModuleName $M Get-SL2Link { $script:Current }
-        Mock -ModuleName $M Get-SL2Listener { foreach ($s in $script:Svc.Values) { if ($s.State -eq 'Running') { $s.Pid } } }
-        Mock -ModuleName $M Invoke-SL2Http { param($Url) if ($Url -like '*/health/ready') { return [pscustomobject]@{ Status = $(if ($script:Fail.NeverReady -and $script:Svc['SapLens'] -and $script:Svc['SapLens'].State -eq 'Running') { 503 } else { 200 }); Body = '' } }
-            [pscustomobject]@{ Status = 200; Body = (@{ source_sha = $script:Old; version = '2.0.0-alpha.1' } | ConvertTo-Json) } }
-        Mock -ModuleName $M Start-Sleep { }
-        Mock -ModuleName $M Stop-Process { throw 'Stop-Process must never be called' }
-        $script:Config = Read-SapLensSettings $script:Config.ConfigFile          # detects SapLens2
-        $null = New-SL2Run $script:Config 'migrateservice'
-    }
-
-    It 'creates SapLens with its own account, verifies it, then removes SapLens2; data and command line stay the same' {
-        $script:Config.ServiceName | Should -Be 'SapLens2'
-        $result = Invoke-SL2MigrateService $script:Config
-        ($result.service, $result.account, $result.legacy_service_deleted) | Should -Be @('SapLens', 'NT SERVICE\SapLens', $true)
-        $script:Svc.Keys | Should -Be @('SapLens')
-        $script:Svc['SapLens'].Path | Should -Be (Get-SL2BinaryPath $script:Config)
-        $script:Svc['SapLens'].StartMode | Should -Be 'auto'
-        $order = $script:Calls -join ' | '
-        $order | Should -Match 'create:SapLens .*obj= NT SERVICE\\SapLens.*/grant NT SERVICE\\SapLens:\(OI\)\(CI\)M.*stop:SapLens2 \| config SapLens2 start= disabled \| start:SapLens .*config SapLens start= auto \| delete SapLens2'
-        Test-Path (Join-Path (Split-Path (Get-ChildItem -Recurse -Filter legacy-service.json -Path $script:Config.WorkRoot).FullName) 'legacy-service.json') | Should -BeTrue
-        (Read-SapLensSettings $script:Config.ConfigFile).ServiceName | Should -Be 'SapLens'      # detected after the migration
-    }
-
-    It 'removes the new service and restores SapLens2 when SapLens does not become ready' {
-        $script:Fail.NeverReady = $true
-        { Invoke-SL2MigrateService $script:Config } | Should -Throw '*SapLens2 is unchanged and running again*'
-        $script:Svc.Keys | Should -Be @('SapLens2')
-        ($script:Svc['SapLens2'].State, $script:Svc['SapLens2'].StartMode) | Should -Be @('Running', 'auto')
-        $script:Calls | Should -Contain 'delete SapLens'
-    }
-
-    It 'refuses without any change when the service is named in the configuration, both services exist, or SapLens2 is not on the managed release' {
-        $named = $script:Config.PSObject.Copy(); $named.ServiceNameConfigured = $true
-        { Invoke-SL2MigrateService $named } | Should -Throw '*Remove both settings*'
-        $script:Svc['SapLens2'].Path = '"C:\manual\SapLens.Api.exe" --data-dir C:\d'
-        { Invoke-SL2MigrateService $script:Config } | Should -Throw '*-AdoptService first*'
-        $script:Svc['SapLens'] = @{ State = 'Stopped'; Pid = 0; StartMode = 'Manual'; Path = '' }
-        { Invoke-SL2MigrateService $script:Config } | Should -Throw '*Both SapLens and SapLens2 exist*'
-        $script:Calls | Should -BeNullOrEmpty
-    }
-}
-
 Describe 'Semantic comparison of service arguments' {
     BeforeAll {
         $script:Base = @('--data-dir', 'C:\ProgramData\SapLens\data', '--network', '--listen', '192.0.2.10', '--port', '18795',
