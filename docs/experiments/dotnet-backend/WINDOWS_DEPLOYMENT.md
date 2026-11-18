@@ -107,8 +107,10 @@ $D "${H[@]}" --mode dry-run
 $D "${H[@]}" --mode deploy --tests focused --adopt-service --yes
 ```
 
-Adoption requires the service's arguments to equal the configuration exactly (data directory, network, TLS, hosts, proxies); otherwise it is
-refused before any change. The original command line is recorded and restored if the adopted deployment fails.
+Adoption requires the service's arguments to be equivalent to the configuration (data directory, network mode, listen address, port, allowed
+hosts, trusted proxies, certificate and password file); otherwise it is refused before any change, listing each difference. The comparison is
+semantic: option order and the order of entries in `--allowed-hosts`/`--trusted-proxies` do not matter, host names and Windows paths compare
+without regard to case, addresses as IP addresses. A missing, repeated, unknown or valueless option is always a difference. The original command line is recorded and restored if the adopted deployment fails.
 
 **New host:** `--mode build`, then `--mode deploy --first-install --yes` (installs the `SapLens` service with automatic start, its virtual account,
 restart on failure and least-privilege grants), then `--mode status`.

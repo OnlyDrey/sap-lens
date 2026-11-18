@@ -399,6 +399,20 @@ Describe 'Adopting a hand-installed service' {
         $script:Calls | Should -Not -Contain 'stop'
     }
 
+    It 'adopts a service whose equivalent arguments are in another order, with host and proxy lists in another order' {
+        Use-FakeHost $script:Config ''
+        # The shape of a hand-installed service: options reordered, lists reordered, a different case in a path.
+        $c = $script:Config
+        $script:Expected = ('"C:\saplens2\builds\manual\server\SapLens.Api.exe" --data-dir "{0}" --listen 192.168.10.20 --port 18795 --network ' +
+            '--allowed-hosts 192.168.10.20,LENS.example.com --trusted-proxies 192.168.10.10 --cert "{1}" --cert-password-file "{2}"') -f $c.DataDirectory, $c.CertificatePath, $c.CertificatePasswordFile
+        $script:Original = $script:Expected
+        $script:State.Identity[$script:Target] = $script:New
+        $null = New-SL2Run $script:Config 'deploy'
+        (Invoke-SL2Deploy $script:Config $script:Target $script:New -AdoptService).deployed | Should -BeTrue
+        ($script:Calls -join ' ') | Should -Be 'schema:new backup verify stop link:new binary:managed start:new'
+        (Read-SL2Journal $script:Config).service_binary_before | Should -Be $script:Original      # captured for rollback
+    }
+
     It 'moves the service to the managed release link and keeps it there when ready' {
         Use-FakeHost $script:Config ''
         $script:Expected = $script:Original
@@ -477,5 +491,76 @@ Describe 'Migrating an earlier SapLens2 service to SapLens' {
         $script:Svc['SapLens'] = @{ State = 'Stopped'; Pid = 0; StartMode = 'Manual'; Path = '' }
         { Invoke-SL2MigrateService $script:Config } | Should -Throw '*Both SapLens and SapLens2 exist*'
         $script:Calls | Should -BeNullOrEmpty
+    }
+}
+
+Describe 'Semantic comparison of service arguments' {
+    BeforeAll {
+        $script:Base = @('--data-dir', 'C:\ProgramData\SapLens\data', '--network', '--listen', '192.0.2.10', '--port', '18795',
+            '--allowed-hosts', 'lens.example.com,192.0.2.10', '--cert', 'C:\ProgramData\SapLens\tls\server.pfx',
+            '--cert-password-file', 'C:\ProgramData\SapLens\tls\cert-password', '--trusted-proxies', '192.0.2.1,192.0.2.2')
+        function Without([string[]]$Arguments, [string]$Name) {
+            $out = New-Object System.Collections.Generic.List[string]
+            for ($i = 0; $i -lt $Arguments.Count; $i++) { if ($Arguments[$i] -ceq $Name) { if ($Name -ne '--network') { $i++ }; continue }; $out.Add($Arguments[$i]) }
+            , $out.ToArray()
+        }
+        function With([string[]]$Arguments, [string]$Name, [string]$Value) {
+            $copy = [string[]]$Arguments.Clone(); $copy[[array]::IndexOf($copy, $Name) + 1] = $Value; , $copy
+        }
+    }
+
+    It 'treats the same options in another order as equivalent' {
+        $reordered = @('--listen', '192.0.2.10', '--port', '18795', '--network', '--trusted-proxies', '192.0.2.1,192.0.2.2', '--cert', 'C:\ProgramData\SapLens\tls\server.pfx',
+            '--allowed-hosts', 'lens.example.com,192.0.2.10', '--cert-password-file', 'C:\ProgramData\SapLens\tls\cert-password', '--data-dir', 'C:\ProgramData\SapLens\data')
+        @(Compare-SL2ServiceArguments $reordered $script:Base).Count | Should -Be 0
+    }
+
+    It 'treats host and proxy lists as sets: order, spacing, host-name case and repeated entries do not matter' {
+        $lists = With (With $script:Base '--allowed-hosts' ' 192.0.2.10 , LENS.EXAMPLE.COM,lens.example.com') '--trusted-proxies' '192.0.2.2,192.0.2.1'
+        @(Compare-SL2ServiceArguments $lists $script:Base).Count | Should -Be 0
+    }
+
+    It 'reports every real difference in a security-sensitive value' {
+        foreach ($case in @(
+                @('--data-dir', 'C:\ProgramData\SapLens\other'), @('--listen', '192.0.2.11'), @('--port', '18796'), @('--allowed-hosts', 'lens.example.com'),
+                @('--allowed-hosts', 'lens.example.com,192.0.2.10,evil.example.net'), @('--trusted-proxies', '192.0.2.1'), @('--trusted-proxies', '192.0.2.1,192.0.2.3'),
+                @('--cert', 'C:\ProgramData\SapLens\tls\other.pfx'), @('--cert-password-file', 'C:\ProgramData\SapLens\tls\other'), @('--port', '018795x'))) {
+            $differences = @(Compare-SL2ServiceArguments (With $script:Base $case[0] $case[1]) $script:Base)
+            $differences.Count | Should -Be 1 -Because "$($case[0]) $($case[1])"
+            $differences[0] | Should -BeLike "$($case[0]) differs*"
+        }
+    }
+
+    It 'reports a missing security-sensitive option on either side' {
+        foreach ($name in '--data-dir', '--network', '--listen', '--port', '--allowed-hosts', '--trusted-proxies', '--cert', '--cert-password-file') {
+            @(Compare-SL2ServiceArguments (Without $script:Base $name) $script:Base) | Should -Be "$name is missing on the service" -Because $name
+            @(Compare-SL2ServiceArguments $script:Base (Without $script:Base $name)) | Should -Be "$name is on the service but not in the configuration" -Because $name
+        }
+    }
+
+    It 'refuses repeated, conflicting, unknown and incomplete options instead of ignoring them' {
+        @(Compare-SL2ServiceArguments ($script:Base + @('--port', '18795')) $script:Base) | Should -BeLike '*--port is given more than once*'
+        @(Compare-SL2ServiceArguments ($script:Base + @('--port', '18796')) $script:Base) | Should -BeLike '*--port is given more than once*'
+        @(Compare-SL2ServiceArguments ($script:Base + @('--network')) $script:Base) | Should -BeLike '*--network is given more than once*'
+        @(Compare-SL2ServiceArguments ($script:Base + @('--auth', 'none')) $script:Base) | Should -BeLike "*unsupported argument '--auth'*"
+        @(Compare-SL2ServiceArguments ($script:Base + @('--Port', '18795')) $script:Base) | Should -BeLike "*unsupported argument '--Port'*"   # names are case-sensitive
+        @(Compare-SL2ServiceArguments ($script:Base + @('stray')) $script:Base) | Should -BeLike "*unsupported argument 'stray'*"
+        @(Compare-SL2ServiceArguments (@('--data-dir') + (Without $script:Base '--data-dir')) $script:Base) | Should -BeLike '*--data-dir has no value*'
+        @(Compare-SL2ServiceArguments $script:Base ($script:Base + @('--port', '1'))) | Should -BeLike 'configuration:*more than once*'
+    }
+
+    It 'reads quoted paths with spaces from a service command line and compares paths without regard to case' {
+        $spaced = With (With $script:Base '--data-dir' 'C:\Program Data\SAP Lens\data') '--cert' 'C:\Program Data\SAP Lens\tls\server.pfx'
+        $line = '"C:\Program Files\SAP Lens Server\server\SapLens.Api.exe" ' + (($spaced | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' ')
+        $tokens = @(Split-SL2CommandLine $line)
+        $tokens[0] | Should -Be 'C:\Program Files\SAP Lens Server\server\SapLens.Api.exe'
+        @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) $spaced).Count | Should -Be 0
+        @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) (With $spaced '--data-dir' 'c:\program data\sap lens\DATA')).Count | Should -Be 0
+        @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) (With $spaced '--data-dir' 'C:\Program Data\SAP Lens\data2')).Count | Should -Be 1
+    }
+
+    It 'compares listen and proxy addresses as IP addresses' {
+        $v6 = With (With $script:Base '--listen' '2001:db8::10') '--trusted-proxies' '2001:DB8:0:0::1'
+        @(Compare-SL2ServiceArguments (With (With $script:Base '--listen' '2001:0db8::0010') '--trusted-proxies' '2001:db8::1') $v6).Count | Should -Be 0
     }
 }

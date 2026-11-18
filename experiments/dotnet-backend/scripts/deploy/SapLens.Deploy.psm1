@@ -97,6 +97,68 @@ function Split-SL2CommandLine([string]$CommandLine) {
     $tokens.ToArray()          # a plain sequence: callers wrap it in @(...) before indexing (one token would otherwise arrive as a string)
 }
 
+# The server options a managed service command line may carry (SapLens.Api ServerConfiguration): value options and the one flag. Names are
+# case-sensitive, as the server parses them.
+$script:ServiceValueOptions = @('--data-dir', '--listen', '--port', '--allowed-hosts', '--trusted-proxies', '--cert', '--cert-password-file')
+$script:ServiceFlagOptions = @('--network')
+
+# Parses service arguments (without the executable) into option -> value ('' for the flag). Throws on an unknown option, a stray value, a value
+# option without its value, or an option given twice (the server would silently take the last one, so a repeat is a conflict, not a duplicate).
+function ConvertTo-SL2ArgumentMap([string[]]$Arguments) {
+    $map = New-Object 'System.Collections.Generic.Dictionary[string,string]' ([StringComparer]::Ordinal)
+    for ($i = 0; $i -lt $Arguments.Count; $i++) {
+        $name = $Arguments[$i]
+        if ($map.ContainsKey($name)) { throw "option $name is given more than once" }
+        if ($script:ServiceFlagOptions -ccontains $name) { $map[$name] = ''; continue }
+        if ($script:ServiceValueOptions -cnotcontains $name) { throw "unsupported argument '$name'" }
+        if ($i + 1 -ge $Arguments.Count -or $Arguments[$i + 1].StartsWith('--', [StringComparison]::Ordinal)) { throw "option $name has no value" }
+        $i++
+        $map[$name] = $Arguments[$i]
+    }
+    $map
+}
+
+# A comma-separated list as the server reads it (entries trimmed, empty ones dropped), sorted and de-duplicated for an order-independent comparison.
+function Get-SL2ListSet([string]$Value, [switch]$Address) {
+    $items = foreach ($entry in $Value.Split(',')) {
+        $item = $entry.Trim()
+        if (-not $item) { continue }
+        $parsed = $null
+        if ($Address -and [System.Net.IPAddress]::TryParse($item, [ref]$parsed)) { $parsed.ToString() } else { $item.ToLowerInvariant() }
+    }
+    @($items | Sort-Object -Unique)
+}
+
+# Semantic comparison of an existing service's arguments with the configured ones. Returns the differences (nothing when equivalent). Order of the
+# options and of the entries in --allowed-hosts/--trusted-proxies does not matter; every security-sensitive value must be present and equal:
+# paths compare case-insensitively (Windows file system), the listen and proxy addresses as IP addresses, the port as a number, host names
+# case-insensitively (DNS). Nothing is ignored: a missing, extra, repeated or unknown option is a difference.
+function Compare-SL2ServiceArguments([string[]]$Existing, [string[]]$Wanted) {
+    $differences = New-Object System.Collections.Generic.List[string]
+    try { $have = ConvertTo-SL2ArgumentMap $Existing } catch { return "service: $($_.Exception.Message)" }
+    try { $want = ConvertTo-SL2ArgumentMap $Wanted } catch { return "configuration: $($_.Exception.Message)" }
+    foreach ($name in $script:ServiceFlagOptions + $script:ServiceValueOptions) {
+        $inHave = $have.ContainsKey($name); $inWant = $want.ContainsKey($name)
+        if (-not $inHave -and -not $inWant) { continue }
+        if (-not $inHave) { $differences.Add("$name is missing on the service"); continue }
+        if (-not $inWant) { $differences.Add("$name is on the service but not in the configuration"); continue }
+        $a = $have[$name]; $b = $want[$name]
+        $equal = switch ($name) {
+            '--network' { $true }
+            '--port' { ($a -match '^\d{1,5}$') -and ($b -match '^\d{1,5}$') -and ([int]$a -eq [int]$b) }
+            '--listen' {
+                $x = $null; $y = $null
+                [System.Net.IPAddress]::TryParse($a, [ref]$x) -and [System.Net.IPAddress]::TryParse($b, [ref]$y) -and $x.Equals($y)
+            }
+            '--allowed-hosts' { ((Get-SL2ListSet $a) -join ',') -ceq ((Get-SL2ListSet $b) -join ',') }
+            '--trusted-proxies' { ((Get-SL2ListSet $a -Address) -join ',') -ceq ((Get-SL2ListSet $b -Address) -join ',') }
+            default { [string]::Equals($a, $b, [StringComparison]::OrdinalIgnoreCase) }      # --data-dir, --cert, --cert-password-file
+        }
+        if (-not $equal) { $differences.Add("$name differs: service '$a', configuration '$b'") }
+    }
+    $differences.ToArray()          # a plain sequence: callers wrap it in @(...)
+}
+
 function Get-SL2CurrentLink($Config) { Join-SL2 $Config.ReleasesRoot 'current' }
 function Get-SL2ServiceExe($Config) { Join-SL2 (Join-SL2 (Get-SL2CurrentLink $Config) 'server') $script:Exe }
 
@@ -608,12 +670,13 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
     $adopt = $false
     if ($service.Exists -and $service.PathName -ne (Get-SL2BinaryPath $Config)) {
         # A service installed by hand (or by an earlier procedure) runs another executable path. It is adopted only on request, and only when its
-        # arguments are exactly the configured ones (data directory, network, TLS, hosts, proxies), so nothing about its runtime changes silently.
+        # arguments are equivalent to the configured ones (data directory, network, TLS, hosts, proxies), so nothing about its runtime changes silently.
+        # The comparison is semantic (option order and list order do not matter; every value must match), see Compare-SL2ServiceArguments.
         $existing = @(Split-SL2CommandLine $service.PathName)
         $wanted = @(Get-SL2ServiceArguments $Config)
-        $same = ($existing.Count - 1) -eq $wanted.Count -and -not (Compare-Object @($existing | Select-Object -Skip 1) $wanted -SyncWindow 0)
-        if (-not $same) {
-            Stop-SL2 ("The service arguments differ from the deployment configuration.`n  service: {0}`n  config:  {1}`nAlign deploy.local.json with the running service (or apply the configuration with -Action InstallService -Reconfigure -Yes)." -f (($existing | Select-Object -Skip 1) -join ' '), ($wanted -join ' '))
+        $differences = @(Compare-SL2ServiceArguments @($existing | Select-Object -Skip 1) $wanted)
+        if ($differences.Count -gt 0) {
+            Stop-SL2 ("The service arguments differ from the deployment configuration:`n  - {0}`n  service: {1}`n  config:  {2}`nAlign deploy.local.json with the running service (or apply the configuration with -Action InstallService -Reconfigure -Yes)." -f ($differences -join "`n  - "), (($existing | Select-Object -Skip 1) -join ' '), ($wanted -join ' '))
         }
         if (-not $AdoptService) { Stop-SL2 "Service $($Config.ServiceName) runs $($existing[0]), not the managed release link. Review -Action Status and deploy once with -AdoptService to bring it under managed releases (its account and arguments are kept)." }
         $adopt = $true
