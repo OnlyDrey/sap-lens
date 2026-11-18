@@ -5,14 +5,14 @@
   "WorkRoot": "C:\\sap-lens\\deploy",
   "ReleasesRoot": "C:\\sap-lens\\releases",
   "BackupRoot": "C:\\ProgramData\\SapLens\\predeploy-backups",
-  "ListenAddress": "192.168.10.20",
+  "ListenAddress": "192.0.2.10",
   "Port": 18795,
   "AllowedHosts": [
     "lens.example.com",
-    "192.168.10.20"
+    "192.0.2.10"
   ],
   "TrustedProxies": [
-    "192.168.10.10"
+    "192.0.2.1"
   ],
   "DataDirectory": "C:\\ProgramData\\SapLens\\data",
   "CertificatePath": "C:\\ProgramData\\SapLens\\tls\\server.pfx",

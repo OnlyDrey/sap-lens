@@ -30,20 +30,44 @@ function Get-SL2MigrationKey($Source) {
         Stop-SL2 'Remove and reconcile backup-key environment overrides before migration; use the data directory key pointer.'
     }
     $pointer = Join-SL2 $Source.DataDirectory 'backup-key-location.json'
-    $key = (Get-Content -LiteralPath $pointer -Raw | ConvertFrom-Json).path
+    $location = Get-Content -LiteralPath $pointer -Raw | ConvertFrom-Json
+    if ($location.schema -ne 1) { Stop-SL2 'Unsupported host backup-key pointer.' }
+    $key = $location.path
     if (-not [IO.Path]::IsPathRooted($key) -or -not (Test-Path -LiteralPath $key -PathType Leaf)) { Stop-SL2 'The host backup key pointer is missing or invalid.' }
     Test-SL2PathTree $key
     if (Test-SL2PathOverlap $Source.DataDirectory $key) { Stop-SL2 'The host backup key must be outside data.' }
+    try { if ([Convert]::FromBase64String([IO.File]::ReadAllText($key).Trim()).Length -ne 32) { throw 'invalid' } }
+    catch { Stop-SL2 'The configured host recovery key is invalid.' }
     $key
 }
 
-function Get-SL2MigrationAcl([string]$Path, [switch]$Secret) {
+function Test-SL2MigrationTls($Source) {
+    $certificate = $null
+    try {
+        $password = [IO.File]::ReadAllText($Source.CertificatePasswordFile).TrimEnd([char[]]"`r`n")
+        $certificate = [Security.Cryptography.X509Certificates.X509Certificate2]::new($Source.CertificatePath, $password, [Security.Cryptography.X509Certificates.X509KeyStorageFlags]::EphemeralKeySet)
+        if (-not $certificate.HasPrivateKey -or $certificate.NotBefore -gt [DateTime]::Now -or $certificate.NotAfter -le [DateTime]::Now) { throw 'invalid' }
+    } catch { Stop-SL2 'TLS certificate or password is invalid, expired or lacks its private key. No secrets were changed.' }
+    finally { $password = $null; if ($certificate) { $certificate.Dispose() } }
+}
+
+function Test-SL2MigrationEnvironment {
+    $machine = [Environment]::GetEnvironmentVariables('Machine')
+    foreach ($name in $machine.Keys) { if ($name -like 'SAP_LENS_V2_*') { Stop-SL2 'Machine-level SAP Lens environment overrides require manual reconciliation before migration.' } }
+    $service = Get-ItemProperty -LiteralPath 'HKLM:\SYSTEM\CurrentControlSet\Services\SapLens2' -ErrorAction Stop
+    if ($service.PSObject.Properties['Environment'] -and @($service.Environment).Count) { Stop-SL2 'Service-specific environment overrides require manual reconciliation before migration.' }
+}
+
+function Get-SL2MigrationAcl([string]$Path, [switch]$Secret, [switch]$Parent) {
     $acl = Get-Acl -LiteralPath $Path
     # Reject broad grants on private state. Return the DACL for operator review; never print file contents.
     foreach ($rule in $acl.Access) {
         $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
         if ($rule.AccessControlType -eq 'Allow' -and $sid -in @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545')) {
-            $mask = if ($Secret) { [Security.AccessControl.FileSystemRights]::ReadData } else { [Security.AccessControl.FileSystemRights]::Write }
+            if ($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) { continue }
+            $mask = if ($Secret) { [Security.AccessControl.FileSystemRights]::ReadData } elseif ($Parent) {
+                [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
+            } else { [Security.AccessControl.FileSystemRights]::Write }
             if ($rule.FileSystemRights -band $mask) { Stop-SL2 'Private source or target parent has broad NTFS access; review its ACL before migration.' }
         }
     }
@@ -74,7 +98,17 @@ function Write-SL2MigrationJournal($Journal) {
 
 function Read-SL2MigrationJournal($Config) {
     $path = Join-SL2 $Config.WorkRoot 'migration-journal.json'
-    if (Test-Path -LiteralPath $path) { Get-Content -LiteralPath $path -Raw | ConvertFrom-Json }
+    if (-not (Test-Path -LiteralPath $path)) { return }
+    $record = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+    foreach ($root in @($record.source.WorkRoot, $record.target.WorkRoot)) {
+        $mirror = Join-SL2 $root 'migration-journal.json'
+        if ($mirror -eq $path -or -not (Test-Path -LiteralPath $mirror)) { continue }
+        $other = Get-Content -LiteralPath $mirror -Raw | ConvertFrom-Json
+        if ($other.id -ne $record.id) { Stop-SL2 'Migration journal identities disagree. Reconcile the retained records manually.' 4 }
+        if (@($other.history).Count -gt @($record.history).Count) { $record = $other }
+        elseif (@($other.history).Count -eq @($record.history).Count -and $other.phase -ne $record.phase) { Stop-SL2 'Migration journals disagree. Reconcile them manually.' 4 }
+    }
+    $record
 }
 
 function Set-SL2MigrationPhase($Journal, [string]$Phase) {
@@ -146,6 +180,18 @@ function New-SL2MigrationJournal($Source, $Target, $Preflight, [string]$Inspecto
 function Set-SL2MigrationStartup([string]$Name, [string]$Mode) {
     $result = Invoke-SL2Process 'sc.exe' @('config', $Name, 'start=', $Mode) ''
     if ($result.ExitCode -ne 0) { Stop-SL2 "Could not set startup mode for $Name. Recovery requires attention." 4 }
+}
+
+function Assert-SL2DeploymentAllowed($Config) {
+    $journal = Read-SL2MigrationJournal $Config
+    if (-not $journal) { return }
+    $expected = if ($journal.phase -eq 'complete') { $journal.target } elseif ($journal.phase -eq 'rolled_back') { $journal.source } else { Stop-SL2 'Migration is unfinished. Use RecoverMigration; ordinary deployment cannot change either service.' }
+    foreach ($name in 'ServiceName', 'DataDirectory', 'ReleasesRoot', 'WorkRoot', 'BackupRoot', 'CertificatePath', 'CertificatePasswordFile', 'ListenAddress', 'Port') {
+        if ($Config.$name -ne $expected.$name) { Stop-SL2 'This configuration points at the inactive migration installation. Select the active configuration; ordinary deployment never renames services.' }
+    }
+    foreach ($name in 'AllowedHosts', 'TrustedProxies') {
+        if (@(Compare-Object @($Config.$name) @($expected.$name)).Count) { Stop-SL2 'Network configuration differs from the migration record. Review it explicitly before deployment.' }
+    }
 }
 
 function Assert-SL2MigrationRecord($Journal) {
@@ -230,10 +276,13 @@ function Test-SL2MigrationComplete($Config) {
     Assert-SL2MigrationRecord $journal
     $old = Get-SL2Service 'SapLens2'
     if ($old.State -ne 'Stopped' -or $old.StartMode -ne 'Disabled') { Stop-SL2 'The retained legacy service must be stopped and disabled.' 4 }
-    $ready = Wait-SL2Ready $journal.target $journal.manifest.source_sha $journal.manifest.version
+    $release = Get-SL2Link (Get-SL2CurrentLink $journal.target)
+    if (-not $release) { $release = $journal.staged_release }
+    $manifest = Get-Content -LiteralPath (Join-SL2 $release 'build-manifest.json') -Raw | ConvertFrom-Json
+    $ready = Wait-SL2Ready $journal.target $manifest.source_sha $manifest.version
     [pscustomobject]@{ phase = 'complete'; service = 'SapLens'; legacy_service = 'SapLens2'; legacy_service_deleted = $false
-        data_directory = $journal.target.DataDirectory; release = $journal.staged_release; commit = $journal.manifest.source_sha
-        version = $journal.manifest.version; identity = $ready.identity }
+        data_directory = $journal.target.DataDirectory; release = $release; commit = $manifest.source_sha; migration_commit = $journal.manifest.source_sha
+        version = $manifest.version; identity = $ready.identity }
 }
 
 function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable) {
@@ -295,6 +344,11 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
         Set-SL2MigrationPhase $journal 'identity_verification'
         $null = Wait-SL2Ready $Target $journal.manifest.source_sha $journal.manifest.version
         Set-SL2MigrationStartup 'SapLens' 'auto'
+        Set-SL2MigrationPhase $journal 'publishing_configuration'
+        $canonical = Join-SL2 $Target.WorkRoot 'deploy.local.json'
+        $json = $Target | Select-Object * -ExcludeProperty ConfigFile, ServiceNameConfigured | ConvertTo-Json -Depth 8
+        $stream = [IO.File]::Open($canonical, 'CreateNew', 'Write', 'None')
+        try { $bytes = [Text.Encoding]::UTF8.GetBytes($json); $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
         Set-SL2MigrationPhase $journal 'complete'
         Test-SL2MigrationComplete $Source
     } catch {
@@ -349,8 +403,9 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         $details.schema = $schema
     }
     Check 'private_state' {
+        Test-SL2MigrationEnvironment
         $details.key = Get-SL2MigrationKey $Source
-        foreach ($path in $Source.DataDirectory, $Source.CertificatePath, $Source.CertificatePasswordFile, $details.key, $Source.BackupRoot) {
+        foreach ($path in $Source.DataDirectory, $Source.CertificatePath, $Source.CertificatePasswordFile, $details.key, $Source.BackupRoot, $Source.WorkRoot) {
             if (-not (Test-Path -LiteralPath $path)) { Stop-SL2 'A required data, TLS, key or backup-history path is missing.' }
             Test-SL2PathTree $path
             $null = Get-SL2MigrationAcl $path -Secret:($path -ne $Source.DataDirectory -and $path -ne $Source.BackupRoot)
@@ -359,6 +414,8 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         foreach ($folder in $Source.DataDirectory, (Split-Path $details.key), (Split-Path $Source.CertificatePath), $Source.BackupRoot) {
             foreach ($file in @(Get-SL2TreeFiles $folder)) { $null = Get-SL2MigrationAcl $file.FullName -Secret }
         }
+        if ((Split-Path $Source.CertificatePath) -ne (Split-Path $Source.CertificatePasswordFile)) { Stop-SL2 'Source TLS files must share a directory before migration.' }
+        Test-SL2MigrationTls $Source
     }
     Check 'sqlite_consistency' {
         if (-not (Test-Path -LiteralPath $InspectorExecutable -PathType Leaf)) { Stop-SL2 'Supply -InspectorExecutable from a build containing --inspect-data (it is never installed as the service).' }
@@ -382,9 +439,10 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
             for ($j = 0; $j -lt $i; $j++) { if (Test-SL2PathOverlap $targets[$j] $path) { Stop-SL2 'Target roots must be disjoint.' } }
             $parent = Split-Path $path
             while (-not (Test-Path -LiteralPath $parent)) { $parent = Split-Path $parent }
-            $null = Get-SL2MigrationAcl $parent
+            $null = Get-SL2MigrationAcl $parent -Parent
         }
         if ((Split-Path $Target.CertificatePasswordFile) -ne (Split-Path $Target.CertificatePath)) { Stop-SL2 'Target TLS certificate and password file must share the TLS directory.' }
+        foreach ($name in 'CertificatePath', 'CertificatePasswordFile') { if ((Split-Path $Target.$name -Leaf) -cne (Split-Path $Source.$name -Leaf)) { Stop-SL2 'Migration preserves TLS filenames; only their directory changes.' } }
         $bytes = 0L
         foreach ($path in @($Source.DataDirectory, $details.release, $Source.BackupRoot, (Split-Path $Source.CertificatePath), (Split-Path $details.key)) | Select-Object -Unique) { if ($path -and (Test-Path -LiteralPath $path)) { foreach ($file in @(Get-SL2TreeFiles $path)) { $bytes += $file.Length } } }
         $details.required_bytes_per_volume = 3 * $bytes + 1GB
@@ -396,6 +454,12 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         $details.journal = $journal
         if ($journal -and $journal.phase -notin $script:FinalPhases) { Stop-SL2 'An unfinished deployment requires recovery before migration.' }
         if (Test-Path -LiteralPath (Join-SL2 $Source.WorkRoot 'migration-journal.json')) { Stop-SL2 'A migration journal already exists. Use VerifyMigration or RecoverMigration; never repeat a cutover blindly.' }
+        if (Test-Path -LiteralPath (Join-SL2 $Source.DataDirectory 'restore/pending.json')) { Stop-SL2 'An application restore is pending. Resolve it before directory migration.' }
+        $operation = Join-SL2 $Source.DataDirectory 'backups/operation.json'
+        if (Test-Path -LiteralPath $operation) {
+            $state = Get-Content -LiteralPath $operation -Raw | ConvertFrom-Json
+            if ($state.status -notin @('idle', 'ready', 'completed', 'cancelled', 'failed')) { Stop-SL2 'An application backup or restore is in progress.' }
+        }
         $details.backup_history_files = @(Get-SL2TreeFiles $Source.BackupRoot).Count
     }
     [pscustomobject]@{ safe = (@($checks | Where-Object { -not $_.passed }).Count -eq 0); checks = $checks.ToArray(); details = [pscustomobject]$details

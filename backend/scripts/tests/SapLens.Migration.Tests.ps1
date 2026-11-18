@@ -7,7 +7,8 @@ BeforeAll {
         $old = Join-Path $root 'old'; $new = Join-Path $root 'new'
         foreach ($name in 'data', 'tls', 'backup', 'history', 'work', 'releases/release/server') { New-Item -ItemType Directory -Force (Join-Path $old $name) | Out-Null }
         foreach ($name in 'tls/server.pfx', 'tls/password', 'backup/host.key', 'data/saplens.sqlite3', 'releases/release/server/SapLens.Api.exe') { Set-Content -LiteralPath (Join-Path $old $name) 'synthetic' }
-        @{ path = (Join-Path $old 'backup/host.key') } | ConvertTo-Json | Set-Content (Join-Path $old 'data/backup-key-location.json')
+        Set-Content -LiteralPath (Join-Path $old 'backup/host.key') ([Convert]::ToBase64String([byte[]](1..32)))
+        @{ schema = 1; path = (Join-Path $old 'backup/host.key') } | ConvertTo-Json | Set-Content (Join-Path $old 'data/backup-key-location.json')
         @{ source_sha = ('a' * 40); version = '2.0.0-alpha.1'; source_dirty = $false } | ConvertTo-Json | Set-Content (Join-Path $old 'releases/release/build-manifest.json')
         $script:Source = [pscustomobject]@{ ServiceName = 'SapLens2'; ServiceAccount = 'LocalSystem'; ConfigFile = (Join-Path $root 'source.json'); RepositoryPath = $root
             WorkRoot = (Join-Path $old 'work'); ReleasesRoot = (Join-Path $old 'releases'); BackupRoot = (Join-Path $old 'history'); DataDirectory = (Join-Path $old 'data')
@@ -26,6 +27,8 @@ BeforeAll {
         Mock -ModuleName $M Get-SL2Listener { foreach ($svc in $script:Services.Values) { if ($svc.State -eq 'Running') { $svc.ProcessId } } }
         Mock -ModuleName $M Get-SL2Link { '' }
         Mock -ModuleName $M Get-SL2MigrationAcl { 'synthetic-DACL' }
+        Mock -ModuleName $M Test-SL2MigrationEnvironment { }
+        Mock -ModuleName $M Test-SL2MigrationTls { }
         Mock -ModuleName $M Get-SL2FreeSpace { 100GB }
         Mock -ModuleName $M Invoke-SL2Process { [pscustomobject]@{ ExitCode = 0; Output = @() } }
         Mock -ModuleName $M Invoke-SL2Maintenance {
@@ -91,7 +94,8 @@ Describe 'Migration backup, journal and staging contracts' {
 Describe 'Journaled service cutover and interruption recovery' {
     BeforeEach {
         New-MigrationFixture
-        $script:Failure = ''; $script:BackupCount = 0
+        $script:Failure = ''; $script:BackupCount = 0; $script:ActiveLink = ''
+        Mock -ModuleName $M Get-SL2Link { param($Link) if ($Link -eq (Get-SL2CurrentLink $script:Target)) { $script:ActiveLink } else { '' } }
         Mock -ModuleName $M Invoke-SL2Process {
             param($File, $Arguments)
             if ($File -eq 'robocopy.exe') {
@@ -109,7 +113,7 @@ Describe 'Journaled service cutover and interruption recovery' {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             switch ($Arguments[0]) {
-                '--schema-info' { @{ database_exists = $false; compatible = $true; known = @('m1'); pending = @('m1'); applied = @() } }
+                '--schema-info' { if ($Arguments[2] -like '*.schema-probe-*') { @{ database_exists = $false; compatible = $true; known = @('m1'); pending = @('m1'); applied = @() } } else { @{ database_exists = $true; compatible = $true; known = @('m1'); pending = @(); applied = @('m1') } } }
                 '--inspect-data' { @{ ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ applied = @('m1') } } }
                 '--backup-local' {
                     $script:BackupCount++
@@ -129,7 +133,7 @@ Describe 'Journaled service cutover and interruption recovery' {
             if ($script:Failure -eq 'create') { throw 'interrupted after creating' }
         }
         Mock -ModuleName $M Grant-SL2Access { }
-        Mock -ModuleName $M Set-SL2Link { }
+        Mock -ModuleName $M Set-SL2Link { param($Link, $Target) $script:ActiveLink = $Target }
         Mock -ModuleName $M Start-SL2Service {
             param($Name)
             $script:Mutations.Add("start:$Name")
@@ -194,6 +198,33 @@ Describe 'Journaled service cutover and interruption recovery' {
         Add-Content -LiteralPath $script:Target.ConfigFile ' '
         { Invoke-SL2MigrationRecovery $script:Source -Rollback } | Should -Throw '*configuration changed*'
         $script:Services.SapLens.State | Should -Be 'Running'
+    }
+    It 'supports Build and Replace and ordinary release rollback with the canonical persistent paths' {
+        Mock -ModuleName $M Write-SL2Journal { param($Config, $Journal) $Journal.updated = [DateTime]::UtcNow.ToString('o'); $Journal | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath (Get-SL2JournalPath $Config) }
+        $null = Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector
+        { Assert-SL2DeploymentAllowed $script:Source } | Should -Throw '*inactive migration*'
+        { Assert-SL2DeploymentAllowed $script:Target } | Should -Not -Throw
+        $canonical = Read-SapLensSettings (Join-Path $script:Target.WorkRoot 'deploy.local.json')
+        $canonical.ServiceName | Should -Be 'SapLens'
+        $canonical.ServiceAccount | Should -Be 'LocalSystem'
+        $release = Join-Path $script:Target.ReleasesRoot 'next'
+        New-Item -ItemType Directory -Path (Join-Path $release 'server') -Force | Out-Null
+        @{ source_sha = ('b' * 40); version = '2.0.0-alpha.1' } | ConvertTo-Json | Set-Content (Join-Path $release 'build-manifest.json')
+        $null = New-SL2Run $canonical 'deploy'
+        (Invoke-SL2Deploy $canonical $release ('b' * 40)).deployed | Should -BeTrue
+        (Test-SL2MigrationComplete $canonical).commit | Should -Be ('b' * 40)
+        $script:Services.SapLens2.State | Should -Be 'Stopped'
+        (Invoke-SL2Rollback $canonical '').rolled_back | Should -BeTrue
+        $script:ActiveLink | Should -Not -Be $release
+        $script:Services.SapLens2.StartMode | Should -Be 'Disabled'
+    }
+    It 'blocks ordinary service changes while migration is unfinished' {
+        $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $journal = New-SL2MigrationJournal $script:Source $script:Target $preflight $script:Inspector
+        Set-SL2MigrationPhase $journal 'verified_backup'
+        { Invoke-SL2Deploy $script:Source 'unused' 'unused' } | Should -Throw '*Migration is unfinished*'
+        { Install-SL2Service $script:Source -Reconfigure } | Should -Throw '*Migration is unfinished*'
+        { Invoke-SL2Recover $script:Source } | Should -Throw '*Migration is unfinished*'
     }
 }
 

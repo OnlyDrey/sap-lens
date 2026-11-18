@@ -56,6 +56,10 @@ public sealed class MaintenanceCommandsTests : IAsyncLifetime
     [Fact]
     public void Inspection_checks_private_copies_and_leaves_source_files_unchanged()
     {
+        // Other parallel host fixtures clear pooled SQLite connections on shutdown. Keep a leased,
+        // non-pooled source connection alive so that their cleanup cannot checkpoint away our WAL/SHM.
+        using var sourceConnection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={Path.Combine(Data, ApplicationBackups.DatabaseEntry)};Pooling=False");
+        sourceConnection.Open();
         var files = Directory.GetFiles(Data, "*", SearchOption.AllDirectories);
         static string Hash(string path)
         {

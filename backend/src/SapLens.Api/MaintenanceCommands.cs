@@ -143,7 +143,6 @@ public static class MaintenanceCommands
         }
         finally
         {
-            SqliteConnection.ClearAllPools();
             Directory.Delete(scratch, true);
         }
     }

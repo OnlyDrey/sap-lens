@@ -9,6 +9,7 @@ $ErrorActionPreference = 'Stop'
 
 $script:Exe = 'SapLens.Api.exe'
 $script:Lock = $null; $script:RunFolder = $null; $script:RunLog = $null; $script:RunId = ''
+$script:HostLock = $null
 # Service names: SapLens for new installations; SapLens2 is the name of earlier installations, detected and kept until MigrateService renames it.
 $script:ServiceName = 'SapLens'; $script:LegacyServiceName = 'SapLens2'
 # Configuration lookup when -ConfigFile is not given: the environment variable (current, then earlier name), then the default files in this order.
@@ -321,13 +322,21 @@ function Set-SL2Phase($Config, $Journal, [string]$Phase) {
 
 # One deployment operation at a time per host: an exclusive handle, released by Windows when the process ends (also after Ctrl+C or a dropped SSH session).
 function Enter-SL2Lock($Config) {
+    # Serialize across source AND target WorkRoot during directory migration.
+    $script:HostLock = [Threading.Mutex]::new($false, 'Global\SapLens.Deployment')
+    $acquired = $false
+    try { $acquired = $script:HostLock.WaitOne(0) } catch [Threading.AbandonedMutexException] { $acquired = $true }
+    if (-not $acquired) { $script:HostLock.Dispose(); $script:HostLock = $null; Stop-SL2 'Another deployment operation is running on this host.' }
     New-Item -ItemType Directory -Force $Config.WorkRoot | Out-Null
     $path = Join-SL2 $Config.WorkRoot 'deployment.lock'
     try { $script:Lock = [System.IO.File]::Open($path, 'OpenOrCreate', 'ReadWrite', 'None') }
-    catch { Stop-SL2 'Another deployment operation is running on this host (deployment.lock is held).' }
+    catch { $script:HostLock.ReleaseMutex(); $script:HostLock.Dispose(); $script:HostLock = $null; Stop-SL2 'Another deployment operation is running on this host (deployment.lock is held).' }
 }
 
-function Exit-SL2Lock { if ($script:Lock) { $script:Lock.Dispose(); $script:Lock = $null } }
+function Exit-SL2Lock {
+    if ($script:Lock) { $script:Lock.Dispose(); $script:Lock = $null }
+    if ($script:HostLock) { $script:HostLock.ReleaseMutex(); $script:HostLock.Dispose(); $script:HostLock = $null }
+}
 
 function New-SL2Run($Config, [string]$Action) {
     $id = '{0:yyyyMMdd-HHmmss}-{1}' -f [DateTime]::UtcNow, $Action
@@ -454,6 +463,7 @@ function Set-SL2ServiceEntry($Config, [string]$Binary, [bool]$Exists, [string]$S
 }
 
 function Install-SL2Service($Config, [switch]$Reconfigure) {
+    Assert-SL2DeploymentAllowed $Config
     $service = Get-SL2Service $Config.ServiceName
     if ($service.Exists -and -not $Reconfigure) { Stop-SL2 "Service $($Config.ServiceName) exists; use -Reconfigure to update its command line and permissions." }
     $other = Get-SL2OtherService $Config
@@ -504,8 +514,11 @@ function Get-SL2Status($Config) {
         if ($identityResponse.Status -eq 200) { $identity = $identityResponse.Body | ConvertFrom-Json }
     }
     $journal = Read-SL2Journal $Config
+    $migration = Read-SL2MigrationJournal $Config
     [pscustomobject]@{
         service_model = $model; service_name = $Config.ServiceName; service = $service; expected_binary_path = Get-SL2BinaryPath $Config
+        migration_phase = $(if ($migration) { $migration.phase } else { $null })
+        migration_recovery_required = [bool]($migration -and $migration.phase -notin @('complete', 'rolled_back'))
         legacy_service_name = ($Config.ServiceName -eq $script:LegacyServiceName); other_service = Get-SL2OtherService $Config
         binary_path_matches = ($service.Exists -and (Test-SL2ServiceBinary $service.PathName $Config))
         current_release = $current; current_commit = $(if ($manifest) { $manifest.source_sha } else { $null }); current_version = $(if ($manifest) { $manifest.version } else { $null })
@@ -612,6 +625,7 @@ function Invoke-SL2RollbackCore($Config, $Journal, [string]$Target) {
 }
 
 function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [switch]$DryRun, [switch]$FirstInstall, [switch]$AdoptService) {
+    Assert-SL2DeploymentAllowed $Config
     $previousJournal = Read-SL2Journal $Config
     if ($previousJournal -and $previousJournal.phase -in $script:CriticalPhases) {
         Stop-SL2 "An earlier deployment ($($previousJournal.run)) was interrupted in phase '$($previousJournal.phase)'. Run -Action Recover first."
@@ -696,6 +710,7 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
 }
 
 function Invoke-SL2Recover($Config) {
+    Assert-SL2DeploymentAllowed $Config
     $journal = Read-SL2Journal $Config
     if (-not $journal) { Write-SL2Log 'no deployment journal: nothing to recover'; return [pscustomobject]@{ recovered = $false; reason = 'no journal' } }
     if ($journal.phase -in $script:FinalPhases) { Write-SL2Log "last deployment $($journal.run) ended in '$($journal.phase)': nothing to recover"; return [pscustomobject]@{ recovered = $false; phase = $journal.phase } }
@@ -716,6 +731,7 @@ function Invoke-SL2Recover($Config) {
 }
 
 function Invoke-SL2Rollback($Config, [string]$ToRelease) {
+    Assert-SL2DeploymentAllowed $Config
     $journal = Read-SL2Journal $Config
     if ($journal -and $journal.phase -in $script:CriticalPhases) { Stop-SL2 'A deployment is in progress or interrupted; run -Action Recover.' }
     $target = if ($ToRelease) { $ToRelease } elseif ($journal -and $journal.from_release) { $journal.from_release } else { '' }

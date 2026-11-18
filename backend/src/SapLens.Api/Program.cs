@@ -110,7 +110,8 @@ try
     var settings = ServerConfiguration.Parse(args, Environment.GetEnvironmentVariable);
     var app = SapLensHost.Build(settings, [], builder =>
     {
-        builder.Services.AddWindowsService(o => o.ServiceName = "SapLens2");
+        // Canonical name for new own-process services. Legacy SCM registrations remain supported by deployment detection.
+        builder.Services.AddWindowsService(o => o.ServiceName = "SapLens");
         // A Windows service has no console: keep the same (secret-free) log lines in <data-dir>\logs.
         if (Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService())
             builder.Logging.AddProvider(new FileLoggerProvider(Path.Combine(settings.DataDirectory, "logs"), "server"));
