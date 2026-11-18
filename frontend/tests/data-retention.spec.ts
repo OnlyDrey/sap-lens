@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import {openSettings} from './support'
 
 const category = (state: string, months = 24, approval: unknown = null) => ({ months, state, approval })
 const status = (source: string, review: string, history: unknown[] = [], backup = 'awaiting_approval') => ({
@@ -12,14 +13,12 @@ const sourcePreview = {
   protected: { referenced: 4, recent: 1, kept_newest: 2, unclassified: 1, unrecognised: 0 }, sample: [], truncated: false,
 }
 const reviewPreview = {
-  months: 24, count: 1, protected: 3, digest: 'd'.repeat(64), reasons: { 'Active or incomplete review period': 2, 'Newest completed period (comparison baseline)': 1 },
-  sample: [{ name: 'Q1 2024 review', state: 'Closed', completed: '2024-04-15T00:00:00+00:00', age_days: 900, decisions: 42, actions: 3 }], protected_sample: [], truncated: false,
+  months: 24, count: 0, protected: 3, digest: 'd'.repeat(64), reasons: { 'Immutable audit evidence': 3 },
+  sample: [], protected_sample: [{name: 'Q1 2024 review', state: 'Closed', reason: 'Immutable audit evidence'}], truncated: false,
 }
 
 async function open(page: import('@playwright/test').Page) {
-  await page.goto('/#session=browser-test-session')
-  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
-  await page.getByRole('tab', { name: 'Backup & Restore', exact: true }).click()
+  await openSettings(page, 'Backup & Restore')
   await page.getByRole('tab', { name: 'Retention', exact: true }).click()
 }
 
@@ -31,45 +30,102 @@ test('source and review retention are separate, each needs its own preview and a
   await page.route('**/api/retention/approve', async route => { const body = route.request().postDataJSON(); posted.push(body); approved[body.category as 'source' | 'review'] = true; await route.fulfill({ json: {} }) })
   await open(page)
   const panel = page.getByRole('region', { name: 'Data retention', exact: true })
-  const source = panel.getByRole('region', { name: 'Source retention' })
-  const review = panel.getByRole('region', { name: 'Review retention' })
-  await expect(source).toContainText('Waiting for administrator approval')
-  await expect(review).toContainText('Completed review periods')
-  await expect(panel.getByRole('button', { name: /Approve .* cleanup/ })).toHaveCount(0)        // nothing can be approved before a preview is seen
-  await review.getByRole('button', { name: 'Preview review cleanup' }).click()
-  await expect(review).toContainText('1 completed review period(s) eligible, 3 protected')
+  await expect(panel.locator('tbody tr')).toHaveCount(3)
+  const sourceRow = panel.getByRole('row').filter({hasText: 'Source revisions'})
+  await expect(sourceRow).toContainText('Needs approval')
+  await expect(panel.getByRole('button', { name: /^Approve / })).toHaveCount(0)
+  await panel.getByRole('button', {name: 'Configure Review evidence', exact: true}).click()
+  const dialog = page.getByRole('dialog', {name: 'Configure Review evidence'})
+  const review = dialog.getByRole('region', {name: 'Review retention'})
+  await expect(dialog.getByRole('button',{name:/^Approve /})).toHaveCount(0)
+  await review.getByRole('button',{name:'Preview review cleanup',exact:true}).click()
+  await expect(review).toContainText('3 review periods are protected')
   await expect(review).toContainText('Q1 2024 review')
-  await expect(review).toContainText('Protected: 2 · Active or incomplete review period')
-  await expect(review).toContainText('can be undone')
-  await expect(source.getByRole('button', { name: 'Approve source cleanup' })).toHaveCount(0)    // the other category is unaffected
-  const approve = review.getByRole('button', { name: 'Approve review cleanup' })
+  await expect(review).toContainText('Immutable audit evidence')
+  await expect(review).toContainText('does not delete immutable periods')
+  expect(approved.source).toBe(false)
+  const approve = review.getByRole('button', { name: 'Approve review policy' })
   await expect(approve).toBeDisabled()
   await review.getByRole('checkbox', { name: /I reviewed this review preview/ }).check()
   await approve.click()
-  await expect(review).toContainText('Automatic cleanup approved')
-  await expect(source).toContainText('Waiting for administrator approval')
+  await expect(review).toContainText('Policy approved; evidence protected')
   expect(posted).toEqual([{ category: 'review', confirm: true, preview_digest: 'd'.repeat(64) }])
-  await source.getByRole('button', { name: 'Preview source cleanup' }).click()
+  await dialog.getByRole('button', {name: 'Close', exact: true}).click()
+  await expect(sourceRow).toContainText('Needs approval')
+  await panel.getByRole('button', {name: 'Preview Source revisions cleanup', exact: true}).click()
+  const source = page.getByRole('dialog', {name: 'Configure Source revisions'}).getByRole('region', {name: 'Source retention'})
   await expect(source).toContainText('3 item(s), 3.0 MB eligible')
   await expect(source).toContainText('1 waiting to be classified')
 })
 
 test('retention periods are saved explicitly, bounded and independent per category', async ({ page }) => {
   const saved: unknown[] = []
-  await page.route('**/api/retention', route => route.fulfill({ json: status('approved', 'approved') }))
-  await page.route('**/api/retention/policy', async route => { saved.push(route.request().postDataJSON()); await route.fulfill({ json: status('approved', 'awaiting_approval') }) })
+  let current = status('approved', 'approved')
+  await page.route('**/api/retention', route => route.fulfill({ json: current }))
+  await page.route('**/api/retention/policy', async route => { const body=route.request().postDataJSON();saved.push(body);current=status('approved','awaiting_approval');current.policy.review_months=body.review_months;current.categories.review.months=body.review_months;await route.fulfill({ json: current }) })
   await open(page)
   const panel = page.getByRole('region', { name: 'Data retention', exact: true })
   const save = panel.getByRole('button', { name: 'Save retention settings' })
   await expect(save).toBeDisabled()
-  const reviewMonths = panel.getByRole('spinbutton', { name: 'Review retention period (months)' })
+  await panel.getByRole('button', {name: 'Configure Review evidence'}).click()
+  const dialog = page.getByRole('dialog', {name: 'Configure Review evidence'})
+  const reviewMonths = dialog.getByRole('spinbutton', { name: 'Review retention period (months)' })
   await reviewMonths.fill('3')
   await expect(reviewMonths).toHaveValue('6')
-  await reviewMonths.fill('36')
-  await expect(panel.getByRole('spinbutton', { name: 'Source retention period (months)' })).toHaveValue('24')
-  await save.click()
-  expect(saved).toEqual([{ enabled: true, months: 24, review_months: 36, backup_days: 90 }])
+  await reviewMonths.fill('200')
+  await expect(reviewMonths).toHaveValue('120')
+  await reviewMonths.fill('12')
+  await dialog.getByRole('button', {name: 'Save policy', exact: true}).click()
+  await expect(dialog.getByText('Retention policy saved. Shortened periods require renewed approval.')).toBeVisible()
+  await dialog.getByRole('button', {name: 'Close', exact: true}).click()
+  await expect(panel.getByRole('row').filter({hasText: 'Source revisions'})).toContainText('24 months')
+  await expect(panel.getByRole('row').filter({hasText: 'Review evidence'})).toContainText('12 months')
+  await expect(panel.getByRole('row').filter({hasText: 'Review evidence'})).toContainText('Needs approval')
+  expect(saved).toEqual([{ enabled: true, months: 24, review_months: 12, backup_days: 90 }])
 })
+
+test('restore holds keep previews available, block approval and retain expandable history', async ({page}) => {
+  const current = status('awaiting_approval','awaiting_approval',[{at:'2026-11-18T09:00:00Z',trigger:'restore',status:'changed',category:'source',months:24,by:'admin.synthetic',bytes:0,message:'Hold applied; previous approvals are void.'}])
+  current.quiet_until='2099-01-01T00:00:00Z'
+  let approved=0
+  await page.route('**/api/retention', route=>route.fulfill({json:current}))
+  await page.route('**/api/retention/preview?category=source', route=>route.fulfill({json:sourcePreview}))
+  await page.route('**/api/retention/approve', route=>{approved++;return route.fulfill({json:{}})})
+  await open(page)
+  const panel=page.getByRole('region',{name:'Data retention',exact:true})
+  await expect(panel).toContainText('No cleanup until')
+  await panel.getByRole('button',{name:'Preview Source revisions cleanup',exact:true}).click()
+  const dialog=page.getByRole('dialog',{name:'Configure Source revisions'})
+  await expect(dialog).toContainText('3 item(s), 3.0 MB eligible')
+  await dialog.getByRole('checkbox',{name:/I reviewed this source preview/}).check()
+  await expect(dialog.getByRole('button',{name:'Approve source cleanup',exact:true})).toBeDisabled()
+  expect(approved).toBe(0)
+  await dialog.getByRole('button',{name:'Close',exact:true}).click()
+  await panel.getByText('Retention history',{exact:true}).click()
+  await expect(panel.getByText(/Hold applied; previous approvals are void/)).toBeVisible()
+})
+
+for(const [width,theme] of [[375,'dark'],[1280,'light']] as const){
+ test(`retention policies stay compact at ${width}px in ${theme}`,async({page,request},testInfo)=>{
+  await request.post('/api/configuration/theme',{data:{theme}})
+  try{
+   await page.setViewportSize({width,height:900})
+   await page.route('**/api/retention',route=>route.fulfill({json:status('awaiting_approval','awaiting_approval')}))
+   await open(page)
+   const panel=page.getByRole('region',{name:'Data retention',exact:true})
+   await expect(panel.locator('tbody tr')).toHaveCount(3)
+   await expect(page.locator('html')).toHaveAttribute('data-theme',theme)
+   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.clientWidth)).toBe(true)
+   await panel.scrollIntoViewIfNeeded()
+   await page.screenshot({path:testInfo.outputPath(`retention-${width}-${theme}.png`),fullPage:true})
+   await panel.getByRole('button',{name:'Configure Automatic backups',exact:true}).click()
+   const dialog=page.getByRole('dialog',{name:'Configure Automatic backups'})
+   await expect(dialog.getByRole('spinbutton',{name:'Backup retention period (days)'})).toHaveValue('90')
+   await dialog.getByRole('button',{name:'Close',exact:true}).click()
+   await expect(panel.getByRole('button',{name:'Configure Automatic backups',exact:true})).toBeFocused()
+  }finally{await request.post('/api/configuration/theme',{data:{theme:'dark'}})}
+ })
+}
 
 test('backup retention shows its 90-day coverage, protects manual and migration backups and needs its own approval', async ({ page }) => {
   let approved = false
@@ -85,7 +141,8 @@ test('backup retention shows its 90-day coverage, protects manual and migration 
   await page.route('**/api/retention/approve', async route => { posted.push(route.request().postDataJSON()); approved = true; await route.fulfill({ json: {} }) })
   await open(page)
   const panel = page.getByRole('region', { name: 'Data retention', exact: true })
-  const backup = panel.getByRole('region', { name: 'Backup retention' })
+  await panel.getByRole('button', {name: 'Configure Automatic backups'}).click()
+  const backup = page.getByRole('dialog', {name: 'Configure Automatic backups'}).getByRole('region', { name: 'Backup retention' })
   await expect(backup.getByRole('spinbutton', { name: 'Backup retention period (days)' })).toHaveValue('90')
   await expect(backup).toContainText('Automatic backups: 4 · manual (kept): 2 · migration (kept): 1')
   await expect(backup.getByLabel('Backup retention rules')).toContainText('Automatic backups older than 90 days are removed only after approval')

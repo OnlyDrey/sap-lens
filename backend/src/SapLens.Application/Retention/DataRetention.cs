@@ -275,6 +275,7 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
     {
         var now = clock.GetUtcNow();
         var state = Read(Data);
+        RefuseRestoreHold(state, now);
         var period = Period(state, category);
         var removed = new JsonObject();
         long bytes = 0;
@@ -348,6 +349,7 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
         await Gate.WaitAsync(ct);
         try
         {
+            RefuseRestoreHold(Read(Data), clock.GetUtcNow());
             var found = await PreviewAsync(category, ct);
             if ((string?)found["digest"] != digest) throw new RetentionException("The data changed since the preview was created. Review the new preview and approve again.");
             var state = Read(Data);
@@ -369,6 +371,13 @@ public sealed partial class DataRetention(DatabaseOptions options, IDbContextFac
             return await ExecuteAsync(category, "manual", actor, ct);
         }
         finally { Gate.Release(); }
+    }
+
+    private static void RefuseRestoreHold(JsonObject state, DateTimeOffset now)
+    {
+        if (DateTimeOffset.TryParse((string?)state["quiet_until"], System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.AssumeUniversal, out var until) && until > now)
+            throw new RetentionException($"Cleanup is paused after a restore until {Iso(until)}. Previews remain available; approve again after the hold ends.");
     }
 
     public JsonObject SetPolicy(bool enabled, int months, int? reviewMonths, int? backupDays, string actor)

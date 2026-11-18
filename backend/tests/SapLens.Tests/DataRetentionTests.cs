@@ -26,6 +26,26 @@ public sealed class DataRetentionTests
     }
 
     [Fact]
+    public async Task Restore_hold_blocks_manual_approval_and_preserves_eligible_revisions()
+    {
+        var (env, retention, _) = await FiveRevisionsAsync();
+        await using var owned = env;
+        var before = await retention.PreviewAsync("source", default);
+        Assert.True((int)before["count"]! > 0);
+        var records = await env.QueryAsync(db => db.DatasetRecords.CountAsync());
+        DataRetention.AfterRestore(env.Options.DataDirectory, env.Clock.GetUtcNow());
+        var during = await retention.PreviewAsync("source", default);
+        var error = await Assert.ThrowsAsync<RetentionException>(() => retention.ApproveAsync("source", (string)during["digest"]!, "admin.synthetic", default));
+        Assert.Contains("paused after a restore", error.Message);
+        Assert.Equal(records, await env.QueryAsync(db => db.DatasetRecords.CountAsync()));
+        Assert.Null(retention.Status()["categories"]!["source"]!["approval"]);
+        env.Clock.Advance(TimeSpan.FromDays(7).Add(TimeSpan.FromSeconds(1)));
+        var after = await retention.PreviewAsync("source", default);
+        var result = await retention.ApproveAsync("source", (string)after["digest"]!, "admin.synthetic", default);
+        Assert.NotEmpty(result["removed"]!.AsObject());
+    }
+
+    [Fact]
     public async Task Only_old_unreferenced_superseded_revisions_are_removed_after_a_matching_approval()
     {
         var (env, retention, revisions) = await FiveRevisionsAsync();
