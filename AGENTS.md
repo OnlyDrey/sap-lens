@@ -4,17 +4,27 @@
 - Each cloud task is isolated. Use the existing checkout; do not create a Git worktree unless requested.
 - SAP role exports, local settings, logs, .env files and credentials must not be committed or included in release artifacts.
 - The desktop server binds only to 127.0.0.1, preferring port 18743 and securely falling back to an OS-assigned port. Do not weaken local host/origin checks, expose the API to a LAN, or cache role data in a service worker.
-- Validate every change with the Progressive test validation policy below (Level 1 and 2 during development). `python -m unittest discover -s backend/tests -v` and the complete browser suite are explicit FULL checks, not automatic development steps. Keep frontend type/build checks proportional to affected code.
-- Windows packaging and desktop lifecycle checks run in `.github/workflows/build-windows.yml`.
+- Validate every change with the Progressive test validation policy below (Level 1 and 2 during development). The whole .NET suite
+  (`dotnet test backend/tests/SapLens.Tests`) and the complete browser suite are explicit FULL checks, not automatic development steps. Keep
+  frontend type/build checks proportional to affected code.
+- **SAP Lens 2 (.NET, `backend/`) is the primary implementation. SAP Lens 1 (Python, `legacy/v1/`) is archived:** no new features there; change it
+  only to keep shared tooling (the browser-test server, migration reference tools) working. Active tooling never lives under `legacy/`, and
+  archived tooling never moves back to the root.
+- The GitHub workflows in `.github/workflows` still describe the SAP Lens 1 pipeline with pre-promotion paths; moving CI to .NET needs owner
+  authorization (see CI policy). SAP Lens 2 Windows release, installer and deployment scripts are in `backend/scripts`.
 
 ## Stack and conventions
 
-Verified against `backend/requirements*.txt`, `frontend/package.json` and configs.
+Verified against `backend/` project files, `frontend/package.json` and configs.
 
-- **Backend:** Python 3.12 (CI and Linux lifecycle tests require it; 3.13 fails
-  them), FastAPI, Pydantic, Uvicorn, `unittest` in `backend/tests`. App factory
-  `backend/main.py:create_app`, routers in `backend/routers/`, one module per domain
-  (`csv_*`, `user_access`, `sod_*`). SoD reports use python-docx and ReportLab.
+- **Backend (SAP Lens 2):** .NET 10, ASP.NET Core, EF Core SQLite, xUnit. Solution `backend/SapLens.slnx`; projects in `backend/src`:
+  `SapLens.Domain` (ported business rules: CSV, catalogue, users, SoD), `SapLens.Persistence` (SQLite schema, migrations, write coordinator,
+  backups), `SapLens.Application` (imports, jobs, reviews, accounts, backups, retention), `SapLens.Api` (Server host and the v1-compatible API the
+  React UI calls, `V1*.cs`), `SapLens.Desktop` (WinForms + WebView2), `SapLens.Documents` (DOCX/PDF), `SapLens.Cli`. Tests in
+  `backend/tests/SapLens.Tests`; release, installer and deployment scripts in `backend/scripts` (Pester and Bash tests in `backend/scripts/tests`);
+  Python reference tools that import v1 to write comparison fixtures in `backend/tools`.
+- **Legacy (SAP Lens 1, archived):** Python 3.12 FastAPI in `legacy/v1/backend` with its own `requirements*.txt` and `unittest` suite; v1 build,
+  packaging and test tooling in `legacy/v1/scripts`. See `legacy/v1/README.md` for what runs in place.
 - **Frontend:** React 18, TypeScript, Vite, TanStack Query, Radix ScrollArea,
   lucide-react, Playwright. Node 24 or 25 is enforced by `engines` and the build gate.
   There is no other UI, state or CSS framework.
@@ -36,23 +46,22 @@ Verified against `backend/requirements*.txt`, `frontend/package.json` and config
 
 ## Commands
 
-From the repository root (full list and risk-based selection:
-[Testing](docs/development/TESTING.md)).
+From the repository root ([development](docs/development/README.md)).
 
-- Profiles: `python scripts/run-tests.py quick | targeted [feature...] | regression | full`; browser categories by tag
-  (`@visual`, `@a11y`, `@workflow`, `@component`, `@smoke`, `@regression`) and theme/viewport rules are in [Testing](docs/development/TESTING.md#test-architecture)
-  (`list` shows features; ownership in `scripts/test-map.json`, see [Testing](docs/development/TESTING.md)).
-- Backend: `python scripts/run-tests.py full --backend` (quiet, buffered; `--test NAME` for one test) or
-  `python -m unittest discover -s backend/tests -v` in a Python 3.12 venv
-  with `backend/requirements-dev.txt`; one module with `-p test_<name>.py`.
-- Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run build`,
-  `npm run test:browser`. Build first: Playwright serves `dist` through
-  `scripts/testing/serve-browser-tests.py` on 127.0.0.1:18745, and a stale server on that
+- .NET: `cd backend && dotnet build SapLens.slnx -c Release`; tests `dotnet test tests/SapLens.Tests -c Release --no-build --filter
+  "FullyQualifiedName~<Class>"` (affected classes), the whole suite only as FULL. The build embeds `frontend/dist`; build the frontend first.
+- Scripts: `pwsh -NoProfile -Command "Invoke-Pester backend/scripts/tests"` (deployment state machine, test launcher),
+  `bash backend/scripts/tests/deploy-windows.test.sh` (SSH orchestrator), PowerShell syntax via the parser for changed scripts.
+- Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run test:unit`, `npm run build`,
+  `npm run test:browser`. Build first: Playwright serves `dist` through the SAP Lens 1 server
+  (`legacy/v1/scripts/testing/serve-browser-tests.py`) on 127.0.0.1:18745, and a stale server on that
   port blocks the run. A prepared Chromium may need `PLAYWRIGHT_EXECUTABLE_PATH`;
   report the override. Target with `npm run test:browser -- tests/<file>.spec.ts --grep <name>`.
-- Static: `python -m ruff check backend scripts`, `python scripts/check-docs.py`, `python scripts/check-workflows.py`,
-  `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`,
-  `npm audit --omit=dev`, `python -m pip check`, pip-audit per [CI](docs/development/CI.md).
+- Static: `python scripts/check-docs.py`, `python scripts/check-secrets.py`, `python -m ruff check scripts legacy/v1 backend/tools`,
+  `python legacy/v1/scripts/check-workflows.py`, `node legacy/v1/scripts/sync-lucide-catalog.mjs --check`, `git diff --check`, `npm audit --omit=dev`.
+- Legacy v1 (Python 3.12 venv with `legacy/v1/backend/requirements-dev.txt`): `cd legacy/v1 && python -m unittest discover -s backend/tests`.
+  The v1 runner profiles (`legacy/v1/scripts/run-tests.py`, `validate.py`) and packaging assume the pre-promotion layout; use a checkout of
+  `604f21e` for them ([legacy/v1](legacy/v1/README.md), [v1 testing guide](docs/legacy/v1/development/TESTING.md)).
 
 ## DOM order, focus and reading sequence
 
@@ -88,10 +97,11 @@ From the repository root (full list and risk-based selection:
   indirectly from them (no `workflow_run`, `workflow_call`, `schedule`, `pull_request(_target)` or repository-event triggers anywhere).
 - Intermediate and final development pushes to `work` do not trigger CI. Do not run CI manually (`workflow_dispatch` of Full Validation, Build Windows
   Application or Build Deployment Packages) unless the repository owner explicitly authorizes it for that run.
-- Validation moves local: run QUICK/TARGETED (`python scripts/run-tests.py quick|targeted`) during a phase, REGRESSION
-  (`python scripts/run-tests.py regression`) before pushing a finished phase, and FULL (`python scripts/run-tests.py full`) before merging into `main`.
+- Validation moves local: run QUICK/TARGETED (the affected .NET test classes, Pester and the affected browser specs) during a phase, REGRESSION
+  (the focused deployment set and affected suites) before pushing a finished phase, and FULL (the whole .NET suite, scripts tests, frontend and
+  browser suites) before merging into `main`.
 - Existing validation jobs, security checks and release protections stay in place; they only run on `main` pushes or on an authorized manual dispatch.
-  `scripts/check-workflows.py` and `backend/tests/test_workflows.py` enforce the trigger policy; changing a trigger requires updating those contracts deliberately.
+  `legacy/v1/scripts/check-workflows.py` and `legacy/v1/backend/tests/test_workflows.py` enforce the trigger policy; changing a trigger requires updating those contracts deliberately.
 - Never merge into `main`, publish a release or tag without explicit authorization. When a commit that only changes workflows must be pushed to `work`,
   `[skip ci]` in its message is an additional safeguard.
 
@@ -111,14 +121,15 @@ From the repository root (full list and risk-based selection:
 
 Applies to every change: features, fixes, refactoring, UI, backend and test infrastructure. Agents apply it automatically; nobody
 has to ask for it. The normal loop is *change -> relevant tests -> fix -> affected tests -> continue*; broad regression happens at
-planned checkpoints, never after every correction. Commands and selection rules: [Testing](docs/development/TESTING.md#progressive-validation).
+planned checkpoints, never after every correction. Commands: [development](docs/development/README.md).
 
 1. **Level 1, direct (seconds to minutes, always):** run only the tests of the changed code plus the matching static checks
-   (TypeScript, ESLint, ruff). Browser: `python scripts/run-tests.py targeted --spec NAME [--grep TEXT]`; backend:
-   `targeted --test module[.Class[.test]]`; type/lint: `npm run check:types`, `npx eslint <files>`, `python -m ruff check <files>`.
+   (TypeScript, ESLint, ruff, PowerShell parser). Browser: `npm run test:browser -- tests/NAME.spec.ts [--grep TEXT]`; backend:
+   `dotnet test ... --filter "FullyQualifiedName~Class[.Method]"`; type/lint: `npm run check:types`, `npx eslint <files>`, `python -m ruff check <files>`.
    One browser process. After a fix, rerun only what failed or what the fix touches.
 2. **Level 2, affected functionality:** the complete affected spec files and backend modules plus direct dependents
-   (`python scripts/run-tests.py quick`, or `targeted` without features, selects them from the import graphs). No unrelated suites.
+   (the test classes of the changed projects and their callers; for deployment scripts the focused filter of `Get-SL2TestFilter focused`
+   plus Pester). No unrelated suites.
 3. **Level 3, stability and integration, when warranted:** repeat previously intermittent tests (`--repeat-each 3` to `5`), test the
    integration boundary, and use several browser processes only when concurrency is part of the behaviour, with the smallest group.
 4. **Level 4, checkpoints:** TARGETED (`targeted <feature>...`) after Level 2 when the change crosses components; REGRESSION at the end
@@ -133,8 +144,7 @@ planned checkpoints, never after every correction. Commands and selection rules:
 - Commit and push validated, independently functional phases to `origin/work`; report targeted results separately from pending
   REGRESSION/FULL and from GitHub Actions. Preserve user instructions that explicitly delay a push.
 - Test storage is disposable and isolated from production paths. One browser worker per Playwright process; parallelism uses
-  separate processes with their own server, port and storage. `python scripts/validate.py --level quick|targeted|regression|full`
-  runs the same profiles with isolated storage and keeps a log under `build/validation/`.
+  separate processes with their own server, port and storage.
 - Native Windows/WebView2/SCM, real systemd, reboot/recovery and UNC acceptance are reported separately from Linux results. Never claim
   Windows validation that did not run on Windows.
 
@@ -164,29 +174,25 @@ planned checkpoints, never after every correction. Commands and selection rules:
 ## Architecture and documentation map
 
 - Preserve approved history and private data; publication limits are in Git workflow.
-- SoD: evidence in `sod_import`/`sod_analysis`, pure derivations in `sod_governance`, context
-  and filters in `sod_scope`, private decisions in `sod_decisions`, periods and reports in
-  `sod_periods`/`sod_reports`; routers `backend/routers/sod*.py`; UI in
+- SoD (SAP Lens 2): rules in `backend/src/SapLens.Domain/Sod`, decisions in `SapLens.Application/SodDecisionStore.cs`, API in
+  `backend/src/SapLens.Api/V1Sod*.cs`, `SodScope.cs`, `SodPeriods.cs`, `SodReports.cs` (v1 reference: `legacy/v1/backend/sod_*`); UI in
   `frontend/src/components/Sod` plus Shared `MatrixGrid`/`SidePanel`. Review decisions never
   change conflict detection, snapshots and decisions are immutable private data, reports render
   from one frozen model. Browser specs share `frontend/tests/sod-fixture.ts` (unique users per
   test because reset keeps review history). Guides: [SoD workflow](docs/features/SOD.md),
-  [SoD architecture](docs/architecture/SOD.md), [SoD matrix reference](docs/data/SOD_MATRIX.md).
-- Shared business logic lives under `backend/`; `backend/desktop.py` owns the
-  Windows WebView2 lifecycle and `backend/server.py` the headless single-worker
-  runtime. Centralize hosting policy in `backend/deployment.py`. Do not duplicate
-  CSV import, role matching, transaction evidence or account interpretation per OS.
+  [SoD architecture](docs/legacy/v1/architecture/SOD.md), [SoD matrix reference](docs/data/SOD_MATRIX.md).
+- Business logic lives in the shared .NET projects; `SapLens.Desktop` owns the Windows WebView2 lifecycle and `SapLens.Api` the Server host
+  (console or Windows service). Do not duplicate CSV import, role matching, transaction evidence or account interpretation per host.
 - Server mode must use separate mutable storage, enforce its authentication and
   host/origin boundary, and keep browser uploads local to the configured server.
   Optional disabled/missing sources are not permission to erase valid snapshots.
-- `scripts/build.ps1`/`scripts/build.py` are the public build interfaces; canonical packaging remains
-  in specialized internal `scripts/` helpers. Keep legacy desktop release behavior separate from deployment
-  publication. No automatic tags/releases/registry pushes from local builds.
+- `backend/scripts/build-release.ps1`/`.sh` build the release folder, `build-installers.ps1` the installers and `deploy/` deploys the Windows
+  service; v1's `build.ps1`/`build.py` are archived in `legacy/v1/scripts`. No automatic tags/releases/registry pushes from local builds.
 - Reuse frontend Shared components, semantic tokens and isolated Component Library
   previews. Navigation links, content tabs, filters and actions have distinct
   semantics; preserve keyboard focus and source evidence.
 - Start at [documentation index](docs/README.md), [deployment](docs/deployment/README.md),
-  [local builds](docs/BUILD.md),
+  [development](docs/development/README.md),
   [design system](docs/architecture/DESIGN_SYSTEM.md) and
   [component APIs](docs/architecture/COMPONENTS.md). Update the canonical guide and index
   when behavior/commands change, rather than copying procedures into new reports.
@@ -252,7 +258,7 @@ integrity, security or required functionality for speed.
   alternative suffices. Reuse earlier results only when code, dependencies,
   configuration and environment are unchanged. A failed run needs diagnosis and
   affected-test verification first, not an automatic complete restart.
-- Use the changed-area selection guide in [Testing](docs/development/TESTING.md).
+- Use the changed-area selection in [development](docs/development/README.md).
   Consider transitive dependencies and shared components; when impact is uncertain,
   broaden the targeted set. Preserve test isolation and meaningful coverage; never
   weaken assertions. Do not raise browser workers without before/after benchmarks and

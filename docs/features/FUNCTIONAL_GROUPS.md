@@ -120,7 +120,7 @@ and never grants, removes or approves access, creates accepted risks or changes 
 ## Persistence, backup and migration
 
 - `functional-groups.json` is written atomically after validation and survives restarts. It is part of the application data folder, so the existing
-  [backup and restore](../deployment/BACKUP_RESTORE.md) carries it byte for byte (stable group ids, revisions, history and open reviews). A restore
+  [backup and restore](../legacy/v1/deployment/BACKUP_RESTORE.md) carries it byte for byte (stable group ids, revisions, history and open reviews). A restore
   validates it first and rejects broken group references, contradictory states, duplicate names and unparsable files; an older backup without the
   file restores to an empty catalogue (restore replaces, it never merges).
 - No migration is needed: databases without the file start with no groups and every user `Unassigned`. SAP, Directory and review data are never

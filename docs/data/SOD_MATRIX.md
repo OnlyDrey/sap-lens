@@ -157,7 +157,7 @@ filters for larger exports. Native Save-dialog behavior requires Windows accepta
 
 Decisions are recorded in three independent layers (activity, role assignment, risk
 acceptance); see the [SoD guide](../features/SOD.md) and
-[architecture](../architecture/SOD.md). Reviewer and approver names are self-reported, not
+[architecture](../legacy/v1/architecture/SOD.md). Reviewer and approver names are self-reported, not
 authenticated identities or verified signatures. SAP source data is never modified.
 Each save appends an event referencing an immutable evidence snapshot, so history keeps the
 original rationale, conditions and both supporting paths after source changes. Missing
@@ -178,7 +178,7 @@ actions and removal verification and cannot be edited or recaptured; ordinary re
 changes a snapshot. Comparisons classify new, changed, unchanged, reopened and resolved
 findings and list decision changes. Lost users, changed risks or incomplete coverage give
 "Not observed / coverage changed", never automatic resolution. Periods can be deleted only
-under the guarded rules in [architecture](../architecture/SOD.md#deletion). Private backups
+under the guarded rules in [architecture](../legacy/v1/architecture/SOD.md#deletion). Private backups
 must include the period and decision stores and their immutable snapshot files.
 
 ## DOCX and PDF reports
@@ -327,11 +327,11 @@ The original workbooks and matrix remain outside Git.
 
 | Repository item | Purpose and validation |
 |---|---|
-| [backend/resources/reference-defaults.json](../../backend/resources/reference-defaults.json) | Canonical business library 1.0.1: 14 risks, 14 activities, six terms. Contains P001, P002, P008 and PR01. Validated by the Library model; risk/activity records also round-trip through the real XLSX importer in tests. |
-| [backend/resources/sod-reference-template.xlsx](../../backend/resources/sod-reference-template.xlsx) | Schema example, not a populated copy of library 1.0.1. Contains synthetic R_EXAMPLE/ACT_EXAMPLE and one example term. Parsed by the real importer; its XML members are checked against the canonical generator. |
-| [scripts/maintenance/reference-template.py](../../scripts/maintenance/reference-template.py) | Generates that synthetic template from the importer's actual header mappings. It does not duplicate curated business definitions. |
+| [backend/resources/reference-defaults.json](../../legacy/v1/backend/resources/reference-defaults.json) | Canonical business library 1.0.1: 14 risks, 14 activities, six terms. Contains P001, P002, P008 and PR01. Validated by the Library model; risk/activity records also round-trip through the real XLSX importer in tests. |
+| [backend/resources/sod-reference-template.xlsx](../../legacy/v1/backend/resources/sod-reference-template.xlsx) | Schema example, not a populated copy of library 1.0.1. Contains synthetic R_EXAMPLE/ACT_EXAMPLE and one example term. Parsed by the real importer; its XML members are checked against the canonical generator. |
+| [scripts/maintenance/reference-template.py](../../legacy/v1/scripts/maintenance/reference-template.py) | Generates that synthetic template from the importer's actual header mappings. It does not duplicate curated business definitions. |
 | [examples/sod-matrix.example.csv](../../examples/sod-matrix.example.csv) | Separate active-matrix example: two synthetic risks/four mapping rows. Validated by `parse_sod`, including links to example catalogue transactions. It intentionally does not substitute production-like P001/PR01 relationships into the synthetic scenario. |
-| [backend/tests/test_sod_reference.py](../../backend/tests/test_sod_reference.py) | Synthetic schema/negative fixtures; populated round-trip fixtures derive directly from the JSON library. No second maintained business library. |
+| [backend/tests/test_sod_reference.py](../../legacy/v1/backend/tests/test_sod_reference.py) | Synthetic schema/negative fixtures; populated round-trip fixtures derive directly from the JSON library. No second maintained business library. |
 
 The original supplied reference workbooks stay outside Git and deployment packages.
 The tracked validation-tracker XLSX is a maintenance report, not an import/reference workbook.

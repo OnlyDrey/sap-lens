@@ -10,7 +10,7 @@
     <br />
     <a href="docs/README.md">Documentation</a>
     ·
-    <a href="docs/getting-started/QUICK_START.md">Quick Start</a>
+    <a href="docs/README.md#quick-start">Quick Start</a>
     ·
     <a href="docs/deployment/README.md">Build &amp; Deployment</a>
     ·
@@ -24,81 +24,63 @@
 
 ---
 
-SAP Lens is a local-first SAP investigation and access-review application. Browse
-roles and transaction mappings, propose access packages, investigate user/release assignments, compare
-users, enrich identities with optional Employee Directory data, record Account
-Review decisions, and investigate and review potential Segregation of Duties
-conflicts with frozen periods and DOCX/PDF reports. Role-derived transaction coverage is investigation evidence,
-not proof of effective authorization or license consumption. No direct SAP connection
-or third-party data-upload service is required.
+SAP Lens is a local-first SAP investigation and access-review application. Browse roles and transaction mappings, propose access packages,
+investigate user/release assignments, compare users, enrich identities with optional Employee Directory data, record Account Review decisions,
+and investigate and review potential Segregation of Duties conflicts with frozen periods and DOCX/PDF reports. Role-derived transaction coverage
+is investigation evidence, not proof of effective authorization or license consumption. No direct SAP connection or third-party data-upload
+service is required.
 
-## Get started
+## SAP Lens 2 (primary implementation)
 
-Choose [Quick Start](docs/getting-started/QUICK_START.md), then a deployment:
+This repository's primary implementation is **SAP Lens 2**: an ASP.NET Core (.NET 10) backend in [`backend/`](backend) serving the React/Vite
+frontend in [`frontend/`](frontend), as a Windows service or console **Server** (browser access over HTTPS) and a WebView2 **Desktop** for one user.
+Product version `2.0.0-alpha.1` (pre-release; [versioning](docs/architecture/VERSIONING.md)).
 
-| Target | Interface | Primary guide |
-| --- | --- | --- |
-| Windows Desktop x64 | EXE / WebView2; portable or per-user installer | [Desktop](docs/deployment/WINDOWS_DESKTOP.md) |
-| Windows Server Service x64 | Headless WinSW/SCM, browser | [Service](docs/deployment/WINDOWS_SERVICE.md) |
-| Linux Docker amd64 | Offline image / Compose, browser | [Docker](docs/deployment/LINUX_DOCKER.md) |
-| Linux Native/systemd x64 | Python 3.12, systemd or manual browser process | [Native](docs/deployment/LINUX_NATIVE.md) |
+| Area | Status |
+| --- | --- |
+| UI and API | Every API route the React UI calls is served by .NET (145 of 145, [route audit](docs/migration/ROUTE_AUDIT.md)); parity per area in the [migration matrix](docs/migration/MIGRATION_MATRIX.md) |
+| Data | SQLite system of record, immutable evidence and review history, encrypted backups ([database design](docs/architecture/DATABASE_DESIGN.md)) |
+| SAP Lens 1 data | Preview, verified migration and rollback of a v1 data directory or `.slbak` backup ([procedure](docs/migration/V1_MIGRATION.md)); tested on synthetic fixtures |
+| Windows Server | Runs as a Windows service behind a reverse proxy over HTTPS; SSH-driven build, verified deployment and rollback ([Windows deployment](docs/deployment/WINDOWS_DEPLOYMENT.md)) |
+| Pending | Parts of the native Windows acceptance checklist, compiled and signed installers, a v1 migration rehearsal on real data, CI for the .NET backend ([release status](docs/migration/RELEASE_STATUS.md)) |
 
-All targets share the application and CSV lifecycle. Linux client support is
-browser-based; no standalone Linux GUI is supplied. Server deployments default to
-loopback and require an explicit [security boundary](docs/deployment/SECURITY.md)
-for remote access. Packaging support does not establish native production acceptance;
-see the [validation matrix](docs/deployment/README.md#validation-status).
+SAP Lens 2 is not declared feature-complete or production-certified: see [release status](docs/migration/RELEASE_STATUS.md) and
+[backend promotion](docs/migration/BACKEND_PROMOTION.md) for what is verified and what is not.
 
-## How it works
+## Repository layout
 
-A FastAPI backend and a React frontend run on one machine. Role, user, Employee Directory and SoD CSV files are imported as immutable, content-addressed
-snapshots (Static sources once, Dynamic sources on every refresh); an optional, rebuildable SQLite store and fingerprints keep restarts and refreshes fast. Review
-decisions are bound to the evidence they were made on and are rejected, never overwritten, when that evidence or the dataset changed. See
-[Storage, revisions and consistency](docs/architecture/STORAGE_AND_REVISIONS.md).
+| Path | Content |
+| --- | --- |
+| [`backend/`](backend) | SAP Lens 2: .NET solution (`src/`, `tests/`), build, release, installer and deployment scripts (`scripts/`, `installer/`), migration reference tools (`tools/`) |
+| [`frontend/`](frontend) | React/Vite UI, shared by SAP Lens 2 and v1 |
+| [`docs/`](docs/README.md) | Documentation (canonical for SAP Lens 2) |
+| [`scripts/`](scripts/README.md) | Repository-wide checks (documentation links, secrets, workflow contracts, frontend version and icon catalogue) |
+| [`legacy/v1/`](legacy/v1/README.md) | SAP Lens 1 (Python/FastAPI backend, desktop, packaging, tooling): archived, not the development target |
+| [`examples/`](examples/README.md), [`assets/`](assets) | Synthetic example data; product icon and logo |
 
-## Development and release status
+## Quick commands
 
-Build/package verification, runtime smoke and native host acceptance are separate
-facts. Windows SCM evidence can supplement an older build manifest without
-rewriting it; see [release verification](docs/deployment/RELEASES.md).
-Individual server accounts/roles exist, but session expiration, optional TOTP and
-complete multi-reviewer approval separation remain requirements gaps; see
-[security boundaries](docs/deployment/SECURITY.md). No blanket production
-certification is implied by a successful build.
+```bash
+cd backend && dotnet build SapLens.slnx -c Release && dotnet test tests/SapLens.Tests -c Release --no-build
+cd frontend && npm ci && npm run build
+backend/scripts/build-release.sh <output>                     # Linux; Windows: backend\scripts\build-release.ps1 -Output <folder>
+```
+
+Details: [development](docs/development/README.md), [deployment](docs/deployment/README.md).
 
 ## Security and operations
 
-* The desktop application listens on `127.0.0.1` only; server mode defaults to loopback and needs an explicit [security boundary](docs/deployment/SECURITY.md) for remote access.
-* Private CSVs, exports, logs and configuration never belong in Git or in build artifacts; the repository ships synthetic [examples](examples/README.md) only.
-* Old data is cleaned up by approval-gated [retention](docs/operations/DATA_RETENTION.md); [backups](docs/deployment/BACKUP_RESTORE.md) are verified before use.
-* Native Windows (SCM, WebView2, UNC) and real systemd acceptance are not established by the Linux validation; see the [validation matrix](docs/deployment/README.md#validation-status).
+* The Server listens on loopback unless `--network` is given; network mode requires HTTPS, an explicit host allow-list and, behind a reverse
+  proxy, an explicit trusted-proxy list ([network access and security](docs/deployment/SERVER_NETWORK_ACCESS.md)). The Desktop listens on loopback only.
+* Private CSVs, exports, logs, configuration, certificates and deployment settings never belong in Git or in build artifacts; the repository ships
+  synthetic [examples](examples/README.md) only.
+* Backups are encrypted and verified; every deployment takes and verifies a backup before it stops the service.
 
-## Find your guide
+## SAP Lens 1 (legacy)
 
-- [Build packages](docs/BUILD.md): Actions selections, versions, local commands, prerequisites and outputs.
-- [Features](docs/features/README.md): investigation, comparisons, review, [SoD](docs/features/SOD.md) and Saved Filters.
-- [Data & CSV](docs/data/README.md): four independent sources, formats, replacement and persistence.
-- [Configuration](docs/getting-started/CONFIGURATION.md): settings, storage and recovery.
-- [Development & Testing](docs/development/README.md): source-mode execution without an EXE and validation.
-- [Architecture](docs/architecture/README.md): runtime, storage and revisions, API, security and shared components.
-- [Operations](docs/operations/README.md): data retention, backup and restore, recovery.
-- [Scripts](scripts/README.md): which build, validation and maintenance scripts to run.
-- [Synthetic examples](examples/README.md): safe linked test datasets, never automatically imported.
-- [Privacy](docs/architecture/PRIVACY.md): unresolved accepted historical branding and repository boundaries.
-
-[GitHub Releases](https://github.com/OnlyDrey/sap-lens/releases) holds release notes
-and history. Actions artifacts are available only after successful approved builds
-and have finite retention. Local builds never publish releases, tags or commits.
-
-Local Windows build entry point (from the repository root):
-
-```powershell
-.\scripts\build.ps1 -Mode quick
-.\scripts\build.ps1 -Mode build -Platform windows -Target desktop
-```
-
-Version resolution, prerequisites, optional service packaging and output paths are
-in the [build guide](docs/BUILD.md#commands).
+The Python/FastAPI implementation is archived in [`legacy/v1/`](legacy/v1/README.md) with its documentation in
+[`docs/legacy/v1/`](docs/legacy/v1/README.md). It is kept for reference and recovery, receives no new features, and installed v1 applications are
+not changed by this repository's SAP Lens 2 tooling.
 
 ## Licensing
 

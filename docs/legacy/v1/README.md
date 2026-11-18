@@ -1,0 +1,30 @@
+# SAP Lens 1 documentation (legacy)
+
+> **Archived.** This is the documentation of SAP Lens 1 (Python/FastAPI, code in [`legacy/v1`](../../../legacy/v1/README.md)), kept for reference
+> and recovery. Current documentation of SAP Lens 2: [docs](../../README.md). Paths in these pages describe the pre-promotion layout (for example
+> `backend/` and `scripts/build.py` at the repository root); in this repository they are now under `legacy/v1/`.
+
+| Start here | Purpose |
+| --- | --- |
+| [Quick Start](getting-started/QUICK_START.md) | Choose an installation and load your first sources |
+| [Troubleshooting](getting-started/TROUBLESHOOTING.md) | Symptoms, causes and recovery steps for startup, imports and server access |
+| [Build system](BUILD.md) | Unified CLI, setup, modes, targets and CI |
+| [Build & Deployment](deployment/README.md) | Build, obtain and operate any of the four deployment targets |
+| [Features](../../features/README.md) | Investigate users, roles, transactions and account evidence |
+| [Data & CSV](../../data/README.md) | Schemas, imports, refresh, enrichment and coverage |
+| [Architecture](architecture/README.md) | Runtime boundaries, storage and revisions, APIs, security and shared UI |
+| [Operations](operations/README.md) | Data retention, backup and restore, recovery |
+| [Scripts](../../../legacy/v1/scripts/README.md) | Build, validation and maintenance scripts, and which to run |
+| [Development & Testing](development/README.md) | Source setup, checks and CI |
+| [Validation tracker](../../validation/README.md) | Checklist per functional area: validation status, manual approval, findings and improvements (CSV and Excel workbook) |
+
+Current guides describe implemented behavior, not blanket production certification.
+Native platform limitations are listed in the [deployment matrix](deployment/README.md#validation-status).
+Use [GitHub Releases](https://github.com/OnlyDrey/sap-lens/releases) for release notes
+and history; there is no CHANGELOG.md. Private CSVs, configuration, exports and
+screenshots never belong in Git or build artifacts.
+
+Current limitations are recorded with their owning guides: [server identity and
+approval boundaries](deployment/SECURITY.md#individual-accounts-and-remaining-multi-user-limits),
+[restart-dependent backups](deployment/BACKUP_RESTORE.md#create-and-download),
+and [separate native service evidence](deployment/WINDOWS_SERVICE.md#separate-windows-scm-acceptance-evidence).

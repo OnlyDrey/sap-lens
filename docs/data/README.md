@@ -8,11 +8,11 @@
 
 6. [SoD matrix source](SOD_MATRIX.md): verified activity slots, supported policy and durable source lifecycle.
 
-[Configuration](../getting-started/CONFIGURATION.md) owns local storage/preferences;
-[deployment security](../deployment/SECURITY.md) owns hosted filesystem/access rules.
+[Configuration](../legacy/v1/getting-started/CONFIGURATION.md) owns local storage/preferences;
+[deployment security](../legacy/v1/deployment/SECURITY.md) owns hosted filesystem/access rules.
 Use only [synthetic examples](../../examples/README.md) in repository fixtures.
 
-Source/cache storage is described in [Storage and revisions](../architecture/STORAGE_AND_REVISIONS.md).
+Source/cache storage is described in [Storage and revisions](../legacy/v1/architecture/STORAGE_AND_REVISIONS.md).
 Review history remains authoritative outside the rebuildable SQLite cache.
-See [backup/restore](../deployment/BACKUP_RESTORE.md) and
-[retention](../operations/DATA_RETENTION.md) before deleting or replacing data.
+See [backup/restore](../legacy/v1/deployment/BACKUP_RESTORE.md) and
+[retention](../legacy/v1/operations/DATA_RETENTION.md) before deleting or replacing data.

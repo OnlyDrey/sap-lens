@@ -4,7 +4,7 @@ SoD turns an externally supplied risk matrix into **potential conflict evidence*
 documented review trail. It supports investigation: a transaction mapping does not prove
 effective SAP authorization, a confirmed violation or license use. Methodology, schema and
 limits: [SoD matrix reference](../data/SOD_MATRIX.md). Internals:
-[SoD architecture](../architecture/SOD.md).
+[SoD architecture](../legacy/v1/architecture/SOD.md).
 
 **Analyze → Investigate → Review activities → Review role assignments → Calculate risks →
 Accept or reject → Approve → Remediate → Verify → Report**
@@ -65,7 +65,7 @@ remain separate events; reviewers may approve their own work. Session servers
 record the authenticated account UUID and username/display snapshots, while
 passwordless Desktop uses a stable, explicitly self-reported local profile.
 Legacy reviewer strings and frozen evidence are retained without invented account
-mappings. See [application accounts](../getting-started/CONFIGURATION.md#application-accounts-session-authenticated-servers).
+mappings. See [application accounts](../legacy/v1/getting-started/CONFIGURATION.md#application-accounts-session-authenticated-servers).
 Reports: PDF and DOCX formal review (executive summary, scope, sources,
 risk overview, activity, assignment and acceptance results, controls, remediation, changes,
 conclusion and signature lines, technical appendix) and an access remediation report with
@@ -80,7 +80,7 @@ lines are not verified digital signatures.
   exports exclude them. Use only synthetic data in examples and tests.
 
 Source import: [Data & CSV](../data/IMPORT_AND_REFRESH.md), synthetic example
-[sod-matrix.example.csv](../../examples/sod-matrix.example.csv). API: [SoD API](../architecture/API.md#sod-api).
+[sod-matrix.example.csv](../../examples/sod-matrix.example.csv). API: [SoD API](../legacy/v1/architecture/API.md#sod-api).
 Validation and open native acceptance items: [validation tracker](../validation/README.md)
 and [validation tracker](../validation/README.md).
 
@@ -144,7 +144,7 @@ preserved outside this configuration page. Original reference workbooks are not 
 
 ## Deleting review periods
 
-Manual deletion archives a completed period and keeps everything. Separately, [review retention](../operations/DATA_RETENTION.md#review-retention) can permanently remove a completed period older than the retention period (default 24 months) and the records only it owns, after a preview and a one-time administrator approval; it never touches active or incomplete periods, the newest completed period or evidence another period shares.
+Manual deletion archives a completed period and keeps everything. Separately, [review retention](../legacy/v1/operations/DATA_RETENTION.md#review-retention) can permanently remove a completed period older than the retention period (default 24 months) and the records only it owns, after a preview and a one-time administrator approval; it never touches active or incomplete periods, the newest completed period or evidence another period shares.
 
 Every period status can be deleted from the row action menu or the period dialog. The delete dialog previews what is affected
 (decisions, actions, reports, comparison baselines, snapshots) and always needs the exact period name and who is deleting.

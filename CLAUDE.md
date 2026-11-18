@@ -4,8 +4,9 @@
 
 ## Project documentation
 
-- Build system: `docs/BUILD.md`
-- Platform acceptance status and open native checks: `docs/deployment/README.md#validation-status`
+- Build and test (SAP Lens 2, `backend/`): `docs/development/README.md`; deployment: `docs/deployment/README.md`
+- Release status and open native checks: `docs/migration/RELEASE_STATUS.md`, `docs/deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending`
+- SAP Lens 1 is archived in `legacy/v1/` (`docs/legacy/v1/`)
 
 ## Working rules
 

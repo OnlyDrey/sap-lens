@@ -174,7 +174,7 @@ Snapshot integrity is verified on every start (SHA-256 of the snapshot file agai
 ## Data retention
 
 Old superseded source snapshots, completed review periods and expired automatic backups are cleaned up by three separate, approval-gated retention categories.
-The rules, previews, approvals, recovery and undo are described in [Data retention](../operations/DATA_RETENTION.md).
+The rules, previews, approvals, recovery and undo are described in [Data retention](../legacy/v1/operations/DATA_RETENTION.md).
 
 ## Import checks: suspicious versus invalid
 

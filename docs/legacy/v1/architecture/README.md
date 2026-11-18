@@ -1,0 +1,17 @@
+# Architecture
+
+- [System](SYSTEM.md): shared backend/frontend, data flow and runtime entry points.
+- [Storage and revisions](STORAGE_AND_REVISIONS.md): snapshots, the SQLite store, fingerprints, staged activation, the data revision token and review integrity.
+- [API](API.md): routes, contracts, pagination and source evidence.
+- [Security](SECURITY.md): desktop/server boundaries and sensitive-data handling.
+- [Privacy](PRIVACY.md): accepted historical P-01 issue and scoped repository review.
+- [Desktop integration](DESKTOP.md): WebView2 lifecycle, native operations and acceptance checklist.
+- Proposed .NET Desktop host (analysis only, not approved): [summary](DESKTOP_HOST_SUMMARY.md), [current architecture](DESKTOP_HOST_CURRENT.md), [proposal](DESKTOP_HOST_DOTNET_PROPOSAL.md), [roadmap and tests](DESKTOP_HOST_MIGRATION_ROADMAP.md), [risk matrix](DESKTOP_HOST_RISK_MATRIX.md), [ADR 0001](decisions/0001-dotnet-desktop-host.md), [independent review](DESKTOP_HOST_INDEPENDENT_REVIEW.md).
+- [Design System](../../../architecture/DESIGN_SYSTEM.md): semantic tokens, states and themes.
+- [SoD](SOD.md): evidence, decisions, periods and reports, identities and migration.
+- [Components](../../../architecture/COMPONENTS.md): canonical implementations, APIs and safe showcase previews.
+- [Navigation](../../../architecture/NAVIGATION.md): routes, secondary navigation, content tabs and actions.
+- [Appearance](../../../architecture/APPEARANCE.md): persisted palettes, branding and settings interaction.
+
+Operational hosting/security configuration belongs to [Deployment](../deployment/README.md);
+CSV behavior belongs to [Data](../../../data/README.md), not a separate platform implementation.

@@ -1,17 +1,13 @@
-# Architecture
+# Architecture (SAP Lens 2)
 
-- [System](SYSTEM.md): shared backend/frontend, data flow and runtime entry points.
-- [Storage and revisions](STORAGE_AND_REVISIONS.md): snapshots, the SQLite store, fingerprints, staged activation, the data revision token and review integrity.
-- [API](API.md): routes, contracts, pagination and source evidence.
-- [Security](SECURITY.md): desktop/server boundaries and sensitive-data handling.
-- [Privacy](PRIVACY.md): accepted historical P-01 issue and scoped repository review.
-- [Desktop integration](DESKTOP.md): WebView2 lifecycle, native operations and acceptance checklist.
-- Proposed .NET Desktop host (analysis only, not approved): [summary](DESKTOP_HOST_SUMMARY.md), [current architecture](DESKTOP_HOST_CURRENT.md), [proposal](DESKTOP_HOST_DOTNET_PROPOSAL.md), [roadmap and tests](DESKTOP_HOST_MIGRATION_ROADMAP.md), [risk matrix](DESKTOP_HOST_RISK_MATRIX.md), [ADR 0001](decisions/0001-dotnet-desktop-host.md), [independent review](DESKTOP_HOST_INDEPENDENT_REVIEW.md).
-- [Design System](DESIGN_SYSTEM.md): semantic tokens, states and themes.
-- [SoD](SOD.md): evidence, decisions, periods and reports, identities and migration.
-- [Components](COMPONENTS.md): canonical implementations, APIs and safe showcase previews.
-- [Navigation](NAVIGATION.md): routes, secondary navigation, content tabs and actions.
-- [Appearance](APPEARANCE.md): persisted palettes, branding and settings interaction.
+| Document | Content |
+| --- | --- |
+| [TARGET_ARCHITECTURE.md](TARGET_ARCHITECTURE.md) | Modular monolith: Domain, Persistence, Application, Api (Server host), Desktop, Documents; module boundaries, request and job flows |
+| [DATABASE_DESIGN.md](DATABASE_DESIGN.md) | SQLite system of record: schema, invariants, connections and file handles, concurrency, migrations, backups and retention |
+| [REPORTING_ARCHITECTURE.md](REPORTING_ARCHITECTURE.md) | DOCX/PDF/CSV reports rendered from frozen models |
+| [UI_INTEGRATION.md](UI_INTEGRATION.md) | How the .NET host embeds and serves the production React build, compatibility API, authentication |
+| [VERSIONING.md](VERSIONING.md) | Product version, channel, build identity and naming |
+| [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), [COMPONENTS.md](COMPONENTS.md), [APPEARANCE.md](APPEARANCE.md), [NAVIGATION.md](NAVIGATION.md) | Frontend design system, shared components, theming and navigation (shared by SAP Lens 2 and v1) |
 
-Operational hosting/security configuration belongs to [Deployment](../deployment/README.md);
-CSV behavior belongs to [Data](../data/README.md), not a separate platform implementation.
+Security boundary, TLS, host and origin checks, trusted proxies and authentication: [network access](../deployment/SERVER_NETWORK_ACCESS.md).
+SAP Lens 1 architecture (FastAPI runtime, desktop host, storage and revisions, SoD modules): [legacy v1 architecture](../legacy/v1/architecture/README.md).
