@@ -42,6 +42,52 @@ BeforeAll {
     }
 }
 
+Describe 'Migration backup, journal and staging contracts' {
+    BeforeEach { New-MigrationFixture }
+    It 'durably records intent on the source and mirrors it once the target work directory exists' {
+        $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $journal = New-SL2MigrationJournal $script:Source $script:Target $preflight $script:Inspector
+        Set-SL2MigrationPhase $journal 'backup'
+        (Read-SL2MigrationJournal $script:Source).phase | Should -Be 'backup'
+        Test-Path $script:Target.WorkRoot | Should -BeFalse
+        New-Item -ItemType Directory -Path $script:Target.WorkRoot -Force | Out-Null
+        Set-SL2MigrationPhase $journal 'staging'
+        (Read-SL2MigrationJournal $script:Target).id | Should -Be $journal.id
+        (Read-SL2MigrationJournal $script:Target).phase | Should -Be 'staging'
+        Test-Path (Join-Path $script:Source.WorkRoot 'migration-journal.json.previous') | Should -BeTrue
+        { New-SL2MigrationJournal $script:Source $script:Target $preflight $script:Inspector } | Should -Throw '*journal exists*'
+    }
+    It 'refuses unverified backups before service control' {
+        Mock -ModuleName $M Invoke-SL2Maintenance { param($ExePath, $Arguments) if ($Arguments[0] -eq '--backup-local') { @{ file = 'synthetic.slbak'; sha256 = 'a'; size = 1 } } else { @{ verified = $false; sha256 = 'a' } } }
+        { New-SL2MigrationBackup $script:Source $script:Inspector } | Should -Throw '*verification failed*'
+        Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
+    }
+    It 'copies disjoint trees with their NTFS security and verifies content before allowing use' {
+        Mock -ModuleName $M Invoke-SL2Process {
+            param($File, $Arguments)
+            $from = $Arguments[0]; $to = $Arguments[1]
+            foreach ($item in Get-ChildItem -LiteralPath $from -Force) { Copy-Item -LiteralPath $item.FullName -Destination $to -Recurse }
+            [pscustomobject]@{ ExitCode = 1; Output = @() }
+        }
+        Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory
+        (Test-SL2InventoryEqual @(Get-SL2TreeInventory $script:Source.DataDirectory) @(Get-SL2TreeInventory $script:Target.DataDirectory)) | Should -BeTrue
+        { Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory } | Should -Throw '*never merges*'
+    }
+    It 'retains partial copies and refuses a robocopy failure or content mismatch' {
+        Mock -ModuleName $M Invoke-SL2Process { [pscustomobject]@{ ExitCode = 8; Output = @() } }
+        { Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory } | Should -Throw '*staging failed*'
+        Test-Path $script:Target.DataDirectory | Should -BeTrue
+        { Copy-SL2MigrationTree $script:Source.DataDirectory (Join-Path $script:Source.DataDirectory 'nested') } | Should -Throw '*overlap*'
+        Mock -ModuleName $M Invoke-SL2Process { [pscustomobject]@{ ExitCode = 0; Output = @() } }
+        { Copy-SL2MigrationTree (Split-Path $script:Source.CertificatePath) (Split-Path $script:Target.CertificatePath) } | Should -Throw '*differs*'
+    }
+    It 'rejects content and ACL drift independently' {
+        $left = @([pscustomobject]@{ path = 'file'; hash = 'a'; acl = 'private' })
+        (Test-SL2InventoryEqual $left @([pscustomobject]@{ path = 'file'; hash = 'b'; acl = 'private' })) | Should -BeFalse
+        (Test-SL2InventoryEqual $left @([pscustomobject]@{ path = 'file'; hash = 'a'; acl = 'public' })) | Should -BeFalse
+    }
+}
+
 Describe 'Read-only identity and directory migration preflight' {
     BeforeEach { New-MigrationFixture }
     It 'checks all prerequisites without writing installation files or controlling services' {

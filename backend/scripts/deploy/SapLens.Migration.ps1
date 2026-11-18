@@ -57,6 +57,92 @@ function Get-SL2FreeSpace([string]$Path) {
     $drive.AvailableFreeSpace
 }
 
+function Write-SL2MigrationJournal($Journal) {
+    $Journal.updated = [DateTime]::UtcNow.ToString('o')
+    foreach ($root in @($Journal.source.WorkRoot, $Journal.target.WorkRoot)) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
+        Test-SL2PathTree $root
+        $path = Join-SL2 $root 'migration-journal.json'
+        $temporary = "$path.next"
+        $bytes = [Text.Encoding]::UTF8.GetBytes(($Journal | ConvertTo-Json -Depth 16))
+        $stream = [IO.File]::Open($temporary, 'Create', 'Write', 'None')
+        try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
+        if (Test-Path -LiteralPath $path) { [IO.File]::Replace($temporary, $path, "$path.previous") }
+        else { [IO.File]::Move($temporary, $path) }
+    }
+}
+
+function Read-SL2MigrationJournal($Config) {
+    $path = Join-SL2 $Config.WorkRoot 'migration-journal.json'
+    if (Test-Path -LiteralPath $path) { Get-Content -LiteralPath $path -Raw | ConvertFrom-Json }
+}
+
+function Set-SL2MigrationPhase($Journal, [string]$Phase) {
+    $Journal.phase = $Phase
+    $Journal.history = @($Journal.history) + @([pscustomobject]@{ phase = $Phase; at = [DateTime]::UtcNow.ToString('o') })
+    Write-SL2MigrationJournal $Journal
+    Write-SL2Log "migration phase: $Phase"
+}
+
+function Get-SL2TreeInventory([string]$Root) {
+    $base = [IO.Path]::GetFullPath($Root).TrimEnd('\', '/')
+    $inventory = [Collections.Generic.List[object]]::new()
+    $inventory.Add([pscustomobject]@{ path = '.'; hash = ''; acl = (Get-Acl -LiteralPath $base).Sddl })
+    # Traversal rejects links before recursing, including directory links.
+    $null = @(Get-SL2TreeFiles $Root)
+    foreach ($item in Get-ChildItem -LiteralPath $Root -Recurse -Force | Sort-Object FullName) {
+        $inventory.Add([pscustomobject]@{ path = $item.FullName.Substring($base.Length + 1); hash = $(if ($item.PSIsContainer) { '' } else { (Get-FileHash -LiteralPath $item.FullName -Algorithm SHA256).Hash }); acl = (Get-Acl -LiteralPath $item.FullName).Sddl })
+    }
+    $inventory.ToArray()
+}
+
+function Test-SL2InventoryEqual($Left, $Right, [switch]$ContentOnly) {
+    $a = @($Left); $b = @($Right)
+    if ($a.Count -ne $b.Count) { return $false }
+    for ($i = 0; $i -lt $a.Count; $i++) {
+        if ($a[$i].path -cne $b[$i].path -or $a[$i].hash -cne $b[$i].hash -or (-not $ContentOnly -and $a[$i].acl -cne $b[$i].acl)) { return $false }
+    }
+    $true
+}
+
+function Copy-SL2MigrationTree([string]$Source, [string]$Target) {
+    Test-SL2PathTree $Source; Test-SL2PathTree $Target
+    if (Test-SL2PathOverlap $Source $Target) { Stop-SL2 'Copy source and target overlap.' }
+    if (Test-Path -LiteralPath $Target) { Stop-SL2 'Migration never merges or overwrites existing staging.' }
+    $before = @(Get-SL2TreeInventory $Source)
+    New-Item -ItemType Directory -Path $Target -Force | Out-Null
+    Set-Acl -LiteralPath $Target -AclObject (Get-Acl -LiteralPath $Source)
+    $result = Invoke-SL2Process 'robocopy.exe' @($Source, $Target, '/E', '/COPYALL', '/DCOPY:DAT', '/B', '/XJ', '/R:0', '/W:0', '/NFL', '/NDL', '/NP', '/NJH', '/NJS') ''
+    if ($result.ExitCode -ge 8) { Stop-SL2 'Migration file staging failed. Partial targets were retained for inspection.' 1 }
+    if (-not (Test-SL2InventoryEqual $before @(Get-SL2TreeInventory $Source)) -or -not (Test-SL2InventoryEqual $before @(Get-SL2TreeInventory $Target))) {
+        Stop-SL2 'Staging content or NTFS security differs from its source. Nothing may be cut over.' 1
+    }
+}
+
+function New-SL2MigrationBackup($Source, [string]$Executable) {
+    $backup = Invoke-SL2Maintenance $Executable @('--backup-local', $Source.BackupRoot, '--data-dir', $Source.DataDirectory)
+    $verified = Invoke-SL2Maintenance $Executable @('--backup-verify', $backup.file, '--data-dir', $Source.DataDirectory)
+    if (-not $verified.verified -or $verified.sha256 -ne $backup.sha256) { Stop-SL2 'Migration backup verification failed; cutover is forbidden.' 1 }
+    $backup
+}
+
+function New-SL2MigrationJournal($Source, $Target, $Preflight, [string]$InspectorExecutable) {
+    if (-not $Preflight.safe) { Stop-SL2 'Migration preflight has blocking conditions.' }
+    if (Read-SL2MigrationJournal $Source) { Stop-SL2 'A migration journal exists. Verify or recover it explicitly.' }
+    [pscustomobject]@{
+        format = 1; id = [guid]::NewGuid().ToString('N'); phase = 'preflight'; updated = ''; history = @()
+        source = $Source; target = $Target; service_before = $Preflight.details.service; release_before = $Preflight.details.release
+        manifest = $Preflight.details.manifest; inspector = $InspectorExecutable
+        source_config_hash = (Get-FileHash -LiteralPath $Source.ConfigFile -Algorithm SHA256).Hash
+        target_config_hash = (Get-FileHash -LiteralPath $Target.ConfigFile -Algorithm SHA256).Hash
+        key_before = $Preflight.details.key; key_after = Join-SL2 (Join-SL2 (Split-Path $Target.DataDirectory) 'backup') (Split-Path $Preflight.details.key -Leaf)
+        staged_release = Join-SL2 $Target.ReleasesRoot (Split-Path $Preflight.details.release -Leaf)
+        online_backup = $null; offline_backup = $null; source_inventory = @(); target_inventory = @()
+        target_creation_intent = $false; target_start_intent = $false; source_stop_intent = $false
+        error = ''; recovery = ''
+    }
+}
+
 function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutable) {
     $checks = [Collections.Generic.List[object]]::new()
     $details = [ordered]@{}
