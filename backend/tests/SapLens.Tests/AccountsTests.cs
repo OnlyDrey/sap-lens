@@ -44,6 +44,48 @@ public sealed class AccountsTests : IDisposable
     }
 
     [Fact]
+    public async Task Recovery_copy_authorization_requires_password_and_expires_is_session_bound_and_single_use()
+    {
+        var (store, clock) = NewStore();
+        var admin = await Bootstrap(store);
+        await Assert.ThrowsAsync<AuthException>(() => store.IssueBackupVerificationAsync(admin, "wrong"));
+        var code = await store.IssueBackupVerificationAsync(admin, Password);
+        var other = (await store.LoginAsync("admin", Password, "another-client")).Principal;
+        await Assert.ThrowsAsync<AuthException>(() => store.ConsumeBackupVerificationAsync(other, code));
+        await store.ConsumeBackupVerificationAsync(admin, code);
+        await Assert.ThrowsAsync<AuthException>(() => store.ConsumeBackupVerificationAsync(admin, code));
+        var expired = await store.IssueBackupVerificationAsync(admin, Password);
+        clock.Advance(TimeSpan.FromMinutes(6));
+        await Assert.ThrowsAsync<AuthException>(() => store.ConsumeBackupVerificationAsync(admin, expired));
+        var audit = System.Text.Json.JsonSerializer.Serialize(await store.AuditAsync(admin, 100));
+        Assert.Contains("backup.reauthenticated", audit);
+        Assert.DoesNotContain(code, audit); Assert.DoesNotContain(Password, audit);
+    }
+
+    [Fact]
+    public async Task Recovery_copy_http_verification_requires_csrf_current_password_and_one_use_proof()
+    {
+        await using var server = await StartServer();
+        await Bootstrap(server.Store);
+        Assert.Equal(HttpStatusCode.OK, (await server.Post("/api/auth/login", new { username = "admin", password = Password })).StatusCode);
+        var data = server.App.Services.GetRequiredService<SapLens.Persistence.DatabaseOptions>().DataDirectory;
+        var file = Path.Combine(_root, "host-" + Guid.NewGuid().ToString("N") + ".key");
+        SapLens.Application.Backups.BackupKeys.Create(file, data);
+        var recovery = File.ReadAllText(file).Trim();
+        Assert.Equal(HttpStatusCode.Forbidden, (await server.Post("/api/backups/key/verify", new { recovery_key = recovery })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await server.Post("/api/auth/backup-reauth", new { current_password = Password }, csrf: false)).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await server.Post("/api/auth/backup-reauth", new { current_password = "wrong" })).StatusCode);
+        var issued = await server.Post("/api/auth/backup-reauth", new { current_password = Password });
+        Assert.Equal(HttpStatusCode.OK, issued.StatusCode);
+        var proof = (string)JsonNode.Parse(await issued.Content.ReadAsStringAsync())!["code"]!;
+        Assert.Equal(HttpStatusCode.OK, (await server.Post("/api/backups/key/verify", new { recovery_key = recovery, reauth_code = proof })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await server.Post("/api/backups/key/verify", new { recovery_key = recovery, reauth_code = proof })).StatusCode);
+        var status = await server.Client.GetStringAsync("/api/backups");
+        Assert.True((bool)JsonNode.Parse(status)!["key_provider"]!["escrow_verified"]!);
+        Assert.DoesNotContain(recovery, status); Assert.DoesNotContain(file, status);
+    }
+
+    [Fact]
     public void Verifiers_interoperate_with_python_argon2_and_v1_pbkdf2()
     {
         Assert.True(Passwords.Verify(PythonVerifier, "Correct horse battery 1"));

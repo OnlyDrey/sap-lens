@@ -35,7 +35,7 @@ public static class ServerConfiguration
     {
         var i = Array.IndexOf(args, "--backup-key");
         var action = i + 1 < args.Length ? args[i + 1] : "";
-        if (action is not ("create" or "use" or "export" or "status")) throw new InvalidOperationException("--backup-key needs create, use, export or status.");
+        if (action is not ("create" or "use" or "export" or "verify" or "status")) throw new InvalidOperationException("--backup-key needs create, use, export, verify or status.");
         var path = action == "status" ? "" : i + 2 < args.Length && !args[i + 2].StartsWith("--", StringComparison.Ordinal) ? args[i + 2] : throw new InvalidOperationException($"--backup-key {action} needs a file path.");
         var d = Array.IndexOf(args, "--data-dir");
         var data = (d >= 0 && d + 1 < args.Length ? args[d + 1] : null) ?? environment("SAP_LENS_V2_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_V2_DATA_DIR) is required.");
@@ -90,6 +90,10 @@ public static class ServerConfiguration
           --backup-key export <file>                               With --data-dir: write a recovery copy to a new private file (store it separately,
                                                                    then verify it in Settings > Backups), then exit.
           --backup-key status                                      With --data-dir: show whether a key is configured and its fingerprint.
+          --backup-key verify <file>                               Verify a separately stored recovery copy locally; key material is never printed.
+          --accounts-code                                         With --data-dir: issue a one-use initial administrator activation code locally.
+              [--recover-administrator <username>]                 Instead issue a recovery code for an existing administrator; ends their sessions.
+          --inspect-data                                          Inspect scratch copies of SQLite files and WAL without opening source databases.
           --schema-info                                            With --data-dir: migrations this build knows and the database applied (read-only).
           --backup-local <folder>                                  With --data-dir: a verified, host-key encrypted archive of the data (online copy).
           --backup-verify <file>                                   With --data-dir: decrypt and validate an archive like a restore would.

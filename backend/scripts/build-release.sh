@@ -50,6 +50,7 @@ done
 sed -e "s/{{VERSION}}/$version/" -e "s/{{SHA}}/$sha/" -e "s/{{BUILT}}/$shown/" -e "s/{{PLATFORM}}/Windows x64/" \
   "$root/scripts/release-README.txt" | sed 's/$/\r/' > "$win/README.txt"
 
+cp "$root/scripts/Service-Manager.ps1" "$win/Service-Manager.ps1"
 # Artifact validation, manifests and checksums (same schema as build-release.ps1).
 python3 - "$win" "$linux" "$sha" "${dirty:+true}" "$version" "$built" "$root/.." <<'PY'
 import hashlib, json, re, subprocess, sys

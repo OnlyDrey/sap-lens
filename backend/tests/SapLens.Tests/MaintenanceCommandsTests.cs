@@ -30,6 +30,22 @@ public sealed class MaintenanceCommandsTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Packaged_server_issues_local_activation_and_recovery_codes_without_starting_a_host()
+    {
+        var data = Directory.CreateDirectory(Path.Combine(_root, "local-admin")).FullName;
+        Assert.True(MaintenanceCommands.Handles(["--accounts-code"]));
+        var activation = MaintenanceCommands.AdministratorCode(data, null);
+        Assert.Equal("bootstrap", (string)activation["purpose"]!);
+        var store = new SapLens.Application.Accounts.AccountStore(SapLens.Application.Accounts.AccountStore.For(data), TimeProvider.System);
+        await store.CompleteAsync((string)activation["code"]!, "admin", "Synthetic administrator", "Synthetic local password 123!", false);
+        Assert.Throws<SapLens.Application.Accounts.AuthException>(() => MaintenanceCommands.AdministratorCode(data, null));
+        Assert.Equal("recovery", (string)MaintenanceCommands.AdministratorCode(data, "admin")["purpose"]!);
+        var missing = Path.Combine(_root, "unselected-data");
+        Assert.Throws<InvalidOperationException>(() => MaintenanceCommands.AdministratorCode(missing, null));
+        Assert.False(Directory.Exists(missing));
+    }
+
+    [Fact]
     public void Schema_info_reports_known_applied_and_newer_migrations_without_writing()
     {
         var missing = MaintenanceCommands.SchemaInfo(Path.Combine(_root, "nothing"));

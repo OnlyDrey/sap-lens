@@ -102,10 +102,16 @@ public static class BackupKeys
     /// <summary>verify_escrow: the offered recovery copy must equal the host key (constant time); records the fingerprint, never the key.</summary>
     public static JsonObject VerifyEscrow(string offered, string dataDirectory, string actor, DateTimeOffset now)
     {
+        using var operation = KeyOperation(dataDirectory);
         var host = Host(dataDirectory) ?? throw new BackupException("Configure a protected host backup key locally first.");
         byte[] copy;
         try { copy = Convert.FromBase64String(offered.Trim()); } catch (FormatException) { copy = []; }
-        if (copy.Length != 32 || !CryptographicOperations.FixedTimeEquals(host, copy)) throw new BackupException("Recovery-key verification failed. Existing keys were not changed.");
+        if (copy.Length != 32 || !CryptographicOperations.FixedTimeEquals(host, copy))
+        {
+            KeyAudit(dataDirectory, "recovery.verify_failed", actor, Fingerprint(host));
+            throw new BackupException("Recovery-key verification failed. Existing keys were not changed.");
+        }
+        KeyAudit(dataDirectory, "recovery.verified", actor, Fingerprint(host));
         WriteAtomic(Path.Combine(dataDirectory, Confirmation), new JsonObject
         {
             ["schema"] = 1, ["fingerprint"] = Fingerprint(host), ["verified_at"] = now.ToString("O"), ["actor"] = actor,
@@ -116,17 +122,25 @@ public static class BackupKeys
     /// <summary>LOCAL operation: creates a new key file (never overwrites, never prints the key) and points this data directory at it.</summary>
     public static JsonObject Create(string path, string dataDirectory)
     {
+        using var operation = KeyOperation(dataDirectory);
+        if (Location(dataDirectory) is not null) throw new BackupException("A host backup key is already configured. Creating another key would make existing archives unreadable.");
         path = Safe(path, dataDirectory);
         if (!Directory.Exists(Path.GetDirectoryName(path))) throw new BackupException("Create a private recovery-key directory first.", 422);
         WritePrivate(path, Encoding.ASCII.GetBytes(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)) + "\n"));
-        return Use(path, dataDirectory);
+        KeyAudit(dataDirectory, "key.created", Environment.UserName, Fingerprint(Read(path, dataDirectory)));
+        WriteAtomic(Path.Combine(dataDirectory, Pointer), new JsonObject { ["schema"] = 1, ["path"] = path }.ToJsonString());
+        return Status(dataDirectory);
     }
 
     /// <summary>LOCAL operation: uses an existing key file for this data directory.</summary>
     public static JsonObject Use(string path, string dataDirectory)
     {
+        using var operation = KeyOperation(dataDirectory);
         path = Safe(path, dataDirectory);
-        Read(path, dataDirectory);
+        var offered = Read(path, dataDirectory);
+        if (Host(dataDirectory) is { } existing && !CryptographicOperations.FixedTimeEquals(existing, offered))
+            throw new BackupException("A different host key is already configured. Existing keys and archives were preserved.");
+        KeyAudit(dataDirectory, "key.selected", Environment.UserName, Fingerprint(offered));
         Directory.CreateDirectory(dataDirectory);
         WriteAtomic(Path.Combine(dataDirectory, Pointer), new JsonObject { ["schema"] = 1, ["path"] = path }.ToJsonString());
         return Status(dataDirectory);
@@ -135,10 +149,33 @@ public static class BackupKeys
     /// <summary>LOCAL operation: writes a recovery copy to a new private file (escrow), which an administrator then verifies through Settings.</summary>
     public static JsonObject Export(string destination, string dataDirectory)
     {
+        using var operation = KeyOperation(dataDirectory);
         var key = Host(dataDirectory) ?? throw new BackupException("No host backup key is configured.");
         destination = Safe(destination, dataDirectory);
+        KeyAudit(dataDirectory, "recovery.export_requested", Environment.UserName, Fingerprint(key));
         WritePrivate(destination, Encoding.ASCII.GetBytes(Convert.ToBase64String(key) + "\n"));
+        KeyAudit(dataDirectory, "recovery.exported", Environment.UserName, Fingerprint(key));
         return new JsonObject { ["exported"] = true, ["fingerprint"] = Fingerprint(key), ["escrow_verification_required"] = true };
+    }
+
+    public static JsonObject VerifyFile(string path, string dataDirectory, string actor, DateTimeOffset now) =>
+        VerifyEscrow(Convert.ToBase64String(Read(Safe(path, dataDirectory), dataDirectory)), dataDirectory, actor, now);
+
+    private static FileStream KeyOperation(string dataDirectory)
+    {
+        Directory.CreateDirectory(dataDirectory);
+        try { return new FileStream(Path.Combine(dataDirectory, ".backup-key-operation.lock"), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
+        catch (IOException) { throw new BackupException("Another local recovery-key operation is running. Retry after it completes."); }
+    }
+
+    private static void KeyAudit(string dataDirectory, string action, string actor, string fingerprint)
+    {
+        var path = Path.Combine(dataDirectory, "backup-key-audit.jsonl");
+        if (!File.Exists(path)) WritePrivate(path, []);
+        var line = System.Text.Json.JsonSerializer.Serialize(new { at = DateTimeOffset.UtcNow, action, actor, fingerprint });
+        using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+        stream.Write(Encoding.UTF8.GetBytes(line + "\n"));
+        stream.Flush(true);
     }
 
     /// <summary>A new file readable by its owner only (Unix 0600; Windows: inheritance removed, owner, SYSTEM and Administrators).</summary>
@@ -148,8 +185,8 @@ public static class BackupKeys
         if (!OperatingSystem.IsWindows()) options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
         try
         {
-            using (var stream = new FileStream(path, options)) { stream.Write(content); stream.Flush(true); }
-            if (OperatingSystem.IsWindows()) WindowsPrivate.Apply(path);
+            using var stream = OperatingSystem.IsWindows() ? WindowsPrivate.Create(path) : new FileStream(path, options);
+            stream.Write(content); stream.Flush(true);
         }
         catch (IOException) when (File.Exists(path) && new FileInfo(path).Length > 0) { throw new BackupException("The file already exists; keys are never overwritten.", 422); }
     }
@@ -461,7 +498,7 @@ public static class Scrypt
 internal static class WindowsPrivate
 {
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
-    public static void Apply(string path)
+    public static FileStream Create(string path)
     {
         var info = new FileInfo(path);
         var security = new System.Security.AccessControl.FileSecurity();
@@ -470,6 +507,7 @@ internal static class WindowsPrivate
                      new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.LocalSystemSid, null),
                      new System.Security.Principal.SecurityIdentifier(System.Security.Principal.WellKnownSidType.BuiltinAdministratorsSid, null) })
             security.AddAccessRule(new System.Security.AccessControl.FileSystemAccessRule(sid, System.Security.AccessControl.FileSystemRights.FullControl, System.Security.AccessControl.AccessControlType.Allow));
-        info.SetAccessControl(security);
+        return System.IO.FileSystemAclExtensions.Create(info, FileMode.CreateNew, System.Security.AccessControl.FileSystemRights.Write,
+            FileShare.None, 4096, FileOptions.None, security);
     }
 }

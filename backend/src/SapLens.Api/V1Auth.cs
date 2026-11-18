@@ -175,6 +175,13 @@ public static partial class V1Auth
         }, signedIn: false);
 
         Route("GET", "/auth/me", async (_, store, actor) => Json(await store.MeAsync(actor)));
+        Route("POST", "/auth/backup-reauth", async (http, store, actor) =>
+        {
+            if (await Read(http) is not { } body) return Invalid();
+            var password = body.Text("current_password", 0, 1024);
+            if (!body.Done()) return Invalid();
+            return Json(new { code = await store.IssueBackupVerificationAsync(actor, password), expires_in = 300 });
+        });
         Route("GET", "/auth/sessions", async (_, store, actor) => Json(new { items = await store.SessionsAsync(actor) }));
         Route("POST", "/auth/logout", async (http, store, actor) => { await store.LogoutAsync(actor); Clear(http); return Json(new { ok = true }); });
         Route("POST", "/auth/logout-all", async (http, store, actor) => { await store.LogoutAsync(actor, true); Clear(http); return Json(new { ok = true }); });

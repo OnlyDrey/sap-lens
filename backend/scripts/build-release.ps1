@@ -116,6 +116,7 @@ if (-not (Test-Contains (Join-Path $server 'SapLens.Api.exe') 'Microsoft.Extensi
 $readme = (Get-Content (Join-Path $PSScriptRoot 'release-README.txt') -Raw).Replace('{{VERSION}}', $version).Replace('{{SHA}}', $sha).
     Replace('{{BUILT}}', $built.ToString('yyyy-MM-dd HH:mm:ss')).Replace('{{PLATFORM}}', 'Windows x64')
 [System.IO.File]::WriteAllText((Join-Path $release 'README.txt'), $readme.Replace("`r`n", "`n").Replace("`n", "`r`n"))
+Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'Service-Manager.ps1') -Destination (Join-Path $release 'Service-Manager.ps1')
 
 function Get-Artifacts([string]$Folder, [string[]]$Exclude) {
     # Ordinal path order: the same on every machine and culture.

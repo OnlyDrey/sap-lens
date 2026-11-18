@@ -423,6 +423,51 @@ public sealed partial class AccountStore
         return new Principal(S(row, "user_id"), S(row, "username"), S(row, "display_name"), S(row, "role"), key);
     }
 
+    /// <summary>Current-password authorization for one recovery-copy verification. The proof is session-bound,
+    /// expires after five minutes, and is stored only as a digest in the existing single-use code store.</summary>
+    public async Task<string> IssueBackupVerificationAsync(Principal actor, string password)
+    {
+        Require(actor, "accounts");
+        var client = Digest("backup-reauth:" + actor.Id);
+        var row = await Use(false, db =>
+        {
+            Authorize(db, actor, "accounts");
+            if (Row(db, "SELECT * FROM login_limits WHERE client=$1", client) is { } limit && D(limit, "until_time") > Now) throw new AuthException("temporarily_throttled", 429);
+            return Row(db, "SELECT * FROM users WHERE id=$1", actor.Id)!;
+        });
+        var valid = password.Length <= 1024 && Passwords.Verify(S(row, "verifier"), password);
+        AuthException? denied = null;
+        var code = NewSecret();
+        await Use(true, db =>
+        {
+            Authorize(db, actor, "accounts");
+            var current = Row(db, "SELECT * FROM users WHERE id=$1", actor.Id)!;
+            if (Row(db, "SELECT * FROM login_limits WHERE client=$1", client) is { } limit && D(limit, "until_time") > Now) throw new AuthException("temporarily_throttled", 429);
+            if (!valid || L(current, "credential_version") != L(row, "credential_version"))
+            {
+                Failed(db, client, Now); Audit(db, actor, "backup.reauthentication_denied");
+                denied = new AuthException("invalid_credentials", 401); return false;
+            }
+            Execute(db, "DELETE FROM login_limits WHERE client=$1", client);
+            var purpose = "backup-key-verify:" + actor.SessionId;
+            Execute(db, "DELETE FROM one_time WHERE purpose=$1 OR (purpose LIKE 'backup-key-verify:%' AND expires<$2)", purpose, Now);
+            Execute(db, "INSERT INTO one_time(id,purpose,user_id,verifier,created,expires) VALUES($1,$2,$3,$4,$5,$6)", Guid.NewGuid().ToString("N"), purpose, actor.Id, Digest(code), Now, Now + 300);
+            Audit(db, actor, "backup.reauthenticated"); return true;
+        });
+        if (denied is not null) throw denied;
+        return code;
+    }
+
+    public Task ConsumeBackupVerificationAsync(Principal actor, string code) => Use(true, db =>
+    {
+        Authorize(db, actor, "accounts");
+        if (code.Length is < 20 or > 128) throw new AuthException("reauthentication_required", 403);
+        var row = Row(db, "SELECT * FROM one_time WHERE purpose=$1 AND user_id=$2 AND verifier=$3 AND consumed=0 AND expires>$4", "backup-key-verify:" + actor.SessionId, actor.Id, Digest(code), Now);
+        if (row is null) throw new AuthException("reauthentication_required", 403);
+        Execute(db, "UPDATE one_time SET consumed=1 WHERE id=$1", row["id"]);
+        Audit(db, actor, "backup.key_verification_authorized"); return true;
+    });
+
     public async Task CsrfAsync(Principal principal, string? offered)
     {
         if (offered is null || offered.Length > 128) throw new AuthException("csrf_required", 403);

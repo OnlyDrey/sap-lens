@@ -20,7 +20,7 @@ namespace SapLens.Api;
 /// </list></summary>
 public static class MaintenanceCommands
 {
-    public static readonly string[] Names = ["--schema-info", "--inspect-data", "--backup-local", "--backup-verify"];
+    public static readonly string[] Names = ["--schema-info", "--inspect-data", "--backup-local", "--backup-verify", "--accounts-code"];
 
     public static bool Handles(string[] args) => Names.Any(args.Contains);
 
@@ -33,7 +33,11 @@ public static class MaintenanceCommands
             if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
             data = Path.GetFullPath(data);
             JsonObject result;
-            if (args.Contains("--inspect-data")) result = InspectData(data);
+            if (args.Contains("--accounts-code"))
+            {
+                result = AdministratorCode(data, Value("--recover-administrator"));
+            }
+            else if (args.Contains("--inspect-data")) result = InspectData(data);
             else if (args.Contains("--schema-info")) result = SchemaInfo(data);
             else if (Value("--backup-local") is { } folder) result = BackupLocal(data, folder, DateTimeOffset.UtcNow);
             else if (Value("--backup-verify") is { } file) result = BackupVerify(data, file);
@@ -41,11 +45,21 @@ public static class MaintenanceCommands
             Console.Out.WriteLine(result.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
             return 0;
         }
-        catch (Exception error) when (error is InvalidOperationException or BackupException or IOException or UnauthorizedAccessException or SqliteException)
+        catch (Exception error) when (error is InvalidOperationException or BackupException or IOException or UnauthorizedAccessException or SqliteException or SapLens.Application.Accounts.AuthException)
         {
             Console.Error.WriteLine($"maintenance refused: {error.Message}");
             return 3;
         }
+    }
+
+    /// <summary>The migrations compiled into this build.</summary>
+    public static JsonObject AdministratorCode(string data, string? username)
+    {
+        if (!Directory.Exists(data)) throw new InvalidOperationException("Select an existing application data directory.");
+        var store = new SapLens.Application.Accounts.AccountStore(SapLens.Application.Accounts.AccountStore.For(data), TimeProvider.System);
+        store.Prepare();
+        var issued = store.IssueAsync(username).GetAwaiter().GetResult();
+        return new JsonObject { ["code"] = issued.Code, ["purpose"] = issued.Purpose, ["expires"] = issued.Expires };
     }
 
     /// <summary>The migrations compiled into this build.</summary>

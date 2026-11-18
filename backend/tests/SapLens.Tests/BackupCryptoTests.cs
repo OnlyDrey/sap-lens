@@ -66,6 +66,32 @@ public sealed class BackupCryptoTests
     }
 
     [Fact]
+    public void Local_key_operations_preserve_existing_archives_and_audit_without_key_material()
+    {
+        var root = Directory.CreateTempSubdirectory("saplens-local-keys-").FullName;
+        try
+        {
+            var data = Path.Combine(root, "data"); var first = Path.Combine(root, "host.key"); var copy = Path.Combine(root, "recovery.key");
+            BackupKeys.Create(first, data);
+            var key = BackupKeys.Host(data)!; var sealedArchive = Seal([1, 2, 3], "", key);
+            Assert.Throws<BackupException>(() => BackupKeys.Create(Path.Combine(root, "replacement.key"), data));
+            Assert.False(File.Exists(Path.Combine(root, "replacement.key")));
+            BackupKeys.Export(copy, data);
+            Assert.Equal(key, BackupKeys.Host(data));
+            Assert.Throws<BackupException>(() => BackupKeys.Export(copy, data));
+            Assert.True((bool)BackupKeys.VerifyFile(copy, data, "synthetic-operator", DateTimeOffset.UtcNow)["escrow_verified"]!);
+            Assert.Equal([1, 2, 3], Unseal(sealedArchive, File.ReadAllText(copy).Trim(), null));
+            var different = Path.Combine(root, "other.key"); BackupKeys.WritePrivate(different, Encoding.ASCII.GetBytes(Convert.ToBase64String(RandomNumberGenerator.GetBytes(32))));
+            Assert.Throws<BackupException>(() => BackupKeys.Use(different, data));
+            Assert.Equal(key, BackupKeys.Host(data));
+            var audit = File.ReadAllText(Path.Combine(data, "backup-key-audit.jsonl"));
+            Assert.Contains("recovery.exported", audit); Assert.Contains("recovery.verified", audit);
+            Assert.DoesNotContain(Convert.ToBase64String(key), audit);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    [Fact]
     public void A_host_key_archive_needs_the_matching_key_or_its_recovery_copy()
     {
         var host = RandomNumberGenerator.GetBytes(32);

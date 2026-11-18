@@ -16,7 +16,12 @@ public static class V1Backups
     {
         var group = api.MapGroup("/backups");
 
-        group.MapGet("", (HttpContext http, ApplicationBackups backups) => Guard(http) ?? Json(backups.Status()));
+        group.MapGet("", (HttpContext http, ApplicationBackups backups, HostSettings host) =>
+        {
+            if (Guard(http) is { } refused) return refused;
+            var status = backups.Status(); status["reauthentication_required"] = host.Mode == HostMode.Server && host.Authentication == AuthenticationMode.Accounts;
+            return Json(status);
+        });
 
         group.MapPost("/create", async (HttpContext http, ApplicationBackups backups, CancellationToken ct) =>
         {
@@ -35,8 +40,14 @@ public static class V1Backups
             if (Guard(http) is { } refused) return refused;
             var (body, invalid) = await Body(http, ct);
             if (invalid is not null) return invalid;
-            if (Extra(body!, "recovery_key") is { } extra) return extra;
+            if (Extra(body!, "recovery_key", "reauth_code") is { } extra) return extra;
             if (body!["recovery_key"] is not { } key || key.GetValueKind() != JsonValueKind.String || key.GetValue<string>().Length > 96) return Invalid("recovery_key", "Field required (a string of at most 96 characters)");
+            if (http.RequestServices.GetRequiredService<HostSettings>().Mode == HostMode.Server)
+            {
+                if (body["reauth_code"] is not JsonValue proof || !proof.TryGetValue<string>(out var code)) return Results.Json(new { detail = "Confirm your current administrator password before verifying a recovery copy." }, statusCode: 403);
+                try { await http.RequestServices.GetRequiredService<SapLens.Application.Accounts.AccountStore>().ConsumeBackupVerificationAsync(Actors.Current(http), code); }
+                catch (SapLens.Application.Accounts.AuthException error) { return Results.Json(new { detail = error.Message }, statusCode: error.Status); }
+            }
             return Run(() => BackupKeys.VerifyEscrow(key.GetValue<string>(), options.DataDirectory, Actors.Name(http), clock.GetUtcNow()));
         });
 

@@ -18,7 +18,10 @@ SERVER QUICK START
   server\SapLens.Api.exe --data-dir C:\saplens2\data --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20
       --cert C:\ProgramData\SapLens2\tls\server.pfx --cert-password-file C:\ProgramData\SapLens2\tls\cert-password
   Behind a reverse proxy, add --trusted-proxies <the proxy's address as seen by this server>.
-  First administrator: issue a one-time code with SapLens.Cli accounts-code --data <data-dir> (from the source checkout).
+  Local administration (no SDK): open an elevated PowerShell and run .\Service-Manager.ps1 -DataDirectory <data-dir>.
+  It shows key status, creates the initial key, exports/verifies a recovery copy, and issues administrator activation/recovery codes.
+  Recovery exports are new private files; an existing key is never rotated. Keep copies off the server and verify them in Settings.
+  Activation and recovery codes are displayed locally once. Do not record or redirect code operations to logs.
 
 KEEP OUTSIDE THIS FOLDER
   The data directory (database, access token, accounts, logs), certificates and password files. The Server refuses a data directory inside its

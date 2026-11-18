@@ -76,6 +76,7 @@ if (args.Contains("--backup-key"))
             "create" => SapLens.Application.Backups.BackupKeys.Create(path, data),
             "use" => SapLens.Application.Backups.BackupKeys.Use(path, data),
             "export" => SapLens.Application.Backups.BackupKeys.Export(path, data),
+            "verify" => SapLens.Application.Backups.BackupKeys.VerifyFile(path, data, Environment.UserName, DateTimeOffset.UtcNow),
             _ => SapLens.Application.Backups.BackupKeys.Status(data),
         };
         Console.Out.WriteLine(result.ToJsonString());

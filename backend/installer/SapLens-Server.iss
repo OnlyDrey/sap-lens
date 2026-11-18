@@ -54,8 +54,12 @@ Source: "{#ReleaseDir}\server\SapLens.Api.exe"; DestDir: "{app}\server"; Flags: 
 Source: "{#ReleaseDir}\server\e_sqlite3.dll"; DestDir: "{app}\server"; Flags: ignoreversion
 Source: "{#ReleaseDir}\server\libSkiaSharp.dll"; DestDir: "{app}\server"; Flags: ignoreversion
 Source: "{#ReleaseDir}\README.txt"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ReleaseDir}\Service-Manager.ps1"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#ReleaseDir}\build-manifest.json"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#RepoRoot}\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
+
+[Icons]
+Name: "{group}\SAP Lens Service Manager"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -File ""{app}\Service-Manager.ps1"""; WorkingDir: "{app}"
 
 [Registry]
 Root: HKLM; Subkey: "{#VersionKey}"; ValueType: string; ValueName: "FileVersion"; ValueData: "{#NumericVersion}"; Flags: uninsdeletekey
