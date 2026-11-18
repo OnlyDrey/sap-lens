@@ -1,11 +1,24 @@
 # Repository scripts
 
-Repository-wide checks and the one helper the active frontend build needs. SAP Lens 2 build, release, installer and deployment scripts are in
-[`backend/scripts`](../backend/scripts) ([development](../docs/development/README.md), [deployment](../docs/deployment/README.md)); SAP Lens 1
-tooling (including the workflow contract check, icon catalogue sync and license notice) is archived in [`legacy/v1/scripts`](../legacy/v1/scripts/README.md).
+SAP Lens 2 runtime and deployment tooling lives in `backend/scripts`; these are
+repository-wide development helpers. Canonical commands: [development](../docs/development/README.md),
+[CI](../docs/development/CI.md), [deployment](../docs/deployment/README.md).
 
 | Script | Purpose |
 | --- | --- |
-| `check-docs.py` | Offline check of relative Markdown links, images and anchors in `README.md`, `AGENTS.md`, `docs/` and `examples/` |
-| `check-secrets.py` | Secret and private-value scan of tracked files (`--history` for all refs, `--path DIR` for a release folder, used by `backend/scripts/build-release.*`); prints file, line and rule, never the value |
-| `product-version.mjs` | Run by `npm run build` (`prebuild`): keeps `frontend/package.json` equal to the version resource the frontend mirrors, currently SAP Lens 1's `legacy/v1/backend/resources/product-version.json` |
+| `browser-server.mjs` | Owned disposable .NET browser/dev host; bounded shutdown and no inherited operator configuration |
+| `product-version.mjs` | Check frontend mirrors against `backend/product-version.json`; explicit `--write` synchronizes mirrors |
+| `check-structure.py` | Active .NET layout, archived v1 and frontend version contracts |
+| `check-workflows.py` | Parsed YAML, exact main-only trigger, pinned actions and read-only/no-publish contracts |
+| `check-dependencies.py` | NuGet advisory audit with fail-closed JSON parsing and nonzero findings exit code |
+| `check-docs.py` | Offline relative Markdown link and anchor checks |
+| `check-secrets.py` | Tracked/release file scan; diagnostics never print matched values |
+| `sync-lucide-catalog.mjs` | Check/update the locked icon list in the .NET embedded registry |
+| `tests/` | Focused version, CI, structure and container-boundary regression tests |
+| `requirements-checks.txt` | Pinned development-only YAML parser for workflow contracts |
+
+Archived Python build/release tools stay under `legacy/v1/scripts`; they are not
+active entrypoints. Historical deployments can still resolve a pre-promotion
+commit through the existing deployment compatibility resolver. That resolver's
+`experiments/dotnet-backend` references are deliberate compatibility paths, not
+current build paths; removing them would break rollback/older-commit inspection.

@@ -27,8 +27,11 @@ chmod +x "$work/bin/ssh"
 export PATH="$work/bin:$PATH" FAKE_DIR="$work" XDG_STATE_HOME="$work/state"
 
 # The "Windows host": a clone of this repository whose origin carries the branch, and a deployment configuration with local paths.
-git clone -q --no-hardlinks "$repo_root" "$work/host-repo"
-tip=$(git -C "$repo_root" rev-parse experiment/dotnet-backend)
+tip=$(git -C "$repo_root" rev-parse HEAD)
+# A synthetic remote makes this fixture work on main CI too; never update a real branch.
+git clone -q --bare --no-hardlinks "$repo_root" "$work/origin.git"
+git --git-dir="$work/origin.git" update-ref refs/heads/experiment/dotnet-backend "$tip"
+git clone -q --no-hardlinks "$work/origin.git" "$work/host-repo"
 mkdir -p "$work"/{deploy,releases,backups,data,tls}; : > "$work/tls/server.pfx"; : > "$work/tls/cert-password"
 cat > "$work/deploy.json" <<JSON
 {"RepositoryPath":"$work/host-repo","WorkRoot":"$work/deploy","ReleasesRoot":"$work/releases","BackupRoot":"$work/backups","ListenAddress":"192.0.2.10",

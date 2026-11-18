@@ -27,6 +27,7 @@ USER root
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates libfontconfig1 libfreetype6 \
     && rm -rf /var/lib/apt/lists/* && mkdir /data && chown app:app /data
 WORKDIR /app
+COPY LICENSE.md ./LICENSE.md
 COPY --from=build /out/ ./
 COPY backend/scripts/docker/entrypoint.sh backend/scripts/docker/healthcheck.sh /usr/local/bin/
 RUN chmod 755 /usr/local/bin/entrypoint.sh /usr/local/bin/healthcheck.sh

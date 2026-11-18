@@ -73,6 +73,8 @@ jobs:
         run: Install-Module Pester -RequiredVersion 5.7.1 -Scope CurrentUser -Force
       - shell: pwsh
         run: Invoke-Pester -Path backend/scripts/tests -CI
+      - if: runner.os == 'Linux'
+        run: bash backend/scripts/tests/deploy-windows.test.sh
   browser:
     needs: frontend
     runs-on: ubuntu-latest

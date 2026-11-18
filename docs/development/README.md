@@ -104,3 +104,28 @@ Generated data, publish output and benchmark JSON stay outside the repository.
 - **Migration procedure:** `pwsh -File scripts/tests/v1-migration-procedure.ps1 -Exe <SapLens.Api> -Root <new folder>` runs the documented
   Windows procedure ([V1_MIGRATION.md](../migration/V1_MIGRATION.md)) against that fixture with 12 checks.
 - **Not covered by automated tests here:** native Windows (Desktop, service, ACLs, PowerShell 5.1), WebView2, and real SAP Lens 1 data.
+
+## Infrastructure commands and compatibility
+
+The SDK selector in `global.json` uses the latest installed .NET 10 feature band;
+Node 24 is the CI baseline (24/25 satisfy the frontend engine). Product versions
+are checked by `node scripts/product-version.mjs`, independently of SDK selection.
+For CI contracts/security checks see [CI](CI.md); containers are optional
+([Docker](../deployment/DOCKER.md)).
+
+```bash
+# Parse active PowerShell without running Windows operations:
+pwsh -NoProfile -File backend/scripts/check-powershell.ps1
+# Fake SSH + local PowerShell: temporary clone only, no remote connection/service:
+bash backend/scripts/tests/deploy-windows.test.sh
+# Pester 5.7.1, mocked platform/deployment operations:
+pwsh -NoProfile -Command "Invoke-Pester -Path backend/scripts/tests -CI"
+```
+
+Build/release scripts remain in `backend/scripts`. Historical
+`experiments/dotnet-backend` references survive only in the deployment compatibility
+resolver and its older-commit tests. They are needed for verified rollback and
+inspection of pre-promotion commits, and are not competing current entrypoints.
+The release scripts now read the frontend mirror, not archived v1 metadata. Their
+checksum, source identity, no-overwrite, backup/restore and private-data guards
+remain intact. No installed service or release is modified by repository checks.

@@ -75,7 +75,10 @@ public sealed class VersioningTests : IAsyncLifetime
     {
         var v1 = (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "legacy", "v1", "backend", "resources", "product-version.json")))!["version"]!;
         Assert.NotEqual(v1, ProductIdentity.Version);
-        Assert.Equal(v1, (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "frontend", "package.json")))!["version"]!);   // v1's mirror untouched
+        Assert.Equal(ProductIdentity.Version, (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "frontend", "package.json")))!["version"]!);
+        var locked = JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "frontend", "package-lock.json")))!;
+        Assert.Equal(ProductIdentity.Version, (string)locked["version"]!);
+        Assert.Equal(ProductIdentity.Version, (string)locked["packages"]![""]!["version"]!);
     }
 
     [Fact]
@@ -115,6 +118,6 @@ public sealed class VersioningTests : IAsyncLifetime
         Assert.DoesNotContain("Directory.Build.props", text);                   // the props no longer hold a version
         Assert.Contains("SAP-Lens-", text);                                     // the folder name carries the version
         Assert.Contains("{version}+{sha}", text.Replace("$version+$sha", "{version}+{sha}"));
-        Assert.Contains("ui_source_version", text);                              // the embedded UI's v1 version is recorded, not adopted
+        Assert.Contains("ui_source_version", text);                              // the frontend mirrors the same canonical product version
     }
 }
