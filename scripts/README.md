@@ -1,6 +1,6 @@
 # Repository scripts
 
-SAP Lens 2 runtime and deployment tooling lives in `backend/scripts`; these are
+SAP Lens runtime and deployment tooling lives in `backend/scripts`; these are
 repository-wide development helpers. Canonical commands: [development](../docs/development/README.md),
 [CI](../docs/development/CI.md), [deployment](../docs/deployment/README.md).
 

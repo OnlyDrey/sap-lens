@@ -473,12 +473,12 @@ with isolated synthetic fixtures and mocked system installers. Python Quick is
 executed locally. Real Windows bootstrap, winget, PowerShell 5.1/7 execution,
 PyInstaller/Inno/.NET compilation, WebView2/SCM and current-source platform packages
 remain unexecuted on this Linux host. No full application regression is claimed.
-See the [workflow validation matrix](../../validation/WORKFLOW_MATRIX.md) and the
+See the [workflow validation matrix](validation/WORKFLOW_MATRIX.md) and the
 [platform acceptance matrix](deployment/README.md#validation-status).
 
 ## Script inventory
 
-Every tracked file under `scripts/` is classified here and in [scripts/README.md](../../../legacy/v1/scripts/README.md) by purpose, callers (workflows, tests, documentation) and overlap with the Python engine.
+Every tracked file under `scripts/` is classified here and in `scripts/README.md` by purpose, callers (workflows, tests, documentation) and overlap with the Python engine.
 Result of the audit: no script is redundant. Every file has a live caller or a documented role, and the apparent overlaps are layered
 (a public wrapper over an internal worker) rather than duplicated. Public entrypoints are `scripts/build.ps1` and `scripts/build.py`; everything
 else is an internal helper and is not a supported entrypoint.

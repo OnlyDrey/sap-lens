@@ -11,7 +11,7 @@ is archived; its documentation is under [legacy/v1](legacy/v1/README.md).
 | Windows service operation | [Windows deployment and service](deployment/WINDOWS_DEPLOYMENT.md), [Windows test VM runbook](deployment/WINDOWS_TEST_VM.md) |
 | TLS and reverse proxy | [Network access, TLS and reverse proxy](deployment/SERVER_NETWORK_ACCESS.md), [firewall](deployment/SERVER_NETWORK_ACCESS.md#6-firewall-one-trusted-subnet-one-port-nothing-automatic) |
 | Security | [Security boundary and authentication](deployment/SERVER_NETWORK_ACCESS.md), [privacy and secrets](deployment/WINDOWS_DEPLOYMENT.md#privacy-and-secrets) |
-| Backup and recovery | [Backups, migrations and retention](architecture/DATABASE_DESIGN.md#backups-and-retention), [deployment rollback and recovery](deployment/WINDOWS_DEPLOYMENT.md#deployment-sequence), [SAP Lens 1 data migration](migration/V1_MIGRATION.md) |
+| Backup and recovery | [Backup and recovery guide](operations/BACKUP_AND_RECOVERY.md) (archives, recovery key, automatic backups, retention, restore, upgrade confirmation), [storage design](architecture/DATABASE_DESIGN.md#backups-and-retention), [deployment rollback and recovery](deployment/WINDOWS_DEPLOYMENT.md#deployment-sequence), [SAP Lens 1 data migration](migration/V1_MIGRATION.md) |
 | Development and testing | [Development](development/README.md) |
 | Migration tracking | [Migration index](migration/README.md), [release status](migration/RELEASE_STATUS.md), [promotion and remaining gates](migration/BACKEND_PROMOTION.md) |
 | Validation tracker | [Functional areas and manual validation](validation/README.md) |

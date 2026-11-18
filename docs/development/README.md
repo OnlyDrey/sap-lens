@@ -1,7 +1,7 @@
 # Development and testing (SAP Lens .NET)
 
 How to build and test SAP Lens. Deployment: [deployment](../deployment/README.md). Architecture: [architecture](../architecture/README.md).
-SAP Lens 1 development (Python, `legacy/v1/scripts/run-tests.py`) is documented in [legacy v1 development](../legacy/v1/development/README.md).
+SAP Lens 1 (Python) is archived outside the repository; its historical development guide is in [legacy v1 development](../legacy/v1/development/README.md).
 
 ## Everyday commands
 
@@ -37,12 +37,18 @@ These are synthetic Desktop-capability fixtures, not a deployed Accounts server.
 The synthetic capability is injected by Playwright/Vite only; production hosts
 retain their normal token/session policy.
 
-Migration gaps are explicit: four Python-runtime specs are preserved under
-`legacy/v1/frontend/tests` ([inventory](../../legacy/v1/frontend/README.md)).
-Two active specs still use optional Python reference generators. Run the .NET
-smoke with `npm --prefix frontend run test:browser -- tests/dotnet-host.spec.ts`.
-The rest of the preserved suite is available for discovering API/UI parity gaps;
-passing the smoke is not a claim that every migrated browser workflow passes.
+## Browser tests
+
+`npm run test:browser` runs the Playwright suite against the isolated .NET host (`scripts/browser-server.mjs`, `backend/tests/SapLens.BrowserHost`):
+one host and disposable data directory per Playwright process, the Desktop-mode access token on every request, one worker. No Python and no
+SAP Lens 1 server are involved; fixtures are versioned files in `frontend/tests/fixtures` (synthetic CSV and SoD reference workbooks).
+CI runs the focused smoke: `npm --prefix frontend run test:browser -- tests/dotnet-host.spec.ts tests/component-library.spec.ts`.
+
+Tests that exercised SAP Lens 1 itself were removed with it: its Python server process and identity codes, its desktop startup document, and its
+backup format. The remaining suite is kept and run in full at checkpoints. **Known gap:** many older specs still configure source files through
+a settings save (`POST /api/configuration` with `*_csv_path`), which SAP Lens 1 accepted and the .NET host deliberately refuses ("Source files
+change through Data Sources"); those specs fail until they use `POST /api/data-sources/{source}/select` or an upload. Their results are reported
+separately and never counted as passing .NET acceptance ([release status](../migration/RELEASE_STATUS.md)).
 
 ## Backend layout
 
@@ -63,8 +69,10 @@ The .NET backend lives in [`backend/`](../../backend):
 
 ## Reproduce
 
-Prerequisites: .NET SDK 10 (LTS), Node.js 24 or 25 (frontend), PowerShell 7 with Pester 5 (script tests). The v1 reference tools need the
-repository's Python 3.12 venv with `legacy/v1/backend/requirements-dev.txt`.
+Prerequisites: .NET SDK 10 (LTS), Node.js 24 or 25 (frontend), PowerShell 7 with Pester 5 (script tests), Python 3 for the repository checks
+(`scripts/requirements-checks.txt`). Builds and tests never need SAP Lens 1. Only regenerating a v1 comparison fixture with `tools/*_reference.py`
+does: a Python 3.12 environment with SAP Lens 1's requirements and `SAP_LENS_V1_BACKEND` pointing at a SAP Lens 1 checkout
+(`tools/v1_location.py`; for example a worktree of commit `604f21e`).
 
 ```bash
 cd backend
@@ -95,9 +103,9 @@ Generated data, publish output and benchmark JSON stay outside the repository.
 - **Suite:** `dotnet test tests/SapLens.Tests -c Release` runs every xUnit test; the release scripts run the same suite. During development,
   select the affected classes, for example `--filter "FullyQualifiedName~V1DataMigrationTests|FullyQualifiedName~ApplicationBackupTests"`.
 - **Python v1 references:** tests that compare with SAP Lens 1 read fixtures written by `tools/*_reference.py` from the real v1 code
-  (`.venv` with `legacy/v1/backend/requirements-dev.txt`); a test that compares with v1 is also checked by tampering its fixture once (it must fail).
+  (`SAP_LENS_V1_BACKEND` pointing at a SAP Lens 1 checkout); a test that compares with v1 is also checked by tampering its fixture once (it must fail).
 - **SAP Lens 1 installation fixture:** `tests/SapLens.Tests/Fixtures/v1-data` is written by `tools/v1_data_fixture.py`
-  (`.venv/bin/python -I tools/v1_data_fixture.py ../legacy/v1/backend <out>`). It is a v1 data directory with SoD decisions, periods, remediation,
+  (`python -I tools/v1_data_fixture.py $SAP_LENS_V1_BACKEND <out>`). It is a v1 data directory with SoD decisions, periods, remediation,
   legacy reviews and Account Review history, plus its host-key and passphrase `.slbak` backups and `expected.json` (synthetic secrets
   included). The repository `.gitignore` excludes private v1 data patterns, so these fixture paths (and the build-970d219 account store) are
   re-included explicitly; check `git status --ignored` after regenerating.

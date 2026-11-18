@@ -55,7 +55,6 @@ SAP Lens is not declared feature-complete or production-certified: see [release 
 | [`frontend/`](frontend) | React/Vite UI, shared by SAP Lens and archived v1 |
 | [`docs/`](docs/README.md) | Documentation (canonical for SAP Lens) |
 | [`scripts/`](scripts/README.md) | Repository-wide checks (documentation links, secrets, workflow contracts, frontend version and icon catalogue) |
-| [`legacy/v1/`](legacy/v1/README.md) | SAP Lens 1 (Python/FastAPI backend, desktop, packaging, tooling): archived, not the development target |
 | [`examples/`](examples/README.md), [`assets/`](assets) | Synthetic example data; product icon and logo |
 
 ## Quick commands
@@ -79,9 +78,9 @@ Details: [development](docs/development/README.md), [deployment](docs/deployment
 
 ## SAP Lens 1 (legacy)
 
-The Python/FastAPI implementation is archived in [`legacy/v1/`](legacy/v1/README.md) with its documentation in
-[`docs/legacy/v1/`](docs/legacy/v1/README.md). It is kept for reference and recovery, receives no new features, and installed v1 applications are
-not changed by this repository's .NET tooling.
+The Python/FastAPI implementation is archived outside this repository (a separate archive; commit `604f21e` is the last one that contains it).
+Its documentation stays in [`docs/legacy/v1/`](docs/legacy/v1/README.md) for reference. It receives no new features, nothing in this
+repository depends on it, and installed v1 applications are not changed by the .NET tooling.
 
 ## Licensing
 

@@ -45,7 +45,7 @@ SAP Lens maps automatically by name (or by hand under *Advanced import format an
   file order is kept (a conflict is counted in a warning); values longer than 4096 characters or with control characters are skipped and counted, never fatal.
   A change that touches only these descriptions is staged as a new snapshot so refreshes do not ignore it.
 - **Priority and provenance.** SAP Lens uses non-empty explicit local overrides first, imported metadata second, curated reference definitions third, otherwise "No description available". Local guidance is maintained in Settings → SoD Risk Configuration. Both stores stay separate: a refresh or import never overwrites local text, and local text never edits
-  the import. Where they differ both are kept and the popover and Settings name the origin of each. One resolver (`backend/sod_metadata.py`) serves pills,
+  the import. Where they differ both are kept and the popover and Settings name the origin of each. One resolver (in `backend/src/SapLens.Api/V1SodCatalogue.cs`) serves pills,
   popovers, Settings and the diagnostics.
 - **Coverage.** The SoD source inspection and the pre-import validation list, for risk names and descriptions, activity names and descriptions and transaction
   descriptions, the available and total counts, the percentage, the missing count, imported, local-override and reference counts and a status: *Complete*,
@@ -302,8 +302,8 @@ storage backup mechanism. A later application/library upgrade never overwrites a
 custom library; reset can explicitly select the newly bundled version. Review snapshots
 retain their captured text and provenance, not tomorrow's default resource.
 
-Windows desktop and service builds include resources under the PyInstaller resource root;
-Linux native and Docker builds carry backend/resources. A missing default resource is
+The bundled resources (`backend/src/SapLens.Api/V1Reference`) are embedded in the Server and Desktop executables, so every
+Windows, Linux and Docker build carries the same files. A missing default resource is
 reported in reference status and disables reset; custom imports and existing private data
 remain available. Invalid bundled data returns a controlled error without changing data.
 
@@ -327,11 +327,11 @@ The original workbooks and matrix remain outside Git.
 
 | Repository item | Purpose and validation |
 |---|---|
-| [backend/resources/reference-defaults.json](../../legacy/v1/backend/resources/reference-defaults.json) | Canonical business library 1.0.1: 14 risks, 14 activities, six terms. Contains P001, P002, P008 and PR01. Validated by the Library model; risk/activity records also round-trip through the real XLSX importer in tests. |
-| [backend/resources/sod-reference-template.xlsx](../../legacy/v1/backend/resources/sod-reference-template.xlsx) | Schema example, not a populated copy of library 1.0.1. Contains synthetic R_EXAMPLE/ACT_EXAMPLE and one example term. Parsed by the real importer; its XML members are checked against the canonical generator. |
-| [scripts/maintenance/reference-template.py](../../legacy/v1/scripts/maintenance/reference-template.py) | Generates that synthetic template from the importer's actual header mappings. It does not duplicate curated business definitions. |
+| [backend/src/SapLens.Api/V1Reference/sod-reference-defaults.json](../../backend/src/SapLens.Api/V1Reference/sod-reference-defaults.json) | Canonical business library 1.0.1: 14 risks, 14 activities, six terms. Contains P001, P002, P008 and PR01. Validated by the Library model; risk/activity records also round-trip through the real XLSX importer in tests. |
+| [backend/src/SapLens.Api/V1Reference/sod-reference-template.xlsx](../../backend/src/SapLens.Api/V1Reference/sod-reference-template.xlsx) | Schema example, not a populated copy of library 1.0.1. Contains synthetic R_EXAMPLE/ACT_EXAMPLE and one example term. Parsed by the real importer; its XML members are checked against the canonical generator. |
+| `reference-template.py` (SAP Lens 1 maintenance script, archived) | Generates that synthetic template from the importer's actual header mappings. It does not duplicate curated business definitions. |
 | [examples/sod-matrix.example.csv](../../examples/sod-matrix.example.csv) | Separate active-matrix example: two synthetic risks/four mapping rows. Validated by `parse_sod`, including links to example catalogue transactions. It intentionally does not substitute production-like P001/PR01 relationships into the synthetic scenario. |
-| [backend/tests/test_sod_reference.py](../../legacy/v1/backend/tests/test_sod_reference.py) | Synthetic schema/negative fixtures; populated round-trip fixtures derive directly from the JSON library. No second maintained business library. |
+| [backend/tests/SapLens.Tests/Fixtures/sod/reference](../../backend/tests/SapLens.Tests/Fixtures/sod/reference) and `SodCatalogueTests` | Synthetic schema/negative fixtures; populated round-trip fixtures derive directly from the JSON library. No second maintained business library. |
 
 The original supplied reference workbooks stay outside Git and deployment packages.
 The tracked validation-tracker XLSX is a maintenance report, not an import/reference workbook.

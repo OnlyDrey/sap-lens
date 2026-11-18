@@ -7,25 +7,29 @@
 - Validate every change with the Progressive test validation policy below (Level 1 and 2 during development). The whole .NET suite
   (`dotnet test backend/tests/SapLens.Tests`) and the complete browser suite are explicit FULL checks, not automatic development steps. Keep
   frontend type/build checks proportional to affected code.
-- **SAP Lens 2 (.NET, `backend/`) is the primary implementation. SAP Lens 1 (Python, `legacy/v1/`) is archived:** no new features there; change it
-  only to keep shared tooling (the browser-test server, migration reference tools) working. Active tooling never lives under `legacy/`, and
-  archived tooling never moves back to the root.
+- **SAP Lens is the .NET implementation in `backend/` with the React frontend in `frontend/`** (product version 2.0.0-alpha.1; never call the
+  current product "SAP Lens 2"). SAP Lens 1 (Python/FastAPI) is archived **outside** this repository (a separate archive; the last commit with
+  it in place is `604f21e`). Nothing active may depend on it: no `legacy/` paths, no Python fixtures or servers in builds and tests
+  (`scripts/check-structure.py` enforces this). Historical v1 documentation stays in `docs/legacy/v1`.
 - `.github/workflows/validate.yml` validates .NET, the frontend, focused Playwright and Docker only on push to `main`. No dispatch, PR,
-  schedule or experiment/work trigger is permitted. Archived v1 workflow definitions live under `legacy/v1/.github/workflows` and cannot run.
-  SAP Lens 2 Windows release, installer and deployment scripts are in `backend/scripts`.
+  schedule or experiment/work trigger is permitted. Windows release, installer and deployment scripts are in `backend/scripts`.
+- **Documentation must evolve with the code.** Every change affecting functionality, architecture, configuration, security, deployment,
+  operations or user-facing behavior must include corresponding documentation updates in the same development task. A development task is
+  not complete until its relevant documentation is accurate and updated. Describe only what is implemented, and state whether it is verified,
+  awaiting Windows acceptance, partial or planned.
 
 ## Stack and conventions
 
 Verified against `backend/` project files, `frontend/package.json` and configs.
 
-- **Backend (SAP Lens 2):** .NET 10, ASP.NET Core, EF Core SQLite, xUnit. Solution `backend/SapLens.slnx`; projects in `backend/src`:
+- **Backend:** .NET 10, ASP.NET Core, EF Core SQLite, xUnit. Solution `backend/SapLens.slnx`; projects in `backend/src`:
   `SapLens.Domain` (ported business rules: CSV, catalogue, users, SoD), `SapLens.Persistence` (SQLite schema, migrations, write coordinator,
   backups), `SapLens.Application` (imports, jobs, reviews, accounts, backups, retention), `SapLens.Api` (Server host and the v1-compatible API the
   React UI calls, `V1*.cs`), `SapLens.Desktop` (WinForms + WebView2), `SapLens.Documents` (DOCX/PDF), `SapLens.Cli`. Tests in
   `backend/tests/SapLens.Tests`; release, installer and deployment scripts in `backend/scripts` (Pester and Bash tests in `backend/scripts/tests`);
-  Python reference tools that import v1 to write comparison fixtures in `backend/tools`.
-- **Legacy (SAP Lens 1, archived):** Python 3.12 FastAPI in `legacy/v1/backend` with its own `requirements*.txt` and `unittest` suite; v1 build,
-  packaging and test tooling in `legacy/v1/scripts`. See `legacy/v1/README.md` for what runs in place.
+  historical Python tools that regenerate v1 comparison fixtures in `backend/tools` (they need an external SAP Lens 1 checkout through
+  `SAP_LENS_V1_BACKEND`; builds and tests only read the committed fixtures).
+- **Repository checks:** Python 3 scripts in `scripts/` (docs, secrets, structure, workflows, dependencies) with `scripts/requirements-checks.txt`.
 - **Frontend:** React 18, TypeScript, Vite, TanStack Query, Radix ScrollArea,
   lucide-react, Playwright. Node 24 or 25 is enforced by `engines` and the build gate.
   There is no other UI, state or CSS framework.
@@ -58,11 +62,9 @@ From the repository root ([development](docs/development/README.md)).
   (`scripts/browser-server.mjs`, `backend/tests/SapLens.BrowserHost`) on 127.0.0.1:18745, and a stale server on that
   port blocks the run. A prepared Chromium may need `PLAYWRIGHT_EXECUTABLE_PATH`;
   report the override. Target with `npm run test:browser -- tests/<file>.spec.ts --grep <name>`.
-- Static: `python scripts/check-docs.py`, `python scripts/check-secrets.py`, `python -m ruff check scripts legacy/v1 backend/tools`,
-  `python scripts/check-workflows.py`, `node scripts/sync-lucide-catalog.mjs --check`, `git diff --check`, `npm audit --omit=dev`.
-- Legacy v1 (Python 3.12 venv with `legacy/v1/backend/requirements-dev.txt`): `cd legacy/v1 && python -m unittest discover -s backend/tests`.
-  The v1 runner profiles (`legacy/v1/scripts/run-tests.py`, `validate.py`) and packaging assume the pre-promotion layout; use a checkout of
-  `604f21e` for them ([legacy/v1](legacy/v1/README.md), [v1 testing guide](docs/legacy/v1/development/TESTING.md)).
+- Static: `python scripts/check-docs.py`, `python scripts/check-secrets.py`, `python scripts/check-structure.py`,
+  `python scripts/check-workflows.py`, `python -m unittest discover -s scripts/tests -p "test_*.py"`, `node --test scripts/tests/*.test.mjs`,
+  `node scripts/sync-lucide-catalog.mjs --check`, `python -m ruff check scripts backend/tools`, `git diff --check`, `npm audit --omit=dev`.
 
 ## DOM order, focus and reading sequence
 
@@ -172,20 +174,20 @@ planned checkpoints, never after every correction. Commands: [development](docs/
 ## Architecture and documentation map
 
 - Preserve approved history and private data; publication limits are in Git workflow.
-- SoD (SAP Lens 2): rules in `backend/src/SapLens.Domain/Sod`, decisions in `SapLens.Application/SodDecisionStore.cs`, API in
-  `backend/src/SapLens.Api/V1Sod*.cs`, `SodScope.cs`, `SodPeriods.cs`, `SodReports.cs` (v1 reference: `legacy/v1/backend/sod_*`); UI in
+- SoD: rules in `backend/src/SapLens.Domain/Sod`, decisions in `SapLens.Application/SodDecisionStore.cs`, API in
+  `backend/src/SapLens.Api/V1Sod*.cs`, `SodScope.cs`, `SodPeriods.cs`, `SodReports.cs`; UI in
   `frontend/src/components/Sod` plus Shared `MatrixGrid`/`SidePanel`. Review decisions never
   change conflict detection, snapshots and decisions are immutable private data, reports render
   from one frozen model. Browser specs share `frontend/tests/sod-fixture.ts` (unique users per
   test because reset keeps review history). Guides: [SoD workflow](docs/features/SOD.md),
-  [SoD architecture](docs/legacy/v1/architecture/SOD.md), [SoD matrix reference](docs/data/SOD_MATRIX.md).
+  [SoD architecture (v1 history)](docs/legacy/v1/architecture/SOD.md), [SoD matrix reference](docs/data/SOD_MATRIX.md).
 - Business logic lives in the shared .NET projects; `SapLens.Desktop` owns the Windows WebView2 lifecycle and `SapLens.Api` the Server host
   (console or Windows service). Do not duplicate CSV import, role matching, transaction evidence or account interpretation per host.
 - Server mode must use separate mutable storage, enforce its authentication and
   host/origin boundary, and keep browser uploads local to the configured server.
   Optional disabled/missing sources are not permission to erase valid snapshots.
 - `backend/scripts/build-release.ps1`/`.sh` build the release folder, `build-installers.ps1` the installers and `deploy/` deploys the Windows
-  service; v1's `build.ps1`/`build.py` are archived in `legacy/v1/scripts`. No automatic tags/releases/registry pushes from local builds.
+  service. No automatic tags/releases/registry pushes from local builds.
 - Reuse frontend Shared components, semantic tokens and isolated Component Library
   previews. Navigation links, content tabs, filters and actions have distinct
   semantics; preserve keyboard focus and source evidence.

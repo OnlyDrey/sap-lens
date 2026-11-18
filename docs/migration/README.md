@@ -1,11 +1,11 @@
-# Migration tracking: SAP Lens 1 to SAP Lens 2
+# Migration tracking: SAP Lens 1 to SAP Lens
 
-Decisions, evidence and progress of the migration from the Python/FastAPI implementation (now [`legacy/v1`](../../legacy/v1/README.md)) to the .NET
+Decisions, evidence and progress of the migration from the Python/FastAPI implementation (archived outside the repository) to the .NET
 backend in [`backend/`](../../backend). Current product documentation is in [docs](../README.md); these documents keep the history and the open items.
 
 Evidence tags used in these documents: **[M]** measured on Linux x64 (4 vCPU, 15 GiB), **[C]** read from code, **[T]** proven by an automated
 test, **[U]** not verified. Documents written before the promotion refer to `experiments/dotnet-backend`, which is now `backend/`, and to the
-Python `backend/`, which is now `legacy/v1/backend/`.
+Python `backend/`, which was archived (last present at commit `604f21e`).
 
 ## Documents
 
@@ -30,5 +30,5 @@ Python `backend/`, which is now `legacy/v1/backend/`.
 | [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | How v1 data, decisions and evidence move, with rollback |
 | [WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md) | SSH-driven Windows test deployment (build, verify, back up, switch, verify, roll back, recover), `SapLens2` to `SapLens` service migration, Desktop and Server installers, acceptance checklist |
 | [BACKEND_PROMOTION.md](BACKEND_PROMOTION.md) | Promotion of the .NET backend to `backend/` and retirement of the Python backend: gates, what is prepared, what is blocked |
-| [V1_MIGRATION.md](V1_MIGRATION.md) | Administrator procedure: SAP Lens 1 `.slbak` or data directory to SAP Lens 2 (Windows PowerShell), verification and rollback |
+| [V1_MIGRATION.md](V1_MIGRATION.md) | Administrator procedure: SAP Lens 1 `.slbak` or data directory to SAP Lens (Windows PowerShell), verification and rollback |
 

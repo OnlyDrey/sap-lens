@@ -55,10 +55,10 @@ The source is only read. Use synthetic data or a copy; do not run it against a p
 
 | Step | Command | Effect |
 | --- | --- | --- |
-| Dry run | `SapLens.Api --migrate-v1 preview --source <v1 dir or backup> --data-dir <v2 dir> [--replace-existing]` | SHA-256 inventory, validation of every store, what is imported or only preserved, blockers, warnings, and an approval digest. Writes only `migration/<id>/preview.json`. Existing SAP Lens 2 data is a blocker unless `--replace-existing` is given. |
+| Dry run | `SapLens.Api --migrate-v1 preview --source <v1 dir or backup> --data-dir <v2 dir> [--replace-existing]` | SHA-256 inventory, validation of every store, what is imported or only preserved, blockers, warnings, and an approval digest. Writes only `migration/<id>/preview.json`. Existing SAP Lens data is a blocker unless `--replace-existing` is given. |
 | Run | `--migrate-v1 run --id <id> --approve <digest>` | Refuses a changed source. Makes a verified private copy and an encrypted migration backup (host key; unencrypted with a warning when none is configured), builds a separate candidate database and verifies it (integrity, every record of every revision, evidence content addresses, both hash chains, counts). Active data is untouched. |
 | Activate | `--migrate-v1 activate --id <id> --approve <digest>` | Refuses when the v1 directory changed since the run. The candidate replaces the active data at the next start, before the database opens; the previous files go to `migration/<id>/previous`. Any failure rolls back. Retention cleanup pauses for 7 days. |
-| Rollback | `--migrate-v1 rollback --id <id>` | The previous SAP Lens 2 files return at the next start; the migrated files are kept in `migration/<id>/rolled-back`. |
+| Rollback | `--migrate-v1 rollback --id <id>` | The previous SAP Lens files return at the next start; the migrated files are kept in `migration/<id>/rolled-back`. |
 | Status | `--migrate-v1 status --id <id>` | The migration report. |
 
 Imported: settings, every role, user and SoD matrix revision (active and superseded, with the v1 snapshot id kept as an alias that protects it from

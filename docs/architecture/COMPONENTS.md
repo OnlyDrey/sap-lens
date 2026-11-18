@@ -229,10 +229,10 @@ the existing managed-file and contrast validation with a full-width draft previe
 Employee source diagnostics expose a compact summary and expandable full details.
 The Component Library uses these same navigation/select primitives automatically.
 
-Text search lives in `backend/search_matching.py` and
+Text search lives in `backend/src/SapLens.Domain/Text/TextMatching.cs` and
 `frontend/src/lib/searchMatching.ts`. Both match literal chunks, never execute user
 regular expressions. Transaction pattern expansion lives in the existing
-`transaction_filters.py`; internal identity and assignment joins remain unchanged.
+`backend/src/SapLens.Domain/Analysis/TransactionFilters.cs`; internal identity and assignment joins remain unchanged.
 
 ## Current refinement behavior
 

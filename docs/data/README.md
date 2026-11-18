@@ -14,5 +14,5 @@ Use only [synthetic examples](../../examples/README.md) in repository fixtures.
 
 Source/cache storage is described in [Storage and revisions](../legacy/v1/architecture/STORAGE_AND_REVISIONS.md).
 Review history remains authoritative outside the rebuildable SQLite cache.
-See [backup/restore](../legacy/v1/deployment/BACKUP_RESTORE.md) and
-[retention](../legacy/v1/operations/DATA_RETENTION.md) before deleting or replacing data.
+See [backup/restore](../operations/BACKUP_AND_RECOVERY.md) and
+[retention](../operations/BACKUP_AND_RECOVERY.md#retention-retention-tab) before deleting or replacing data.

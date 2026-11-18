@@ -1,4 +1,7 @@
-# Workflow validation matrix
+# Workflow validation matrix (SAP Lens 1, archived)
+
+> Historical: the SAP Lens 1 GitHub workflows and their validation. The current main-push workflow is described in
+> [CI](../../../development/CI.md).
 
 What each workflow is expected to do, how it was validated offline, and what a completed GitHub run has shown. A scenario counts as
 **Verified on GitHub** only when a completed run is recorded here with its URL. Passing offline tests never upgrade that status.

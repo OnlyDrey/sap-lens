@@ -1,7 +1,7 @@
 # Docker (SAP Lens)
 
 Optional Linux deployment of the same ASP.NET Core Server; no Windows service is
-changed. SAP Lens 1 Docker files remain archived in `legacy/v1/`.
+changed. SAP Lens 1's Docker files were archived with it outside this repository.
 
 ## Build and configuration
 

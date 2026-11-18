@@ -5,9 +5,11 @@ Excel workbook generated from it is provided for manual review. Nothing is appro
 results are listed separately and never approve an item.
 
 - Source of truth: [`validation-items.csv`](validation-items.csv): one row per item in 22 functional areas.
-- Workbook for reviewers: [`validation-tracker.xlsx`](validation-tracker.xlsx), generated from the CSV (a test fails if it is stale).
-- CI/CD workflows: [workflow validation matrix](WORKFLOW_MATRIX.md), with GitHub run evidence per scenario.
-- Tooling: `python scripts/maintenance/validation_tracker.py` with `check`, `summary`, `export`, `merge` and `migrate`.
+- Workbook for reviewers: [`validation-tracker.xlsx`](validation-tracker.xlsx), generated from the CSV.
+- CI: the current main-push validation is described in [CI](../development/CI.md); SAP Lens 1's workflow matrix is kept in [legacy v1](../legacy/v1/validation/WORKFLOW_MATRIX.md).
+- Tooling: the workbook generator (`validation_tracker.py`: `check`, `summary`, `export`, `merge`, `migrate`) was a SAP Lens 1 maintenance script and
+  was archived with it; retrieve it with `git show 604f21e:scripts/maintenance/validation_tracker.py` to regenerate the workbook after editing the CSV.
+  No active build or test reads the tracker.
 
 ## Functional areas
 
@@ -54,6 +56,8 @@ cannot apply to an item that is not fully implemented or failed its retest; an `
 6. **Approve.** Only a person: Status `Passed`, Manual approval `Approved`, the date, and notes naming who approved and with which theme, viewport and data.
 
 ## Excel workbook
+
+With the archived script retrieved as above:
 
 ```
 python scripts/maintenance/validation_tracker.py export --output docs/validation/validation-tracker.xlsx   # regenerate after editing the CSV

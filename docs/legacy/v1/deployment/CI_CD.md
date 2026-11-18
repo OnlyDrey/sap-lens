@@ -180,7 +180,7 @@ Stable from any other ref, and a build-only run is unaffected.
 ## Runtime validation status
 
 Offline contract tests cover every workflow. Per-scenario status, with run URLs, is kept in the
-[workflow validation matrix](../../../validation/WORKFLOW_MATRIX.md); a scenario counts as verified on GitHub only after a completed run
+[workflow validation matrix](../validation/WORKFLOW_MATRIX.md); a scenario counts as verified on GitHub only after a completed run
 is recorded there. No workflow is dispatched and no test release is published without explicit approval.
 
 ## Troubleshooting

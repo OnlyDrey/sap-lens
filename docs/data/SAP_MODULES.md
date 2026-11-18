@@ -1,6 +1,6 @@
 # Central SAP area registry
 
-Stable IDs, names, categories, parents, aliases, icons and default colors live in `backend/module_registry.py`. The UI consumes this registry rather than maintaining separate icon/color maps. Local overrides change display name, approved icon, six-digit hex color and enabled status; IDs remain stable. Disabling hides an area from filter choices without deleting its roles.
+Stable IDs, names, categories, parents, aliases, icons and default colors live in `backend/src/SapLens.Api/V1Reference/registry.json` (loaded by `SapLens.Domain/Catalogue/ModuleRegistry.cs`). The UI consumes this registry rather than maintaining separate icon/color maps. Local overrides change display name, approved icon, six-digit hex color and enabled status; IDs remain stable. Disabling hides an area from filter choices without deleting its roles.
 
 This is a practical cross-version area vocabulary, not a claim that every item is an S/4HANA module. Products, technologies, functional areas, technical components and submodules are explicitly distinguished. For example, BASIS resolves to BC; FI-AA remains a child of FI; BTP and CRM remain products.
 

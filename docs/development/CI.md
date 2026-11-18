@@ -15,13 +15,12 @@ Jobs:
   NuGet advisory audit, active PowerShell syntax and Pester deployment tests.
 - Browser: .NET fixture, one worker, focused UI/host smoke plus shared Component
   Library. Failure traces are preserved. The rest of the browser suite remains
-  available locally; [migration gaps](../../legacy/v1/frontend/README.md) are not
-  claimed as passing .NET acceptance.
+  available locally; specs that still configure source files through a settings save (a SAP Lens 1 contract the .NET
+  host refuses) are migration gaps of the harness and are not claimed as passing ([development](README.md#browser-tests)).
 - Docker: build the optional Linux image with the exact source SHA. No push or
   container deployment. The Docker frontend stage builds from the same lockfile.
 
-Archived workflow definitions are retained below `legacy/v1/.github/workflows`;
-GitHub never loads nested workflow directories. Existing v1 release tags/assets
+SAP Lens 1's workflow definitions were archived with it outside this repository; only `validate.yml` exists. Existing v1 release tags/assets
 are unchanged. No replacement release publisher is enabled: stable promotion,
 validated exact-commit artifacts and release approval remain required before any
 future publication. Installer/deployment scripts still validate manifests and

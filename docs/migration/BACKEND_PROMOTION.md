@@ -3,7 +3,7 @@
 Decision record for making the .NET implementation the primary backend and archiving SAP Lens 1.
 
 **Status on 2026-11-18: structural promotion performed on `experiment/dotnet-backend`; merge gates still open.** The owner asked for the promotion
-after the SAP Lens 2 Server ran as a Windows service behind the reverse proxy. `experiments/dotnet-backend` moved to `backend/`, the Python backend,
+after the SAP Lens Server ran as a Windows service behind the reverse proxy. `experiments/dotnet-backend` moved to `backend/`, the Python backend,
 desktop and v1 tooling moved to `legacy/v1/` (archived, not deleted), and the documentation moved to `docs/` (v1: `docs/legacy/v1`). Nothing of v1
 was deleted. The pre-promotion layout is commit `604f21e`. `work`, `main`, the CI workflows and installed applications were not changed.
 
@@ -22,7 +22,7 @@ was deleted. The pre-promotion layout is commit `604f21e`. `work`, `main`, the C
 Kept working: the .NET build, tests, release, installer and deployment scripts (deployment finds the project under `backend/` and, for older
 commits, `experiments/dotnet-backend`); the v1 runtime from source and the Playwright suite that uses it; the migration reference tools. A temporary
 wrapper keeps the old operator path of `Deploy-SapLens.ps1`. Archived as is: v1 build/packaging tooling and v1 layout-contract tests
-([legacy/v1](../../legacy/v1/README.md)).
+(`legacy/v1`).
 
 ## Gates
 
@@ -46,11 +46,10 @@ workflow and optional Docker definition replace the active v1 pipeline; original
 workflow definitions remain archived. See [development](../development/README.md),
 [CI](../development/CI.md) and [Docker](../deployment/DOCKER.md) for validation limits.
 
-Remaining v1 dependencies are intentional: synthetic golden fixtures and their
-optional Python reference generators, plus historical deployment/rollback lookup.
-Four Python-runtime browser specs remain under `legacy/v1/frontend/tests` awaiting
-.NET fixture adapters. Two active specs generate workbook/reference fixtures with
-Python. Route parity is not a claim of complete browser parity. Historical gates
+**Update 2026-11-18:** `legacy/v1` was then removed from the repository (`e800c78`; the v1 source is kept in a separate archive and at commit
+`604f21e`). No active build, test or script depends on it any more (`scripts/check-structure.py`): the browser suite uses versioned fixtures, the
+v1-only browser specs were removed, and the reference generators take an external checkout (`SAP_LENS_V1_BACKEND`). What remains intentionally
+is the committed v1 golden fixtures and the historical deployment lookup for pre-promotion commits. Route parity is not a claim of complete browser parity. Historical gates
 and migration decisions above are retained; no release approval is implied.
 
 ## Before merging

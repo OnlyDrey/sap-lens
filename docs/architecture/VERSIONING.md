@@ -62,5 +62,5 @@ independence and v1's own mirror, release scripts read the file and check `<vers
 versions. `node scripts/product-version.mjs` checks them; `--write` explicitly
 synchronizes mirrors without changing the source. Vite emits `product-version.json`
 with that version and the source commit. CI refuses a mismatched GitHub commit.
-Release manifests record the same UI source version. Historical v1 metadata stays
-under `legacy/v1/` and is never consulted by an active build.
+Release manifests record the same UI source version. Historical v1 version metadata was
+archived with SAP Lens 1 and is never consulted by an active build.

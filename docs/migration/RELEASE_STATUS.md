@@ -110,7 +110,7 @@ Starting source: `6fa0c7f0b1b9fbeb3727cec5b9597d33469665a3` on
 
 | Phase | Implementation and validation | Commit/checkpoint |
 | --- | --- | --- |
-| A — Playwright/dev | .NET is default; disposable Desktop-capability host, owned child cleanup, occupied ports fail closed. Four Python-runtime specs preserved under `legacy/v1/frontend/tests`; two active reference-generator specs still need optional Python. No claim of complete browser parity | `2d5741f` |
+| A — Playwright/dev | .NET is default; disposable Desktop-capability host, owned child cleanup, occupied ports fail closed. Python-runtime specs were removed with SAP Lens 1 (2026-11-18); two active reference-generator specs still need optional Python. No claim of complete browser parity | `2d5741f` |
 | B — Versioning | Frontend manifests, generated identity and release UI metadata use `backend/product-version.json`; v1 metadata unchanged | `45579d6` |
 | C — Docker | Multi-stage Node 24/.NET 10, non-root app user, persistent volume, mandatory TLS/private bind, exact-host readiness and loopback-only published port. Compose/shell/contracts pass; actual image build blocked at MCR redirected layer download (403) | `03f7e10`, **partial validation** |
 | D — CI | One pinned/read-only main-push workflow, .NET Linux/Windows, frontend, focused browser, Docker; no dispatch/PR/schedule/deploy/publisher. Historical workflows archived; actionlint and trigger tests pass | `6e7b7ba` |
