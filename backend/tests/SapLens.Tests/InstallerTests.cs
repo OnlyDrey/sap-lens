@@ -27,7 +27,8 @@ public sealed partial class InstallerTests
     [Fact]
     public void Each_installer_has_its_own_identity_distinct_from_sap_lens_v1()
     {
-        var v1 = Define(File.ReadAllText(Path.Combine(Repo, "legacy", "v1", "deploy", "windows", "desktop-installer.iss")), "ProductionAppId");
+        // SAP Lens 1's production AppId (deploy/windows/desktop-installer.iss at commit 604f21e; SAP Lens 1 is archived outside the repository).
+        const string v1 = "5DB5BC51-A860-44CA-93CA-09AE85812DF0";
         string[] ids = [Define(Desktop, "AppIdGuid"), Define(Server, "AppIdGuid")];
         Assert.All(ids, id => Assert.True(Guid.TryParse(id, out _)));
         Assert.Equal(3, ids.Append(v1).Distinct(StringComparer.OrdinalIgnoreCase).Count());

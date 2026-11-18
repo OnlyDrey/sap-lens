@@ -22,6 +22,11 @@ def check(root=ROOT):
     for path in ('frontend/vite.config.ts', 'scripts/product-version.mjs', 'frontend/playwright.config.ts', 'frontend/package.json',
                  'backend/scripts/build-release.ps1', 'backend/scripts/build-release.sh', 'Dockerfile', 'compose.yml', '.github/workflows/validate.yml'):
         assert 'legacy/v1' not in (root / path).read_text(), f'Active tooling depends on the archived SAP Lens 1: {path}'
+    for path in sorted((root / 'backend/tests').rglob('*.cs')):
+        if '/bin/' in path.as_posix() or '/obj/' in path.as_posix():
+            continue
+        text = path.read_text(encoding='utf-8')
+        assert 'legacy/v1' not in text and '"legacy", "v1"' not in text, f'.NET tests read files of the archived SAP Lens 1: {path.name}'
     for path in sorted((root / 'frontend/tests').glob('*.ts')):
         text = path.read_text()
         assert 'legacy/v1' not in text and 'execFileSync(PYTHON' not in text, f'Browser tests depend on SAP Lens 1 or Python: {path.name}'

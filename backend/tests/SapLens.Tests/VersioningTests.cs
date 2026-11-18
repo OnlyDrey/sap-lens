@@ -73,9 +73,10 @@ public sealed class VersioningTests : IAsyncLifetime
     }
 
     [Fact]
-    public void Sap_lens_2_is_versioned_independently_of_v1_and_v1_keeps_its_own_contract()
+    public void Sap_lens_is_versioned_independently_of_v1_and_the_frontend_mirrors_its_version()
     {
-        var v1 = (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "legacy", "v1", "backend", "resources", "product-version.json")))!["version"]!;
+        // SAP Lens 1's last product version (backend/resources/product-version.json at commit 604f21e; archived outside the repository).
+        const string v1 = "1.0.0-beta.2";
         Assert.NotEqual(v1, ProductIdentity.Version);
         Assert.Equal(ProductIdentity.Version, (string)JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "frontend", "package.json")))!["version"]!);
         var locked = JsonNode.Parse(File.ReadAllText(Path.Combine(Repository, "frontend", "package-lock.json")))!;
