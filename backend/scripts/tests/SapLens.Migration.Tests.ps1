@@ -55,6 +55,7 @@ Describe 'Migration backup, journal and staging contracts' {
         (Read-SL2MigrationJournal $script:Source).phase | Should -Be 'backup'
         Test-Path $script:Target.WorkRoot | Should -BeFalse
         New-Item -ItemType Directory -Path $script:Target.WorkRoot -Force | Out-Null
+        $journal.target_prepared = $true
         Set-SL2MigrationPhase $journal 'staging'
         (Read-SL2MigrationJournal $script:Target).id | Should -Be $journal.id
         (Read-SL2MigrationJournal $script:Target).phase | Should -Be 'staging'
@@ -65,6 +66,17 @@ Describe 'Migration backup, journal and staging contracts' {
         Mock -ModuleName $M Invoke-SL2Maintenance { param($ExePath, $Arguments) if ($Arguments[0] -eq '--backup-local') { @{ file = 'synthetic.slbak'; sha256 = 'a'; size = 1 } } else { @{ verified = $false; sha256 = 'a' } } }
         { New-SL2MigrationBackup $script:Source $script:Inspector } | Should -Throw '*verification failed*'
         Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
+    }
+    It 'never mirrors a journal into a target directory that it has not created' {
+        $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $journal = New-SL2MigrationJournal $script:Source $script:Target $preflight $script:Inspector
+        New-Item -ItemType Directory $script:Target.WorkRoot | Out-Null
+        $sentinel = Join-Path $script:Target.WorkRoot 'migration-journal.json'
+        Set-Content $sentinel 'unrelated retained file'
+        Set-SL2MigrationPhase $journal 'target_preparation'
+        (Get-Content $sentinel -Raw).Trim() | Should -Be 'unrelated retained file'
+        Test-Path "$sentinel.previous" | Should -BeFalse
+        (Read-SL2MigrationJournal $script:Source).phase | Should -Be 'target_preparation'
     }
     It 'copies disjoint trees with their NTFS security and verifies content before allowing use' {
         Mock -ModuleName $M Invoke-SL2Process {
@@ -118,6 +130,10 @@ Describe 'Journaled service cutover and interruption recovery' {
                 '--inspect-data' { @{ source_paths = [pscustomobject]@{}; ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ applied = @('m1') } } }
                 '--backup-local' {
                     $script:BackupCount++
+                    if ($script:Failure -eq 'target-race' -and $script:BackupCount -eq 1) {
+                        New-Item -ItemType Directory $script:Target.WorkRoot -Force | Out-Null
+                        Set-Content (Join-Path $script:Target.WorkRoot 'migration-journal.json') 'unrelated retained file'
+                    }
                     if ($script:Failure -eq 'backup') { throw 'synthetic backup failure' }
                     $file = Join-Path $Arguments[1] ('backup-' + $script:BackupCount + '.slbak')
                     Set-Content -LiteralPath $file 'synthetic sealed archive'
@@ -164,6 +180,14 @@ Describe 'Journaled service cutover and interruption recovery' {
         $calls = $script:Mutations.Count
         (Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector).phase | Should -Be 'complete'
         $script:Mutations.Count | Should -Be $calls
+    }
+    It 'refuses a target directory appearing after preflight without modifying its files or stopping the source' {
+        $script:Failure = 'target-race'
+        { Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector } | Should -Throw '*safely returned*'
+        (Get-Content (Join-Path $script:Target.WorkRoot 'migration-journal.json') -Raw).Trim() | Should -Be 'unrelated retained file'
+        $script:Services.SapLens2.State | Should -Be 'Running'
+        $script:Mutations | Should -Not -Contain 'stop:SapLens2'
+        $script:Mutations | Should -Not -Contain 'create:SapLens'
     }
     It 'returns to the untouched source after <Failure> failure' -ForEach @(
         @{ Failure = 'backup' }, @{ Failure = 'copy' }, @{ Failure = 'stop' }, @{ Failure = 'integrity' }, @{ Failure = 'create' }, @{ Failure = 'startup' }, @{ Failure = 'readiness' }

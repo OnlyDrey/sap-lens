@@ -73,7 +73,7 @@ function Get-SL2MigrationAcl([string]$Path, [switch]$Secret, [switch]$Parent) {
         if ($rule.AccessControlType -eq 'Allow' -and $sid -in @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545')) {
             if ($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) { continue }
             $mask = if ($Secret) { [Security.AccessControl.FileSystemRights]::ReadData } elseif ($Parent) {
-                [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
+                [Security.AccessControl.FileSystemRights]::Write -bor [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
             } else { [Security.AccessControl.FileSystemRights]::Write }
             if ($rule.FileSystemRights -band $mask) { Stop-SL2 'Private source or target parent has broad NTFS access; review its ACL before migration.' }
         }
@@ -91,6 +91,7 @@ function Get-SL2FreeSpace([string]$Path) {
 function Write-SL2MigrationJournal($Journal) {
     $Journal.updated = [DateTime]::UtcNow.ToString('o')
     foreach ($root in @($Journal.source.WorkRoot, $Journal.target.WorkRoot)) {
+        if ($root -eq $Journal.target.WorkRoot -and (-not $Journal.PSObject.Properties['target_prepared'] -or -not $Journal.target_prepared)) { continue }
         if (-not (Test-Path -LiteralPath $root -PathType Container)) { continue }
         Test-SL2PathTree $root
         $path = Join-SL2 $root 'migration-journal.json'
@@ -108,6 +109,7 @@ function Read-SL2MigrationJournal($Config) {
     if (-not (Test-Path -LiteralPath $path)) { return }
     $record = Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
     foreach ($root in @($record.source.WorkRoot, $record.target.WorkRoot)) {
+        if ($root -eq $record.target.WorkRoot -and (-not $record.PSObject.Properties['target_prepared'] -or -not $record.target_prepared)) { continue }
         $mirror = Join-SL2 $root 'migration-journal.json'
         if ($mirror -eq $path -or -not (Test-Path -LiteralPath $mirror)) { continue }
         $other = Get-Content -LiteralPath $mirror -Raw | ConvertFrom-Json
@@ -179,7 +181,7 @@ function New-SL2MigrationJournal($Source, $Target, $Preflight, [string]$Inspecto
         key_before = $Preflight.details.key; key_after = Join-SL2 (Join-SL2 (Split-Path $Target.DataDirectory) 'backup') (Split-Path $Preflight.details.key -Leaf)
         staged_release = Join-SL2 $Target.ReleasesRoot (Split-Path $Preflight.details.release -Leaf)
         online_backup = $null; offline_backup = $null; source_inventory = @(); target_inventory = @()
-        target_creation_intent = $false; target_start_intent = $false; source_stop_intent = $false
+        target_prepared = $false; target_creation_intent = $false; target_start_intent = $false; source_stop_intent = $false
         error = ''; recovery = ''
     }
 }
@@ -309,8 +311,9 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
         Set-SL2MigrationPhase $journal 'verified_backup'
         $journal.online_backup = New-SL2MigrationBackup $Source $exe
         Set-SL2MigrationPhase $journal 'target_preparation'
-        New-Item -ItemType Directory -Path $Target.WorkRoot -Force | Out-Null
+        New-Item -ItemType Directory -Path $Target.WorkRoot -ErrorAction Stop | Out-Null
         Set-Acl -LiteralPath $Target.WorkRoot -AclObject (Get-Acl -LiteralPath $Source.WorkRoot)
+        $journal.target_prepared = $true
         Set-SL2MigrationPhase $journal 'file_staging'
         Copy-SL2MigrationTree $journal.release_before $journal.staged_release
         Copy-SL2MigrationTree (Split-Path $Source.CertificatePath) (Split-Path $Target.CertificatePath)
@@ -364,7 +367,7 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
         $journal.error = "Migration failed in phase $($journal.phase). Inspect the retained state and focused deployment log."
         Write-SL2MigrationJournal $journal
         $null = Invoke-SL2MigrationRecovery $Source -Rollback
-        Stop-SL2 'Migration failed and safely returned to SapLens2. Both installations and the disabled target service were retained.' 1
+        Stop-SL2 "Migration failed and safely returned to $($Source.ServiceName). Both installations and any owned target service were retained." 1
     }
 }
 

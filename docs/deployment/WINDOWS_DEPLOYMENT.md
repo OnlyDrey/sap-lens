@@ -136,6 +136,8 @@ and account. Target explicitly names `SapLens` and the canonical paths above. Pr
 account maps to `NT SERVICE\SapLens`. Custom credential accounts are refused. Never switch the account implicitly. Preserve the exact listen
 address, port, allowed hosts, trusted proxies and TLS filenames; no certificate regeneration, key rotation, proxy or firewall change occurs.
 Target roots must not exist, must be disjoint local NTFS directories, and must have private parent ACLs and adequate free space.
+Prepare only their containing application/persistent roots with administrator/SYSTEM access before preflight; a public parent that lets ordinary
+users create children is refused. Staging creates its work directory exclusively and never adopts a directory that appeared after inspection.
 
 Use the **new verified release's** server executable as an inspector. It supports `--inspect-data` but is never installed by migration: the
 source's verified release is copied unchanged. Legacy source releases need `--schema-info`, `--backup-local` and `--backup-verify` support.

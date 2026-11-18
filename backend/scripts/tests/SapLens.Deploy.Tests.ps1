@@ -309,6 +309,17 @@ Describe 'Recovery and rollback' {
 }
 
 Describe 'Service installation and host safety' {
+    It 'gives unique acceptance services distinct display names while keeping canonical branding' {
+        $config = New-TestConfig
+        Mock -ModuleName $M New-Service { }
+        Mock -ModuleName $M Invoke-SL2Process { @{ ExitCode = 0; Output = @() } }
+        $config.ServiceName = 'SapLens.Acceptance-' + ('a' * 32) + '-old'
+        Set-SL2ServiceEntry $config 'synthetic' $false 'demand'
+        Should -Invoke -ModuleName $M New-Service -Times 1 -ParameterFilter { $Name -eq $DisplayName -and $Name -like 'SapLens.Acceptance-*-old' }
+        $config.ServiceName = 'SapLens'
+        Set-SL2ServiceEntry $config 'synthetic' $false 'demand'
+        Should -Invoke -ModuleName $M New-Service -Times 1 -ParameterFilter { $Name -eq 'SapLens' -and $DisplayName -eq 'SAP Lens' }
+    }
     It 'refuses to install while another process holds the port and never stops it' {
         $config = New-TestConfig
         $release = New-TestRelease $config 'new' $script:New

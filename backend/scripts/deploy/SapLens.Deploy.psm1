@@ -468,7 +468,8 @@ function Get-SL2OtherService($Config) {
 # Creates the service (automatic start, its virtual account, restart on failure) or, for an existing one, sets its command line and account.
 function Set-SL2ServiceEntry($Config, [string]$Binary, [bool]$Exists, [string]$StartMode = 'auto') {
     if (-not $Exists) {
-        New-Service -Name $Config.ServiceName -DisplayName 'SAP Lens' -BinaryPathName $Binary -StartupType Manual -Description 'SAP Lens (.NET) server' | Out-Null
+        $displayName = if ($Config.ServiceName -cmatch '^SapLens\.Acceptance-[a-f0-9]{32}-(old|new)$') { $Config.ServiceName } else { 'SAP Lens' }
+        New-Service -Name $Config.ServiceName -DisplayName $displayName -BinaryPathName $Binary -StartupType Manual -Description 'SAP Lens (.NET) server' | Out-Null
     }
     foreach ($arguments in @(@('config', $Config.ServiceName, 'binPath=', $Binary, 'start=', $StartMode), @('config', $Config.ServiceName, 'obj=', $Config.ServiceAccount),
             @('failure', $Config.ServiceName, 'reset=', '86400', 'actions=', 'restart/60000/restart/60000//'))) {
