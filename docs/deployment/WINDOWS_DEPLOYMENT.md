@@ -290,21 +290,36 @@ only after administrator/current-password reauthentication, with a session-bound
 
 ## Acceptance checklist (Windows, pending)
 
-Run in this order on the Windows test host and record the result of each step. Until then every item is **Pending**.
+A controlled procedure for the dedicated Windows VM, in an authorized maintenance window, from an elevated Windows PowerShell 5.1 prompt in the
+repository root. Nothing here runs automatically, and every step is **Pending** until its result is recorded. Do not rerun the SAP Lens 1 data
+migration that is already activated on the VM; its data and migration backup must stay as they are.
 
-| # | Check | Command | Pass when |
+```powershell
+$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
+$source = 'C:\private-operations\source.local.json'          # the running SapLens2 installation
+$target = 'C:\private-operations\target.local.json'          # canonical C:\sap-lens and C:\ProgramData\SapLens roots
+$inspector = 'C:\private-operations\verified-release\server\SapLens.Api.exe'
+$admin = '.\backend\scripts\Service-Manager.ps1'
+```
+
+| # | Step | Command | Pass when |
 | --- | --- | --- | --- |
-| 1 | SSH and status | `$D "${H[@]}" --mode status` | Exit 0; `service_model` and `service_name` describe the host |
-| 2 | Windows PowerShell 5.1 dry-run | `$D "${H[@]}" --mode dry-run` | Exit 0; `"dry_run":true`; locked commit printed; nothing changed |
-| 3 | Focused build | `$D "${H[@]}" --mode build --tests focused` | Exit 0; release in `ReleasesRoot` passes `verify-release.ps1` |
-| 4 | Adoption deploy | `$D "${H[@]}" --mode deploy --tests focused --adopt-service --yes` | Exit 0; `binary_path_matches` true; HTTPS through the reverse proxy works |
-| 5 | Service migration | `$D "${H[@]}" --mode migrate-service --yes` | Exit 0; only `SapLens` exists (`Get-Service SapLens*`); same data; sign-in works |
-| 6 | Update deploy | `$D "${H[@]}" --mode deploy --tests focused --yes` (newer commit) | Exit 0; identity is the new commit |
-| 7 | Rollback | `$D "${H[@]}" --mode rollback --yes` | Exit 0; identity is the previous commit |
-| 8 | Interruption | Ctrl+C during step 6's stop/start, then `--mode status` and `--mode recover --yes` | Recover ends ready on the previous release |
-| 9 | Failure rollback | Deploy a release whose start fails (for example an invalid `AllowedHosts` entry in a copy of the configuration) | Exit 1; previous release ready |
-| 10 | Installers | `build-installers.ps1`, then both setups interactively and with `/VERYSILENT` | Desktop starts with the icon and title "SAP Lens"; Server upgrade restarts its service; uninstall keeps data |
-| 11 | Desktop self-check | `"%LOCALAPPDATA%\Programs\SAP Lens Desktop\SapLens.exe" --self-check` | Exit 0; log in `%LOCALAPPDATA%\SAP Lens Desktop\logs` (or the kept prototype folder) |
+| 1 | Preflight (read-only) | `& $entry -Action Status -ConfigFile $source` and `& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector` | `result.safe` true; every check passes; nothing changed (no journal, backup or service change) |
+| 2 | Verified backup | Settings > Backup & Restore > Overview > create, then Backup History > verify and download | Archive verified; the download decrypts with `SapLens.Api --backup-verify <file> --data-dir <data>` |
+| 3 | Recovery key | `& $admin -Action Status -DataDirectory <source data dir>`, then `-Action ExportKey -Path <new file>` and `-Action VerifyKey -Path <that file>` (same `-DataDirectory`; the default is the canonical `C:\ProgramData\SapLens\data`) | Same fingerprint; the recovery copy verifies; key material never appears in output |
+| 4 | Service migration | `& $entry -Action MigrateService -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector -Yes`, then `& $entry -Action VerifyMigration -ConfigFile $source` | `SapLens` running with automatic start; `SapLens2` stopped and disabled, not deleted; verification passes |
+| 5 | Startup | `Get-Service SapLens*`; `& $entry -Action Health -ConfigFile 'C:\sap-lens\deploy\deploy.local.json'` | Ready; identity shows version 2.0.0-alpha.1 and the expected commit; `binary_path_matches` true in Status |
+| 6 | Functional validation | Sign in through the reverse proxy; open Dashboard, User Access, Account Review, SoD | Same data as before (source revisions, evidence snapshots, review and SoD decision counts unchanged) |
+| 7 | Empty import guard | Data Sources > upload a header-only copy of a source and confirm the anomaly | Refused: "contains no usable records"; previous records remain |
+| 8 | Backup after migration | Create, verify and download a backup on the migrated installation | Verified archive; downloadable |
+| 9 | Automatic backups | Scheduling: daily (and weekly) at a near-future local time with an explicit zone; wait for the slot; restart the service once | One verified automatic archive per slot; next run shown in the chosen zone; settings survive the restart |
+| 10 | Upgrade confirmation | Settings > Storage: run the integrity check, then confirm the upgrade | Confirmation recorded; the migration backup still exists |
+| 11 | Rollback rehearsal | `& $entry -Action RollbackMigration -ConfigFile $source -Yes` only if step 4-6 failed; otherwise `& $entry -Action Rollback -ConfigFile 'C:\sap-lens\deploy\deploy.local.json' -Yes` after a later update deploy | The previous release or service returns ready; no data is overwritten |
+| 12 | Installers | `build-installers.ps1`, then both setups interactively and with `/VERYSILENT` | Desktop starts as "SAP Lens"; Server upgrade restarts its service; uninstall keeps data |
+| 13 | Desktop self-check | `"%LOCALAPPDATA%\Programs\SAP Lens Desktop\SapLens.exe" --self-check` | Exit 0; log written |
+
+Also run the native test suites once on the VM: `Invoke-Pester backend\scripts\tests` (includes the Windows-only migration tests that Linux
+skips) and `dotnet test backend\tests\SapLens.Tests -c Release`.
 
 ## Post-promotion infrastructure verification
 
