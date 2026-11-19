@@ -69,22 +69,6 @@ function Assert-SL2MigrationPair($Source, $Target) {
     Stop-SL2 'Select the explicit SapLens2/SapLens pair, or matching unique SapLens.Acceptance-<32 lowercase hex>-old/new test services.'
 }
 
-function Get-SL2MigrationAcl([string]$Path, [switch]$Secret, [switch]$Parent) {
-    $acl = Get-Acl -LiteralPath $Path
-    # Reject broad grants on private state. Return the DACL for operator review; never print file contents.
-    foreach ($rule in $acl.Access) {
-        $sid = $rule.IdentityReference.Translate([Security.Principal.SecurityIdentifier]).Value
-        if ($rule.AccessControlType -eq 'Allow' -and $sid -in @('S-1-1-0', 'S-1-5-11', 'S-1-5-32-545')) {
-            if ($rule.PropagationFlags -band [Security.AccessControl.PropagationFlags]::InheritOnly) { continue }
-            $mask = if ($Secret) { [Security.AccessControl.FileSystemRights]::ReadData } elseif ($Parent) {
-                [Security.AccessControl.FileSystemRights]::Write -bor [Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles -bor [Security.AccessControl.FileSystemRights]::ChangePermissions -bor [Security.AccessControl.FileSystemRights]::TakeOwnership
-            } else { [Security.AccessControl.FileSystemRights]::Write }
-            if ($rule.FileSystemRights -band $mask) { Stop-SL2 'Private source or target parent has broad NTFS access; review its ACL before migration.' }
-        }
-    }
-    $acl.Sddl
-}
-
 function Get-SL2FreeSpace([string]$Path) {
     $root = [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($Path))
     $drive = [IO.DriveInfo]::new($root)
@@ -438,12 +422,11 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         foreach ($path in $Source.DataDirectory, $Source.CertificatePath, $Source.CertificatePasswordFile, $details.key, $Source.BackupRoot, $Source.WorkRoot) {
             if (-not (Test-Path -LiteralPath $path)) { Stop-SL2 'A required data, TLS, key or backup-history path is missing.' }
             Test-SL2PathTree $path
-            $null = Get-SL2MigrationAcl $path -Secret:($path -ne $Source.DataDirectory -and $path -ne $Source.BackupRoot)
         }
-        # Inspect every private descendant too, including external recovery keys beside the host key.
-        foreach ($folder in $Source.DataDirectory, (Split-Path $details.key), (Split-Path $Source.CertificatePath), $Source.BackupRoot) {
-            foreach ($file in @(Get-SL2TreeFiles $folder)) { $null = Get-SL2MigrationAcl $file.FullName -Secret }
-        }
+        # Private state (data, backups, TLS, keys and every descendant, deployment state) admits no broad read or write; releases, the configuration
+        # and its folder no broad write. Principals are compared by well-known SID (SapLens.Acl.ps1); each finding names path, principal and right.
+        $null = @(Get-SL2TreeFiles $Source.DataDirectory)   # rejects reparse points before the recursive ACL audit
+        $details.acl_source = Assert-SL2AclPlan (Get-SL2AclPlan $Source $null $details.key) 'Private source state'
         if ((Split-Path $Source.CertificatePath) -ne (Split-Path $Source.CertificatePasswordFile)) { Stop-SL2 'Source TLS files must share a directory before migration.' }
         Test-SL2MigrationTls $Source
     }
@@ -483,13 +466,15 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         $targets = @($Target.DataDirectory, $Target.ReleasesRoot, $Target.WorkRoot, $Target.BackupRoot, (Split-Path $Target.CertificatePath), (Join-SL2 (Split-Path $Target.DataDirectory) 'backup'))
         for ($i = 0; $i -lt $targets.Count; $i++) {
             $path = $targets[$i]; Test-SL2PathTree $path
-            if ($path -notmatch '^[A-Za-z]:\\' -or (Test-Path -LiteralPath $path)) { Stop-SL2 'Target roots must be new, absolute local directories. Retained partial staging requires recovery, never overwrite.' }
+            if ($path -notmatch '^[A-Za-z]:\\') { Stop-SL2 "Target root $path must be an absolute local path." }
+            if (Test-Path -LiteralPath $path) { Stop-SL2 "Target root $path already exists. Target roots must be new; retained partial staging requires recovery, never overwrite." }
             foreach ($sourcePath in $sourceRoots) { if (Test-SL2PathOverlap $sourcePath $path) { Stop-SL2 'Source and target roots must be disjoint.' } }
             for ($j = 0; $j -lt $i; $j++) { if (Test-SL2PathOverlap $targets[$j] $path) { Stop-SL2 'Target roots must be disjoint.' } }
-            $parent = Split-Path $path
-            while (-not (Test-Path -LiteralPath $parent)) { $parent = Split-Path $parent }
-            $null = Get-SL2MigrationAcl $parent -Parent
         }
+        # Each new target root inherits from its parent: the parent of a private target must be private, the parent of the release root free of broad
+        # write. A missing parent is judged by its nearest existing ancestor (for example C:\ProgramData, which lets users create folders): prepare
+        # it explicitly with -Action ProtectAcl first.
+        $details.acl_target = Assert-SL2AclPlan @(Get-SL2AclPlan $null $Target | Where-Object Role -eq 'target parent') 'A target parent'
         if ((Split-Path $Target.CertificatePasswordFile) -ne (Split-Path $Target.CertificatePath)) { Stop-SL2 'Target TLS certificate and password file must share the TLS directory.' }
         foreach ($name in 'CertificatePath', 'CertificatePasswordFile') { if ((Split-Path $Target.$name -Leaf) -cne (Split-Path $Source.$name -Leaf)) { Stop-SL2 'Migration preserves TLS filenames; only their directory changes.' } }
         $bytes = 0L

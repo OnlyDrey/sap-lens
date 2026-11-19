@@ -25,6 +25,13 @@
     Rollback        Returns to the previous release (or -ToRelease), only when it can open the current data. Needs -Yes.
     Recover         Completes an interrupted deployment (Ctrl+C, a dropped SSH session): returns to the previous release. Needs -Yes.
     Health          Readiness and identity of the running server.
+    AuditAcl        Read-only NTFS audit (by well-known SID) of private state, releases and configuration, and with -TargetConfigFile of the
+                    parents of the migration targets. Lists each broad principal with its rights; exit 2 when anything is unsafe.
+    ProtectAcl      Explicit remediation of what AuditAcl reports. Saves every affected ACL first (icacls /save into WorkRoot\acl-backups\<UTC>),
+                    then sets protected DACLs (SYSTEM, Administrators, the service's virtual account), removes broad grants, resets
+                    descendants to inherit and creates missing target parents protected. Never changes ProgramData, Program Files, the
+                    Windows folder, user roots or drive roots, and never stops the service. -DryRun prints the audit. Needs -Yes.
+    RestoreAcl      Restores the ACLs saved by ProtectAcl (-AclBackup <folder>). Needs -Yes.
 
   Configuration: a JSON file that is not committed (-ConfigFile, $env:SAPLENS_DEPLOY_CONFIG, $env:SAPLENS2_DEPLOY_CONFIG,
   C:\sap-lens\deploy\deploy.local.json, C:\saplens\deploy.local.json or C:\saplens2\deploy.local.json, the first that is set or exists; template deploy.example.json). It holds paths,
@@ -38,7 +45,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'PreflightMigration', 'MigrateService', 'VerifyMigration', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover', 'Health')]
+    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'PreflightMigration', 'MigrateService', 'VerifyMigration', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover', 'Health', 'AuditAcl', 'ProtectAcl', 'RestoreAcl')]
     [string]$Action = 'Status',
     [string]$ConfigFile = '',
     [string]$TargetConfigFile = '',
@@ -49,6 +56,7 @@ param(
     [string]$Tests = 'focused',
     [string]$Release = '',
     [string]$ToRelease = '',
+    [string]$AclBackup = '',
     [switch]$DryRun,
     [switch]$FirstInstall,
     [switch]$Reconfigure,
@@ -72,9 +80,16 @@ function Test-Elevated {
 }
 
 try {
-    $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover') -and -not $DryRun
-    if ($changing -and -not $Yes) { Stop-SL2 "$Action changes the service; repeat with -Yes after reviewing -Action Status (or -DryRun)." }
+    $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover', 'ProtectAcl', 'RestoreAcl') -and -not $DryRun
+    if ($changing -and -not $Yes) { Stop-SL2 "$Action changes the service or its permissions; repeat with -Yes after reviewing -Action Status or -Action AuditAcl (or -DryRun)." }
     $config = Read-SapLensSettings $ConfigFile
+    # NTFS audit (read-only): the source configuration's private state, releases and configuration, plus the parents of the target roots when a
+    # target configuration is given. Exit code 0 when no broad principal can read private state or write anywhere it matters, 2 otherwise.
+    if ($Action -eq 'AuditAcl' -or ($Action -eq 'ProtectAcl' -and $DryRun)) {
+        $target = if ($TargetConfigFile) { Read-SapLensSettings $TargetConfigFile } else { $null }
+        $report = Get-SL2AclReport (Get-SL2AclPlan $config $target)
+        Write-Result $report $(if ($report.safe) { 0 } else { 2 })
+    }
     if ($Action -eq 'PreflightMigration' -or ($Action -eq 'MigrateService' -and $DryRun)) {
         if (-not $ConfigFile -or -not $TargetConfigFile) { Stop-SL2 'Migration requires explicit -ConfigFile and -TargetConfigFile.' }
         $preflight = Get-SL2MigrationPreflight $config (Read-SapLensSettings $TargetConfigFile) $InspectorExecutable
@@ -135,6 +150,16 @@ try {
         'RollbackMigration' { Write-Result (Invoke-SL2MigrationRecovery $config -Rollback) 0 }
         'Rollback' { Write-Result (Invoke-SL2Rollback $config $ToRelease) 0 }
         'Recover' { Write-Result (Invoke-SL2Recover $config) 0 }
+        'ProtectAcl' {
+            if (-not $ConfigFile) { Stop-SL2 'ProtectAcl requires an explicit -ConfigFile (and -TargetConfigFile to prepare migration targets).' }
+            $target = if ($TargetConfigFile) { Read-SapLensSettings $TargetConfigFile } else { $null }
+            $result = Invoke-SL2ProtectAcl $config $target (Join-SL2 $config.WorkRoot 'acl-backups')
+            Write-Result $result $(if ($result.after.safe) { 0 } else { 2 })
+        }
+        'RestoreAcl' {
+            if (-not $AclBackup) { Stop-SL2 'RestoreAcl requires -AclBackup <WorkRoot\acl-backups\<UTC time>> written by ProtectAcl.' }
+            Write-Result (Invoke-SL2RestoreAcl $AclBackup) 0
+        }
     }
 }
 catch {

@@ -160,8 +160,8 @@ and account. Target explicitly names `SapLens` and the canonical paths above. Pr
 account maps to `NT SERVICE\SapLens`. Custom credential accounts are refused. Never switch the account implicitly. Preserve the exact listen
 address, port, allowed hosts, trusted proxies and TLS filenames; no certificate regeneration, key rotation, proxy or firewall change occurs.
 Target roots must not exist, must be disjoint local NTFS directories, and must have private parent ACLs and adequate free space.
-Prepare only their containing application/persistent roots with administrator/SYSTEM access before preflight; a public parent that lets ordinary
-users create children is refused. Staging creates its work directory exclusively and never adopts a directory that appeared after inspection.
+Prepare only their containing application/persistent roots with administrator/SYSTEM access before preflight (`-Action ProtectAcl`, see
+[NTFS permissions](#ntfs-permissions)); a public parent that lets ordinary users read or create children is refused. Staging creates its work directory exclusively and never adopts a directory that appeared after inspection.
 
 Use the **new verified release's** server executable as an inspector. Its read-only `--inspect-data` advertises verified upload-rebasing support;
 older inspectors are refused before service control. The inspector is never installed by migration: the
@@ -215,6 +215,55 @@ Subsequent Build & Replace uses the published **target** config and the usual `D
 source config is blocked. `VerifyMigration` follows the current release after later deployments, reporting both current and migration commits.
 Legacy cleanup needs separate authorization after acceptance and backup verification; once the retained old service is removed, use ordinary
 `Health`/`Status` rather than the migration verifier, which deliberately requires the retained rollback service.
+
+## NTFS permissions
+
+Implemented and tested on Linux with synthetic ACLs (Pester `SapLens.Acl.Tests.ps1`, `SapLens.Migration.Tests.ps1`); **awaiting Windows
+acceptance** (no real ACL was read or changed from this environment).
+
+**Broad principals** (matched by well-known SID, so localized account names do not matter): Everyone `S-1-1-0`, Authenticated Users
+`S-1-5-11`, Users `S-1-5-32-545`, Interactive `S-1-5-4`, Network `S-1-5-2`, Anonymous Logon `S-1-5-7`, Guests `S-1-5-32-546`, Domain Users and
+Domain Guests (`S-1-5-21-…-513`/`-514`). An allow rule counts when it applies to the object itself or, on a folder, to new children
+(container/object inherit, also inherit-only): that is what a folder created later inherits. Deny rules and individual accounts are not findings.
+*Read* is ReadData/ListDirectory, GENERIC_READ or GENERIC_ALL; *write* is any of WriteData/CreateFiles, AppendData/CreateDirectories, WriteEA,
+WriteAttributes, DeleteSubdirectoriesAndFiles, Delete, ChangePermissions, TakeOwnership, GENERIC_WRITE or GENERIC_ALL.
+
+| Class | Paths (source configuration, then migration target) | Broad read | Broad write | Required identities |
+| --- | --- | --- | --- | --- |
+| Private | Data directory and every descendant; pre-deployment backups; TLS folder (certificate, password file); the folder of the host backup key; deployment state (`WorkRoot`) | refused | refused | SYSTEM and Administrators full control; the service's virtual account modify on data, read on TLS and key (an `NT SERVICE\…` account only: `LocalSystem` is SYSTEM) |
+| Binaries | `ReleasesRoot`, the configuration file, the folder that holds it (for example `C:\saplens2`) | allowed (read and execute) | refused | SYSTEM and Administrators full control; service read and execute on `ReleasesRoot` |
+| Target parent | The folder that will hold a new target root (`C:\ProgramData\SapLens`, `C:\sap-lens`); while missing, its nearest existing ancestor is judged | refused when it holds a private target | refused | SYSTEM and Administrators |
+
+`C:\ProgramData` itself grants Users read and "create folders" to new children by design. It is **never changed**: `ProtectAcl` creates
+`C:\ProgramData\SapLens` with a protected DACL instead. The preflight reports every finding with path, role, principal, access, rights mask,
+inherited or explicit, and what it applies to.
+
+### Audit and remediation
+
+```powershell
+$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
+# Read-only: every finding for the source state and the target parents (exit 0 safe, 2 unsafe). Changes nothing.
+& $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target
+# Explicit, approved remediation in an elevated session (does not stop or reconfigure the service):
+& $entry -Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -Yes
+# Undo exactly what ProtectAcl changed:
+& $entry -Action RestoreAcl -ConfigFile $source -AclBackup <WorkRoot>\acl-backups\<UTC time> -Yes
+```
+
+`ProtectAcl` changes only paths with findings, and missing target parents:
+
+1. Creates `WorkRoot\acl-backups\<UTC time>` with a protected DACL (SYSTEM, Administrators) and saves every affected ACL with its
+   descendants (`icacls <path> /save <file> /T /C`), plus `acl-backup.json` listing what was saved and what will be created.
+2. For each path: `icacls /inheritance:r` with SYSTEM and Administrators full control (and the service's virtual account where the table says
+   so), removes explicit grants to the broad SIDs, grants authenticated users read and execute again on release folders only, and resets the
+   descendants of private folders to inherit (their earlier explicit entries are in the backup).
+3. Creates missing target parents with the same protected DACL. Target roots themselves are never created (the migration requires them new).
+4. Audits again and returns the result; exit 2 when anything is still unsafe.
+
+It refuses drive roots, `%ProgramData%`, `%ProgramFiles%`, the Windows folder, `%SystemDrive%\Users` and user profiles. The running service
+keeps its access (SYSTEM for `LocalSystem`, its own grant otherwise), so it is not stopped. Before running it on the production host: take a
+verified application backup, run `AuditAcl` and review each listed path, run in a quiet window, and keep the printed backup folder.
+`RestoreAcl` replays the saved ACLs newest first (`icacls <parent> /restore <file>`) and keeps folders `ProtectAcl` created (empty and protected).
 
 ## Service model and permissions
 

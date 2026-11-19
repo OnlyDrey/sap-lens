@@ -795,4 +795,5 @@ function Invoke-SL2Rollback($Config, [string]$ToRelease) {
 }
 
 . (Join-Path $PSScriptRoot 'SapLens.Migration.ps1')
+. (Join-Path $PSScriptRoot 'SapLens.Acl.ps1')
 Export-ModuleMember -Function * -Variable FocusedTests

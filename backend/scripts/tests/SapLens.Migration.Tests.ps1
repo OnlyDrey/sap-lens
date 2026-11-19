@@ -26,7 +26,7 @@ BeforeAll {
         Mock -ModuleName $M Get-SL2Service { param($Name) if ($script:Services.ContainsKey($Name)) { $script:Services[$Name] } else { [pscustomobject]@{ Exists = $false; State = 'Missing'; ProcessId = 0 } } }
         Mock -ModuleName $M Get-SL2Listener { foreach ($svc in $script:Services.Values) { if ($svc.State -eq 'Running') { $svc.ProcessId } } }
         Mock -ModuleName $M Get-SL2Link { '' }
-        Mock -ModuleName $M Get-SL2MigrationAcl { 'synthetic-DACL' }
+        Mock -ModuleName $M Get-SL2AclRules { @() }
         Mock -ModuleName $M Test-SL2MigrationEnvironment { }
         Mock -ModuleName $M Test-SL2MigrationTls { }
         Mock -ModuleName $M Get-SL2FreeSpace { 100GB }
@@ -65,6 +65,31 @@ Describe 'Migration preflight: source release integrity' {
         $check.message | Should -Match 'Source release verification failed \(verify-release.ps1 -Scope Server\): verify-release: missing: server/e_sqlite3.dll'
         Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
         Should -Invoke -ModuleName $M Set-SL2ServiceEntry -Times 0
+    }
+}
+
+Describe 'Migration preflight: NTFS permissions' {
+    BeforeEach { New-MigrationFixture }
+    It 'blocks migration on broad access to private source state, names path, principal and right, and passes once the ACL is protected' {
+        $data = [IO.Path]::GetFullPath($script:Source.DataDirectory)
+        $script:Unsafe = $true
+        Mock -ModuleName $M Get-SL2AclRules {
+            param($Path)
+            if ($script:Unsafe -and [IO.Path]::GetFullPath($Path) -eq $data) { [pscustomobject]@{ Sid = 'S-1-5-11'; Rights = 0x301BF; Allow = $true; Inherited = $true; ContainerInherit = $true; ObjectInherit = $true; InheritOnly = $false } }
+        }
+        $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $check = $preflight.checks | Where-Object name -eq 'private_state'
+        $check.passed | Should -BeFalse
+        $check.message | Should -BeLike "*$data (source data): Authenticated Users has write access (0x000301BF, inherited, this folder and new children)*"
+        $check.message | Should -BeLike '*-Action ProtectAcl*'
+        Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
+        $script:Unsafe = $false                                                    # after ProtectAcl
+        ((Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector).checks | Where-Object name -eq 'private_state').passed | Should -BeTrue
+    }
+    It 'names an existing target root instead of a generic refusal' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
+        New-Item -ItemType Directory -Force $script:Target.WorkRoot | Out-Null
+        $check = (Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector).checks | Where-Object name -eq 'targets_and_capacity'
+        $check.message | Should -BeLike "Target root $($script:Target.WorkRoot) already exists*"
     }
 }
 
