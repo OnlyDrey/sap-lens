@@ -38,6 +38,8 @@ BeforeAll {
         $script:Broad[$programData] = @((Rule 'S-1-5-32-545' $script:ReadExecute -Children -Inherited), (Rule 'S-1-5-32-545' $script:CreateOnly -Children -InheritOnly -Inherited))
         $script:Protected = [Collections.Generic.HashSet[string]]::new()
         $script:Icacls = [Collections.Generic.List[string]]::new()
+        $script:ManifestChecked = 0
+        Mock -ModuleName $M Reset-SL2AclFile { param($Path) $script:Icacls.Add("native file reset $Path") }
         Mock -ModuleName $M Get-SL2AclRules {
             param($Path)
             $full = [IO.Path]::GetFullPath($Path).TrimEnd('/')
@@ -55,7 +57,17 @@ BeforeAll {
         Mock -ModuleName $M Invoke-SL2Process {
             param($File, $Arguments)
             $script:Icacls.Add(($Arguments -join ' '))
-            if ($Arguments -contains '/inheritance:r') { [void]$script:Protected.Add([IO.Path]::GetFullPath($Arguments[0]).TrimEnd('/')) }
+            if ($Arguments -contains '/inheritance:r') {
+                $manifest = @(Get-ChildItem $script:AclBackupRoot -Filter acl-backup.json -Recurse)
+                $manifest.Count | Should -Be 1
+                $saved = Get-Content $manifest[0].FullName -Raw | ConvertFrom-Json
+                foreach ($entry in @($saved.entries | Where-Object { -not $_.created })) {
+                    (Get-FileHash $entry.file).Hash | Should -Be $entry.sha256
+                    Test-SL2AclBackupFile $entry
+                }
+                $script:ManifestChecked++
+                [void]$script:Protected.Add([IO.Path]::GetFullPath($Arguments[0]).TrimEnd('/'))
+            }
             if ($Arguments -contains '/save') {
                 $parent = Split-Path $Arguments[0]
                 $lines = @((Split-Path $Arguments[0] -Leaf), (Get-Acl -LiteralPath $Arguments[0]).GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access))
@@ -124,6 +136,22 @@ Describe 'ACL audit plan and preflight refusals' {
 }
 
 Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
+    It 'retains complete recovery inventories and records a partial remediation failure' {
+        New-AclFixture
+        Mock -ModuleName $M Reset-SL2AclFile { throw 'Injected native file reset failure' }
+        { Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots } | Should -Throw '*Injected native file reset failure*'
+        $operation = @(Get-ChildItem $script:AclBackupRoot -Directory)[0].FullName
+        $status = Get-SL2AclOperationStatus $operation
+        $status.phase | Should -Be 'failed'
+        $status.incomplete | Should -BeTrue
+        $status.application_changes_may_have_started | Should -BeTrue
+        $status.manifest_present | Should -BeTrue
+        $saved = Get-Content (Join-Path $operation 'acl-backup.json') -Raw | ConvertFrom-Json
+        foreach ($entry in $saved.entries) { Test-SL2AclBackupFile $entry }
+        (Invoke-SL2RestoreAcl $operation $script:ApprovedRoots).verified | Should -BeTrue
+        Test-Path (Join-Path $operation 'acl-operation.jsonl') | Should -BeTrue
+        @(Get-ChildItem $operation -Filter 'acl-restore-*.jsonl').Count | Should -Be 1
+    }
     It 'refuses unapproved scope before creating backup files or changing ACLs' {
         New-AclFixture
         { Invoke-SL2ProtectAcl $script:Source $null (Join-Path $script:Paths.New 'acl-backups') @($script:Paths.New) } | Should -Throw '*outside*approved*'
@@ -213,13 +241,10 @@ Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
         Test-Path (Join-Path $script:Paths.ProgramData 'sap-lens') | Should -BeTrue
         $calls = @($script:Icacls)
         $script:CreatedSecure | Should -Contain $result.backup # protected at creation, before the first backup file
-        foreach ($path in $result.changed | Where-Object { $_ -notin $result.created }) {
-            $save = [Array]::FindIndex([string[]]$calls, [Predicate[string]] { param($c) $c -like "$path /save *" })
-            $change = [Array]::FindIndex([string[]]$calls, [Predicate[string]] { param($c) $c -like "$path /L /inheritance:r*" })
-            ($save -ge 0 -and $change -gt $save) | Should -BeTrue -Because "$path must be saved before it changes"
-        }
+        $script:ManifestChecked | Should -Be @($result.changed | Where-Object { $_ -notin $result.created }).Count
+        $calls | Where-Object { $_ -match ' /save ' } | Should -BeNullOrEmpty
         $calls | Should -Contain "$($script:Source.DataDirectory) /L /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F NT SERVICE\SapLens2:(OI)(CI)M"
-        $calls | Should -Contain "$(Join-Path $script:Source.DataDirectory 'logs/server.log') /reset /L /C /Q"
+        $calls | Should -Contain "native file reset $(Join-Path $script:Source.DataDirectory 'logs/server.log')"
         $calls | Should -Contain "$($script:Source.ReleasesRoot) /L /grant:r *S-1-5-11:(OI)(CI)RX"
         $calls | Where-Object { $_ -like "$($script:Paths.ProgramData) *" } | Should -BeNullOrEmpty            # ProgramData itself is never changed
         $record = Get-Content (Join-Path $result.backup 'acl-backup.json') -Raw | ConvertFrom-Json

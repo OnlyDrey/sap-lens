@@ -28,7 +28,7 @@
     Health          Readiness and identity of the running server.
     AuditAcl        Read-only NTFS audit (by well-known SID) of private state, releases and configuration, and with -TargetConfigFile of the
                     parents of the migration targets. Lists each broad principal with its rights; exit 2 when anything is unsafe.
-    ProtectAcl      Explicit remediation of what AuditAcl reports. Saves every affected ACL first (icacls /save into a disjoint -AclBackupRoot),
+    ProtectAcl      Explicit remediation of what AuditAcl reports. Saves verified UTF-16 ACL inventories into a disjoint -AclBackupRoot first,
                     then sets protected DACLs (SYSTEM, Administrators, the service's virtual account), removes broad grants, resets
                     descendants to inherit and creates missing target parents protected. Never changes ProgramData, Program Files, the
                     Windows folder, user roots or drive roots, and never stops the service. -DryRun prints the audit. Needs -Yes and explicit -ApprovedAclRoot.

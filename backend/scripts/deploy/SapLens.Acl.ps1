@@ -1,7 +1,7 @@
 # Part of SapLens.Deploy, dot-sourced into the same module. No operations run on import.
 # NTFS policy for SAP Lens private state, release binaries and the parents of migration targets. Principals are compared by well-known SID, never
 # by (localized) account name. Audit is read-only; Invoke-SL2ProtectAcl changes ACLs only after an explicit, approved call (Deploy-SapLens.ps1
-# -Action ProtectAcl -Yes), saves every affected ACL first (icacls /save, restorable with -Action RestoreAcl) and never touches system roots.
+# -Action ProtectAcl -Yes), saves every affected DACL first (icacls-compatible inventories, restorable with -Action RestoreAcl) and never touches system roots.
 
 # Broad principals: any interactive or authenticated user of the machine or domain. Domain Users and Domain Guests (RID 513/514) match by pattern.
 $script:BroadSids = [ordered]@{
@@ -62,14 +62,25 @@ function Get-SL2AclFindings($Rules, [ValidateSet('private', 'binaries')][string]
 function Get-SL2AclAudit([string]$Path, [string]$Class, [string]$Role, [switch]$Recurse) {
     if (-not (Test-Path -LiteralPath $Path)) { return [pscustomobject]@{ path = $Path; role = $Role; class = $Class; exists = $false; findings = @() } }
     $item = Get-Item -LiteralPath $Path -Force
-    $findings = @(Get-SL2AclFindings @(Get-SL2AclRules $Path) $Class $item.PSIsContainer | ForEach-Object { $_ | Add-Member -NotePropertyName path -NotePropertyValue $Path -PassThru })
-    if ($Recurse -and $item.PSIsContainer) {
-        foreach ($child in @(Get-SL2AclItems $Path | Where-Object FullName -ne $item.FullName)) {
-            $findings += @(Get-SL2AclFindings @(Get-SL2AclRules $child.FullName) $Class $child.PSIsContainer | Where-Object { -not $_.inherited } |
-                ForEach-Object { $_ | Add-Member -NotePropertyName path -NotePropertyValue $child.FullName -PassThru })
-        }
+    $findings = [Collections.Generic.List[object]]::new()
+    foreach ($finding in @(Get-SL2AclFindings @(Get-SL2AclRules $Path) $Class $item.PSIsContainer)) {
+        $finding | Add-Member -NotePropertyName path -NotePropertyValue $Path
+        $findings.Add($finding)
     }
-    [pscustomobject]@{ path = $Path; role = $Role; class = $Class; exists = $true; findings = $findings }
+    if ($Recurse -and $item.PSIsContainer) {
+        Write-SL2AclProgress 'audit_inventory' -Stage $Path
+        $children = @(Get-SL2AclItems $Path | Where-Object FullName -ne $item.FullName)
+        $processed = 0
+        foreach ($child in $children) {
+            foreach ($finding in @(Get-SL2AclFindings @(Get-SL2AclRules $child.FullName) $Class $child.PSIsContainer | Where-Object { -not $_.inherited })) {
+                $finding | Add-Member -NotePropertyName path -NotePropertyValue $child.FullName
+                $findings.Add($finding)
+            }
+            Write-SL2AclProgress 'audit' (++$processed) $children.Count $Path
+        }
+        Write-SL2AclProgress 'audit' $processed $children.Count $Path -Force
+    }
+    [pscustomobject]@{ path = $Path; role = $Role; class = $Class; exists = $true; findings = $findings.ToArray() }
 }
 
 # The paths a migration (or a protected deployment) depends on, each with its class. Descendant findings that only repeat an inherited rule of the
@@ -221,9 +232,24 @@ function Get-SL2ReleaseJunction([string]$ReleasesRoot, [string[]]$ApprovedRoots 
     [pscustomobject]@{ path = [IO.Path]::GetFullPath($path); target = $target }
 }
 
+function Test-SL2AclPhysicalPath([string]$Path) {
+    # Existing objects only. Use the native filesystem API rather than two PowerShell providers per ancestor.
+    # Every ancestor is still checked on every use; missing objects, access errors and links fail closed.
+    $physical = [IO.Path]::GetFullPath($Path)
+    while ($physical) {
+        if ([IO.File]::GetAttributes($physical) -band [IO.FileAttributes]::ReparsePoint) { Stop-SL2 'Migration paths must not traverse reparse points.' }
+        $physical = [IO.Path]::GetDirectoryName($physical)
+    }
+}
+
 function Get-SL2AclItems([string]$Path, [string]$ReleasesRoot = '') {
-    Test-SL2PathTree $Path
+    Test-SL2AclPhysicalPath $Path
     $item = Get-Item -LiteralPath $Path -Force
+    $progress = Get-Variable AclProgress -Scope Script -ErrorAction SilentlyContinue
+    if ($progress) {
+        $progress.Value.walkProcessed++
+        Write-SL2AclProgress $progress.Value.phase $progress.Value.walkProcessed 0 $progress.Value.stage
+    }
     $item
     if (-not $item.PSIsContainer) { return }
     foreach ($child in Get-ChildItem -LiteralPath $Path -Force | Sort-Object FullName) {
@@ -237,25 +263,94 @@ function Get-SL2AclItems([string]$Path, [string]$ReleasesRoot = '') {
 }
 
 function Get-SL2AclSnapshot([string]$Path, [string]$ReleasesRoot = '') {
-    foreach ($item in @(Get-SL2AclItems $Path $ReleasesRoot)) {
+    $count = 0
+    Write-SL2AclProgress 'inventory' -Stage $Path
+    $items = @(Get-SL2AclItems $Path $ReleasesRoot)
+    foreach ($item in $items) {
         [pscustomobject]@{ path = $item.FullName; dacl = (Get-Acl -LiteralPath $item.FullName).GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access) }
+        Write-SL2AclProgress 'snapshot' (++$count) $items.Count $Path
+    }
+    Write-SL2AclProgress 'snapshot' $count $items.Count $Path -Force
+}
+
+function Start-SL2AclProgress {
+    $script:AclProgress = @{ clock = [Diagnostics.Stopwatch]::StartNew(); last = -10.0; phase = ''; stage = ''; phaseStart = 0.0; walkProcessed = 0
+        journal = ''; mutation_started = $false }
+}
+
+function Get-SL2AclOperationStatus([string]$Backup) {
+    Test-SL2AclPhysicalPath $Backup
+    $journal = Join-SL2 $Backup 'acl-operation.jsonl'
+    $manifest = [IO.File]::Exists((Join-SL2 $Backup 'acl-backup.json'))
+    if (-not [IO.File]::Exists($journal)) {
+        return [pscustomobject]@{ phase = 'legacy_unknown'; incomplete = $true; last_record_truncated = $false
+            manifest_present = $manifest; application_changes_may_have_started = $true; last_event = $null }
+    }
+    Test-SL2AclPhysicalPath $journal
+    $lines = [IO.File]::ReadAllLines($journal); $last = $null; $truncated = $false; $mayHaveChanged = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        try { $event = $lines[$i] | ConvertFrom-Json -ErrorAction Stop }
+        catch { if ($i -ne $lines.Count - 1) { Stop-SL2 'ACL journal is corrupt; retain all artifacts for manual review.' }; $truncated = $true; break }
+        if (-not $event.PSObject.Properties['phase'] -or -not $event.PSObject.Properties['mutation_started']) { Stop-SL2 'ACL journal event is invalid.' }
+        if ($event.mutation_started) { $mayHaveChanged = $true }
+        $last = $event
+    }
+    [pscustomobject]@{ phase = $(if ($last) { $last.phase } else { 'unknown' }); incomplete = ($truncated -or -not $last -or $last.phase -ne 'complete')
+        last_record_truncated = $truncated; manifest_present = $manifest
+        application_changes_may_have_started = ($mayHaveChanged -or -not $last -or $truncated); last_event = $last }
+}
+
+# Host output never contaminates the JSON result. A flushed append-only journal survives a killed process;
+# its last complete event is a checkpoint, not permission to resume an interrupted operation.
+function Write-SL2AclProgress([string]$Phase, [int]$Processed = 0, [int]$Total = 0, [string]$Stage = '', [switch]$Force) {
+    $variable = Get-Variable AclProgress -Scope Script -ErrorAction SilentlyContinue
+    if (-not $variable) { return }
+    $state = $variable.Value
+    $elapsed = $state.clock.Elapsed.TotalSeconds
+    if ($state.phase -ne $Phase -or $state.stage -ne $Stage) { $state.phaseStart = $elapsed; $state.walkProcessed = 0; $Force = $true }
+    if (-not $Force -and $elapsed - $state.last -lt 5) { return }
+    $state.phase = $Phase; $state.stage = $Stage; $state.last = $elapsed
+    $duration = $elapsed - $state.phaseStart
+    $eta = if ($Total -gt $Processed -and $Processed -ge 100 -and $duration -ge 5) { [math]::Round($duration * ($Total - $Processed) / $Processed, 1) } else { $null }
+    $event = [ordered]@{ at = [DateTime]::UtcNow.ToString('o'); phase = $Phase; stage = $Stage; processed = $Processed
+        total = $(if ($Total) { $Total } else { $null }); elapsed_seconds = [math]::Round($elapsed, 1); eta_seconds = $eta
+        mutation_started = $state.mutation_started }
+    Write-SL2Log ("ACL {0}: {1}/{2} objects; elapsed={3}s; ETA={4}; stage={5}" -f $Phase, $Processed, $(if ($Total) { $Total } else { '?' }),
+        $event.elapsed_seconds, $(if ($null -eq $eta) { 'unknown' } else { "${eta}s" }), $Stage)
+    if ($state.journal) {
+        $bytes = [Text.Encoding]::UTF8.GetBytes(($event | ConvertTo-Json -Compress) + "`n")
+        $stream = [IO.File]::Open($state.journal, 'Append', 'Write', 'Read')
+        try { $stream.Write($bytes, 0, $bytes.Length); $stream.Flush($true) } finally { $stream.Dispose() }
     }
 }
 
 function Save-SL2AclInventory($Snapshot, [string]$Parent, [string]$File) {
-    $lines = [Collections.Generic.List[string]]::new()
-    foreach ($item in @($Snapshot)) {
-        Test-SL2PathTree $item.path
-        $part = "$File.part"
-        Invoke-SL2Icacls @($item.path, '/save', $part, '/L', '/C', '/Q')
-        $saved = [IO.File]::ReadAllLines($part, [Text.Encoding]::Unicode)
-        if ($saved.Count -ne 2 -or -not (Test-SL2DaclEqual $item.dacl $saved[1])) { Stop-SL2 'Nonrecursive ACL save differs from its inventory; application permissions are unchanged.' }
-        $lines.Add($item.path.Substring($Parent.Length + 1)); $lines.Add($saved[1])
-    }
-    [IO.File]::WriteAllLines($File, $lines.ToArray(), [Text.Encoding]::Unicode)
+    # Preserve icacls' UTF-16 path/SDDL format, but do not start a process to read a DACL we already captured.
+    # Re-read and compare each physical object before publishing; no recursive native save or overwrite.
+    $relativeOffset = [IO.Path]::GetFullPath($Parent).TrimEnd('\', '/').Length + 1
+    $part = "$File.part"
+    if ([IO.File]::Exists($File)) { Stop-SL2 'ACL recovery file already exists; nothing was overwritten.' }
+    $stream = [IO.File]::Open($part, 'CreateNew', 'Write', 'None')
+    $writer = [IO.StreamWriter]::new($stream, [Text.Encoding]::Unicode)
+    $count = 0; $total = @($Snapshot).Count
+    try {
+        foreach ($item in $Snapshot) {
+            Test-SL2AclPhysicalPath $item.path
+            if (-not (Test-SL2PathWithin $item.path $Parent)) { Stop-SL2 'ACL inventory escapes its saved parent.' }
+            if ($item.path.IndexOfAny([char[]]"`r`n") -ge 0) { Stop-SL2 'ACL inventory paths cannot contain line breaks.' }
+            $current = (Get-Acl -LiteralPath $item.path).GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access)
+            if (-not (Test-SL2DaclEqual $item.dacl $current)) { Stop-SL2 'ACL save differs from its inventory; application permissions are unchanged.' }
+            $writer.WriteLine($item.path.Substring($relativeOffset)); $writer.WriteLine($item.dacl)
+            Write-SL2AclProgress 'backup' (++$count) $total (Split-Path $File -Leaf)
+        }
+        $writer.Flush(); $stream.Flush($true)
+    } finally { $writer.Dispose() }
+    [IO.File]::Move($part, $File)
+    Write-SL2AclProgress 'backup' $count $total (Split-Path $File -Leaf) -Force
 }
 
 function Assert-SL2AclRecordTree($Entry, [string[]]$ApprovedRoots) {
+    Write-SL2AclProgress 'physical_validation' -Stage $Entry.path
     $context = if ($Entry.PSObject.Properties['releases_root']) { $Entry.releases_root } else { '' }
     if ($context) {
         Assert-SL2AclApproved $context $ApprovedRoots
@@ -264,6 +359,48 @@ function Assert-SL2AclRecordTree($Entry, [string[]]$ApprovedRoots) {
         if (($actual | ConvertTo-Json -Compress) -cne ($expected | ConvertTo-Json -Compress)) { Stop-SL2 'Release junction binding changed since the ACL backup; nothing further may be modified.' }
     }
     $null = @(Get-SL2AclItems $Entry.path $context)
+}
+
+# File-only reset: opening the final object as a reparse point lets us reject links on the handle.
+# Directory resets retain icacls /L: SetSecurityInfo on a directory can propagate permissions recursively.
+function Reset-SL2AclFile([string]$Path) {
+    Test-SL2AclPhysicalPath $Path
+    if (-not ('SapLens.NativeFileAcl' -as [type])) {
+        Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
+namespace SapLens {
+    public static class NativeFileAcl {
+        [DllImport("kernel32.dll", CharSet=CharSet.Unicode, SetLastError=true)]
+        static extern SafeFileHandle CreateFileW(string path, uint access, uint share, IntPtr security, uint creation, uint flags, IntPtr template);
+        [StructLayout(LayoutKind.Sequential)] struct Tag { public uint Attributes; public uint ReparseTag; }
+        [DllImport("kernel32.dll", SetLastError=true)]
+        static extern bool GetFileInformationByHandleEx(SafeFileHandle file, int kind, out Tag tag, uint size);
+        [DllImport("advapi32.dll")]
+        static extern uint SetSecurityInfo(SafeFileHandle handle, int kind, uint flags, IntPtr owner, IntPtr group, IntPtr dacl, IntPtr sacl);
+        public static void Reset(string path) {
+            // WRITE_DAC | READ_CONTROL, share read/write/delete, OPEN_EXISTING, OPEN_REPARSE_POINT.
+            using (var file = CreateFileW(path, 0x60000, 7, IntPtr.Zero, 3, 0x00200000, IntPtr.Zero)) {
+                if (file.IsInvalid) throw new Win32Exception(Marshal.GetLastWin32Error());
+                Tag tag;
+                if (!GetFileInformationByHandleEx(file, 9, out tag, 8)) throw new Win32Exception(Marshal.GetLastWin32Error());
+                if ((tag.Attributes & (0x400U | 0x10U)) != 0) throw new InvalidOperationException("ACL reset requires an ordinary physical file.");
+                // A real empty ACL, NEVER a null DACL. Windows supplies the parent's inheritable ACEs.
+                var acl = new byte[] { 2, 0, 8, 0, 0, 0, 0, 0 };
+                var pin = GCHandle.Alloc(acl, GCHandleType.Pinned);
+                try {
+                    uint error = SetSecurityInfo(file, 1, 0x20000004, IntPtr.Zero, IntPtr.Zero, pin.AddrOfPinnedObject(), IntPtr.Zero);
+                    if (error != 0) throw new Win32Exception((int)error);
+                } finally { pin.Free(); }
+            }
+        }
+    }
+}
+'@
+    }
+    [SapLens.NativeFileAcl]::Reset([IO.Path]::GetFullPath($Path))
 }
 
 function Assert-SL2AclRequiredAccess([string]$Path) {
@@ -362,6 +499,9 @@ function New-SL2SecureDirectory([string]$Path, [string[]]$ApprovedRoots, [switch
 # the backup). Missing target parents are created protected. ProgramData, Program Files, the Windows folder, user roots and drive roots are
 # refused. The running service keeps its access (SYSTEM, or its own grant), so nothing is stopped.
 function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$ApprovedRoots) {
+    Start-SL2AclProgress
+    try {
+    Write-SL2AclProgress 'validate' -Stage 'approved roots and physical inventory'
     $serviceAccount = if ($Source) { $Source.ServiceAccount } else { $Target.ServiceAccount }
     $plan = @(Get-SL2AclPlan $Source $Target)
     # Validate the entire scope before creating even the ACL backup folder.
@@ -372,11 +512,13 @@ function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$
     }
     foreach ($entry in $plan) {
         if (Test-Path -LiteralPath $entry.Path) {
+            Write-SL2AclProgress 'validate' -Stage $entry.Path
             $context = if ($Source -and $entry.Role -in @('source releases', 'source installation folder')) { $Source.ReleasesRoot } else { '' }
             if ($context) { $null = Get-SL2ReleaseJunction $context $ApprovedRoots }
             $null = @(Get-SL2AclItems $entry.Path $context)
         }
     }
+    Write-SL2AclProgress 'audit' -Stage 'initial policy'
     $report = Get-SL2AclReport $plan
     $changes = @(foreach ($entry in $plan) {
         $row = @($report.entries | Where-Object { $_.path -eq $entry.Path -and $_.role -eq $entry.Role })[0]
@@ -384,9 +526,13 @@ function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$
         if ($row.findings.Count -eq 0 -and $row.required_access_verified -and -not $create) { continue }
         [pscustomobject]@{ Entry = $entry; Create = $create; BroadSids = @($row.findings | ForEach-Object sid | Sort-Object -Unique) }
     })
-    if (-not $changes.Count) { return [pscustomobject]@{ changed = @(); created = @(); backup = $null; after = $report } }
+    if (-not $changes.Count) { Write-SL2AclProgress 'complete' -Stage 'no changes required'; return [pscustomobject]@{ changed = @(); created = @(); backup = $null; after = $report } }
     $backup = Join-SL2 $BackupRoot ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ') + '-' + [guid]::NewGuid().ToString('N'))
     New-SL2SecureDirectory $backup $ApprovedRoots
+    $script:AclProgress.journal = Join-SL2 $backup 'acl-operation.jsonl'
+    # Exclusive journal creation: old or incomplete recovery artifacts are never reused.
+    $journalStream = [IO.File]::Open($script:AclProgress.journal, 'CreateNew', 'Write', 'Read'); $journalStream.Dispose()
+    Write-SL2AclProgress 'backup' -Stage 'operation created' -Force
     $records = [Collections.Generic.List[object]]::new(); $index = 0
     foreach ($change in $changes) {
         $path = $change.Entry.Path
@@ -394,14 +540,24 @@ function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$
         $context = if ($Source -and $change.Entry.Role -in @('source releases', 'source installation folder')) { $Source.ReleasesRoot } else { '' }
         $junction = if ($context) { Get-SL2ReleaseJunction $context $ApprovedRoots } else { $null }
         $snapshot = @(Get-SL2AclSnapshot $path $context)
-        foreach ($item in $snapshot) { Assert-SL2AclApproved $item.path $ApprovedRoots }
+        # The root is approved above; inventory walks only physical descendants of that root.
+        foreach ($item in $snapshot) { if (-not (Test-SL2PathWithin $item.path $path)) { Stop-SL2 'ACL inventory escapes its approved root.' } }
         $file = Join-SL2 $backup ('{0:D2}.acl' -f ++$index)
         Save-SL2AclInventory $snapshot (Split-Path $path) $file
         if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or (Get-Item -LiteralPath $file).Length -eq 0) { Stop-SL2 'ACL backup was not written; application permissions are unchanged.' }
-        $records.Add([pscustomobject]@{ path = $path; created = $false; file = $file; parent = (Split-Path $path)
-            sha256 = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash; snapshot = $snapshot; releases_root = $context; junction = $junction })
+        $record = [pscustomobject]@{ path = $path; created = $false; file = $file; parent = (Split-Path $path)
+            sha256 = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash; snapshot = $snapshot; releases_root = $context; junction = $junction }
+        Test-SL2AclBackupFile $record
+        $records.Add($record)
     }
-    [IO.File]::WriteAllText((Join-SL2 $backup 'acl-backup.json'), ([pscustomobject]@{ schema = 2; entries = $records.ToArray() } | ConvertTo-Json -Depth 8))
+    $manifestBytes = [Text.Encoding]::UTF8.GetBytes(([pscustomobject]@{ schema = 2; entries = $records.ToArray() } | ConvertTo-Json -Depth 8))
+    $manifestPart = Join-SL2 $backup 'acl-backup.json.part'
+    $manifestStream = [IO.File]::Open($manifestPart, 'CreateNew', 'Write', 'None')
+    try { $manifestStream.Write($manifestBytes, 0, $manifestBytes.Length); $manifestStream.Flush($true) } finally { $manifestStream.Dispose() }
+    [IO.File]::Move($manifestPart, (Join-SL2 $backup 'acl-backup.json'))
+    Write-SL2AclProgress 'backups_complete' -Stage 'all inventories and manifest flushed' -Force
+    $script:AclProgress.mutation_started = $true
+    Write-SL2AclProgress 'remediation' -Stage 'before first application ACL change' -Force
     foreach ($change in $changes) {
         $path = $change.Entry.Path
         if ($change.Create) { New-SL2SecureDirectory $path $ApprovedRoots; continue }
@@ -415,28 +571,43 @@ function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$
             Invoke-SL2Icacls @($path, '/L', '/grant:r', "*S-1-5-11:$(if ($isContainer) { '(OI)(CI)' })RX")
         }
         if ($isContainer -and $change.Entry.Recurse) {
-            foreach ($child in @($record.snapshot | Where-Object path -ne $path | Sort-Object { $_.path.Length }, path)) {
-                Assert-SL2AclApproved $child.path $ApprovedRoots
-                Invoke-SL2Icacls @($child.path, '/reset', '/L', '/C', '/Q')
+            $children = @($record.snapshot | Where-Object path -ne $path | Sort-Object { $_.path.Length }, path)
+            $processed = 0
+            foreach ($child in $children) {
+                Test-SL2AclPhysicalPath $child.path
+                if ([IO.File]::GetAttributes($child.path) -band [IO.FileAttributes]::Directory) {
+                    Invoke-SL2Icacls @($child.path, '/reset', '/L', '/C', '/Q')
+                } else { Reset-SL2AclFile $child.path }
+                Write-SL2AclProgress 'remediation' (++$processed) $children.Count $path
             }
+            Write-SL2AclProgress 'remediation' $processed $children.Count $path -Force
         }
         Assert-SL2AclRequiredAccess $path
     }
     try {
         foreach ($record in $records) { if (-not $record.created) { Assert-SL2AclRecordTree $record $ApprovedRoots } }
     } catch { Stop-SL2 "ACL verification detected changed tree/junction state; retain $backup for manual review." 4 }
+    Write-SL2AclProgress 'verification' -Stage 'final policy and physical tree'
     $after = Get-SL2AclReport (Get-SL2AclPlan $Source $Target)
     if (-not $after.safe) { Stop-SL2 "ACL remediation verification failed; retain $backup for reviewed restoration." 1 }
+    Write-SL2AclProgress 'complete' -Stage 'verified' -Force
     [pscustomobject]@{ changed = @($changes | ForEach-Object { $_.Entry.Path }); created = @($changes | Where-Object Create | ForEach-Object { $_.Entry.Path })
         backup = $backup; after = $after }
+    } catch {
+        try { Write-SL2AclProgress 'failed' -Stage 'retain recovery artifacts; manual review required' -Force } catch { Write-Warning 'ACL journal update failed; retain the operation directory for manual review.' }
+        throw
+    } finally { Remove-Variable AclProgress -Scope Script -ErrorAction SilentlyContinue }
 }
 
 function Invoke-SL2RestoreAcl([string]$Backup, [string[]]$ApprovedRoots) {
+    Start-SL2AclProgress
+    try {
+    Write-SL2AclProgress 'restore_validation' -Stage 'all backup inventories before first change'
     Assert-SL2AclApproved $Backup $ApprovedRoots
     Test-SL2PathTree $Backup
     if ((Get-SL2AclAudit $Backup 'private' 'ACL backup' -Recurse).findings.Count) { Stop-SL2 'ACL backup storage is not private; review it before restoration.' }
     if (-not (Test-Path -LiteralPath (Join-SL2 $Backup 'acl-backup.json') -PathType Leaf)) { Stop-SL2 'This is not an ACL backup.' }
-    $saved = Get-Content -LiteralPath (Join-SL2 $Backup 'acl-backup.json') -Raw | ConvertFrom-Json
+    $saved = Get-Content -LiteralPath (Join-SL2 $Backup 'acl-backup.json') -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($saved.schema -ne 2) { Stop-SL2 'This ACL backup lacks verified schema-2 inventories; retain it for reviewed manual restoration.' }
     $entries = @($saved.entries); [Array]::Reverse($entries)
     if (-not $entries.Count) { Stop-SL2 'The ACL backup contains no inventories.' }
@@ -449,28 +620,40 @@ function Invoke-SL2RestoreAcl([string]$Backup, [string[]]$ApprovedRoots) {
         Test-SL2PathTree $entry.file
         if (-not (Test-Path -LiteralPath $entry.file -PathType Leaf) -or (Get-FileHash -LiteralPath $entry.file -Algorithm SHA256).Hash -ne $entry.sha256) { Stop-SL2 'ACL backup is missing or its checksum differs; nothing was restored.' }
         foreach ($item in @($entry.snapshot)) {
-            Assert-SL2AclApproved $item.path $ApprovedRoots
             if ($item.path -ne $entry.path -and -not (Test-SL2PathWithin $item.path $entry.path)) { Stop-SL2 'ACL inventory escapes its saved root.' }
+            Test-SL2AclPhysicalPath $item.path
         }
         Test-SL2AclBackupFile $entry
     }
+    $script:AclProgress.journal = Join-SL2 $Backup ('acl-restore-' + [guid]::NewGuid().ToString('N') + '.jsonl')
+    $journalStream = [IO.File]::Open($script:AclProgress.journal, 'CreateNew', 'Write', 'Read'); $journalStream.Dispose()
+    $script:AclProgress.mutation_started = $true
+    Write-SL2AclProgress 'restoration' -Stage 'before first saved DACL replay' -Force
     foreach ($entry in $entries) {
         if ($entry.created) { continue }
         Assert-SL2AclRecordTree $entry $ApprovedRoots
         Invoke-SL2Icacls @($entry.parent, '/restore', $entry.file, '/L', '/C', '/Q')
+        $processed = 0
         foreach ($item in @($entry.snapshot)) {
-            Test-SL2PathTree $item.path
+            Test-SL2AclPhysicalPath $item.path
             if (-not (Test-Path -LiteralPath $item.path) -or
                 (Get-Acl -LiteralPath $item.path).GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access) -cne $item.dacl) {
                 Stop-SL2 'Restored ACL inventory differs; manual recovery is required.' 4
             }
+            Write-SL2AclProgress 'restore_verification' (++$processed) @($entry.snapshot).Count $entry.path
         }
+        Write-SL2AclProgress 'restore_verification' $processed @($entry.snapshot).Count $entry.path -Force
     }
     try {
         foreach ($entry in $entries) { if (-not $entry.created) { Assert-SL2AclRecordTree $entry $ApprovedRoots } }
     } catch { Stop-SL2 'Restored ACL tree/junction state changed; manual recovery is required.' 4 }
+    Write-SL2AclProgress 'complete' -Stage 'restoration verified' -Force
     [pscustomobject]@{ verified = $true; restored = @($entries | Where-Object { -not $_.created } | ForEach-Object path)
         kept_created = @($entries | Where-Object created | ForEach-Object path) }
+    } catch {
+        try { Write-SL2AclProgress 'failed' -Stage 'retain recovery artifacts; manual review required' -Force } catch { Write-Warning 'ACL restore journal update failed; retain all recovery artifacts.' }
+        throw
+    } finally { Remove-Variable AclProgress -Scope Script -ErrorAction SilentlyContinue }
 }
 
 # icacls /save stores UTF-16 path/DACL pairs. Validate their destinations as well as the file checksum before invoking /restore.
@@ -478,12 +661,16 @@ function Test-SL2AclBackupFile($Entry) {
     $lines = [IO.File]::ReadAllLines($Entry.file, [Text.Encoding]::Unicode)
     if (-not $lines.Count -or $lines.Count % 2 -ne 0 -or $lines.Count / 2 -ne @($Entry.snapshot).Count) { Stop-SL2 'ACL backup inventory format differs.' }
     $seen = @{}
+    $expected = @{}
+    foreach ($item in $Entry.snapshot) {
+        if ($expected.ContainsKey($item.path)) { Stop-SL2 'Duplicate ACL inventory path.' }
+        $expected[$item.path] = $item.dacl
+    }
     for ($i = 0; $i -lt $lines.Count; $i += 2) {
         if ([IO.Path]::IsPathRooted($lines[$i])) { Stop-SL2 'ACL backup contains an absolute restore path.' }
         $full = [IO.Path]::GetFullPath((Join-SL2 $Entry.parent $lines[$i]))
-        $expected = @($Entry.snapshot | Where-Object path -eq $full)
-        if (-not (Test-SL2PathWithin $full $Entry.path) -or $expected.Count -ne 1 -or $seen.ContainsKey($full)) { Stop-SL2 'ACL backup restore paths escape or differ from the saved inventory.' }
-        if (-not (Test-SL2DaclEqual $expected[0].dacl $lines[$i + 1])) { Stop-SL2 'ACL backup DACL differs from its saved inventory.' }
+        if (-not (Test-SL2PathWithin $full $Entry.path) -or -not $expected.ContainsKey($full) -or $seen.ContainsKey($full)) { Stop-SL2 'ACL backup restore paths escape or differ from the saved inventory.' }
+        if (-not (Test-SL2DaclEqual $expected[$full] $lines[$i + 1])) { Stop-SL2 'ACL backup DACL differs from its saved inventory.' }
         $seen[$full] = $true
     }
 }

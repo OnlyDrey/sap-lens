@@ -309,10 +309,10 @@ $aclBackupRoot = 'C:\ProgramData\sap-lens-acl-recovery' # dedicated, outside aff
 
 1. Requires explicit `-ApprovedAclRoot` application-owned roots and a disjoint `-AclBackupRoot` outside every affected tree. It rejects system
    roots, unapproved paths and reparse points before any change. Creates the backup storage with a protected DACL (SYSTEM, Administrators) and saves every affected ACL with its
-   descendants (individual `icacls <physical-path> /save <fragment> /L /C` calls, without recursive traversal), plus schema-2 `acl-backup.json` with file checksums, DACL inventories and created-parent records.
+   descendants into verified, icacls-compatible UTF-16 path/DACL inventories using in-process ACL reads, without recursive native traversal or per-object backup processes. Schema-2 `acl-backup.json` retains file checksums, original DACL inventories and created-parent records. All inventories and the manifest are flushed before application ACL changes.
 2. For each path: `icacls /inheritance:r` with SYSTEM and Administrators full control (and the service's virtual account where the table says
    so), removes explicit grants to the broad SIDs (including the actual Domain Users/Guests SIDs found by the audit), grants authenticated users read and execute again on release folders only, and resets the
-   inventoried physical descendants of private folders individually to inherit (their earlier explicit entries are in the backup).
+   inventoried physical descendants of private folders individually to inherit (their earlier explicit entries are in the backup). Ordinary files use a file-handle native reset; directories retain individual `icacls /reset /L /C /Q` calls. The native reset opens the final object with `OPEN_REPARSE_POINT`, rejects directory/reparse handles and supplies a real empty DACL with inheritance enabled, never a null DACL. Owner, group and SACL are outside this DACL-only operation.
 3. Creates missing target parents with the same protected DACL supplied in the native exclusive [CreateDirectoryW operation](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw), verifies ACE bytes/protection
    and required SYSTEM/Administrators access, then permits file writes. Creation failure, a raced existing path, unsupported storage or verification
    failure refuses further writes. Migration staging uses this boundary too, before journal, TLS, key or database copies. ProtectAcl leaves target roots absent; the separately authorized migration creates them exclusively.
@@ -341,8 +341,7 @@ are refused. Approved roots must themselves remain physical; the exception never
 The exception compares configured paths and approved-root spelling exactly, including case, rather than accepting case-folded aliases. Use the
 same physical path spelling in the source configuration, junction target and approved roots; a mismatch is refused without changing the junction.
 
-The junction is validated and omitted from ACL inventory. Physical release files are inventoried once through their real directory. ACL saves
-operate on each physical object with `/save /L`, never `/T`; the verified records are rebased into the saved root's UTF-16 restore inventory.
+The junction is validated and omitted from ACL inventory. Physical release files are inventoried through their real directory; overlapping plan roots can save the same physical object in separate inventories. ACL backup reads physical DACLs directly and writes UTF-16 restore records; it never invokes recursive native save or follows `current`.
 Reset operations name individual physical descendants without wildcards or `/T`. Restore validates every recorded destination, rejects any path
 through a link and uses `/restore /L`. See the [icacls command contract](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls).
 Neither ACL remediation nor restoration deletes, recreates or redirects `current`. The physical target remains subject to its approved ACL policy.
@@ -366,14 +365,82 @@ Get-SL2ReleaseJunction $source.ReleasesRoot | ConvertTo-Json
 
 Run `SapLens.Junction.Tests.ps1` on isolated Windows fixtures. It covers allowed and rejected junctions, nonrecursive native ACL save, restore
 binding/path boundaries and strict migration staging. The native junction restore round trip additionally requires elevation; a skipped check is
-pending acceptance, not a production-ready result. Per-object native ACL saves cost more process launches than recursive saves; allow for the
-installation's file count when planning the approved window. No performance improvement or production acceptance is claimed.
+pending acceptance, not a production-ready result. See the measured implementation and interruption procedure below; performance measurements do not establish production acceptance.
 
 Windows junction checkpoint (2026-11-19, Windows PowerShell 5.1 / Pester 5.9.1): complete suite **208 passed, 0 failed, 11 skipped**,
 0 failed containers (219 discovered). Nine skips are Linux-only fixtures and two require elevated native ACL restore. The final focused junction
 spec passed 15 tests with its elevated restore case explicitly skipped. The 5.1 parser accepted all 24 active scripts; documentation links passed.
 No production service, ACL, release pointer or private state was modified, and no full .NET/browser run was required for this PowerShell change.
 
+
+### ACL performance and interrupted operations
+
+The `8ee1cc6` backup invoked one `icacls /save` process **per snapshot object**, including duplicates in overlapping source roots. Private-state remediation then invoked another process per descendant, plus two or three commands per changed root. Restore already used one process per saved inventory, but validation searched the whole snapshot for each record (quadratic work). Repeated PowerShell ancestor/provider checks and tree/audit walks added time before the backup directory appeared. A changing `04.acl.part` in that implementation contained only the most recently saved object, not a cumulative or complete fourth backup. The startup-only deployment log contained no phase/count progress. An unsafe audit does not prove that no partial change occurred.
+
+Backup now uses zero native processes per object, rechecks every ancestor through filesystem attribute APIs and compares the current DACL against the snapshot. It streams UTF-16 records to an exclusive `.part`, flushes to disk and renames without replacement. A failed write retains its partial output; it cannot be retried into the same filename. Completed records are validated with an indexed path lookup before the manifest is published. Root approval checks remain mandatory; descendant checks require containment within that approved root and physical, link-free ancestors. There is no cross-phase cache that would hide newly introduced links.
+
+Recovery-path validation also covers a drive-root parent: the earlier `Parent.Length + 1` offset dropped the first character when the parent already ended in a separator (for example a source installation immediately under the drive). The writer now normalizes that offset, and validates the published inventory before permitting any ACL change. UTF-8 manifests are read explicitly as UTF-8 on Windows PowerShell 5.1 so Unicode filenames retain their exact paths. Old recovery artifacts are never rewritten to apply either correction; malformed historical inventories require reviewed manual recovery.
+
+Ordinary file resets use a handle-based [SetSecurityInfo](https://learn.microsoft.com/en-us/windows/win32/api/aclapi/nf-aclapi-setsecurityinfo) operation, validated against `icacls /reset` with protected parents, inherited ACEs and repeated resets. Directory resets remain individual `/L` commands: directory `SetSecurityInfo` can propagate inheritable permissions to children, so it is not a safe replacement without further traversal analysis. For a changed private tree containing F files and D descendant directories, reset process launches drop from F+D to D. Root commands and one restore process per inventory remain. No wildcards or recursive native ACL switches were introduced.
+
+Progress is printed to the terminal and the deployment log at stage boundaries and approximately every five seconds between objects: phase, stage, processed/total, elapsed seconds and ETA. Enumeration totals and ETA are `unknown` until measurable; ETA is a stage-local linear estimate only after 100 objects and five seconds. An individual native call or filesystem call can block longer than the reporting interval; no synthetic ETA or timeout hides that condition.
+
+Each new operation writes a flushed append-only `acl-operation.jsonl` in its unique timestamp/GUID backup directory. The `backups_complete` checkpoint follows all inventories and the manifest; `mutation_started=true` is flushed **before** the first application ACL change. Normal failures append `failed`; abrupt termination leaves the last checkpoint, possibly an incomplete trailing JSON line. `Get-SL2AclOperationStatus` reads this evidence without modifying it and treats truncated/absent journals conservatively. No automatic resume or rollback is implemented. Restore validates every inventory before changing any ACL, writes a separate new `acl-restore-<GUID>.jsonl`, and verifies original DACLs afterward. Recovery artifacts, created parents and prior journals are retained. The journal is a diagnostic checkpoint, not a replacement for inventory checksums, a verified application backup or explicit recovery approval.
+
+Measured on the isolated Windows workstation checkout (Windows PowerShell 5.1, NTFS; **not the production VM**), using `Measure-AclPerformance.ps1`:
+
+| Fixture/stage | Original | Optimized | icacls processes, original to optimized |
+| --- | --- | --- | --- |
+| 100 files + 11 directories, backup | 10.715 s | 0.961 s | 111 to 0 |
+| 100 file resets | 9.097 s | 0.895 s | 100 to 0 |
+| 2,000 files + 11 directories, inventory | not repeated | 13.850 s | 0 |
+| Same large fixture, backup / indexed validation | not repeated | 14.804 s / 2.477 s | 0 |
+| Same large fixture, file resets | not repeated | 8.048 s | 0 |
+
+Small-fixture backup output was byte-identical to the original native-save output. Process counts cover deployment `icacls` calls; first-use `Add-Type` may invoke the framework compiler once on Windows PowerShell 5.1, independently of the object count. File reset timing includes first-use native helper compilation. Large-fixture native baselines were deliberately not repeated. At the small measured rate, 82,422 backup records alone would need roughly 2.2 hours with the original algorithm; an earlier 101-object measurement projected 2.6 hours. Duplicated inventories, disk/antivirus load and prevalidation increase the total. Large optimized measurements suggest minutes per pass at that scale, **not a promised VM completion time**. Overlapping snapshots, repeated physical/junction validation, in-memory snapshots/JSON manifests and directory process launches remain costs; an 82,422-object production-shaped elevated acceptance run remains pending.
+
+Repeat only on fresh synthetic fixtures (the script accepts no installation path and retains its measurements under `build/test-artifacts/acl-benchmark-<GUID>`):
+
+```powershell
+& .\backend\scripts\tests\Measure-AclPerformance.ps1 -Objects 100
+& .\backend\scripts\tests\Measure-AclPerformance.ps1 -Objects 2000 -SkipBaseline
+```
+
+Windows performance checkpoint (2026-11-19, Windows PowerShell 5.1 / Pester 5.9.1): **219 passed, 0 failed, 11 skipped**, 0 failed containers, 230 discovered, 452.42 seconds. The ten new performance/recovery tests cover a 1,000-file tree, zero backup process launches, partial read failures and non-overwrite, changed DACLs, drive-root/Unicode recovery paths, reset equivalence/idempotency, junction substitution and interrupted/corrupt journal status. A separate remediation fault-injection test retains all completed inventories and verifies the restoration control flow. The final direct performance/junction run passed **25**, failed **0**, skipped **1**; the broader focused deployment/migration regression passed **139**, failed **0**, skipped **2** before the final recovery-path additions. Nine complete-suite skips are Linux-only fixtures; two are elevated native restore acceptance. The 5.1 parser accepted all 26 active scripts; documentation links and main-only workflow contracts passed. An earlier checkpoint attempt was cancelled to add the drive-root regression; the figures above are from the one completed final checkpoint. PowerShell 7 and elevated production-shaped restore were unavailable. No full .NET/browser suite or production operation ran.
+
+#### Handling the existing incomplete VM operation safely
+
+1. **Do not start another ACL operation or update the running process in place.** Do not delete, rename, merge, edit or reuse any old recovery directory or `.part` file. Do not run automated restore from `01.acl` through `03.acl` alone or treat `04.acl.part` as complete.
+2. Identify the exact ACL runner and native children, its script revision and recovery folder using the read-only commands below. Check process activity and file timestamps again after an interval. Preserve the console/log output and evidence in place. `AuditAcl safe:false` is not an operation-status signal. If the runner is still active, cancellation of **that identified ACL runner and its children only** requires a separate operator decision/approval. Prefer its original console's controlled cancellation; never stop/restart `SapLens2` or kill an unidentified PowerShell host. This task performs no cancellation.
+3. After an approved cancellation or confirmed natural exit, confirm that the runner and native children are gone and artifact timestamps no longer change. Leave service, junction and recovery evidence untouched. Do not manually remove a deployment lock while a process might own it.
+4. On `8ee1cc6`, application mutation starts only after every backup and `acl-backup.json` is written. An absent manifest is consistent with interruption during backup, but `.part` timestamps alone cannot establish this. Correlate the exact running revision, process exit and logs. An absent/partial manifest cannot support automated exact restore. If the revision, mutation state or backup completeness is uncertain, stop for reviewed recovery; do not infer safety from the original broad grants still being present.
+5. A complete schema-2 manifest is only a candidate recovery set: require all files, hashes, path/junction bounds and elevated isolated restore acceptance before a separately approved restore. Never regenerate missing historical ACLs or overwrite recovery evidence. A partial remediation requires reviewed restoration or a reviewed new baseline; rerunning from a partly changed state does not preserve the original ACLs by itself.
+6. Only after the old operation is quiescent and its recovery decision is resolved: obtain a verified application backup and recovery key, finish elevated isolated tests on the actual VM, inspect `AuditAcl`/`PreflightMigration`, and seek approval for a new production remediation. Use the verified new checkout and a **new** disjoint application-owned backup location. No production `ProtectAcl`, `RestoreAcl`, service migration or cutover is authorized here.
+
+Read-only VM inspection from the repository root:
+
+```powershell
+$aclRuns = @(Get-CimInstance Win32_Process | Where-Object {
+    $_.Name -in @('powershell.exe','pwsh.exe') -and $_.CommandLine -match '\bProtectAcl\b'
+})
+$aclRuns | Select-Object ProcessId, ParentProcessId, CreationDate, ExecutablePath
+Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -in $aclRuns.ProcessId } |
+    Select-Object Name, ProcessId, ParentProcessId, CreationDate
+Get-CimInstance Win32_Service -Filter "Name='SapLens2'" | Select-Object Name, State, StartName
+
+$oldRecovery = Read-Host 'Exact existing ACL recovery directory (read only)'
+Get-ChildItem -LiteralPath $oldRecovery -Force | Select-Object Name, Length, LastWriteTimeUtc, Attributes
+Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
+Get-SL2AclOperationStatus $oldRecovery | ConvertTo-Json -Depth 5
+# For old versions without a journal this deliberately reports legacy_unknown.
+$source = 'C:\saplens2\deploy.local.json'
+$target = 'C:\saplens2\migration-config\deploy.local.json'
+$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
+& $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target
+& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target
+```
+
+These commands do not remediate findings or verify a complete restore. Do not weaken the junction boundary or global Windows ACLs to improve throughput. Active-service permissions, databases/WAL, TLS, encryption keys and historical migration evidence remain outside this development task.
 
 ### Windows script validation
 

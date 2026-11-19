@@ -14,6 +14,7 @@ Windows ACL remediation has one bounded exception for the configured source `rel
 and excludes the junction from native ACL save/reset/restore traversal. Unexpected links still fail closed; migration copying remains strict.
 See the [release junction security boundary](WINDOWS_DEPLOYMENT.md#release-junction-boundary) before approved ACL remediation. No global Windows
 ACL, active service or release pointer is changed by read-only inspection.
+ACL backup uses verified in-process DACL reads and exclusive recovery files. File-only handle resets avoid per-file processes; directory resets retain individual `/L` commands to avoid introducing recursive propagation. Durable progress journals distinguish backup from possible partial remediation; retain all incomplete artifacts and follow the [interrupted ACL procedure](WINDOWS_DEPLOYMENT.md#handling-the-existing-incomplete-vm-operation-safely) before any separately approved production operation. Journals do not replace verified backups, inventory checksums or exact restoration checks.
 
 ## 1. Secure defaults and fail-closed rules
 
