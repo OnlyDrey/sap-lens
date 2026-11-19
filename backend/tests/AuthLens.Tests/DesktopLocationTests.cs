@@ -2,35 +2,29 @@ using AuthLens.Api;
 
 namespace AuthLens.Tests;
 
-/// <summary>The Desktop data folder: new installations get their own folder, an earlier prototype folder is kept in place, v1's folder is never used.</summary>
+/// <summary>The Desktop data folder: AuthLens uses only %LOCALAPPDATA%\AuthLens; folders of earlier products are reported, never used or changed.</summary>
 public sealed class DesktopLocationTests : IDisposable
 {
-    private readonly string _root = Directory.CreateTempSubdirectory("saplens-desktop-location-").FullName;
+    private readonly string _root = Directory.CreateTempSubdirectory("authlens-desktop-location-").FullName;
 
     public void Dispose() => Directory.Delete(_root, recursive: true);
 
     [Fact]
-    public void A_new_installation_uses_its_own_folder_and_never_the_v1_folder()
+    public void AuthLens_uses_its_own_folder_and_mutex()
     {
-        Directory.CreateDirectory(Path.Combine(_root, DesktopLocation.V1FolderName));
         var location = DesktopLocation.Resolve(_root);
-        Assert.Equal((Path.Combine(_root, "SAP Lens Desktop"), @"Local\AuthLensDotnetDesktop", false), (location.Root, location.Mutex, location.Legacy));
+        Assert.Equal((Path.Combine(_root, "AuthLens"), @"Local\AuthLensDesktop"), (location.Root, location.Mutex));
+        Assert.Empty(location.EarlierProductData);
+        Assert.False(Directory.Exists(location.Root));                                         // resolving creates nothing
     }
 
     [Fact]
-    public void An_earlier_prototype_folder_is_kept_in_place_with_its_mutex()
+    public void Earlier_product_folders_are_reported_and_never_used()
     {
-        Directory.CreateDirectory(Path.Combine(_root, "SAP Lens 2 Prototype", "data"));
+        foreach (var folder in new[] { "SAP Lens Desktop", "SAP Lens 2 Prototype", "SAP Lens" }) Directory.CreateDirectory(Path.Combine(_root, folder, "data"));
         var location = DesktopLocation.Resolve(_root);
-        Assert.Equal((Path.Combine(_root, "SAP Lens 2 Prototype"), @"Local\SapLens2Prototype", true), (location.Root, location.Mutex, location.Legacy));
-        Assert.False(Directory.Exists(Path.Combine(_root, DesktopLocation.FolderName)));   // nothing is moved or created
-    }
-
-    [Fact]
-    public void The_current_folder_wins_when_both_exist()
-    {
-        Directory.CreateDirectory(Path.Combine(_root, DesktopLocation.LegacyFolderName));
-        Directory.CreateDirectory(Path.Combine(_root, DesktopLocation.FolderName));
-        Assert.False(DesktopLocation.Resolve(_root).Legacy);
+        Assert.Equal(Path.Combine(_root, "AuthLens"), location.Root);
+        Assert.Equal(3, location.EarlierProductData.Length);
+        Assert.Equal(["data"], Directory.GetDirectories(Path.Combine(_root, "SAP Lens Desktop")).Select(Path.GetFileName));   // unchanged
     }
 }

@@ -19,14 +19,14 @@
 
   Environment-specific values (listen address, port, host names, trusted proxies, paths) are never built in: put them in a local JSON file that is
   not committed (start-server-test.local.json, git-ignored; copy start-server-test.example.json) or pass them as parameters. Lookup order for the
-  file: -ConfigFile, $env:SAPLENS_TEST_CONFIG, C:\sap-lens\acceptance\start-server-test.local.json, then
+  file: -ConfigFile, $env:AUTHLENS_TEST_CONFIG, C:\AuthLens-Acceptance\start-server-test.local.json, then
   start-server-test.local.json next to this script.
   An explicit parameter always wins over the file. The file holds no secrets: the certificate password stays in its own protected file.
 
 .EXAMPLE
   .\start-server-test.ps1 -DryRun
 .EXAMPLE
-  .\start-server-test.ps1 -ListenAddress 192.0.2.10 -Port 18791 -DataDirectory C:\sap-lens\acceptance\server-test   # reserved example values
+  .\start-server-test.ps1 -ListenAddress 192.0.2.10 -Port 18791 -DataDirectory C:\AuthLens-Acceptance\server-test   # reserved example values
 .EXAMPLE
   powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server-test.ps1 -Background     # detached; logs and PID file in -LogDirectory
   powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server-test.ps1 -Stop           # stops the process recorded in the PID file
@@ -38,19 +38,19 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$BuildsRoot = 'C:\sap-lens\acceptance\builds',
+    [string]$BuildsRoot = 'C:\AuthLens-Acceptance\builds',
     [string]$ReleasePath = '',
     [string]$ListenAddress = '',
     [int]$Port = 18790,
     [string[]]$AllowedHosts = @(),
     [string[]]$TrustedProxies = @(),
-    [string]$DataDirectory = 'C:\sap-lens\acceptance\server-test',
-    [string]$CertificatePath = 'C:\sap-lens\acceptance\tls\server.pfx',
-    [string]$CertificatePasswordFile = 'C:\sap-lens\acceptance\tls\cert-password',
+    [string]$DataDirectory = 'C:\AuthLens-Acceptance\server-test',
+    [string]$CertificatePath = 'C:\AuthLens-Acceptance\tls\server.pfx',
+    [string]$CertificatePasswordFile = 'C:\AuthLens-Acceptance\tls\cert-password',
     [switch]$DryRun,
     [switch]$Background,
     [switch]$Stop,
-    [string]$LogDirectory = 'C:\sap-lens\acceptance\logs',
+    [string]$LogDirectory = 'C:\AuthLens-Acceptance\logs',
     [int]$ReadyTimeoutSeconds = 60,
     [string]$ConfigFile = ''
 )
@@ -268,7 +268,7 @@ function Start-BackgroundServer {
 function Invoke-ServerTestLauncher {
     param([string]$BuildsRoot, [string]$ReleasePath, [string]$ListenAddress, [int]$Port, [string[]]$AllowedHosts, [string]$DataDirectory,
           [string]$CertificatePath, [string]$CertificatePasswordFile, [switch]$DryRun, [string[]]$TrustedProxies = @(),
-          [switch]$Background, [switch]$Stop, [string]$LogDirectory = 'C:\sap-lens\acceptance\logs', [int]$ReadyTimeoutSeconds = 60)
+          [switch]$Background, [switch]$Stop, [string]$LogDirectory = 'C:\AuthLens-Acceptance\logs', [int]$ReadyTimeoutSeconds = 60)
     if ($Stop) {
         try { return Stop-RecordedServer $LogDirectory } catch { [Console]::Error.WriteLine("start-server-test: $($_.Exception.Message)"); return 2 }
     }
@@ -313,7 +313,7 @@ $script:ConfigKeys = @('BuildsRoot', 'ReleasePath', 'ListenAddress', 'Port', 'Al
 
 function Find-LocalConfig([string]$ConfigFile) {
     if ($ConfigFile) { if (-not (Test-Path -LiteralPath $ConfigFile -PathType Leaf)) { throw "Configuration file '$ConfigFile' does not exist." }; return $ConfigFile }
-    foreach ($candidate in @($env:SAPLENS_TEST_CONFIG, 'C:\sap-lens\acceptance\start-server-test.local.json', (Join-Path $PSScriptRoot 'start-server-test.local.json'))) {
+    foreach ($candidate in @($env:AUTHLENS_TEST_CONFIG, 'C:\AuthLens-Acceptance\start-server-test.local.json', (Join-Path $PSScriptRoot 'start-server-test.local.json'))) {
         if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { return $candidate }
     }
     $null

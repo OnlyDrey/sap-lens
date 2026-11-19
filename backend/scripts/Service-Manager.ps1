@@ -9,7 +9,7 @@
 param(
     [ValidateSet('Menu', 'Status', 'CreateKey', 'ExportKey', 'VerifyKey', 'ActivationCode', 'RecoveryCode')]
     [string]$Action = 'Menu',
-    [string]$DataDirectory = 'C:\ProgramData\sap-lens\data',
+    [string]$DataDirectory = 'C:\ProgramData\AuthLens\data',
     [string]$Executable = '',
     [string]$Path = '',
     [string]$Username = '',
@@ -19,7 +19,7 @@ Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 if (-not $Executable) {
     $Executable = Join-Path $PSScriptRoot 'server\AuthLens.Api.exe'
-    if (-not (Test-Path -LiteralPath $Executable)) { $Executable = 'C:\sap-lens\releases\current\server\AuthLens.Api.exe' }
+    if (-not (Test-Path -LiteralPath $Executable)) { $Executable = 'C:\ProgramData\AuthLens\releases\current\server\AuthLens.Api.exe' }
 }
 
 function Get-AuthLensAdminArguments([string]$Operation, [string]$Data, [string]$File, [string]$User) {

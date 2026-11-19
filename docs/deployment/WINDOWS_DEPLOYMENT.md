@@ -355,7 +355,7 @@ An elevated Windows token is required for native remediation/restore acceptance.
 ### Release junction boundary
 
 The source service may run through `<Source.ReleasesRoot>\current`. The former ACL backup path was
-`Invoke-SL2ProtectAcl` -> `Get-SL2AclSnapshot` -> `Get-SL2TreeFiles`; the last helper intentionally rejects all reparse points, so snapshotting the
+`Invoke-ALProtectAcl` -> `Get-ALAclSnapshot` -> `Get-ALTreeFiles`; the last helper intentionally rejects all reparse points, so snapshotting the
 releases or installation folder rejected its legitimate release junction. Migration traversal keeps that strict behavior.
 
 ACL inventory alone accepts the exact `current` **directory junction** directly below the explicitly configured source releases root. Its target
@@ -382,9 +382,9 @@ Read-only inspection from the updated checkout on the actual Windows host:
 ```powershell
 Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
 $source = Read-SapLensSettings 'C:\saplens2\deploy.local.json'
-Get-SL2ReleaseJunction $source.ReleasesRoot | ConvertTo-Json
+Get-ALReleaseJunction $source.ReleasesRoot | ConvertTo-Json
 # ACL metadata only: validates the whole installation tree and omits the validated current junction.
-@(Get-SL2AclSnapshot (Split-Path $source.ConfigFile) $source.ReleasesRoot).Count
+@(Get-ALAclSnapshot (Split-Path $source.ConfigFile) $source.ReleasesRoot).Count
 ```
 
 Run `SapLens.Junction.Tests.ps1` on isolated Windows fixtures. It covers allowed and rejected junctions, nonrecursive native ACL save, restore
@@ -409,7 +409,7 @@ Ordinary file resets use a handle-based [SetSecurityInfo](https://learn.microsof
 
 Progress is printed to the terminal and the deployment log at stage boundaries and approximately every five seconds between objects: phase, stage, processed/total, elapsed seconds and ETA. Enumeration totals and ETA are `unknown` until measurable; ETA is a stage-local linear estimate only after 100 objects and five seconds. An individual native call or filesystem call can block longer than the reporting interval; no synthetic ETA or timeout hides that condition.
 
-Each new operation writes a flushed append-only `acl-operation.jsonl` in its unique timestamp/GUID backup directory. The `backups_complete` checkpoint follows all inventories and the manifest; `mutation_started=true` is flushed **before** the first application ACL change. Normal failures append `failed`; abrupt termination leaves the last checkpoint, possibly an incomplete trailing JSON line. `Get-SL2AclOperationStatus` reads this evidence without modifying it and treats truncated/absent journals conservatively. No automatic resume or rollback is implemented. Restore validates every inventory before changing any ACL, writes a separate new `acl-restore-<GUID>.jsonl`, and verifies original DACLs afterward. Recovery artifacts, created parents and prior journals are retained. The journal is a diagnostic checkpoint, not a replacement for inventory checksums, a verified application backup or explicit recovery approval.
+Each new operation writes a flushed append-only `acl-operation.jsonl` in its unique timestamp/GUID backup directory. The `backups_complete` checkpoint follows all inventories and the manifest; `mutation_started=true` is flushed **before** the first application ACL change. Normal failures append `failed`; abrupt termination leaves the last checkpoint, possibly an incomplete trailing JSON line. `Get-ALAclOperationStatus` reads this evidence without modifying it and treats truncated/absent journals conservatively. No automatic resume or rollback is implemented. Restore validates every inventory before changing any ACL, writes a separate new `acl-restore-<GUID>.jsonl`, and verifies original DACLs afterward. Recovery artifacts, created parents and prior journals are retained. The journal is a diagnostic checkpoint, not a replacement for inventory checksums, a verified application backup or explicit recovery approval.
 
 Measured on the isolated Windows workstation checkout (Windows PowerShell 5.1, NTFS; **not the production VM**), using `Measure-AclPerformance.ps1`:
 
@@ -455,7 +455,7 @@ Get-CimInstance Win32_Service -Filter "Name='SapLens2'" | Select-Object Name, St
 $oldRecovery = Read-Host 'Exact existing ACL recovery directory (read only)'
 Get-ChildItem -LiteralPath $oldRecovery -Force | Select-Object Name, Length, LastWriteTimeUtc, Attributes
 Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
-Get-SL2AclOperationStatus $oldRecovery | ConvertTo-Json -Depth 5
+Get-ALAclOperationStatus $oldRecovery | ConvertTo-Json -Depth 5
 # For old versions without a journal this deliberately reports legacy_unknown.
 $source = 'C:\saplens2\deploy.local.json'
 $target = 'C:\saplens2\migration-config\deploy.local.json'

@@ -37,7 +37,7 @@ public sealed partial class InstallerTests
         Assert.Equal("{{{#AppIdGuid}}", Setting(Server, "AppId"));
         // Never v1's program folder.
         Assert.Equal(@"{localappdata}\Programs\AuthLens Desktop", Setting(Desktop, "DefaultDirName"));
-        Assert.Equal(@"C:\sap-lens", Setting(Server, "DefaultDirName"));
+        Assert.Equal(@"{commonappdata}\AuthLens\app", Setting(Server, "DefaultDirName"));      // inside the one installation root
     }
 
     [Fact]
@@ -80,14 +80,14 @@ public sealed partial class InstallerTests
         Assert.DoesNotContain("AuthLens\\data", Desktop + Server);
         // Desktop: per user, and Setup waits for a running Desktop (current or earlier folder) instead of closing it.
         Assert.Equal("lowest", Setting(Desktop, "PrivilegesRequired"));
-        Assert.Equal($"{DesktopLocation.MutexName},{DesktopLocation.LegacyMutexName}", Setting(Desktop, "AppMutex"));
+        Assert.Equal(DesktopLocation.MutexName, Setting(Desktop, "AppMutex"));
         // Server: machine-wide; stops only its own service through the SCM and never creates or deletes a service.
         Assert.Equal("admin", Setting(Server, "PrivilegesRequired"));
         Assert.Contains("'stop ' + Names[I]", Server);
         Assert.DoesNotMatch(@"Exec\([^)]*sc\.exe", Server);
-        Assert.Contains("Result[0] := 'sap-lens';", Server);
-        Assert.Contains("Result[1] := 'AuthLens';", Server);
-        Assert.Contains("Result[2] := 'SapLens2';", Server);
+        Assert.Contains("Result[0] := 'AuthLens';", Server);
+        Assert.Contains("SetArrayLength(Result, 1);", Server);                               // services of earlier products are never touched
+        Assert.DoesNotContain("'SapLens2'", Server); Assert.DoesNotContain("'sap-lens'", Server);
         Assert.Contains("function InitializeUninstall", Server);
     }
 

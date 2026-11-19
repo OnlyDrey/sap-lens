@@ -1,5 +1,5 @@
 # Release verification (verify-release.ps1): the schema-1 manifest contract for full Windows and Linux releases, and server deployment packages
-# (-Scope Server) as Publish-SL2Release writes them, including packages published before deployment-package.json existed.
+# (-Scope Server) as Publish-ALRelease writes them, including packages published before deployment-package.json existed.
 Describe 'Release verification' {
     BeforeAll { . (Join-Path $PSScriptRoot 'ReleaseFixture.ps1') }
 
@@ -127,7 +127,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
         $run.Output | Should -Match ([regex]::Escape($Message))
     }
 
-    Context 'packages published by Publish-SL2Release' {
+    Context 'packages published by Publish-ALRelease' {
         BeforeAll { Import-TestDeploymentModule }
         AfterAll { Remove-Module AuthLens.Deploy -ErrorAction SilentlyContinue }
 
@@ -135,7 +135,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
             $build = Join-Path $TestDrive 'build/AuthLens-2.0.0-alpha.1-20261119-055432-aaaaaaa-win-x64'; New-VerifiableRelease $build
             $config = [pscustomobject]@{ ReleasesRoot = (Join-Path $TestDrive 'releases') }
             $manifest = Get-Content (Join-Path $build 'build-manifest.json') -Raw | ConvertFrom-Json
-            $published = Publish-SL2Release $config $build $manifest
+            $published = Publish-ALRelease $config $build $manifest
             Test-Path (Join-Path $config.ReleasesRoot '.staging') | Should -BeFalse
             @(Get-ChildItem $published -Recurse -File | ForEach-Object { $_.FullName.Substring($published.Length + 1).Replace('\', '/') } | Sort-Object) |
                 Should -Be @('build-manifest.json', 'deployment-package.json', 'README.txt', 'server/AuthLens.Api.exe', 'server/e_sqlite3.dll', 'SHA256SUMS')
@@ -146,7 +146,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
             $run = Invoke-Verify $published 'Server'
             $run.Code | Should -Be 0; $run.Output | Should -Match 'declared by deployment-package.json'
             (Invoke-Verify $published).Output | Should -Match 'this is a server deployment package'
-            Publish-SL2Release $config $build $manifest | Should -Be $published
+            Publish-ALRelease $config $build $manifest | Should -Be $published
         }
 
         It 'never publishes an incomplete build: the staging copy is kept for inspection and no release appears' {
@@ -154,10 +154,10 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
             Add-Content (Join-Path $build 'server/e_sqlite3.dll') 'corrupted after the build'
             $config = [pscustomobject]@{ ReleasesRoot = (Join-Path $TestDrive 'releases-broken') }
             $manifest = Get-Content (Join-Path $build 'build-manifest.json') -Raw | ConvertFrom-Json
-            { Publish-SL2Release $config $build $manifest } | Should -Throw '*failed verification and was not published*'
+            { Publish-ALRelease $config $build $manifest } | Should -Throw '*failed verification and was not published*'
             Test-Path (Join-Path $config.ReleasesRoot (Split-Path $build -Leaf)) | Should -BeFalse
             Test-Path (Join-Path $config.ReleasesRoot ".staging/$(Split-Path $build -Leaf)") | Should -BeTrue
-            { Publish-SL2Release $config $build $manifest } | Should -Throw '*remains from an interrupted publication*'
+            { Publish-ALRelease $config $build $manifest } | Should -Throw '*remains from an interrupted publication*'
         }
 
         It 'refuses to reuse an existing folder of the same commit that does not verify, and leaves it unchanged' {
@@ -167,7 +167,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
             Remove-Item (Join-Path $existing 'server/e_sqlite3.dll')
             $before = @(Get-ChildItem $existing -Recurse -File).Count
             $manifest = Get-Content (Join-Path $build 'build-manifest.json') -Raw | ConvertFrom-Json
-            { Publish-SL2Release $config $build $manifest } | Should -Throw '*does not verify as a server package*'
+            { Publish-ALRelease $config $build $manifest } | Should -Throw '*does not verify as a server package*'
             @(Get-ChildItem $existing -Recurse -File).Count | Should -Be $before
         }
     }

@@ -18,7 +18,7 @@ for ($i = 0; $i -lt $Objects; $i++) {
     [IO.File]::WriteAllText((Join-Path $directory "$i.txt"), 'synthetic benchmark data')
 }
 $timer = [Diagnostics.Stopwatch]::StartNew()
-$snapshot = @(Get-SL2AclSnapshot $root)
+$snapshot = @(Get-ALAclSnapshot $root)
 $inventorySeconds = $timer.Elapsed.TotalSeconds
 $baselineSave = $null; $baselineReset = $null
 if (-not $SkipBaseline) {
@@ -27,10 +27,10 @@ if (-not $SkipBaseline) {
     $timer.Restart(); $lines = [Collections.Generic.List[string]]::new()
     $file = Join-Path $run 'baseline.acl'
     foreach ($item in $snapshot) {
-        Test-SL2PathTree $item.path
-        Invoke-SL2Icacls @($item.path, '/save', "$file.part", '/L', '/C', '/Q')
+        Test-ALPathTree $item.path
+        Invoke-ALIcacls @($item.path, '/save', "$file.part", '/L', '/C', '/Q')
         $saved = [IO.File]::ReadAllLines("$file.part", [Text.Encoding]::Unicode)
-        if ($saved.Count -ne 2 -or -not (Test-SL2DaclEqual $item.dacl $saved[1])) { throw 'Baseline backup mismatch.' }
+        if ($saved.Count -ne 2 -or -not (Test-ALDaclEqual $item.dacl $saved[1])) { throw 'Baseline backup mismatch.' }
         $lines.Add($item.path.Substring($run.Length + 1)); $lines.Add($saved[1])
     }
     [IO.File]::WriteAllLines($file, $lines.ToArray(), [Text.Encoding]::Unicode)
@@ -39,10 +39,10 @@ if (-not $SkipBaseline) {
 Write-Host 'Stage: optimized backup and indexed recovery validation'
 $timer.Restart()
 $optimized = Join-Path $run 'optimized.acl'
-Save-SL2AclInventory $snapshot $run $optimized
+Save-ALAclInventory $snapshot $run $optimized
 $optimizedSave = $timer.Elapsed.TotalSeconds
 $timer.Restart()
-Test-SL2AclBackupFile ([pscustomobject]@{ path=$root; parent=$run; file=$optimized; snapshot=$snapshot })
+Test-ALAclBackupFile ([pscustomobject]@{ path=$root; parent=$run; file=$optimized; snapshot=$snapshot })
 $validationSeconds = $timer.Elapsed.TotalSeconds
 $equal = if ($SkipBaseline) { $null } else { [IO.File]::ReadAllText($file) -ceq [IO.File]::ReadAllText($optimized) }
 if (-not $SkipBaseline -and -not $equal) { throw 'Optimized backup differs from the baseline.' }
@@ -50,12 +50,12 @@ $files = @($snapshot | Where-Object { -not ([IO.File]::GetAttributes($_.path) -b
 if (-not $SkipBaseline) {
     Write-Host 'Stage: per-file icacls reset baseline (synthetic files only)'
     $timer.Restart()
-    foreach ($item in $files) { Test-SL2PathTree $item.path; Invoke-SL2Icacls @($item.path, '/reset', '/L', '/C', '/Q') }
+    foreach ($item in $files) { Test-ALPathTree $item.path; Invoke-ALIcacls @($item.path, '/reset', '/L', '/C', '/Q') }
     $baselineReset = $timer.Elapsed.TotalSeconds
 }
 Write-Host 'Stage: file-handle native reset (synthetic files only; directory reset is unchanged)'
 $timer.Restart()
-foreach ($item in $files) { Reset-SL2AclFile $item.path }
+foreach ($item in $files) { Reset-ALAclFile $item.path }
 $optimizedReset = $timer.Elapsed.TotalSeconds
 $result = [ordered]@{ files=$files.Count; objects=$snapshot.Count; inventory_seconds=$inventorySeconds
     baseline_backup_seconds=$baselineSave; optimized_backup_seconds=$optimizedSave; backup_byte_equal=$equal

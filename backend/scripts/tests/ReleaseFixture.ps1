@@ -39,7 +39,7 @@ function Invoke-Verify([string]$Path, [string]$Scope = 'Full') {
     Invoke-TestPowerShell @('-File', $script:Verify, '-ReleasePath', $Path, '-Scope', $Scope)
 }
 
-# The folder Publish-SL2Release wrote before deployment-package.json existed: server/, README.txt and the unchanged full-build manifest and sums.
+# The folder Publish-ALRelease wrote before deployment-package.json existed: server/, README.txt and the unchanged full-build manifest and sums.
 function New-HistoricalPackage([string]$Path) {
     New-VerifiableRelease $Path
     foreach ($tree in 'desktop', 'symbols') { Remove-Item -LiteralPath (Join-Path $Path $tree) -Recurse -Force }

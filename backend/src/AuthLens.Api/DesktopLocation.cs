@@ -1,20 +1,16 @@
 namespace AuthLens.Api;
 
-/// <summary>Where the .NET Desktop keeps its data, logs and WebView2 profile, and which single-instance mutex guards it. New installations use
-/// %LOCALAPPDATA%\SAP Lens Desktop. A folder from the earlier prototype builds (%LOCALAPPDATA%\SAP Lens 2 Prototype) is kept and used as it is:
-/// it is never renamed or moved, so its data, logs and backups stay where they were. %LOCALAPPDATA%\SAP Lens belongs to SAP Lens v1 and is never used.
-/// The mutex follows the folder, so a prototype build and this build never open the same data at the same time.</summary>
+/// <summary>Where the AuthLens Desktop keeps its data, logs and WebView2 profile (%LOCALAPPDATA%\AuthLens), and the single-instance mutex that
+/// guards it. Folders of earlier products (SAP Lens Desktop, the SAP Lens 2 prototype, SAP Lens 1) are never opened, moved or changed: their data
+/// comes to AuthLens through a backup restore. They are only reported, so the log can say that earlier data exists.</summary>
 public static class DesktopLocation
 {
-    public const string FolderName = "SAP Lens Desktop", LegacyFolderName = "SAP Lens 2 Prototype", V1FolderName = "SAP Lens";
-    public const string MutexName = @"Local\AuthLensDotnetDesktop", LegacyMutexName = @"Local\SapLens2Prototype";
+    public const string FolderName = "AuthLens", MutexName = @"Local\AuthLensDesktop";
+    public static readonly string[] EarlierProductFolders = ["SAP Lens Desktop", "SAP Lens 2 Prototype", "SAP Lens"];
 
-    public sealed record Location(string Root, string Mutex, bool Legacy);
+    public sealed record Location(string Root, string Mutex, string[] EarlierProductData);
 
-    public static Location Resolve(string localApplicationData)
-    {
-        var current = Path.Combine(localApplicationData, FolderName);
-        var legacy = Path.Combine(localApplicationData, LegacyFolderName);
-        return !Directory.Exists(current) && Directory.Exists(legacy) ? new(legacy, LegacyMutexName, true) : new(current, MutexName, false);
-    }
+    public static Location Resolve(string localApplicationData) =>
+        new(Path.Combine(localApplicationData, FolderName), MutexName,
+            [.. EarlierProductFolders.Select(f => Path.Combine(localApplicationData, f)).Where(Directory.Exists)]);
 }

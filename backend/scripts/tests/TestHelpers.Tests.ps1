@@ -39,9 +39,8 @@ Describe 'PowerShell test infrastructure' {
         $copy = Join-Path $TestDrive 'other-checkout'
         New-Item -ItemType Directory $copy | Out-Null
         Copy-Item (Join-Path $PSScriptRoot '../deploy/AuthLens.Deploy.psm1'),
-            (Join-Path $PSScriptRoot '../deploy/AuthLens.Migration.ps1'),
-            (Join-Path $PSScriptRoot '../deploy/AuthLens.Acl.ps1'),
-            (Join-Path $PSScriptRoot '../deploy/AuthLens.Configuration.ps1') -Destination $copy
+            (Join-Path $PSScriptRoot '../deploy/AuthLens.Paths.ps1'),
+            (Join-Path $PSScriptRoot '../deploy/AuthLens.Acl.ps1') -Destination $copy
         try {
             Import-TestDeploymentModule
             Import-Module (Join-Path $copy 'AuthLens.Deploy.psm1') -Force -Global
@@ -51,8 +50,8 @@ Describe 'PowerShell test infrastructure' {
             $loaded = @(Get-Module AuthLens.Deploy -All)
             $loaded.Count | Should -Be 1
             $loaded[0].Path | Should -Be (Resolve-Path (Join-Path $PSScriptRoot '../deploy/AuthLens.Deploy.psm1')).ProviderPath
-            Mock -ModuleName AuthLens.Deploy Get-SL2Service { 'isolated fixture' }
-            InModuleScope AuthLens.Deploy { Get-SL2Service 'unused' | Should -Be 'isolated fixture' }
+            Mock -ModuleName AuthLens.Deploy Get-ALService { 'isolated fixture' }
+            InModuleScope AuthLens.Deploy { Get-ALService 'unused' | Should -Be 'isolated fixture' }
         } finally { Get-Module AuthLens.Deploy -All | Remove-Module -Force }
     }
 }

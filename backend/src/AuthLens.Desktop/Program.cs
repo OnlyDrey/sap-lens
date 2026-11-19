@@ -27,7 +27,7 @@ internal static class Program
         var log = factory.CreateLogger("AuthLens.Desktop");
         log.LogInformation("Desktop starting ({Product} {Version}, commit {Commit}, file version {FileVersion}, self-check {SelfCheck}, folder {Folder})", AuthLens.Api.ProductIdentity.Product,
             AuthLens.Api.ProductIdentity.Version, AuthLens.Api.ProductIdentity.Commit ?? "not recorded", string.Join('.', AuthLens.Api.ProductIdentity.FileVersion), selfCheck,
-            location.Legacy ? "earlier prototype folder kept" : "current");
+            location.EarlierProductData.Length == 0 ? "no earlier product data" : "earlier product data left unchanged in " + string.Join(", ", location.EarlierProductData));
 
         using var single = new Mutex(true, location.Mutex, out var first);
         if (!first)

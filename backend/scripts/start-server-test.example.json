@@ -3,9 +3,9 @@
   "Port": 18791,
   "AllowedHosts": ["lens.example.com", "192.0.2.10"],
   "TrustedProxies": [],
-  "DataDirectory": "C:\\sap-lens\\acceptance\\server-test",
-  "CertificatePath": "C:\\sap-lens\\acceptance\\tls\\server.pfx",
-  "CertificatePasswordFile": "C:\\sap-lens\\acceptance\\tls\\cert-password",
-  "BuildsRoot": "C:\\sap-lens\\acceptance\\builds",
-  "LogDirectory": "C:\\sap-lens\\acceptance\\logs"
+  "DataDirectory": "C:\\AuthLens-Acceptance\\server-test",
+  "CertificatePath": "C:\\AuthLens-Acceptance\\tls\\server.pfx",
+  "CertificatePasswordFile": "C:\\AuthLens-Acceptance\\tls\\cert-password",
+  "BuildsRoot": "C:\\AuthLens-Acceptance\\builds",
+  "LogDirectory": "C:\\AuthLens-Acceptance\\logs"
 }

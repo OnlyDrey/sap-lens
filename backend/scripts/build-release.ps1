@@ -22,7 +22,7 @@
   never overwritten. Nothing is installed, started or changed on this machine.
 
 .EXAMPLE
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Output C:\sap-lens\acceptance\builds
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-release.ps1 -Output C:\AuthLens-Acceptance\builds
 #>
 param(
     [string]$Output = '',

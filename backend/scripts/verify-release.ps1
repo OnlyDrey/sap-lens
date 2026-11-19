@@ -9,14 +9,14 @@
   ui_source_version) keep verifying: the migration preflight verifies the release an existing service runs.
 
   -Scope Full (default): the complete build output; every listed artifact must be present. A folder with deployment-package.json is refused here.
-  -Scope Server: a server deployment package in a ReleasesRoot (Publish-SL2Release copies everything except desktop/ and symbols/). Only
+  -Scope Server: a server deployment package in a ReleasesRoot (Publish-ALRelease copies everything except desktop/ and symbols/). Only
   desktop/** and symbols/** may be absent; every other artifact, build-manifest.json and SHA256SUMS must match, and each omitted path is reported
   by name. A package published since the contract was introduced carries deployment-package.json (kind server, the SHA-256 of
   build-manifest.json and the exact omitted list), which must agree; a package published earlier has none and is reported as undeclared. The
   manifest and SHA256SUMS are never rewritten: they keep describing the full build the package came from.
 
 .EXAMPLE
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -ReleasePath C:\sap-lens\acceptance\builds\AuthLens-...-win-x64
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -ReleasePath C:\AuthLens-Acceptance\builds\AuthLens-...-win-x64
 #>
 param([Parameter(Mandatory = $true)][string]$ReleasePath, [ValidateSet('Full', 'Server')][string]$Scope = 'Full')
 $ErrorActionPreference = 'Stop'

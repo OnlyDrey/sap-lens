@@ -35,11 +35,11 @@ Describe 'Windows-native NTFS audit and backup restoration' -Skip:([IO.Path]::Di
         $security.SetAccessRuleProtection($true, $false)
         $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow'))
         $path = Join-Path $parent 'private child'
-        New-SL2DirectoryWithAcl $path $security
+        New-ALDirectoryWithAcl $path $security
         (Get-Acl -LiteralPath $path).AreAccessRulesProtected | Should -BeTrue
-        (Get-SL2AclAudit $path 'private' 'native fixture').findings.Count | Should -Be 0
+        (Get-ALAclAudit $path 'private' 'native fixture').findings.Count | Should -Be 0
         Set-Content (Join-Path $path 'synthetic.txt') 'retained'
-        { New-SL2DirectoryWithAcl $path $security } | Should -Throw '*error 183*'
+        { New-ALDirectoryWithAcl $path $security } | Should -Throw '*error 183*'
         Get-Content (Join-Path $path 'synthetic.txt') | Should -Be 'retained'
         (Get-Acl -LiteralPath $parent).Sddl | Should -Be $parentBefore
     }
@@ -48,7 +48,7 @@ Describe 'Windows-native NTFS audit and backup restoration' -Skip:([IO.Path]::Di
         New-Item -ItemType Directory $root | Out-Null
         Set-FixtureAcl $root -Broad
         $child = New-Item -ItemType Directory (Join-Path $root 'child')
-        $audit = Get-SL2AclAudit $child.FullName 'private' 'fixture'
+        $audit = Get-ALAclAudit $child.FullName 'private' 'fixture'
         $finding = @($audit.findings | Where-Object sid -eq 'S-1-5-11')
         $finding.Count | Should -Be 1
         $finding[0].inherited | Should -BeTrue
@@ -60,7 +60,7 @@ Describe 'Windows-native NTFS audit and backup restoration' -Skip:([IO.Path]::Di
         $root = Join-Path $TestDrive 'inherit only'
         New-Item -ItemType Directory $root | Out-Null
         Set-FixtureAcl $root -Broad -InheritOnly
-        $finding = @((Get-SL2AclAudit $root 'private' 'fixture').findings | Where-Object sid -eq 'S-1-5-11')
+        $finding = @((Get-ALAclAudit $root 'private' 'fixture').findings | Where-Object sid -eq 'S-1-5-11')
         $finding.Count | Should -Be 1
         $finding[0].applies | Should -Be 'new children only'
         $finding[0].inherited | Should -BeFalse
@@ -72,7 +72,7 @@ Describe 'Windows-native NTFS audit and backup restoration' -Skip:([IO.Path]::Di
         Set-FixtureAcl $root -Broad
         $before = (Get-Acl -LiteralPath $root).Sddl
         $backup = Join-Path $TestDrive 'saved.acl'
-        Invoke-SL2Icacls @($root, '/save', $backup, '/T', '/Q')
+        Invoke-ALIcacls @($root, '/save', $backup, '/T', '/Q')
         [IO.File]::ReadAllText($backup, [Text.Encoding]::Unicode) | Should -Match 'save with spaces'
         (Get-Acl -LiteralPath $root).Sddl | Should -Be $before
     }
@@ -91,11 +91,11 @@ Describe 'Windows-native NTFS audit and backup restoration' -Skip:([IO.Path]::Di
         $paths = @($root, $child.FullName, (Join-Path $child.FullName 'synthetic.txt'))
         $before = @($paths | ForEach-Object { (Get-Acl -LiteralPath $_).Sddl })
         $backup = Join-Path $TestDrive 'saved.acl'
-        Invoke-SL2Icacls @($root, '/save', $backup, '/T', '/Q')
+        Invoke-ALIcacls @($root, '/save', $backup, '/T', '/Q')
         try {
             Set-FixtureAcl $root
-            (Get-SL2AclAudit $root 'private' 'fixture').findings.Count | Should -Be 0
-        } finally { Invoke-SL2Icacls @((Split-Path $root), '/restore', $backup, '/Q') }
+            (Get-ALAclAudit $root 'private' 'fixture').findings.Count | Should -Be 0
+        } finally { Invoke-ALIcacls @((Split-Path $root), '/restore', $backup, '/Q') }
         @($paths | ForEach-Object { (Get-Acl -LiteralPath $_).Sddl }) | Should -Be $before
     }
 }

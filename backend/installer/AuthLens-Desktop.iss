@@ -1,7 +1,7 @@
 ; AuthLens Desktop (.NET) per-user installer. Built by scripts/build-installers.ps1 from a verified release folder (build-release.ps1):
 ;   ISCC /DFullVersion=2.0.0-alpha.1 /DNumericVersion=2.0.0.1 /DReleaseDir=<release folder> AuthLens-Desktop.iss
-; Its own AppId: it never upgrades, replaces or removes SAP Lens v1 (deploy/windows/desktop-installer.iss, %LOCALAPPDATA%\Programs\AuthLens and
-; %LOCALAPPDATA%\AuthLens). Data lives in %LOCALAPPDATA%\AuthLens Desktop (or a kept %LOCALAPPDATA%\SAP Lens 2 Prototype) and is never deleted:
+; Its own AppId: it never upgrades, replaces or removes SAP Lens 1 or the SAP Lens Desktop (%LOCALAPPDATA%\Programs\SAP Lens, \SAP Lens Desktop and
+; their data folders). Data lives in %LOCALAPPDATA%\AuthLens (folders of earlier products are never used) and is never deleted:
 ; upgrades replace the executable only, the application backs the database up itself before any schema migration, and uninstall removes only the
 ; installed files. Silent: AuthLens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART [/LOG=<file>]
 #ifndef FullVersion
@@ -41,7 +41,7 @@ SetupIconFile={#ProductIcon}
 UninstallDisplayIcon={app}\AuthLens.exe
 UninstallDisplayName=AuthLens Desktop
 ; The running Desktop (current or earlier prototype folder) must close first; Setup never terminates it.
-AppMutex=Local\AuthLensDotnetDesktop,Local\SapLens2Prototype
+AppMutex=Local\AuthLensDesktop
 CloseApplications=no
 RestartApplications=no
 VersionInfoVersion={#NumericVersion}

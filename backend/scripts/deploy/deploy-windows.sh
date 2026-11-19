@@ -12,21 +12,23 @@
 #   rollback         return to the previous release when it can open the data (needs --yes)
 #   recover          finish an interrupted deployment (needs --yes)
 #   install-service  create or (--reconfigure) update the Windows service from the host's configuration (needs --yes)
-#   migrate-service  rename an earlier SapLens2 service to AuthLens, verify it, remove SapLens2; restores SapLens2 on failure (needs --yes)
+#   restore          restore an AuthLens or SAP Lens backup into this installation (--backup, --key-file; needs --yes)
 #
 # Options:
 #   --branch NAME        branch to build (default experiment/dotnet-backend); main and work are refused
 #   --commit SHA         exact commit on that branch (default: the branch tip, resolved once and locked)
 #   --tests focused|full test selection before deployment (default focused)
-#   --repo PATH          repository clone on the Windows host (or $SAPLENS_WINDOWS_REPO); required
-#   --config PATH        deployment configuration on the Windows host (default there: C:\saplens\ or C:\saplens2\deploy.local.json)
+#   --repo PATH          repository clone on the Windows host (or $AUTHLENS_WINDOWS_REPO); required
+#   --config PATH        deployment configuration on the Windows host (default there: C:\ProgramData\AuthLens\config\deploy.json)
+#   --backup PATH        with restore: the .slbak backup on the Windows host
+#   --key-file PATH      with restore: the recovery key that sealed it, on the Windows host
 #   --port N             SSH port (default 22)
 #   --to-release PATH    rollback target folder on the host
 #   --adopt-service      first managed deployment of a service that was installed by hand (same arguments)
 #   --first-install      first deployment: also installs the service
 #   --reconfigure        with install-service: update an existing service
 #   --yes                confirm a mode that changes the service (otherwise asked interactively, refused without a terminal)
-#   --log-dir DIR        local copy of the remote output (default ${XDG_STATE_HOME:-~/.local/state}/saplens-deploy)
+#   --log-dir DIR        local copy of the remote output (default ${XDG_STATE_HOME:-~/.local/state}/authlens-deploy)
 #
 # Authentication is SSH keys or an agent only (BatchMode): no password is asked for, stored or passed. No secret is sent: the Windows side reads
 # its configuration (paths, addresses, host names) and the server reads its certificate password file itself.
@@ -34,10 +36,10 @@
 set -euo pipefail
 
 host=''; user=''; port=22; mode='status'; branch='experiment/dotnet-backend'; commit=''; tests='focused'
-repo="${SAPLENS_WINDOWS_REPO:-}"; config=''; to_release=''; yes=0; adopt=0; first=0; reconfigure=0
-log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/saplens-deploy"
+repo="${AUTHLENS_WINDOWS_REPO:-}"; config=''; to_release=''; backup=''; key_file=''; yes=0; adopt=0; first=0; reconfigure=0
+log_dir="${XDG_STATE_HOME:-$HOME/.local/state}/authlens-deploy"
 
-usage() { sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit 64; }
+usage() { sed -n '2,/^# Exit codes/p' "$0" | sed 's/^# \{0,1\}//'; exit 64; }
 die() { echo "deploy-windows: $*" >&2; exit 64; }
 need() { [ $# -ge 2 ] && [ -n "$2" ] || die "$1 needs a value"; }
 
@@ -53,6 +55,8 @@ while [ $# -gt 0 ]; do
     --repo) need "$@"; repo=$2; shift 2 ;;
     --config) need "$@"; config=$2; shift 2 ;;
     --to-release) need "$@"; to_release=$2; shift 2 ;;
+    --backup) need "$@"; backup=$2; shift 2 ;;
+    --key-file) need "$@"; key_file=$2; shift 2 ;;
     --log-dir) need "$@"; log_dir=$2; shift 2 ;;
     --yes) yes=1; shift ;;
     --adopt-service) adopt=1; shift ;;
@@ -66,7 +70,7 @@ done
 # Strict input validation: every value ends up inside a PowerShell single-quoted literal, and none may change the command's meaning.
 [ -n "$host" ] || die '--host is required'
 [ -n "$user" ] || die '--user is required'
-[ -n "$repo" ] || die '--repo (or SAPLENS_WINDOWS_REPO) is required'
+[ -n "$repo" ] || die '--repo (or AUTHLENS_WINDOWS_REPO) is required'
 [[ "$host" =~ ^[A-Za-z0-9.:-]+$ ]] || die 'invalid --host'
 [[ "$user" =~ ^[A-Za-z0-9._\\-]+$ ]] || die 'invalid --user'
 [[ "$port" =~ ^[0-9]{1,5}$ ]] || die 'invalid --port'
@@ -74,17 +78,18 @@ done
 case "$branch" in main|work) die "deployments are never built from $branch" ;; esac
 [ -z "$commit" ] || [[ "$commit" =~ ^[0-9a-f]{7,40}$ ]] || die '--commit must be a hexadecimal SHA'
 case "$tests" in focused|full) ;; *) die '--tests must be focused or full' ;; esac
-for value in "$repo" "$config" "$to_release"; do
+for value in "$repo" "$config" "$to_release" "$backup" "$key_file"; do
   [[ "$value" != *$'\n'* && "$value" != *"'"* ]] || die 'paths may not contain quotes or line breaks'
 done
 case "$mode" in
   status) action='Status' ;; health) action='Health' ;; build) action='Build' ;; dry-run) action='Deploy' ;; deploy) action='Deploy' ;;
-  rollback) action='Rollback' ;; recover) action='Recover' ;; install-service) action='InstallService' ;; migrate-service) action='MigrateService' ;;
+  rollback) action='Rollback' ;; recover) action='Recover' ;; install-service) action='InstallService' ;; restore) action='Restore' ;;
   *) die "unknown --mode $mode" ;;
 esac
 
 changing=0
-case "$mode" in deploy|rollback|recover|install-service|migrate-service) changing=1 ;; esac
+case "$mode" in deploy|rollback|recover|install-service|restore) changing=1 ;; esac
+[ "$mode" != restore ] || [ -n "$backup" ] || die 'restore needs --backup <path of the .slbak file on the Windows host>'
 if [ "$changing" = 1 ] && [ "$yes" != 1 ]; then
   if [ -t 0 ]; then
     read -r -p "Mode '$mode' restarts or changes the AuthLens service on $host. Continue? [y/N] " answer
@@ -108,6 +113,8 @@ esac
 [ "$first" = 1 ] && arguments+=' -FirstInstall'
 [ "$reconfigure" = 1 ] && arguments+=' -Reconfigure'
 [ -n "$to_release" ] && arguments+=" -ToRelease $(ps "$to_release")"
+[ -n "$backup" ] && arguments+=" -Backup $(ps "$backup")"
+[ -n "$key_file" ] && arguments+=" -KeyFile $(ps "$key_file")"
 
 # The Windows side runs the deployment scripts of the locked commit itself (git archive of that commit), never a copy from a developer checkout.
 read -r -d '' bootstrap <<PWSH || true
@@ -117,20 +124,16 @@ read -r -d '' bootstrap <<PWSH || true
 \$null = & \$git @('fetch', '--quiet', 'origin', "refs/heads/\${branch}:refs/remotes/origin/\$branch")
 \$sha = @(& \$git @('rev-parse', \$(if (\$commit) { "\$commit^{commit}" } else { "origin/\$branch^{commit}" })))[0]
 Write-Host "locked commit \$sha (\$branch)"
-\$dir = Join-Path ([System.IO.Path]::GetTempPath()) ('saplens-deploy-' + \$sha.Substring(0, 12))
-# The .NET project is backend/ (or experiments/dotnet-backend in commits from before the promotion); take the deployment scripts from whichever the commit has.
-# backend/ wins: some commits carry a forwarding wrapper under experiments/dotnet-backend/scripts/deploy (removed again later).
-\$source = @(& \$git @('ls-tree', '-d', '--name-only', \$sha, '--', 'backend/scripts/deploy', 'experiments/dotnet-backend/scripts/deploy') | Sort-Object { -not "\$_".StartsWith('backend/') })[0]
-if (-not \$source) { throw "commit \$sha has no Windows deployment scripts" }
+\$dir = Join-Path ([System.IO.Path]::GetTempPath()) ('authlens-deploy-' + \$sha.Substring(0, 12))
+\$source = 'backend/scripts/deploy'
+if (-not (& \$git @('ls-tree', '--name-only', \$sha, '--', "\$source/Deploy-AuthLens.ps1"))) { throw "commit \$sha predates AuthLens (no backend/scripts/deploy/Deploy-AuthLens.ps1); AuthLens deploys AuthLens commits only" }
 \$deploy = Join-Path \$dir \$source
 if (-not (Test-Path -LiteralPath \$deploy)) {
   New-Item -ItemType Directory -Force \$dir | Out-Null
   \$null = & \$git @('archive', '--format=zip', '-o', (Join-Path \$dir 'deploy.zip'), \$sha, \$source)
   Expand-Archive -LiteralPath (Join-Path \$dir 'deploy.zip') -DestinationPath \$dir -Force
 }
-# Commits before the rename to AuthLens carry Deploy-SapLens2.ps1.
-\$script = @('Deploy-AuthLens.ps1', 'Deploy-SapLens2.ps1') | ForEach-Object { Join-Path \$deploy \$_ } | Where-Object { Test-Path -LiteralPath \$_ } | Select-Object -First 1
-if (-not \$script) { throw "commit \$sha has no Windows deployment script" }
+\$script = Join-Path \$deploy 'Deploy-AuthLens.ps1'
 & \$script $arguments -Commit \$sha
 exit \$LASTEXITCODE
 PWSH
@@ -154,7 +157,7 @@ ssh -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$por
   powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand "$encoded" 2>&1 | tee "$log"
 code=${PIPESTATUS[0]}
 set -e
-result=$(grep -aE 'SAPLENS2?-RESULT: ' "$log" | tail -1 || true)
+result=$(grep -aE 'AUTHLENS-RESULT: ' "$log" | tail -1 || true)
 [ -n "$result" ] || echo "No result line from the Windows host (SSH or PowerShell failure, exit $code); see $log." >&2
 case "$code" in
   0) echo "done: $mode succeeded" ;;

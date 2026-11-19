@@ -13,7 +13,7 @@ environment: the Server's own defaults are `127.0.0.1:18790` over HTTP with netw
 environment-specific is built into the executables or the scripts; the same release runs with any address, host name and port.
 
 Keep your environment's real values in a local file that is never committed: copy
-`backend\scripts\start-server-test.example.json` to `C:\sap-lens\acceptance\start-server-test.local.json` (or
+`backend\scripts\start-server-test.example.json` to `C:\AuthLens-Acceptance\start-server-test.local.json` (or
 `start-server-test.local.json` next to the script; `*.local.json` is git-ignored) and edit it. The launcher reads it automatically; explicit
 parameters still win, and the file must not contain secrets (the certificate password stays in its own protected file). To keep your real values
 out of future commits, list them one per line in `.secret-scan.local` at the repository root (git-ignored); `python scripts/check-secrets.py`
@@ -23,10 +23,10 @@ then reports any tracked file that contains them.
 | --- | --- |
 | Server IP (a private address assigned to the VM) | `192.168.10.20` |
 | HTTPS port | `18795` (any free port) |
-| Test data directory (disposable, synthetic data only) | `C:\sap-lens\acceptance\server-test` |
-| Releases built on the VM | `C:\sap-lens\acceptance\builds\<name>` |
-| Certificate (PFX, SAN includes `192.168.10.20`) | `C:\sap-lens\acceptance\tls\server.pfx` |
-| Certificate password file | `C:\sap-lens\acceptance\tls\cert-password` |
+| Test data directory (disposable, synthetic data only) | `C:\AuthLens-Acceptance\server-test` |
+| Releases built on the VM | `C:\AuthLens-Acceptance\builds\<name>` |
+| Certificate (PFX, SAN includes `192.168.10.20`) | `C:\AuthLens-Acceptance\tls\server.pfx` |
+| Certificate password file | `C:\AuthLens-Acceptance\tls\cert-password` |
 | Repository checkout | `C:\src\sap-lens` |
 
 The certificate and password file are created once by an administrator with the commands in
@@ -40,7 +40,7 @@ Prerequisites: .NET 10 SDK, Node.js 24 or 25, Git. PowerShell 5.1 or 7.
 ```powershell
 cd C:\src\sap-lens
 git fetch origin experiment/dotnet-backend; git checkout experiment/dotnet-backend; git pull --ff-only
-powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\scripts\build-release.ps1 -Output C:\sap-lens\acceptance\builds
+powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\scripts\build-release.ps1 -Output C:\AuthLens-Acceptance\builds
 ```
 
 `-ExecutionPolicy Bypass` on the `powershell -File` call applies to that one process only; it changes no machine or user policy. `-Output` is the
@@ -68,7 +68,7 @@ inside its application folder (`startup refused: The data directory must be outs
 replaced or deleted without touching data.
 
 ```powershell
-$release = Get-ChildItem C:\sap-lens\acceptance\builds -Directory -Filter 'SAP-Lens-*' | Sort-Object { (Get-Item (Join-Path $_.FullName 'build-manifest.json')).LastWriteTime } | Select-Object -Last 1
+$release = Get-ChildItem C:\AuthLens-Acceptance\builds -Directory -Filter 'SAP-Lens-*' | Sort-Object { (Get-Item (Join-Path $_.FullName 'build-manifest.json')).LastWriteTime } | Select-Object -Last 1
 powershell -NoProfile -ExecutionPolicy Bypass -File C:\src\sap-lens\backend\scripts\verify-release.ps1 -ReleasePath $release.FullName   # after copying a release, too
 Get-Content (Join-Path $release.FullName 'build-manifest.json') | Select-Object -First 12
 & (Join-Path $release.FullName 'server\SapLens.Api.exe') --version
@@ -78,7 +78,7 @@ Get-Content (Join-Path $release.FullName 'build-manifest.json') | Select-Object 
 ## 2. Start the Server with the test launcher (recommended)
 
 `backend\scripts\start-server-test.ps1` is a development and acceptance-testing utility, **not** a deployment mechanism.
-It picks the newest complete release under `C:\sap-lens\acceptance\builds` (one with `build-manifest.json`, `server\SapLens.Api.exe` and `e_sqlite3.dll`;
+It picks the newest complete release under `C:\AuthLens-Acceptance\builds` (one with `build-manifest.json`, `server\SapLens.Api.exe` and `e_sqlite3.dll`;
 earlier folder-publish releases with `manifest.json` and `server-win-x64\` are still recognized), validates the
 configuration and runs the Server in the foreground.
 
@@ -86,27 +86,27 @@ configuration and runs the Server in the foreground.
 cd C:\src\sap-lens\backend
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -DryRun       # validate and show the command; starts nothing
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1              # foreground; Ctrl+C stops it gracefully
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -Background  # detached; logs and PID file in C:\sap-lens\acceptance\logs
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -Background  # detached; logs and PID file in C:\AuthLens-Acceptance\logs
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -Stop        # stops exactly the process -Background started
-.\scripts\start-server-test.ps1 -ListenAddress '192.168.10.20' -Port 18795 -DataDirectory 'C:\sap-lens\acceptance\server-test' `
-    -AllowedHosts 'saplens.test.example','192.168.10.20' -ReleasePath "C:\sap-lens\acceptance\builds\$name"
+.\scripts\start-server-test.ps1 -ListenAddress '192.168.10.20' -Port 18795 -DataDirectory 'C:\AuthLens-Acceptance\server-test' `
+    -AllowedHosts 'saplens.test.example','192.168.10.20' -ReleasePath "C:\AuthLens-Acceptance\builds\$name"
 ```
 
 | Parameter | Default (example VM) | Notes |
 | --- | --- | --- |
-| `-ConfigFile` | see lookup order | Local JSON with environment values (`start-server-test.example.json` is the template); lookup: `-ConfigFile`, `%SAPLENS_TEST_CONFIG%`, `C:\sap-lens\acceptance\start-server-test.local.json`, `start-server-test.local.json` next to the script |
-| `-BuildsRoot` | `C:\sap-lens\acceptance\builds` | Searched when `-ReleasePath` is not given |
+| `-ConfigFile` | see lookup order | Local JSON with environment values (`start-server-test.example.json` is the template); lookup: `-ConfigFile`, `%AUTHLENS_TEST_CONFIG%`, `C:\AuthLens-Acceptance\start-server-test.local.json`, `start-server-test.local.json` next to the script |
+| `-BuildsRoot` | `C:\AuthLens-Acceptance\builds` | Searched when `-ReleasePath` is not given |
 | `-ReleasePath` | none | A release folder, its `server` folder, or a plain `dotnet publish` folder |
 | `-ListenAddress` | none (required, from the parameter or the local file) | Must be assigned to this machine; loopback and `0.0.0.0` are refused |
 | `-Port` | `18790` | Must be free on that address |
 | `-AllowedHosts` | the listen address | Host names or addresses clients type; the certificate SAN must cover each |
 | `-TrustedProxies` | none | Reverse-proxy tests only: IP or CIDR of the proxy peer, passed as `--trusted-proxies` ([section 11](SERVER_NETWORK_ACCESS.md#11-reverse-proxy-pangolin-cloudflare)) |
-| `-DataDirectory` | `C:\sap-lens\acceptance\server-test` | Absolute, local; refused inside `%ProgramData%\SapLens`, `%ProgramData%\SapLens2`, `%ProgramData%\SAP Lens Server`, `%LOCALAPPDATA%\SAP Lens`, `%LOCALAPPDATA%\SAP Lens Desktop`, `%LOCALAPPDATA%\SAP Lens 2 Prototype`, Program Files, Windows or the release folder |
-| `-CertificatePath` | `C:\sap-lens\acceptance\tls\server.pfx` | Must exist; never created |
-| `-CertificatePasswordFile` | `C:\sap-lens\acceptance\tls\cert-password` | Must exist and be non-empty; the Server reads it, the launcher never does |
+| `-DataDirectory` | `C:\AuthLens-Acceptance\server-test` | Absolute, local; refused inside `%ProgramData%\SapLens`, `%ProgramData%\SapLens2`, `%ProgramData%\SAP Lens Server`, `%LOCALAPPDATA%\SAP Lens`, `%LOCALAPPDATA%\SAP Lens Desktop`, `%LOCALAPPDATA%\SAP Lens 2 Prototype`, Program Files, Windows or the release folder |
+| `-CertificatePath` | `C:\AuthLens-Acceptance\tls\server.pfx` | Must exist; never created |
+| `-CertificatePasswordFile` | `C:\AuthLens-Acceptance\tls\cert-password` | Must exist and be non-empty; the Server reads it, the launcher never does |
 | `-DryRun` | off | Validates and prints the command without secrets |
 | `-Background` / `-Stop` | off | Start detached (output to `<LogDirectory>\server-<UTC time>.out.log`/`.err.log`, identity in `sap-lens-test-server.json`; waits until the port accepts connections, reports a startup refusal with its exit code and error log) / stop exactly that process (id and start time must match). A detached console process can only be stopped hard; a running import is recovered by its 30-second lease on the next start. Use the foreground or the Windows service for a graceful stop |
-| `-LogDirectory` | `C:\sap-lens\acceptance\logs` | Background logs and PID file; refused inside the release folder |
+| `-LogDirectory` | `C:\AuthLens-Acceptance\logs` | Background logs and PID file; refused inside the release folder |
 
 The Server receives `--data-dir --network --listen --port --allowed-hosts --cert --cert-password-file`. Exit codes: `0` normal stop,
 `2` the launcher refused the configuration (reason on stderr), `3` the Server refused it (`startup refused: <reason>`), anything else is the
@@ -129,8 +129,8 @@ The same configuration without the launcher. The password stays in its file; it 
 
 ```powershell
 $server = Join-Path $release.FullName 'server\SapLens.Api.exe'
-& $server --data-dir 'C:\sap-lens\acceptance\server-test' --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20 `
-  --cert 'C:\sap-lens\acceptance\tls\server.pfx' --cert-password-file 'C:\sap-lens\acceptance\tls\cert-password'
+& $server --data-dir 'C:\AuthLens-Acceptance\server-test' --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20 `
+  --cert 'C:\AuthLens-Acceptance\tls\server.pfx' --cert-password-file 'C:\AuthLens-Acceptance\tls\cert-password'
 "exit code $LASTEXITCODE"
 ```
 
@@ -148,7 +148,7 @@ part of the release packages), then complete the setup in the browser:
 
 ```powershell
 cd C:\src\sap-lens\backend
-dotnet run --project src\SapLens.Cli -c Release -- accounts-code --data C:\sap-lens\acceptance\server-test
+dotnet run --project src\SapLens.Cli -c Release -- accounts-code --data C:\AuthLens-Acceptance\server-test
 ```
 
 ## 4. Check HTTPS on the VM and from another machine
@@ -177,8 +177,8 @@ Then open `https://192.168.10.20:18795/` in a browser. It must show a valid lock
 ## 5. Validate the TLS certificate
 
 ```powershell
-$pfx = Get-PfxData -FilePath C:\sap-lens\acceptance\tls\server.pfx `
-  -Password (ConvertTo-SecureString (Get-Content C:\sap-lens\acceptance\tls\cert-password -Raw) -AsPlainText -Force)   # administrator prompt only
+$pfx = Get-PfxData -FilePath C:\AuthLens-Acceptance\tls\server.pfx `
+  -Password (ConvertTo-SecureString (Get-Content C:\AuthLens-Acceptance\tls\cert-password -Raw) -AsPlainText -Force)   # administrator prompt only
 $cert = $pfx.EndEntityCertificates[0]
 $cert | Format-List Subject, NotBefore, NotAfter, Thumbprint, HasPrivateKey
 ($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.17' }).Format($true)    # SAN: must list 192.168.10.20 and every allowed host name
@@ -214,7 +214,7 @@ The rule names one release's executable. Update `-Program` when you test a newer
 
 | Mode | Where the log goes |
 | --- | --- |
-| Console (launcher or manual start) | JSON lines on the console only; redirect if you need a file: `... 2>&1 \| Tee-Object C:\sap-lens\acceptance\server-test-console.log` |
+| Console (launcher or manual start) | JSON lines on the console only; redirect if you need a file: `... 2>&1 \| Tee-Object C:\AuthLens-Acceptance\server-test-console.log` |
 | Windows service | `<data-dir>\logs\server-YYYYMMDD.log` (same lines); Service Control Manager events in the System event log |
 
 Stop: press **Ctrl+C** in the console. The host shuts down gracefully within 15 seconds: a running import is handed back as Queued and the
@@ -228,9 +228,9 @@ Restart and persistence check:
 3. Start again with the same command. Sign in again (sessions do not survive a restart). The counts, the decision and its history are
    unchanged, and `/api/v1/admin/integrity` reports `database_ok: true` (shared-token client) or Settings → Data Health shows no integrity
    finding.
-4. `C:\sap-lens\acceptance\server-test` holds `sap-lens-v2.sqlite3` (and `-wal`/`-shm` while running), `api-token` and the accounts store.
+4. `C:\AuthLens-Acceptance\server-test` holds `sap-lens-v2.sqlite3` (and `-wal`/`-shm` while running), `api-token` and the accounts store.
 
-Reset: stop the Server and delete `C:\sap-lens\acceptance\server-test`. It holds only synthetic test data.
+Reset: stop the Server and delete `C:\AuthLens-Acceptance\server-test`. It holds only synthetic test data.
 
 ## 8. What each result proves
 
@@ -266,11 +266,11 @@ python scripts/check-docs.py
 python scripts/check-secrets.py
 python scripts/check-workflows.py
 Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
-$filter = Get-SL2TestFilter focused
+$filter = Get-ALTestFilter focused
 # Produces a separate acceptance package; never installs or starts it.
-& .\backend\scripts\build-release.ps1 -Output C:\sap-lens\acceptance\builds -TestFilter $filter
+& .\backend\scripts\build-release.ps1 -Output C:\AuthLens-Acceptance\builds -TestFilter $filter
 if ($LASTEXITCODE) { throw 'Acceptance build failed' }
-$release = Get-ChildItem C:\sap-lens\acceptance\builds -Directory -Filter 'SAP-Lens-*-win-x64' | Sort-Object Name | Select-Object -Last 1
+$release = Get-ChildItem C:\AuthLens-Acceptance\builds -Directory -Filter 'SAP-Lens-*-win-x64' | Sort-Object Name | Select-Object -Last 1
 & .\backend\scripts\verify-release.ps1 -ReleasePath $release.FullName
 ```
 
@@ -320,15 +320,15 @@ $target | ConvertTo-Json | Set-Content $targetFile
 Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
 $config=Read-SapLensSettings $sourceFile
 $seed=Join-Path $config.ReleasesRoot $release.Name
-Copy-SL2MigrationTree $release.FullName $seed
-Set-SL2Link (Get-SL2CurrentLink $config) $seed
+Copy-ALMigrationTree $release.FullName $seed
+Set-ALLink (Get-ALCurrentLink $config) $seed
 $exe=Join-Path $seed 'server/SapLens.Api.exe'
 $manager=Join-Path $seed 'Service-Manager.ps1'
 & $manager -Action CreateKey -DataDirectory $config.DataDirectory -Executable $exe -Path (Join-Path $old 'backup/host.key') -Yes
 if ($LASTEXITCODE) { throw 'Fixture key setup failed' }
-Install-SL2Service $config
-Start-SL2Service $config.ServiceName
-$null=Wait-SL2Ready $config (Get-Content (Join-Path $seed 'build-manifest.json') -Raw | ConvertFrom-Json).source_sha '2.0.0-alpha.1'
+Install-ALService $config
+Start-ALService $config.ServiceName
+$null=Wait-ALReady $config (Get-Content (Join-Path $seed 'build-manifest.json') -Raw | ConvertFrom-Json).source_sha '2.0.0-alpha.1'
 # Displays a local one-use code: NEVER transcript this action or commit its output.
 & $manager -Action ActivationCode -DataDirectory $config.DataDirectory -Executable $exe -Yes
 ```

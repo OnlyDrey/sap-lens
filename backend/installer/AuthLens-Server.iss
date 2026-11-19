@@ -1,7 +1,7 @@
 ; AuthLens Server (.NET) machine-wide installer. Built by scripts/build-installers.ps1 from a verified release folder (build-release.ps1):
 ;   ISCC /DFullVersion=2.0.0-alpha.1 /DNumericVersion=2.0.0.1 /DReleaseDir=<release folder> AuthLens-Server.iss
 ; Installs the server files into {app}\server. It never creates, reconfigures or deletes a Windows service and never touches a data directory (the
-; server's --data-dir is always outside {app}). On upgrade, a sap-lens (or historical AuthLens/SapLens2) service whose executable is in {app} is stopped through the
+; server's --data-dir is always outside {app}). On upgrade, the AuthLens service is stopped through the Service Control Manager if its executable is in {app},
 ; Service Control Manager before the files are replaced and started again afterwards; no process is ever killed. A service that runs a managed
 ; release elsewhere (scripts/deploy) is left alone. Uninstall is refused while a service still runs from {app}.
 ; Silent: AuthLens-Server-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART [/LOG=<file>]
@@ -25,7 +25,7 @@ AppName=AuthLens
 AppVersion={#FullVersion}
 AppVerName=AuthLens {#FullVersion}
 AppPublisher=AuthLens
-DefaultDirName=C:\sap-lens
+DefaultDirName={commonappdata}\AuthLens\app
 UsePreviousAppDir=yes
 DisableDirPage=auto
 DisableProgramGroupPage=yes
@@ -74,10 +74,9 @@ var
 
 function ServiceNames(): TArrayOfString;
 begin
-  SetArrayLength(Result, 3);
-  Result[0] := 'sap-lens';
-  Result[1] := 'AuthLens';
-  Result[2] := 'SapLens2';
+  // Only AuthLens: services of earlier products (SAP Lens: sap-lens, SapLens, SapLens2) are never stopped, started or inspected.
+  SetArrayLength(Result, 1);
+  Result[0] := 'AuthLens';
 end;
 
 // Whether service Name exists and its executable lies in Directory (case-insensitive prefix of the unquoted ImagePath).

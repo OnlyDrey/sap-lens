@@ -231,7 +231,7 @@ commands below create a small private CA for a lab; keep the CA private key off 
 $dns = 'saplens.corp.example'; $ip = '192.168.10.20'
 # NEW installations only, after explicit approval in an elevated session; migration preserves existing TLS material.
 Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1
-New-SL2SecureDirectory 'C:\ProgramData\sap-lens\tls' @('C:\ProgramData\sap-lens')
+New-ALSecureDirectory 'C:\ProgramData\sap-lens\tls' @('C:\ProgramData\sap-lens')
 $ca = New-SelfSignedCertificate -Subject 'CN=SAP Lens LAN CA' -KeyUsage CertSign,CRLSign,DigitalSignature -KeyLength 3072 -HashAlgorithm SHA256 `
   -NotAfter (Get-Date).AddYears(5) -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable `
   -TextExtension @('2.5.29.19={critical}{text}ca=1&pathlength=0')
