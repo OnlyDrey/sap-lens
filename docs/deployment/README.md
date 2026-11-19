@@ -5,7 +5,6 @@
 | [DESKTOP_SERVER_DEPLOYMENT.md](DESKTOP_SERVER_DEPLOYMENT.md) | The two products: Desktop (WebView2, one user, loopback) and Server (console or Windows service); release folder, run commands, acceptance checklist |
 | [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md) | Every Server option and environment variable, HTTPS and certificates, host allow-list, Origin/CSRF, reverse proxy and trusted proxies, authentication, firewall, Windows service and systemd |
 | [WINDOWS_DEPLOYMENT.md](WINDOWS_DEPLOYMENT.md) | SSH-driven build, verified deployment, rollback and recovery of the Windows service; `SapLens2` to `SapLens` migration; firewall behind a reverse proxy; Desktop and Server installers; acceptance checklist |
-| [DOCKER.md](DOCKER.md) | Optional non-root .NET container, TLS, persistent volume, readiness and isolated configuration |
 | [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md) | Windows test machine runbook: native release build, test launcher, TLS checks, logs and acceptance levels |
 
 ## Commands

@@ -66,8 +66,7 @@ Reports contain personal data and stay local. Diagnostic exports contain only al
 | --- | --- |
 | Windows Desktop | Only while SAP Lens is running, in its window or in the system tray |
 | Windows Service | Continuously while the service runs; no sign-in or browser needed |
-| Linux Docker | Continuously while the container runs |
-| Linux native / systemd | Continuously while the unit runs |
+| Linux server / systemd | Continuously while the unit runs |
 
 ## Feature dependencies
 

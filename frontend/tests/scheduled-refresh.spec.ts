@@ -67,7 +67,7 @@ test('the runtime note says what each deployment needs', async ({ page }) => {
   const section = await open(page)
   await section.getByText('Where it runs').click()
   await expect(section).toContainText('Windows Desktop: only while SAP Lens is running')
-  await expect(section).toContainText('Windows Service, Linux Docker, Linux native or systemd')
+  await expect(section).toContainText('Windows service, Linux server or systemd')
 })
 
 

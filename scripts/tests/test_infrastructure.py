@@ -37,24 +37,6 @@ class DeploymentContracts(unittest.TestCase):
     def test_canonical_structure_and_versions(self):
         module('check-structure').check()
 
-    def test_image_preserves_tls_nonroot_and_data_boundaries(self):
-        dockerfile = (ROOT / 'Dockerfile').read_text()
-        for expected in ('node:24', 'dotnet/sdk:10.0', 'dotnet/aspnet:10.0', 'USER app', 'VOLUME /data', 'HEALTHCHECK'):
-            self.assertIn(expected, dockerfile)
-        self.assertNotIn('COPY legacy', dockerfile)
-        probe = (ROOT / 'backend/scripts/docker/healthcheck.sh').read_text()
-        self.assertIn('--cacert', probe)
-        self.assertIn('/health/ready', probe)
-        self.assertNotIn('--insecure', probe)
-        self.assertIn('--max-time 3', probe)
-
-    def test_context_excludes_legacy_and_private_data(self):
-        ignore = (ROOT / '.dockerignore').read_text()
-        self.assertTrue(ignore.startswith('**\n'))
-        for pattern in ('**/*.key', '**/*.sqlite3', '**/bin/', '**/obj/'):
-            self.assertIn(pattern, ignore)
-        self.assertNotIn('!legacy', ignore)
-
 
 class DependencyAuditContracts(unittest.TestCase):
     def test_complete_reports_preserve_vulnerability_findings(self):

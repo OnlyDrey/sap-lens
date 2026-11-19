@@ -104,12 +104,3 @@ jobs:
           name: browser-failures
           path: frontend/test-results
           retention-days: 7
-  docker:
-    needs: frontend
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - run: docker build --build-arg SAP_LENS_SOURCE_SHA="$GITHUB_SHA" --tag sap-lens:ci .

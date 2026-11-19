@@ -42,9 +42,8 @@ Gates for merging the promoted layout into `work` and `main` (the move itself is
 
 The default browser/dev backend is .NET with disposable data. Frontend version and
 release UI metadata now use `backend/product-version.json`. The main-only .NET CI
-workflow and optional Docker definition replace the active v1 pipeline; original
-workflow definitions remain archived. See [development](../development/README.md),
-[CI](../development/CI.md) and [Docker](../deployment/DOCKER.md) for validation limits.
+workflow replaces the active v1 pipeline (an optional Docker definition was added and later removed, 2026-11-18). See
+[development](../development/README.md) and [CI](../development/CI.md) for validation limits.
 
 **Update 2026-11-18:** `legacy/v1` was then removed from the repository (`e800c78`; the v1 source is kept in a separate archive and at commit
 `604f21e`). No active build, test or script depends on it any more (`scripts/check-structure.py`): the browser suite uses versioned fixtures, the

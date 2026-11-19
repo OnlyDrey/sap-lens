@@ -6,10 +6,9 @@ touched; CI runs only on pushes to `main` (`validate.yml`), so experiment pushes
 ## Post-migration infrastructure checkpoint (2026-11-18)
 
 .NET is now the default browser/dev host, active frontend version metadata uses
-`backend/product-version.json`, CI definitions are .NET-first/main-only, and an
-optional TLS-first non-root Docker deployment is available. This is infrastructure
-stabilization, not production certification. Docker image download is blocked by
-the managed network; Pester acquisition is blocked by PowerShell Gallery access.
+`backend/product-version.json` and CI definitions are .NET-first/main-only. An optional Docker deployment was added in this round and
+**removed on 2026-11-18** (no supported use case; its image build was never verified). This is infrastructure stabilization, not production
+certification. Pester acquisition is blocked by PowerShell Gallery access.
 Native Windows service/Desktop/installers and real-data migration remain separate
 acceptance gates. Consolidated local evidence is recorded below after validation.
 The earlier dated tables below remain historical evidence.
@@ -92,7 +91,13 @@ Next, in order, each a validated commit:
 2. Installer compilation and acceptance on Windows (`scripts/build-installers.ps1`); code signing as an authorized release step.
 3. v1 migration rehearsal on a copy of real data.
 4. Owner decision on Desktop identity (beside v1 or replacing it), then the promotion in [BACKEND_PROMOTION.md](BACKEND_PROMOTION.md).
-5. Browser regression of the v1 Playwright suite against the .NET server.
+5. Browser regression of the v1 Playwright suite against the .NET server. Complete run on 2026-11-18 (Linux, one worker, 25 min):
+   **532 passed, 327 failed**. 307 failures are the harness gap in [development](../development/README.md#browser-tests) (the spec sets
+   source files through `POST /api/configuration`, a SAP Lens 1 contract the .NET host refuses with HTTP 400). The other 20 are not yet
+   classified: `navigation-modules` (9: focus, data-warning text, two timeouts), session region still visible after sign-in (`desktop`,
+   `enterprise`, `settings-refinement`), `role-visuals` (3), and one each in `functional-groups-members`, `settings-runtime-theme`,
+   `startup-recovery`, `sod-governance`, `sod-integration`, `sod-metadata` and `ui-polish-actions` (contrast). None touches code changed by
+   the repository cleanup of the same day.
 
 ## Next commands
 
@@ -112,7 +117,7 @@ Starting source: `6fa0c7f0b1b9fbeb3727cec5b9597d33469665a3` on
 | --- | --- | --- |
 | A — Playwright/dev | .NET is default; disposable Desktop-capability host, owned child cleanup, occupied ports fail closed. Python-runtime specs were removed with SAP Lens 1 (2026-11-18); two active reference-generator specs still need optional Python. No claim of complete browser parity | `2d5741f` |
 | B — Versioning | Frontend manifests, generated identity and release UI metadata use `backend/product-version.json`; v1 metadata unchanged | `45579d6` |
-| C — Docker | Multi-stage Node 24/.NET 10, non-root app user, persistent volume, mandatory TLS/private bind, exact-host readiness and loopback-only published port. Compose/shell/contracts pass; actual image build blocked at MCR redirected layer download (403) | `03f7e10`, **partial validation** |
+| C — Docker (removed 2026-11-18: no supported use, image never built) | Multi-stage Node 24/.NET 10, non-root app user, persistent volume, mandatory TLS/private bind, exact-host readiness and loopback-only published port. Compose/shell/contracts pass; actual image build blocked at MCR redirected layer download (403) | `03f7e10`, **partial validation** |
 | D — CI | One pinned/read-only main-push workflow, .NET Linux/Windows, frontend, focused browser, Docker; no dispatch/PR/schedule/deploy/publisher. Historical workflows archived; actionlint and trigger tests pass | `6e7b7ba` |
 | E — Scripts | SDK selection, canonical paths, no-reuse browser compiler settings, fail-fast missing SDK, isolated fake deployment remote. Historical root fallback retained only for older-commit compatibility | `3f1e6c0` |
 | F — Windows | Host/TLS/proxy/installer/location contracts, PowerShell syntax and fake SSH orchestration pass on Linux; exact native follow-up commands recorded. Existing service/release/data/key paths unchanged | `faea923` |
@@ -161,8 +166,8 @@ Validation performed:
 
 External follow-up:
 
-1. Allow the official MCR layer host `centralus.data.mcr.microsoft.com` in the
-   managed network, then run the exact image build in [Docker](../deployment/DOCKER.md).
+1. (Obsolete: Docker support was removed on 2026-11-18.) Allow the official MCR layer host `centralus.data.mcr.microsoft.com` in the
+   managed network, then run the exact image build.
    Registry manifest access works; layer access returns 403. Image/runtime acceptance
    remains unverified, and no production container was deployed.
 2. Obtain pinned Pester from an approved source and run the commands in

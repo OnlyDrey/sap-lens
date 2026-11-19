@@ -202,12 +202,10 @@ Reports are bounded at 20,000 rows, an 8 MiB model and 32 MiB output. Exported r
 recorded in a private log; reports issued for review or approval protect their period from
 deletion. A missing frozen logo needs backup recovery rather than silently changing branding.
 
-New runtime dependencies are pinned: python-docx (MIT), ReportLab (BSD), lxml
-(BSD-3-Clause) and charset-normalizer (MIT). Windows packaging includes DOCX standard
-templates, ReportLab's Bitstream Vera fonts/font license and dependency license metadata.
-Docker/native deployments install the same pinned packages and resources. Native
-Word/WebView2/packaged Windows acceptance remains separate from structural DOCX, Linux PDF
-and mocked native-dialog validation.
+Reports are rendered by `SapLens.Documents` with pinned MIT-licensed libraries and the bundled Bitstream Vera fonts
+([reporting architecture](../architecture/REPORTING_ARCHITECTURE.md)); every Windows and Linux build embeds the same
+resources. Native Word/WebView2/packaged Windows acceptance remains separate from structural DOCX, Linux PDF and mocked
+native-dialog validation.
 
 ## Overview and source refresh
 
@@ -303,7 +301,7 @@ custom library; reset can explicitly select the newly bundled version. Review sn
 retain their captured text and provenance, not tomorrow's default resource.
 
 The bundled resources (`backend/src/SapLens.Api/V1Reference`) are embedded in the Server and Desktop executables, so every
-Windows, Linux and Docker build carries the same files. A missing default resource is
+Windows and Linux build carries the same files. A missing default resource is
 reported in reference status and disables reset; custom imports and existing private data
 remain available. Invalid bundled data returns a controlled error without changing data.
 

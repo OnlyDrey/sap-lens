@@ -118,8 +118,7 @@ Generated data, publish output and benchmark JSON stay outside the repository.
 The SDK selector in `global.json` uses the latest installed .NET 10 feature band;
 Node 24 is the CI baseline (24/25 satisfy the frontend engine). Product versions
 are checked by `node scripts/product-version.mjs`, independently of SDK selection.
-For CI contracts/security checks see [CI](CI.md); containers are optional
-([Docker](../deployment/DOCKER.md)).
+For CI contracts/security checks see [CI](CI.md).
 
 ```bash
 # Parse active PowerShell without running Windows operations:

@@ -17,8 +17,6 @@ Jobs:
   Library. Failure traces are preserved. The rest of the browser suite remains
   available locally; specs that still configure source files through a settings save (a SAP Lens 1 contract the .NET
   host refuses) are migration gaps of the harness and are not claimed as passing ([development](README.md#browser-tests)).
-- Docker: build the optional Linux image with the exact source SHA. No push or
-  container deployment. The Docker frontend stage builds from the same lockfile.
 
 SAP Lens 1's workflow definitions were archived with it outside this repository; only `validate.yml` exists. Existing v1 release tags/assets
 are unchanged. No replacement release publisher is enabled: stable promotion,

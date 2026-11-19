@@ -12,7 +12,7 @@ def check(root=ROOT):
     data = yaml.load(workflows[0].read_text(), Loader=yaml.BaseLoader)  # noqa: S506 BaseLoader builds only str/list/dict (keeps the key 'on' a string)
     assert data['on'] == {'push': {'branches': ['main']}}, 'CI must run only on push to main'
     assert data['permissions'] == {'contents': 'read'}, 'CI must not publish or deploy'
-    assert set(data['jobs']) == {'frontend', 'backend', 'browser', 'docker'}
+    assert set(data['jobs']) == {'frontend', 'backend', 'browser'}
     for name, job in data['jobs'].items():
         assert 'timeout-minutes' in job, f'{name}: bounded job required'
         assert not {'permissions', 'environment', 'secrets'} & job.keys(), f'{name}: unexpected privileged job'

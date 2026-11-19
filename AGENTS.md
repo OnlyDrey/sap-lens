@@ -11,7 +11,7 @@
   current product "SAP Lens 2"). SAP Lens 1 (Python/FastAPI) is archived **outside** this repository (a separate archive; the last commit with
   it in place is `604f21e`). Nothing active may depend on it: no `legacy/` paths, no Python fixtures or servers in builds and tests
   (`scripts/check-structure.py` enforces this). Historical v1 documentation stays in `docs/legacy/v1`.
-- `.github/workflows/validate.yml` validates .NET, the frontend, focused Playwright and Docker only on push to `main`. No dispatch, PR,
+- `.github/workflows/validate.yml` validates .NET, the frontend and focused Playwright only on push to `main`. No dispatch, PR,
   schedule or experiment/work trigger is permitted. Windows release, installer and deployment scripts are in `backend/scripts`.
 - **Documentation must evolve with the code.** Every change affecting functionality, architecture, configuration, security, deployment,
   operations or user-facing behavior must include corresponding documentation updates in the same development task. A development task is
