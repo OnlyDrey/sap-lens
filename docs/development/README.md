@@ -15,7 +15,7 @@ dotnet test tests/SapLens.Tests -c Release --no-build                           
 npm ci && npm run check:types && npm run lint && npm run test:unit && npm run build
 
 # Deployment and release scripts (from backend/)
-pwsh -NoProfile -Command "Invoke-Pester scripts/tests"        # Pester: deployment state machine and test launcher
+pwsh -NoProfile -Command "Invoke-Pester scripts/tests"        # Pester: deployment state machine, migration, NTFS policy, release verification, test launcher
 bash scripts/tests/deploy-windows.test.sh                     # SSH orchestrator with a fake ssh (end to end through pwsh)
 
 # Repository checks (from the repository root)
@@ -67,6 +67,12 @@ carries version and platform; every artifact has a relative path, its size and S
 `win-x64` lists `server/SapLens.Api.exe`, a Desktop executable and `publish.desktop_native_libraries`; `linux-x64` lists only `server/SapLens.Api`.
 Releases built before the rename to SAP Lens keep verifying (naming register in [versioning](../architecture/VERSIONING.md)). The builders' texts
 may differ where the platform does (for example the native-library note).
+
+Release folders on a Windows host are **server deployment packages** (no `desktop/`, no `symbols/`, a `deployment-package.json`): verify them
+with `verify-release.ps1 -Scope Server` ([release packages](../deployment/WINDOWS_DEPLOYMENT.md#release-packages-and-integrity)). Script tests:
+`verify-release.Tests.ps1` (manifest contract, server packages, publication; shared fixtures in `ReleaseFixture.ps1`), `SapLens.Acl.Tests.ps1`
+(NTFS policy by SID, audit, ProtectAcl/RestoreAcl with replaced ACL reads and icacls), `SapLens.Migration.Tests.ps1` (preflight refusals and
+recovery; tests that need `C:\` paths, real ACLs or robocopy are skipped on Linux).
 
 Development builds: `dotnet build` uses an existing `dist` as it is. CI builds the frontend once in its frontend job and passes `dist` to the .NET
 and browser jobs, so their builds embed it without rebuilding.

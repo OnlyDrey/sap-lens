@@ -163,6 +163,30 @@ Target roots must not exist, must be disjoint local NTFS directories, and must h
 Prepare only their containing application/persistent roots with administrator/SYSTEM access before preflight (`-Action ProtectAcl`, see
 [NTFS permissions](#ntfs-permissions)); a public parent that lets ordinary users read or create children is refused. Staging creates its work directory exclusively and never adopts a directory that appeared after inspection.
 
+### Preparing the migration
+
+In this order; steps 1 to 3 change nothing. Status: the procedure is implemented; the native run on the VM is pending.
+
+1. **Source release integrity (read-only).** Verify the release the `SapLens2` service runs, as a server package:
+   `powershell -NoProfile -File .\backend\scripts\verify-release.ps1 -ReleasePath <ReleasesRoot>\<release> -Scope Server`. Expect
+   "Release verified as a server package (undeclared …)" and the omitted Desktop and symbol files listed by name. Anything else (a changed or
+   missing server file, a changed manifest) is a real integrity failure: stop and investigate; do not edit the folder. If the full build is
+   needed, check `WorkRoot\builds\<sha12>` with the default full scope ([release packages](#release-packages-and-integrity)).
+2. **Target roots.** `Test-Path` each target root of the target configuration (`DataDirectory`, `BackupRoot`, the TLS folder,
+   `<data parent>\backup`, `WorkRoot`, `ReleasesRoot`): all must be `False`. A configuration file must not live inside a target root. If, for
+   example, `C:\sap-lens\deploy` already exists and is the target `WorkRoot`, move the operator files out of it in the maintenance window or
+   choose another `WorkRoot`; migration never adopts an existing root.
+3. **ACL audit (read-only).** `-Action AuditAcl -ConfigFile $source -TargetConfigFile $target`; review every finding.
+4. **Backup.** Create and verify an application backup and export the recovery key (checklist steps 2 and 3) before changing permissions.
+5. **ACL remediation (explicit).** `-Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -Yes` in an elevated session; keep the
+   printed backup folder; then `AuditAcl` again until it exits 0. The service keeps running.
+6. **Preflight.** `-Action PreflightMigration …` until `safe: true`. Migration is only ready then; `MigrateService` still needs authorization.
+
+**Rollback considerations.** Permissions: `-Action RestoreAcl -AclBackup <folder> -Yes` restores every saved ACL; created parents stay
+(empty, protected). Releases: nothing is rewritten, so there is nothing to roll back; a failed publication leaves only
+`ReleasesRoot\.staging\<name>` for inspection. Migration: `RecoverMigration`/`RollbackMigration` as described below; `SapLens2`, its release,
+data, keys and TLS are retained, stopped and disabled, and the protected ACLs carry over to the copies (staging compares content and ACLs).
+
 Use the **new verified release's** server executable as an inspector. Its read-only `--inspect-data` advertises verified upload-rebasing support;
 older inspectors are refused before service control. The inspector is never installed by migration: the
 source's verified release is copied unchanged. Legacy source releases need `--schema-info`, `--backup-local` and `--backup-verify` support.
@@ -379,6 +403,8 @@ $admin = '.\backend\scripts\Service-Manager.ps1'
 | # | Step | Command | Pass when |
 | --- | --- | --- | --- |
 | 1 | Preflight (read-only) | `& $entry -Action Status -ConfigFile $source` and `& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector` | `result.safe` true; every check passes; nothing changed (no journal, backup or service change) |
+| 1a | Source release and ACLs (read-only) | `verify-release.ps1 -ReleasePath <running release> -Scope Server`; `Test-Path` on every target root; `& $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target` | Server package verified with only Desktop/symbol files omitted; no target root exists; every ACL finding reviewed |
+| 1b | ACL preparation (after steps 2 and 3) | `& $entry -Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -Yes`, then `AuditAcl` and the preflight again | Backup folder printed; `AuditAcl` exit 0; preflight `safe: true` |
 | 2 | Verified backup | Settings > Backup & Restore > Overview > create, then Backup History > verify and download | Archive verified; the download decrypts with `SapLens.Api --backup-verify <file> --data-dir <data>` |
 | 3 | Recovery key | `& $admin -Action Status -DataDirectory <source data dir>`, then `-Action ExportKey -Path <new file>` and `-Action VerifyKey -Path <that file>` (same `-DataDirectory`; the default is the canonical `C:\ProgramData\SapLens\data`) | Same fingerprint; the recovery copy verifies; key material never appears in output |
 | 4 | Service migration | `& $entry -Action MigrateService -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector -Yes`, then `& $entry -Action VerifyMigration -ConfigFile $source` | `SapLens` running with automatic start; `SapLens2` stopped and disabled, not deleted; verification passes |

@@ -88,6 +88,10 @@ Next, in order, each a validated commit:
 ## Remaining work, in dependency order
 
 1. Windows acceptance checklist ([WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending)), including `SapLens2` to `SapLens` migration.
+   The two preflight blockers reported on the VM on 2026-11-19 are addressed in code, tested on Linux only: the running `5096382` release is a
+   server package that the full-scope check could never pass (it now verifies with `-Scope Server`; new packages are declared and verified before
+   publication), and broad NTFS access (`AuditAcl`, explicit `ProtectAcl`/`RestoreAcl`). **Migration is not ready** until the VM preflight
+   returns `safe: true` ([preparing the migration](../deployment/WINDOWS_DEPLOYMENT.md#preparing-the-migration)).
 2. Installer compilation and acceptance on Windows (`scripts/build-installers.ps1`); code signing as an authorized release step.
 3. v1 migration rehearsal on a copy of real data.
 4. Owner decision on Desktop identity (beside v1 or replacing it), then the promotion in [BACKEND_PROMOTION.md](BACKEND_PROMOTION.md).
