@@ -9,14 +9,14 @@ using SapLens.Persistence;
 
 namespace SapLens.Application.Retention;
 
-/// <summary>Data retention (v1 data_retention.py, review_retention.py and backup_retention.py) on the SAP Lens 2 database, in three categories with their
+/// <summary>Data retention (v1 data_retention.py, review_retention.py and backup_retention.py) on the SAP Lens database, in three categories with their
 /// own period, preview digest and one-time administrator approval. A daily check only measures until a category is approved for this installation.
 ///
 /// * Source: the records of superseded (Retired) source revisions (the revision row stays as Purged evidence), aged from the moment the next revision of the same source was activated (no moment: protected until
 ///   classified). Protected by reference: any revision whose content hash appears in settings, SoD documents (periods, assessments, remediation, catalogue),
 ///   decision events, evidence snapshots or refresh reports (audit history), or that review decisions or invalidations name; also the newest two superseded
 ///   revisions per source and everything younger than the period (default 24 months). Removal is one transaction per revision, re-checked immediately before.
-/// * Review: SAP Lens 2 keeps completed review periods. Their snapshots are immutable audit evidence (database triggers forbid deletion) and a closed period
+/// * Review: SAP Lens keeps completed review periods. Their snapshots are immutable audit evidence (database triggers forbid deletion) and a closed period
 ///   alone is no deletion reason, so the review preview lists completed periods as protected and never removes them. This deliberately differs from v1.
 /// * Backup: automatic backups older than the period (default 90 days); manual and migration backups are never candidates.
 ///

@@ -68,7 +68,7 @@ public static class V1Retention
         });
     }
 
-    /// <summary>POST /api/retention/review/undo: restores review periods removed by a review cleanup. SAP Lens 2 never removes review periods (they are
+    /// <summary>POST /api/retention/review/undo: restores review periods removed by a review cleanup. SAP Lens never removes review periods (they are
     /// immutable audit evidence), so there is never a cleanup to undo; the request is validated as in v1 and answered 409 without changing anything.</summary>
     private static async Task<IResult> UndoAsync(HttpContext http, CancellationToken ct)
     {

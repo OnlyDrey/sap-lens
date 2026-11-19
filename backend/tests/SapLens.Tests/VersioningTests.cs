@@ -6,7 +6,7 @@ using SapLens.Api;
 
 namespace SapLens.Tests;
 
-/// <summary>One product version for SAP Lens 2 (backend/product-version.json), the same in the assemblies, --version, every HTTP
+/// <summary>One product version for SAP Lens (backend/product-version.json), the same in the assemblies, --version, every HTTP
 /// identity and the release scripts; independent of SAP Lens v1, whose own version source and frontend mirror stay as they are.</summary>
 public sealed class VersioningTests : IAsyncLifetime
 {

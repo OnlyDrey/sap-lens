@@ -79,32 +79,32 @@ the new package runs side by side with its own data directory and port.
 ```bat
 cd /d C:\src\sap-lens && git fetch origin && git checkout experiment/dotnet-backend && git pull --ff-only
 cd /d C:\src\sap-lens\backend
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Output C:\saplens2\release-next
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Output C:\sap-lens\release-next
 ```
 
 The script runs `npm ci`, `npm run build`, `dotnet build`, `dotnet test` (96 tests; add `-SkipPublishTests` to skip the slow publish
-tests) and publishes `C:\saplens2\release-next\server-win-x64` and `C:\saplens2\release-next\desktop-win-x64`. The same steps one by one:
+tests) and publishes `C:\sap-lens\release-next\server-win-x64` and `C:\sap-lens\release-next\desktop-win-x64`. The same steps one by one:
 
 ```bat
 cd /d C:\src\sap-lens\frontend && npm ci --no-audit --no-fund && npm run build
 cd /d C:\src\sap-lens\backend && dotnet build SapLens.slnx -c Release
 dotnet test tests\SapLens.Tests -c Release --no-build
-dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\saplens2\release-next\server-win-x64
-dotnet publish src\SapLens.Desktop -c Release -o C:\saplens2\release-next\desktop-win-x64
+dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\sap-lens\release-next\server-win-x64
+dotnet publish src\SapLens.Desktop -c Release -o C:\sap-lens\release-next\desktop-win-x64
 ```
 
 Validate the new server package side by side over HTTPS (replace the certificate paths with the lab's; port 18795 is free for this test and
 needs no firewall change when tested from the VM itself):
 
 ```bat
-start "SAP Lens validation" C:\saplens2\release-next\server-win-x64\SapLens.Api.exe --data-dir C:\saplens2\validation-data --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20 --cert <path-to-server.pfx> --cert-password-file <path-to-cert-password>
+start "SAP Lens validation" C:\sap-lens\release-next\server-win-x64\SapLens.Api.exe --data-dir C:\sap-lens\validation-data --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20 --cert <path-to-server.pfx> --cert-password-file <path-to-cert-password>
 curl.exe -s -o NUL -w "sign-in page %{http_code}\n" https://192.168.10.20:18795/login.html
 curl.exe -s -o NUL -w "app without session %{http_code} (302 expected)\n" https://192.168.10.20:18795/
 curl.exe -s -o NUL -w "api without token %{http_code} (401 expected)\n" https://192.168.10.20:18795/api/roles
-set /p TOKEN=<C:\saplens2\validation-data\api-token
+set /p TOKEN=<C:\sap-lens\validation-data\api-token
 curl.exe -s -H "X-SAP-Lens-Token: %TOKEN%" https://192.168.10.20:18795/api/version
 curl.exe -s -o NUL -w "not migrated %{http_code} (501 expected)\n" -H "X-SAP-Lens-Token: %TOKEN%" https://192.168.10.20:18795/api/dashboard
-curl.exe -s -X POST -H "X-SAP-Lens-Token: %TOKEN%" -H "Content-Type: text/csv" --data-binary @%TEMP%\saplens2-csv\roles.csv https://192.168.10.20:18795/api/v1/imports/roles
+curl.exe -s -X POST -H "X-SAP-Lens-Token: %TOKEN%" -H "Content-Type: text/csv" --data-binary @%TEMP%\sap-lens-csv\roles.csv https://192.168.10.20:18795/api/v1/imports/roles
 set TOKEN=
 ```
 
@@ -113,9 +113,9 @@ The synthetic `roles.csv` comes from the PowerShell snippet in
 open `https://192.168.10.20:18795/` in a browser on the VM (and, with a temporary firewall rule for port 18795 restricted to the trusted subnet,
 from another device): expected are the sign-in page, then the SAP Lens UI with the .NET notice, and Role Lookup listing the imported roles.
 Stop the validation server by closing its window. Only after this passes, replace the running lab service's binaries
-(`Stop-Service SapLens2`, copy `server-win-x64`, `Start-Service SapLens2`; see [SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md#9-secure-shutdown-and-restart)).
+(`Stop-Service SapLens`, copy `server-win-x64`, `Start-Service SapLens`; see [SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md#9-secure-shutdown-and-restart)).
 
-Desktop: `C:\saplens2\release-next\desktop-win-x64\SapLens.exe --self-check` (exit code 0), then start it normally; the window shows
+Desktop: `C:\sap-lens\release-next\desktop-win-x64\SapLens.exe --self-check` (exit code 0), then start it normally; the window shows
 the same React UI without a sign-in.
 
 ## Limitations of this milestone

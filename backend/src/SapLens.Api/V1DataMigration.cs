@@ -14,7 +14,7 @@ using SapLens.Persistence;
 
 namespace SapLens.Api;
 
-/// <summary>SAP Lens 1 to SAP Lens 2 data migration, a LOCAL administrator operation of the server binary (--migrate-v1). The v1 data directory (or a
+/// <summary>SAP Lens 1 to SAP Lens data migration, a LOCAL administrator operation of the server binary (--migrate-v1). The v1 data directory (or a
 /// v1 .slbak/.tar.gz backup of it) is only ever read. Steps, each explicit:
 ///
 /// 1. preview: inventory with SHA-256 per file, validation of every store, what is imported, preserved or unsupported, blockers, and a digest. Nothing is
@@ -34,7 +34,7 @@ public static partial class V1DataMigration
     [GeneratedRegex("^[a-f0-9]{32}$")] private static partial Regex Hex32();
 
     private static readonly string[] SourceKinds = ["roles", "users", "sod"];
-    /// <summary>v1 JSON stores copied into SAP Lens 2 documents of the same v1 shape (v1 file, v2 document).</summary>
+    /// <summary>v1 JSON stores copied into SAP Lens documents of the same v1 shape (v1 file, v2 document).</summary>
     private static readonly (string File, string Document)[] Documents =
     [
         ("functional-groups.json", FunctionalGroupStore.Document), ("report-branding.json", "report-branding"), ("reviewer-profile.json", "reviewer-profile"),
@@ -606,7 +606,7 @@ public static partial class V1DataMigration
                 command.CommandText = "DELETE FROM sessions; VACUUM;";
                 command.ExecuteNonQuery();
             }
-            new AccountStore(target, TimeProvider.System).Prepare();             // the SAP Lens 2 account store accepts the v1 schema
+            new AccountStore(target, TimeProvider.System).Prepare();             // the SAP Lens account store accepts the v1 schema
             counts["accounts"] = 1;
         }
         foreach (var image in v1.Branding)
@@ -701,7 +701,7 @@ public static partial class V1DataMigration
         return report;
     }
 
-    /// <summary>Requests a rollback of an activated migration at the next start: the previous SAP Lens 2 files return.</summary>
+    /// <summary>Requests a rollback of an activated migration at the next start: the previous SAP Lens files return.</summary>
     public static JsonObject RequestRollback(string data, string id, string actor, DateTimeOffset now)
     {
         data = Path.GetFullPath(data);

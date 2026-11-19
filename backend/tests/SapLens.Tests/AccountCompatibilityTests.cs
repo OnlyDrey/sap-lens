@@ -4,7 +4,7 @@ using SapLens.Application.Accounts;
 
 namespace SapLens.Tests;
 
-/// <summary>Sign-in compatibility across SAP Lens 2 builds. Fixtures/accounts/build-970d219/accounts.sqlite3 was written by build 970d219 (the first
+/// <summary>Sign-in compatibility across SAP Lens builds. Fixtures/accounts/build-970d219/accounts.sqlite3 was written by build 970d219 (the first
 /// .NET build with accounts): a fresh store activated through its API with one synthetic administrator, then one successful sign-in (credential_version
 /// 0, revision 0, a 97-character Argon2id verifier, seven tables, user_version 1). The current build must accept that store unchanged, and the
 /// read-only diagnostic must explain refusals without writing anything.</summary>
@@ -65,7 +65,7 @@ public sealed class AccountCompatibilityTests : IDisposable
     }
 
     [Theory]
-    [InlineData("Admin.Synthetic", Password)]             // usernames are case-sensitive in v1 and every SAP Lens 2 build
+    [InlineData("Admin.Synthetic", Password)]             // usernames are case-sensitive in v1 and every SAP Lens build
     [InlineData(" admin.synthetic", Password)]
     [InlineData(Username, "Synthetic-Admin-Passphrase-2025")]
     public async Task Refusals_stay_generic_and_are_counted(string username, string password)

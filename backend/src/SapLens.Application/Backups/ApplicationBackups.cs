@@ -9,7 +9,7 @@ using SapLens.Persistence;
 
 namespace SapLens.Application.Backups;
 
-/// <summary>Application backups and restore (v1 application_backups.py on the SAP Lens 2 storage). An archive holds consistent online copies of the SQLite
+/// <summary>Application backups and restore (v1 application_backups.py on the SAP Lens storage). An archive holds consistent online copies of the SQLite
 /// database and the account store (active sessions removed), the branding images and a manifest with SHA-256 per file, encrypted as SLBAK3. Restore is a
 /// restart handoff: an upload is decrypted, checked and previewed without touching active data; a confirmed restore is applied at the next start, before
 /// the database opens, after an encrypted destination recovery backup of the current data, and is rolled back if anything fails.</summary>

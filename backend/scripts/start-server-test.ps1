@@ -19,8 +19,8 @@
 
   Environment-specific values (listen address, port, host names, trusted proxies, paths) are never built in: put them in a local JSON file that is
   not committed (start-server-test.local.json, git-ignored; copy start-server-test.example.json) or pass them as parameters. Lookup order for the
-  file: -ConfigFile, $env:SAPLENS2_TEST_CONFIG (compatibility identifier), C:\sap-lens\acceptance\start-server-test.local.json,
-  the earlier C:\saplens2\start-server-test.local.json, then start-server-test.local.json next to this script.
+  file: -ConfigFile, $env:SAPLENS_TEST_CONFIG, C:\sap-lens\acceptance\start-server-test.local.json, then
+  start-server-test.local.json next to this script.
   An explicit parameter always wins over the file. The file holds no secrets: the certificate password stays in its own protected file.
 
 .EXAMPLE
@@ -32,7 +32,7 @@
   powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server-test.ps1 -Stop           # stops the process recorded in the PID file
 
   -Background starts the Server detached, writes its output to <LogDirectory>\server-<UTC time>.out.log / .err.log and its identity to
-  <LogDirectory>\saplens2-test-server.json, then waits until the port accepts connections (or the process exits, which is reported with its exit code
+  <LogDirectory>\sap-lens-test-server.json, then waits until the port accepts connections (or the process exits, which is reported with its exit code
   and the error log). -Stop ends exactly that process (process id and start time must match). Stopping a detached console process is a hard stop:
   a running import is recovered when its 30-second lease expires on the next start. Use the foreground mode or the Windows service for a graceful stop.
 #>
@@ -193,7 +193,7 @@ function Format-CommandLine([string]$Executable, [string[]]$Arguments) {
     (@($Executable) + $Arguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ } }) -join ' '
 }
 
-function Get-PidFile([string]$LogDirectory) { Join-Path $LogDirectory 'saplens2-test-server.json' }
+function Get-PidFile([string]$LogDirectory) { Join-Path $LogDirectory 'sap-lens-test-server.json' }
 
 function Get-RecordedServer([string]$LogDirectory) {
     <# The process recorded by -Background when it is still the same process (id and start time match), otherwise $null. #>
@@ -267,7 +267,7 @@ function Start-BackgroundServer {
 function Invoke-ServerTestLauncher {
     param([string]$BuildsRoot, [string]$ReleasePath, [string]$ListenAddress, [int]$Port, [string[]]$AllowedHosts, [string]$DataDirectory,
           [string]$CertificatePath, [string]$CertificatePasswordFile, [switch]$DryRun, [string[]]$TrustedProxies = @(),
-          [switch]$Background, [switch]$Stop, [string]$LogDirectory = 'C:\saplens2\logs', [int]$ReadyTimeoutSeconds = 60)
+          [switch]$Background, [switch]$Stop, [string]$LogDirectory = 'C:\sap-lens\acceptance\logs', [int]$ReadyTimeoutSeconds = 60)
     if ($Stop) {
         try { return Stop-RecordedServer $LogDirectory } catch { [Console]::Error.WriteLine("start-server-test: $($_.Exception.Message)"); return 2 }
     }
@@ -292,7 +292,7 @@ function Invoke-ServerTestLauncher {
         Write-Host "  Source:   $($manifest.source_sha)$(if ($manifest.source_dirty) { ' (dirty working tree)' })"
     }
     Write-Host "  URL:      https://$($ListenAddress):$Port/"
-    $inherited = @(Get-ChildItem Env: | Where-Object Name -like 'SAP_LENS_V2_*' | ForEach-Object Name)
+    $inherited = @(Get-ChildItem Env: | Where-Object Name -like 'SAP_LENS_*' | ForEach-Object Name)
     if ($inherited.Count -gt 0) { Write-Host "  Inherited environment (names only; options above take precedence): $($inherited -join ', ')" }
     Write-Host "  Command:  $(Format-CommandLine $release.Executable $arguments)"
     if ($DryRun) { Write-Host 'Dry run: configuration valid; nothing was started.'; return 0 }
@@ -312,7 +312,7 @@ $script:ConfigKeys = @('BuildsRoot', 'ReleasePath', 'ListenAddress', 'Port', 'Al
 
 function Find-LocalConfig([string]$ConfigFile) {
     if ($ConfigFile) { if (-not (Test-Path -LiteralPath $ConfigFile -PathType Leaf)) { throw "Configuration file '$ConfigFile' does not exist." }; return $ConfigFile }
-    foreach ($candidate in @($env:SAPLENS2_TEST_CONFIG, 'C:\sap-lens\acceptance\start-server-test.local.json', 'C:\saplens2\start-server-test.local.json', (Join-Path $PSScriptRoot 'start-server-test.local.json'))) {
+    foreach ($candidate in @($env:SAPLENS_TEST_CONFIG, 'C:\sap-lens\acceptance\start-server-test.local.json', (Join-Path $PSScriptRoot 'start-server-test.local.json'))) {
         if ($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)) { return $candidate }
     }
     $null

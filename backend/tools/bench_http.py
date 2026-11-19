@@ -43,7 +43,7 @@ class Server:
             self.header = 'X-SAP-Lens'
         else:
             cmd = [str(Path(dotnet_dir) / 'SapLens.Api'), '--data-dir', str(workdir), '--port', str(port)]
-            env = {**os.environ, 'SAP_LENS_V2_TOKEN': TOKEN, 'Logging__LogLevel__Default': 'Warning'}
+            env = {**os.environ, 'SAP_LENS_TOKEN': TOKEN, 'Logging__LogLevel__Default': 'Warning'}
             self.header = 'X-SAP-Lens-Token'
         self.started = time.perf_counter()
         self.process = subprocess.Popen(cmd, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

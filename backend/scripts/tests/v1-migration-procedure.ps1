@@ -6,7 +6,7 @@
   installation. Steps: host key, preview with the recovery key file, refusal of a wrong key, run, activation at the next start, HTTP check, status,
   rollback at the next start. Exits 0 when every step behaves as documented, 1 otherwise.
 .EXAMPLE
-  pwsh -File scripts/tests/v1-migration-procedure.ps1 -Exe C:\saplens2\release\server\SapLens.Api.exe -Root C:\saplens2\procedure-test
+  pwsh -File scripts/tests/v1-migration-procedure.ps1 -Exe C:\sap-lens\release\server\SapLens.Api.exe -Root C:\sap-lens\procedure-test
 #>
 param(
     [Parameter(Mandatory)] [string] $Exe,
@@ -35,7 +35,7 @@ Set-Content -NoNewline -Path (Join-Path $Escrow 'saplens1-recovery.key') -Value 
 
 & $Exe --backup-key create (Join-Path $Root 'keys/backup.key') --data-dir $DataDir | Out-Null
 Check ($LASTEXITCODE -eq 0) 'SAP Lens host backup key created'
-& $Exe --backup-key export (Join-Path $Escrow 'saplens2-recovery.key') --data-dir $DataDir | Out-Null
+& $Exe --backup-key export (Join-Path $Escrow 'sap-lens-recovery.key') --data-dir $DataDir | Out-Null
 Check ($LASTEXITCODE -eq 0) 'recovery copy exported'
 
 & $Exe --migrate-v1 preview --source $V1Backup --v1-key-file (Join-Path $Escrow 'saplens1-recovery.key') --data-dir $DataDir | Out-File -Encoding utf8 (Join-Path $Work 'preview.json')
@@ -44,7 +44,7 @@ $Preview = Get-Content (Join-Path $Work 'preview.json') -Raw | ConvertFrom-Json
 Check ($Preview.status -eq 'previewed' -and $Preview.blockers.Count -eq 0) "preview status $($Preview.status), no blockers"
 $sod = ($Preview.stores | Where-Object { $_.store -like 'SoD decision*' }).count
 Check ($sod -eq $Expected.sod.events) "SoD decision events in preview: $sod"
-$null = & $Exe --migrate-v1 preview --source $V1Backup --v1-key-file (Join-Path $Escrow 'saplens2-recovery.key') --data-dir $DataDir 2>&1
+$null = & $Exe --migrate-v1 preview --source $V1Backup --v1-key-file (Join-Path $Escrow 'sap-lens-recovery.key') --data-dir $DataDir 2>&1
 Check ($LASTEXITCODE -eq 3) 'a wrong recovery key is refused (exit 3)'
 
 & $Exe --migrate-v1 run --id $Preview.id --approve $Preview.digest --data-dir $DataDir | Out-File -Encoding utf8 (Join-Path $Work 'run.json')

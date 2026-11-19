@@ -39,13 +39,13 @@ cd backend
 dotnet publish src/SapLens.Api -c Release -r linux-x64 --self-contained true -o <out>/server-linux-x64   # folder publish
 dotnet publish src/SapLens.Api -c Release -r win-x64 -o <out>/server   # single file: SapLens.Api.exe + e_sqlite3.dll (settings in the project)
 # run (no .NET or Python needed on the host)
-SAP_LENS_V2_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-dir /var/lib/saplens-v2 --port 18790 [--no-worker]
+SAP_LENS_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-dir /var/lib/saplens-v2 --port 18790 [--no-worker]
 ```
 
 - **Options**: `SapLens.Api --help`; full reference in [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md#2-configuration-reference); Windows
   VM runbook and test launcher in [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md).
-- **Data directory**: `--data-dir` or `SAP_LENS_V2_DATA_DIR` (required, no default); must be absolute and local (UNC, `//host/share` and network drives refused).
-- **Token**: `SAP_LENS_V2_TOKEN`, otherwise generated once into `<data>/api-token` (mode 0600 on Linux; on Windows it inherits the data
+- **Data directory**: `--data-dir` or `SAP_LENS_DATA_DIR` (required, no default); must be absolute and local (UNC, `//host/share` and network drives refused).
+- **Token**: `SAP_LENS_TOKEN`, otherwise generated once into `<data>/api-token` (mode 0600 on Linux; on Windows it inherits the data
   directory ACL, which an installer must restrict to the service account [U]). Every `/api` request needs `X-SAP-Lens-Token`.
 - **Binding**: `127.0.0.1` by default. Access from other devices only with `--network`, one private LAN address, HTTPS with a validated
   certificate and explicit `--allowed-hosts`; everything else is refused at startup. See [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md).
@@ -148,7 +148,7 @@ it would mean Dapper or hand-written SQL instead of EF Core.
 
 ## Windows verification
 
-Assumes the .NET 10 SDK and Git on the VM, the repository at `C:\src\sap-lens`, and output under `C:\saplens2` (outside the repository).
+Assumes the .NET 10 SDK and Git on the VM, the repository at `C:\src\sap-lens`, and output under `C:\sap-lens` (outside the repository).
 Commands are for an interactive prompt; in a `.bat` file double every `%` in the `curl -w` formats.
 
 ### A. Over SSH (CMD): build, tests, publish, headless Desktop self-check, Server
@@ -164,32 +164,32 @@ dotnet build SapLens.slnx -c Release
 dotnet test tests\SapLens.Tests -c Release --no-build --filter "Category!=Publish"
 dotnet test tests\SapLens.Tests -c Release --no-build --filter "Category=Publish"
 
-rmdir /s /q C:\saplens2 2>NUL
-dotnet publish src\SapLens.Desktop -c Release -o C:\saplens2\desktop
-dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\saplens2\server
-dir C:\saplens2\desktop
-if exist C:\saplens2\desktop\frontend (echo UNEXPECTED frontend folder) else (echo OK no loose frontend)
+rmdir /s /q C:\sap-lens 2>NUL
+dotnet publish src\SapLens.Desktop -c Release -o C:\sap-lens\desktop
+dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\sap-lens\server
+dir C:\sap-lens\desktop
+if exist C:\sap-lens\desktop\frontend (echo UNEXPECTED frontend folder) else (echo OK no loose frontend)
 
 REM Desktop without a window, from an unrelated working directory, with its own data directory
 cd /d %TEMP%
-start "" /wait C:\saplens2\desktop\SapLens.exe --self-check --data-dir C:\saplens2\desktop-check
+start "" /wait C:\sap-lens\desktop\SapLens.exe --self-check --data-dir C:\sap-lens\desktop-check
 echo self-check exit code %ERRORLEVEL%
-dir C:\saplens2\desktop-check
+dir C:\sap-lens\desktop-check
 type "%LOCALAPPDATA%\SAP Lens Desktop\logs\self-check-*.log"
 
 REM Server from an unrelated working directory; it generates its token file on first start
-start "" /b C:\saplens2\server\SapLens.Api.exe --data-dir C:\saplens2\server-data --port 18790 > C:\saplens2\server.log 2>&1
+start "" /b C:\sap-lens\server\SapLens.Api.exe --data-dir C:\sap-lens\server-data --port 18790 > C:\sap-lens\server.log 2>&1
 timeout /t 5 /nobreak >NUL
 curl -s -o NUL -w "ready %{http_code}\n" http://127.0.0.1:18790/health/ready
 curl -s http://127.0.0.1:18790/ | findstr /c:"prototype-ui-v1"
 curl -s -o NUL -w "app.js %{http_code} %{content_type}\n" http://127.0.0.1:18790/app.js
 curl -s -o NUL -w "app.css %{http_code} %{content_type}\n" http://127.0.0.1:18790/app.css
 curl -s -o NUL -w "api without token %{http_code}\n" http://127.0.0.1:18790/api/v1/roles
-set /p TOKEN=<C:\saplens2\server-data\api-token
+set /p TOKEN=<C:\sap-lens\server-data\api-token
 curl -s -H "X-SAP-Lens-Token: %TOKEN%" http://127.0.0.1:18790/api/v1/session
 curl -s -H "X-SAP-Lens-Token: %TOKEN%" http://127.0.0.1:18790/api/v1/admin/integrity
 set TOKEN=
-dir C:\saplens2\server-data
+dir C:\sap-lens\server-data
 taskkill /im SapLens.Api.exe /f
 tasklist /fi "imagename eq SapLens.Api.exe"
 ```
@@ -202,7 +202,7 @@ Server runs as a Windows service (not built).
 ### B. Interactive desktop session (PowerShell 5.1 or 7): window, WebView2, import, shutdown
 
 ```powershell
-$csv = Join-Path $env:TEMP 'saplens2-csv'; New-Item -ItemType Directory -Force $csv | Out-Null
+$csv = Join-Path $env:TEMP 'sap-lens-csv'; New-Item -ItemType Directory -Force $csv | Out-Null
 $roles = @('FUNCTION_KEY;AGR_NAME;TEXT;CHILD_AGR;CHILD_AGR_TEXT;PARENT_AGR;Effective_Role;TCODE;TTEXT') +
   (0..29 | ForEach-Object { 'FI;ZC:FI:ROLE_{0:D4};Synthetic role {0};;;;;T{1:D3};Transaction {1}' -f $_, ($_ % 7) })
 $users = @('USERNAME;ROLE_NAME;USER_GROUP;FIRST_NAME;LAST_NAME;EMAIL;USER_VALID_FROM;USER_VALID_TO;ROLE_VALID_FROM;ROLE_VALID_TO;USER_LOCKED;USER_TYPE') +
@@ -210,7 +210,7 @@ $users = @('USERNAME;ROLE_NAME;USER_GROUP;FIRST_NAME;LAST_NAME;EMAIL;USER_VALID_
 Set-Content -Path (Join-Path $csv 'roles.csv') -Value $roles -Encoding UTF8
 Set-Content -Path (Join-Path $csv 'users.csv') -Value $users -Encoding UTF8
 
-Start-Process -FilePath 'C:\saplens2\desktop\SapLens.exe' -WorkingDirectory $env:TEMP
+Start-Process -FilePath 'C:\sap-lens\desktop\SapLens.exe' -WorkingDirectory $env:TEMP
 # In the window: status line shows "<user> · desktop · No data imported yet"; Data tab: import roles.csv as Roles, then users.csv as Users;
 # Role Lookup: search ZC:FI*; User Access: search USER; Compare Users: USER0001 and USER0002 with validity "all". Then close the window.
 
@@ -226,7 +226,7 @@ Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object
 
 | # | Check | Pass when | Status |
 | --- | --- | --- | --- |
-| 1 | Package completeness | `C:\saplens2\desktop` holds `SapLens.exe` and no `frontend`/`wwwroot`; publish tests pass | Pending |
+| 1 | Package completeness | `C:\sap-lens\desktop` holds `SapLens.exe` and no `frontend`/`wwwroot`; publish tests pass | Pending |
 | 2 | Headless start | `--self-check` exit code 0 from `%TEMP%`; log says "Self-check passed" | Pending |
 | 3 | Desktop launch | Window opens within a few seconds; one instance only (second start says already running) | Pending |
 | 4 | WebView2 rendering | Prototype UI visible (header, tabs, status line), not a 404 or blank page | Pending |

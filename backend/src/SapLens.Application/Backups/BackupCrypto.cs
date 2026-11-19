@@ -14,11 +14,11 @@ public sealed class BackupException(string message, int status = 409) : Exceptio
 }
 
 /// <summary>The protected host backup key (v1 backup_crypto key handling): 32 random bytes, base64 in a private file OUTSIDE the data directory, located by
-/// SAP_LENS_V2_BACKUP_KEY_FILE or by &lt;data&gt;/backup-key-location.json. Created, selected and exported only by local commands; the API can only verify that
+/// SAP_LENS_BACKUP_KEY_FILE or by &lt;data&gt;/backup-key-location.json. Created, selected and exported only by local commands; the API can only verify that
 /// a separately stored recovery copy matches (escrow), which is recorded by fingerprint.</summary>
 public static class BackupKeys
 {
-    public const string EnvironmentVariable = "SAP_LENS_V2_BACKUP_KEY_FILE";
+    public const string EnvironmentVariable = "SAP_LENS_BACKUP_KEY_FILE";
     private const string Pointer = "backup-key-location.json", Confirmation = ".backup-key-confirmation.json";
 
     public static string Fingerprint(byte[] key) => Convert.ToHexStringLower(SHA256.HashData(key))[..16];
@@ -203,7 +203,7 @@ public static class BackupKeys
     }
 }
 
-/// <summary>SAP Lens 2 portable archive (SLBAK3): AES-256-GCM over 1 MiB segments with the streaming nonce layout of Tink's AES-GCM-HKDF streaming AEAD
+/// <summary>SAP Lens portable archive (SLBAK3): AES-256-GCM over 1 MiB segments with the streaming nonce layout of Tink's AES-GCM-HKDF streaming AEAD
 /// (7-byte random prefix, 32-bit segment counter, final-segment flag); the header is authenticated with every segment, so truncation, reordering, header
 /// changes and wrong keys all fail before any content is used. Keys: Argon2id (passphrase) or HKDF-SHA256 (host key). Also decrypts v1 SLBAK2 archives.</summary>
 public static class BackupArchive

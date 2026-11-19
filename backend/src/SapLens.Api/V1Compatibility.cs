@@ -18,7 +18,7 @@ public static class V1Compatibility
     public static readonly string Boot = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
     private static readonly Lazy<JsonObject> Registry = new(() => Load("registry.json"));
     private static readonly Lazy<JsonObject> DefaultSettings = new(() => Load("default-settings.json"));
-    /// <summary>The SAP Lens 2 product version (see ProductIdentity; never v1's).</summary>
+    /// <summary>The SAP Lens product version (see ProductIdentity; never v1's).</summary>
     public static readonly string Version = ProductIdentity.Version;
     /// <summary>The commit the build was made from (release scripts pass -p:SourceRevisionId); null for builds without it.</summary>
     public static readonly string? SourceSha = ProductIdentity.Commit;

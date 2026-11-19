@@ -29,10 +29,10 @@ can be done while it is stopped or running.
 ## Procedure (Windows PowerShell 5.1 or 7)
 
 ```powershell
-$Exe      = 'C:\saplens2\releases\SAP-Lens-2.0.0-alpha.1-<build>-win-x64\server\SapLens.Api.exe'
-$DataDir  = 'C:\ProgramData\SapLens2\data'
-$Work     = 'C:\saplens2\migration'                      # reports of this procedure
-$V1Backup = 'C:\saplens2\migration\SAP-Lens-backup-<id>.slbak'
+$Exe      = 'C:\sap-lens\releases\SAP-Lens-2.0.0-alpha.1-<build>-win-x64\server\SapLens.Api.exe'
+$DataDir  = 'C:\ProgramData\SapLens\data'
+$Work     = 'C:\sap-lens\migration'                      # reports of this procedure
+$V1Backup = 'C:\sap-lens\migration\SAP-Lens-backup-<id>.slbak'
 New-Item -ItemType Directory -Force $Work | Out-Null
 ```
 
@@ -42,9 +42,9 @@ The migration backup of the SAP Lens 1 data is encrypted with the SAP Lens host 
 backup is stored unencrypted in the private data directory.
 
 ```powershell
-New-Item -ItemType Directory -Force 'C:\ProgramData\SapLens2\keys' | Out-Null
-& $Exe --backup-key create 'C:\ProgramData\SapLens2\keys\backup.key' --data-dir $DataDir
-& $Exe --backup-key export 'D:\Escrow\saplens2-recovery.key' --data-dir $DataDir   # store separately; verify later in Settings, Backups
+New-Item -ItemType Directory -Force 'C:\ProgramData\SapLens\keys' | Out-Null
+& $Exe --backup-key create 'C:\ProgramData\SapLens\keys\backup.key' --data-dir $DataDir
+& $Exe --backup-key export 'D:\Escrow\sap-lens-recovery.key' --data-dir $DataDir   # store separately; verify later in Settings, Backups
 ```
 
 ### 2. Preview (dry run)

@@ -110,7 +110,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         var port = FreePort();
         var info = new ProcessStartInfo(Path.Combine(output, "SapLens.Api")) { WorkingDirectory = elsewhere, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in new[] { "--data-dir", Path.Combine(_root, "data"), "--port", port.ToString() }) info.ArgumentList.Add(arg);
-        info.Environment["SAP_LENS_V2_TOKEN"] = token;
+        info.Environment["SAP_LENS_TOKEN"] = token;
         info.Environment.Remove("DOTNET_ROOT"); // self-contained: must not need an installed runtime
         using var server = Process.Start(info)!;
         _ = server.StandardOutput.ReadToEndAsync();
@@ -175,7 +175,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
             var info = new ProcessStartInfo(Path.Combine(output, "SapLens.Api")) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
             foreach (var arg in args) info.ArgumentList.Add(arg);
             info.Environment["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = extract;
-            info.Environment["SAP_LENS_V2_TOKEN"] = HostSettings.NewToken();
+            info.Environment["SAP_LENS_TOKEN"] = HostSettings.NewToken();
             using var process = Process.Start(info)!;
             var stdout = process.StandardOutput.ReadToEndAsync();
             var stderr = process.StandardError.ReadToEndAsync();
@@ -194,7 +194,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         var port = FreePort();
         var info = new ProcessStartInfo(Path.Combine(output, "SapLens.Api")) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in new[] { "--data-dir", Path.Combine(_root, "single-file-data"), "--port", port.ToString() }) info.ArgumentList.Add(arg);
-        info.Environment["SAP_LENS_V2_TOKEN"] = token;
+        info.Environment["SAP_LENS_TOKEN"] = token;
         info.Environment["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = extract;
         using var server = Process.Start(info)!;
         _ = server.StandardOutput.ReadToEndAsync();
@@ -229,7 +229,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         var info = new ProcessStartInfo(Path.Combine(output, "SapLens.Api")) { WorkingDirectory = Directory.CreateDirectory(Path.Combine(_root, "cwd-" + Guid.NewGuid().ToString("N"))).FullName,
             UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in args) info.ArgumentList.Add(arg);
-        info.Environment["SAP_LENS_V2_TOKEN"] = HostSettings.NewToken();
+        info.Environment["SAP_LENS_TOKEN"] = HostSettings.NewToken();
         using var server = Process.Start(info)!;
         _ = server.StandardOutput.ReadToEndAsync();
         var error = server.StandardError.ReadToEndAsync();

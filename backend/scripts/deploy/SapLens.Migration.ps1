@@ -25,8 +25,12 @@ function Test-SL2PathOverlap([string]$Left, [string]$Right) {
 }
 
 function Get-SL2MigrationKey($Source) {
-    # An environment override could make a copied pointer select a different key after cutover.
-    if ($env:SAP_LENS_V2_BACKUP_KEY_FILE -or [Environment]::GetEnvironmentVariable('SAP_LENS_V2_BACKUP_KEY_FILE', 'Machine')) {
+    # An environment override could make a copied pointer select a different key after cutover. SAP_LENS_V2_BACKUP_KEY_FILE is the name used
+    # before the rename (migration-only detection: a host still carrying it is refused until it is reconciled).
+    $overrides = foreach ($name in 'SAP_LENS_BACKUP_KEY_FILE', 'SAP_LENS_V2_BACKUP_KEY_FILE') {
+        [Environment]::GetEnvironmentVariable($name); [Environment]::GetEnvironmentVariable($name, 'Machine')
+    }
+    if (@($overrides | Where-Object { $_ }).Count -gt 0) {
         Stop-SL2 'Remove and reconcile backup-key environment overrides before migration; use the data directory key pointer.'
     }
     $pointer = Join-SL2 $Source.DataDirectory 'backup-key-location.json'
@@ -53,7 +57,7 @@ function Test-SL2MigrationTls($Source) {
 
 function Test-SL2MigrationEnvironment([string]$ServiceName) {
     $machine = [Environment]::GetEnvironmentVariables('Machine')
-    foreach ($name in $machine.Keys) { if ($name -like 'SAP_LENS_V2_*') { Stop-SL2 'Machine-level SAP Lens environment overrides require manual reconciliation before migration.' } }
+    foreach ($name in $machine.Keys) { if ($name -like 'SAP_LENS_*') { Stop-SL2 'Machine-level SAP Lens environment overrides require manual reconciliation before migration.' } }
     $service = Get-ItemProperty -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName" -ErrorAction Stop
     if ($service.PSObject.Properties['Environment'] -and @($service.Environment).Count) { Stop-SL2 'Service-specific environment overrides require manual reconciliation before migration.' }
 }

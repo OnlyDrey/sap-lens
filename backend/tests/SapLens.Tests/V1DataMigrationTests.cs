@@ -11,7 +11,7 @@ using SapLens.Application.Backups;
 
 namespace SapLens.Tests;
 
-/// <summary>SAP Lens 1 to SAP Lens 2 data migration on a v1 installation written by the real v1 application and its backup engine (Fixtures/v1-data,
+/// <summary>SAP Lens 1 to SAP Lens data migration on a v1 installation written by the real v1 application and its backup engine (Fixtures/v1-data,
 /// tools/v1_data_fixture.py): the data directory and the encrypted .slbak application backups of it (host key with the escrowed recovery key, and
 /// passphrase), with SoD 2.0 decisions, remediation, an approved and a draft review period with frozen evidence, legacy reviews and Account Review
 /// history. Every expectation about SoD comes from what v1 itself reported for that installation (expected.json).</summary>
@@ -81,7 +81,7 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
 
     private static Dictionary<string, int> Stores(JsonObject preview) => preview["stores"]!.AsArray().ToDictionary(s => (string)s!["store"]!, s => (int)s!["count"]!);
 
-    /// <summary>Runs preview, run and activation for a source and starts SAP Lens 2 on the result.</summary>
+    /// <summary>Runs preview, run and activation for a source and starts SAP Lens on the result.</summary>
     private async Task<(JsonObject Preview, JsonObject Report)> MigrateAsync(string source, string secret)
     {
         var preview = V1DataMigration.Preview(source, Data, secret, replaceExisting: false, Now);
@@ -113,7 +113,7 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
         return open;
     }
 
-    /// <summary>Everything the fixture's v1 installation holds, read back through the SAP Lens 2 routes.</summary>
+    /// <summary>Everything the fixture's v1 installation holds, read back through the SAP Lens routes.</summary>
     private async Task AssertMigratedAsync(JsonObject report)
     {
         var users = (await Get("/api/access/users?show_expired=true"))["items"]!.AsArray().Select(i => (string)i!["username"]!).Order(StringComparer.Ordinal).ToList();
@@ -209,7 +209,7 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
         var (preview, report) = await MigrateAsync(source, secretKind == "passphrase" ? Passphrase : RecoveryKey);
         Assert.Equal("archive", (string)preview["source"]!["kind"]!);
         Assert.Equal("desktop", (string)preview["source"]!["archive"]!["mode"]!);
-        Assert.False((bool)report["backup"]!["encrypted"]!);                                                 // no SAP Lens 2 host key configured in this test
+        Assert.False((bool)report["backup"]!["encrypted"]!);                                                 // no SAP Lens host key configured in this test
         Assert.Equal(hash, Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(source))));           // the archive was only read
         await AssertMigratedAsync(report);
     }
@@ -269,7 +269,7 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
     [Fact]
     public async Task Changed_sources_existing_data_and_a_damaged_candidate_are_refused_and_rollback_restores_the_previous_data()
     {
-        // Existing SAP Lens 2 data is never replaced silently.
+        // Existing SAP Lens data is never replaced silently.
         await Start();
         Assert.Equal(HttpStatusCode.OK, (await _client.PostAsync("/api/saved-filters", System.Net.Http.Json.JsonContent.Create(new { name = "Existing v2 filter", view = "users", filters = new { search = "x" } }))).StatusCode);
         await Stop();

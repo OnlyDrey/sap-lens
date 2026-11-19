@@ -89,12 +89,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -Background  # detached; logs and PID file in C:\sap-lens\acceptance\logs
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.ps1 -Stop        # stops exactly the process -Background started
 .\scripts\start-server-test.ps1 -ListenAddress '192.168.10.20' -Port 18795 -DataDirectory 'C:\sap-lens\acceptance\server-test' `
-    -AllowedHosts 'saplens2.test.example','192.168.10.20' -ReleasePath "C:\sap-lens\acceptance\builds\$name"
+    -AllowedHosts 'saplens.test.example','192.168.10.20' -ReleasePath "C:\sap-lens\acceptance\builds\$name"
 ```
 
 | Parameter | Default (example VM) | Notes |
 | --- | --- | --- |
-| `-ConfigFile` | see lookup order | Local JSON with environment values (`start-server-test.example.json` is the template); lookup: `-ConfigFile`, `%SAPLENS2_TEST_CONFIG%`, `C:\sap-lens\acceptance\start-server-test.local.json`, `start-server-test.local.json` next to the script |
+| `-ConfigFile` | see lookup order | Local JSON with environment values (`start-server-test.example.json` is the template); lookup: `-ConfigFile`, `%SAPLENS_TEST_CONFIG%`, `C:\sap-lens\acceptance\start-server-test.local.json`, `start-server-test.local.json` next to the script |
 | `-BuildsRoot` | `C:\sap-lens\acceptance\builds` | Searched when `-ReleasePath` is not given |
 | `-ReleasePath` | none | A release folder, its `server` folder, or a plain `dotnet publish` folder |
 | `-ListenAddress` | none (required, from the parameter or the local file) | Must be assigned to this machine; loopback and `0.0.0.0` are refused |
@@ -105,14 +105,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.
 | `-CertificatePath` | `C:\sap-lens\acceptance\tls\server.pfx` | Must exist; never created |
 | `-CertificatePasswordFile` | `C:\sap-lens\acceptance\tls\cert-password` | Must exist and be non-empty; the Server reads it, the launcher never does |
 | `-DryRun` | off | Validates and prints the command without secrets |
-| `-Background` / `-Stop` | off | Start detached (output to `<LogDirectory>\server-<UTC time>.out.log`/`.err.log`, identity in `saplens2-test-server.json`; waits until the port accepts connections, reports a startup refusal with its exit code and error log) / stop exactly that process (id and start time must match). A detached console process can only be stopped hard; a running import is recovered by its 30-second lease on the next start. Use the foreground or the Windows service for a graceful stop |
+| `-Background` / `-Stop` | off | Start detached (output to `<LogDirectory>\server-<UTC time>.out.log`/`.err.log`, identity in `sap-lens-test-server.json`; waits until the port accepts connections, reports a startup refusal with its exit code and error log) / stop exactly that process (id and start time must match). A detached console process can only be stopped hard; a running import is recovered by its 30-second lease on the next start. Use the foreground or the Windows service for a graceful stop |
 | `-LogDirectory` | `C:\sap-lens\acceptance\logs` | Background logs and PID file; refused inside the release folder |
 
 The Server receives `--data-dir --network --listen --port --allowed-hosts --cert --cert-password-file`. Exit codes: `0` normal stop,
 `2` the launcher refused the configuration (reason on stderr), `3` the Server refused it (`startup refused: <reason>`), anything else is the
 Server's own exit code. The launcher never installs services, never changes firewall rules and never prints the certificate password. It
-lists the names (not values) of inherited `SAP_LENS_V2_*` environment variables, because those still apply where no option is given (for
-example `SAP_LENS_V2_AUTH` or `SAP_LENS_V2_TOKEN`).
+lists the names (not values) of inherited `SAP_LENS_*` environment variables, because those still apply where no option is given (for
+example `SAP_LENS_AUTH` or `SAP_LENS_TOKEN`).
 
 Launcher tests (Pester 5; Windows ships Pester 3, so install 5 for the current user once):
 
@@ -185,10 +185,10 @@ $cert | Format-List Subject, NotBefore, NotAfter, Thumbprint, HasPrivateKey
 ($cert.Extensions | Where-Object { $_.Oid.Value -eq '2.5.29.37' }).Format($true)    # EKU: Server Authentication
 ```
 
-From a client, check the chain the browser will see (the CA certificate `saplens2-ca.cer` imported into the client's Trusted Root store):
+From a client, check the chain the browser will see (the CA certificate `saplens-ca.cer` imported into the client's Trusted Root store):
 
 ```powershell
-Import-Certificate -FilePath .\saplens2-ca.cer -CertStoreLocation Cert:\CurrentUser\Root
+Import-Certificate -FilePath .\saplens-ca.cer -CertStoreLocation Cert:\CurrentUser\Root
 curl.exe -v -s -o NUL https://192.168.10.20:18795/health/ready 2>&1 | Select-String 'SSL|subject|issuer|expire'
 ```
 

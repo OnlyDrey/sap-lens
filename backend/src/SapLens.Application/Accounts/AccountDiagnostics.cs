@@ -19,7 +19,7 @@ public static class AccountDiagnostics
         var nonAscii = password.Any(c => c > 0x7f);
         if (!File.Exists(storePath))
             return new Result(storePath, false, 0, false, [], null, null, false, 0, "none", null, characters, nonAscii,
-                "No account store exists at this path. The server would create an empty store here and ask for setup: check --data-dir and SAP_LENS_V2_DATA_DIR.");
+                "No account store exists at this path. The server would create an empty store here and ask for setup: check --data-dir and SAP_LENS_DATA_DIR.");
         using var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = storePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
         db.Open();
         long Count(string sql, params object[] values)
@@ -38,7 +38,7 @@ public static class AccountDiagnostics
             using var reader = command.ExecuteReader();
             while (reader.Read()) names.Add(reader.GetString(0));
         }
-        // Usernames are compared exactly (v1 and every SAP Lens 2 build). Report near misses: case, surrounding whitespace, or invisible characters.
+        // Usernames are compared exactly (v1 and every SAP Lens build). Report near misses: case, surrounding whitespace, or invisible characters.
         static string Fold(string value) => new(value.Trim().ToLowerInvariant().Where(c => !char.IsControl(c) && !char.IsWhiteSpace(c) && c != '​' && c != '﻿').ToArray());
         var similar = names.Where(n => n != username && Fold(n) == Fold(username)).Select(Describe).ToList();
         using var row = db.CreateCommand();

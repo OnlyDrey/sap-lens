@@ -100,8 +100,8 @@ Describe 'Configuration validation' {
         @{ Name = 'a malformed trusted proxy'; Change = @{ TrustedProxies = @('192.168.10.30, 192.168.10.31') }; Message = '*not a valid -TrustedProxies*' }
         @{ Name = 'a relative data directory'; Change = @{ DataDirectory = 'runtime-test' }; Message = '*absolute path*' }
         @{ Name = 'a network share'; Change = @{ DataDirectory = '\\server\share\data' }; Message = '*network share*' }
-        @{ Name = 'a missing certificate'; Change = @{ CertificatePath = (Join-Path ([System.IO.Path]::GetTempPath()) 'saplens2-absent-test.pfx') }; Message = '*never creates certificates*' }
-        @{ Name = 'a missing password file'; Change = @{ CertificatePasswordFile = (Join-Path ([System.IO.Path]::GetTempPath()) 'saplens2-absent-test-password') }; Message = '*password file*does not exist*' }
+        @{ Name = 'a missing certificate'; Change = @{ CertificatePath = (Join-Path ([System.IO.Path]::GetTempPath()) 'sap-lens-absent-test.pfx') }; Message = '*never creates certificates*' }
+        @{ Name = 'a missing password file'; Change = @{ CertificatePasswordFile = (Join-Path ([System.IO.Path]::GetTempPath()) 'sap-lens-absent-test-password') }; Message = '*password file*does not exist*' }
     ) {
         $config = $valid.Clone(); foreach ($key in $Change.Keys) { $config[$key] = $Change[$key] }
         { Assert-TestConfiguration @config } | Should -Throw $Message
@@ -134,11 +134,11 @@ Describe 'Configuration validation' {
 Describe 'Argument construction' {
     It 'uses only the supported options, defaults allowed hosts to the listen address and never includes the password' {
         $arguments = New-ServerArguments -ListenAddress '192.168.10.20' -Port 18795 -AllowedHosts @() -DataDirectory (Join-Path $TestDrive 'runtime-test') `
-            -CertificatePath 'C:\ProgramData\SapLens2\tls\server.pfx' -CertificatePasswordFile 'C:\ProgramData\SapLens2\tls\cert-password'
+            -CertificatePath 'C:\ProgramData\SapLens\tls\server.pfx' -CertificatePasswordFile 'C:\ProgramData\SapLens\tls\cert-password'
         $arguments | Should -Be @('--data-dir', [System.IO.Path]::GetFullPath((Join-Path $TestDrive 'runtime-test')), '--network', '--listen', '192.168.10.20', '--port', '18795',
-            '--allowed-hosts', '192.168.10.20', '--cert', 'C:\ProgramData\SapLens2\tls\server.pfx', '--cert-password-file', 'C:\ProgramData\SapLens2\tls\cert-password')
-        (New-ServerArguments -ListenAddress '192.168.10.20' -Port 1 -AllowedHosts 'saplens2.test.example', '192.168.10.20' -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p)[8] |
-            Should -Be 'saplens2.test.example,192.168.10.20'
+            '--allowed-hosts', '192.168.10.20', '--cert', 'C:\ProgramData\SapLens\tls\server.pfx', '--cert-password-file', 'C:\ProgramData\SapLens\tls\cert-password')
+        (New-ServerArguments -ListenAddress '192.168.10.20' -Port 1 -AllowedHosts 'saplens.test.example', '192.168.10.20' -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p)[8] |
+            Should -Be 'saplens.test.example,192.168.10.20'
     }
 
     It 'adds --trusted-proxies only when -TrustedProxies is given' {
@@ -234,7 +234,7 @@ Describe 'Background mode with a fake Server executable' -Skip:([System.IO.Path]
             $run.Code | Should -Be 0
             $run.Output | Should -Match 'Running in the background: process \d+'
             $run.Output | Should -Not -Match 'synthetic-password-value'
-            $record = Get-Content (Join-Path $logs 'saplens2-test-server.json') -Raw | ConvertFrom-Json
+            $record = Get-Content (Join-Path $logs 'sap-lens-test-server.json') -Raw | ConvertFrom-Json
             Get-Process -Id $record.pid | Should -Not -BeNullOrEmpty
             (Get-Content $record.out_log -Raw) | Should -Match 'Listening \(fake\)'
             $again = Invoke-Background $builds $logs (Get-FreePort) @('-Background')
@@ -246,7 +246,7 @@ Describe 'Background mode with a fake Server executable' -Skip:([System.IO.Path]
         $stop.Code | Should -Be 0
         $stop.Output | Should -Match 'Stopped the test server'
         Get-Process -Id $record.pid -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
-        Test-Path (Join-Path $logs 'saplens2-test-server.json') | Should -BeFalse
+        Test-Path (Join-Path $logs 'sap-lens-test-server.json') | Should -BeFalse
         (Invoke-Background $builds $logs $port @('-Stop')).Output | Should -Match 'No test server started by this script is running'
     }
 
@@ -258,7 +258,7 @@ Describe 'Background mode with a fake Server executable' -Skip:([System.IO.Path]
         $run.Code | Should -Be 3
         $run.Output | Should -Match 'exited with code 3 during startup'
         $run.Output | Should -Match 'startup refused: synthetic reason'
-        Test-Path (Join-Path $logs 'saplens2-test-server.json') | Should -BeFalse
+        Test-Path (Join-Path $logs 'sap-lens-test-server.json') | Should -BeFalse
     }
 
     It 'refuses a log directory inside the release folder' {

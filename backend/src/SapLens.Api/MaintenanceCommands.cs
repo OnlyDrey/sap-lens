@@ -33,7 +33,7 @@ public static class MaintenanceCommands
         try
         {
             string? Value(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null; }
-            var data = Value("--data-dir") ?? Environment.GetEnvironmentVariable("SAP_LENS_V2_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_V2_DATA_DIR) is required.");
+            var data = Value("--data-dir") ?? Environment.GetEnvironmentVariable("SAP_LENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_DATA_DIR) is required.");
             if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
             data = Path.GetFullPath(data);
             JsonObject result;
@@ -265,7 +265,7 @@ public static class MaintenanceCommands
     {
         if (!Path.IsPathFullyQualified(file) || !File.Exists(file)) throw new InvalidOperationException("--backup-verify needs an existing archive path.");
         var host = BackupKeys.Host(data) ?? throw new BackupException("The host backup key is not configured for this data directory.");
-        var work = Path.Combine(Path.GetTempPath(), "saplens2-verify-" + Guid.NewGuid().ToString("N"));
+        var work = Path.Combine(Path.GetTempPath(), "sap-lens-verify-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(work);
         try
         {

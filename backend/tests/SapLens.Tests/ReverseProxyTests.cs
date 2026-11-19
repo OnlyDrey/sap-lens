@@ -53,7 +53,7 @@ public sealed class OriginPolicyTests
 
     private readonly string _root = Directory.CreateTempSubdirectory("saplens-proxy-config-").FullName;
     private Func<string, string?> Env(params (string Key, string Value)[] values) =>
-        key => key == "SAP_LENS_V2_TOKEN" ? new string('t', 40) : values.FirstOrDefault(v => v.Key == key).Value;
+        key => key == "SAP_LENS_TOKEN" ? new string('t', 40) : values.FirstOrDefault(v => v.Key == key).Value;
 
     [Fact]
     public void Trusted_proxies_are_opt_in_explicit_and_narrow()
@@ -63,7 +63,7 @@ public sealed class OriginPolicyTests
         var settings = ServerConfiguration.Parse(["--data-dir", _root, "--trusted-proxies", "192.168.10.10, 192.168.20.0/24,fd00::10,::ffff:192.168.10.11"], Env());
         Assert.Equal(["192.168.10.10/32", "192.168.20.0/24", "fd00::10/128", "192.168.10.11/32"], settings.TrustedProxies.Select(n => n.ToString()));
         Assert.Equal(1, settings.TrustedProxyHops);
-        var fromEnvironment = ServerConfiguration.Parse(["--data-dir", _root], Env(("SAP_LENS_V2_TRUSTED_PROXIES", "192.168.10.10"), ("SAP_LENS_V2_TRUSTED_PROXY_HOPS", "2")));
+        var fromEnvironment = ServerConfiguration.Parse(["--data-dir", _root], Env(("SAP_LENS_TRUSTED_PROXIES", "192.168.10.10"), ("SAP_LENS_TRUSTED_PROXY_HOPS", "2")));
         Assert.Equal(2, fromEnvironment.TrustedProxyHops);
         Assert.Single(fromEnvironment.TrustedProxies);
 
