@@ -210,11 +210,10 @@ remediation/restore, destructive cleanup and service cutover require separate au
 `ReleasesRoot\.staging\<name>` for inspection. Migration: `RecoverMigration`/`RollbackMigration` as described below; `SapLens2`, its release,
 data, keys and TLS are retained, stopped and disabled, and the protected ACLs carry over to the copies (staging compares content and ACLs).
 
-Use the **new verified release's** server executable as an inspector. Its read-only `--inspect-data` advertises verified upload-rebasing support;
+Use the **new verified release's** server executable as an inspector, using its absolute physical versioned path rather than `current`. Its read-only `--inspect-data` must advertise both `rebase-upload-paths-v1` and `canonical-sqlite-stores-v1`;
 older inspectors are refused before service control. The inspector is never installed by migration: the
 source's verified release is copied unchanged. Legacy source releases need `--schema-info`, `--backup-local` and `--backup-verify` support.
-The inspector copies database/WAL/journal files into scratch and opens only those copies; it never opens live source SQLite. SHM is rebuilt in
-scratch because Windows locks the live WAL index. Inspection refuses concurrent changes; repeat at a quiet time, without weakening checks.
+The inspector release is verified with `verify-release.ps1 -Scope Server` before execution. The inspector copies only the canonical active database and optional security database, including their WAL/journal files, into scratch and opens only those copies; it never opens live source SQLite. SHM is rebuilt in scratch because Windows locks the live WAL index; source SHM is neither read nor written. Before opening scratch SQLite, it requires unchanged source input sets and hashes across both stores and matching hashes for the copied bytes. Inspection refuses concurrent changes; repeat at a quiet time, without weakening checks. This is an observational integrity check, not a production backup or authorization to copy live data manually.
 
 ```powershell
 $entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
@@ -234,6 +233,31 @@ SQLite integrity/schema compatibility, private ACLs, TLS/private key/password va
 Environment overrides and pending deployment, restore or v1 activation/rollback block migration. CSV source paths within the retiring
 executable/tool installation also block it: re-import from an approved durable external location first, rather than blindly rewriting settings.
 Recognized private uploads (`data/sources/<source>-<16 hex>.csv`) are recorded for checked rebasing in the staged copy; preflight never changes them.
+
+### Active SQLite discovery and preflight diagnostics
+
+The source SCM service must be running and its supported arguments must match the explicit source configuration. Preflight resolves its single nonempty, absolute local `--data-dir` and checks the exact application filename defined by `DatabaseOptions.DatabasePath` / `ApplicationBackups.DatabaseEntry`: `sap-lens-v2.sqlite3`. It never recursively selects a database by extension, selects `security/accounts.sqlite3` as the application store, or falls back to a historical database under `migration/<id>/previous`. The optional security store uses `AccountStore.For` / `ApplicationBackups.AccountsEntry` and is checked separately. Historical databases remain subject to link/ACL/recovery checks and are preserved by the offline whole-tree copy, but are not opened as active SQLite stores.
+
+A `sqlite_consistency` error saying `Cannot bind argument to parameter 'LiteralPath' because it is an empty string` was caused by a blank **inspector executable**, not a missing SQLite file: `-InspectorExecutable` defaults to an empty string and the old check passed it straight to `Test-Path`. The ACL follow-up example also omitted this required argument; it is corrected below. No inspector is now guessed or silently substituted. Blank, relative, missing, linked or unverified inspector paths fail with an explicit diagnostic before SQLite inspection. An older verified inspector without the new capability is also blocked: build and verify a new inspector package containing this implementation; do not replace the running source release or regenerate its historical manifest.
+
+The former `details.schema.database_exists: false` came from a deliberately nonexistent `.schema-probe-<GUID>` directory used only to ask the old source executable for its **compiled migrations** without opening live SQLite. That result did not describe the active database. Compiled metadata is now `details.release_schema` (`purpose: compiled_migrations_only`, `database_opened: false`). `details.source_data` reports the actual resolved `data_directory`, `database_path`, existence and WAL/SHM presence. `details.schema` reports active-file existence with `inspection_status: not_run` until inspection succeeds; then it holds the scratch-verified active schema. `details.inspection` identifies the source paths, active/security roles and `stable-private-copy` mode. Unsupported/invalid service arguments are not echoed as raw command lines; no passwords, keys, database contents or SHM lock bytes are emitted.
+
+For the known VM, run from the updated checkout (read-only; an explicit **new verified** inspector is required):
+
+```powershell
+$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
+$source = 'C:\saplens2\deploy.local.json'
+$target = 'C:\saplens2\migration-config\deploy.local.json'
+$inspector = Read-Host 'Absolute physical path to the newly verified release server\SapLens.Api.exe'
+& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector
+$LASTEXITCODE
+```
+
+For the confirmed running arguments, `details.source_data.database_path` must resolve to `C:\saplens2\acceptance\backup-runtime-test-20261117-094015\sap-lens-v2.sqlite3`. `safe: true` requires all seven checks, not merely the existence of that file. If the configuration differs from SCM, a store changes during capture, integrity/schema verification fails, or the current inspector package is unavailable, retain the evidence and resolve the named blocker; never initialize a replacement database or bypass the check.
+
+The separately approved migration still takes and verifies an online application backup first, disables/stops the source, waits for quiescence, takes its final verified offline backup, copies the entire data tree (including remaining WAL/SHM and completed v1 recovery evidence), verifies content/ACL inventories and inspects SQLite in the staged copy before creating/starting the target service. It never copies only the live main database. The current development task runs none of those production-changing operations and never repeats v1 activation.
+
+Windows SQLite preflight checkpoint (2026-11-19): the affected Pester files `SapLens.Migration.Tests.ps1`, `SapLens.Deploy.Tests.ps1` and `verify-release.Tests.ps1` passed **140 tests, 0 failed, 0 skipped**, with 0 failed containers (186.78 seconds). The affected .NET classes `MaintenanceCommandsTests` and `MaintenanceInspectionTests` passed **12 tests, 0 failed**. Coverage includes the reproduced empty-inspector failure and misleading probe metadata, quoted service data paths, WAL/SHM presence, missing/empty/relative/root/duplicate/mismatched arguments, invalid inspectors, active versus historical/security databases, real committed WAL content, source-file preservation and stopped-source whole-tree copying. The 5.1 parser accepted all 26 active scripts; documentation links and main-only workflow contracts passed. These are isolated Windows workstation results; the actual VM paths were absent, PowerShell 7 was unavailable, and production `safe: true` is not claimed. No complete .NET/browser regression or production migration ran.
 
 The existing deployment framework serializes operations with a host mutex. It durably journals intent before service operations and mirrors
 `migration-journal.json` to both work roots. It takes an online encrypted backup, verifies it, stages release/TLS/key files, disables and stops
@@ -437,7 +461,8 @@ $source = 'C:\saplens2\deploy.local.json'
 $target = 'C:\saplens2\migration-config\deploy.local.json'
 $entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
 & $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target
-& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target
+$inspector = Read-Host 'Absolute physical path to the newly verified release server\SapLens.Api.exe'
+& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector
 ```
 
 These commands do not remediate findings or verify a complete restore. Do not weaken the junction boundary or global Windows ACLs to improve throughput. Active-service permissions, databases/WAL, TLS, encryption keys and historical migration evidence remain outside this development task.

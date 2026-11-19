@@ -141,6 +141,8 @@ public static class MaintenanceCommands
 
     public static JsonObject SchemaInfo(string data)
     {
+        DatabaseOptions.ValidateLocal(data);
+        data = Path.GetFullPath(data);
         var known = KnownMigrations();
         var database = Path.Combine(data, ApplicationBackups.DatabaseEntry);
         var applied = new List<string>();
@@ -173,7 +175,16 @@ public static class MaintenanceCommands
     /// A changing source is refused; the final authoritative inspection is repeated after service shutdown.</summary>
     public static JsonObject InspectData(string data)
     {
+        DatabaseOptions.ValidateLocal(data);
+        data = Path.GetFullPath(data);
         if (!Directory.Exists(data)) throw new InvalidOperationException("The data directory does not exist.");
+        void Plain(string path)
+        {
+            for (string? item = path; item is not null; item = Path.GetDirectoryName(item))
+                if ((File.Exists(item) || Directory.Exists(item)) && (File.GetAttributes(item) & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidOperationException("Data paths must not traverse reparse points.");
+        }
+        Plain(data);
         var files = new List<string>();
         void Visit(string folder)
         {
@@ -186,9 +197,12 @@ public static class MaintenanceCommands
             }
         }
         Visit(data);
-        var databases = files.Where(f => f.EndsWith(".sqlite3", StringComparison.OrdinalIgnoreCase) || f.EndsWith(".db", StringComparison.OrdinalIgnoreCase)).ToArray();
-        if (!databases.Contains(Path.Combine(data, ApplicationBackups.DatabaseEntry), StringComparer.OrdinalIgnoreCase))
-            throw new InvalidOperationException("The SAP Lens database is missing.");
+        var application = new DatabaseOptions { DataDirectory = data }.DatabasePath;
+        var accounts = SapLens.Application.Accounts.AccountStore.For(data);
+        if (!File.Exists(application))
+            throw new InvalidOperationException($"The active SAP Lens database is missing: {application}. Historical and security databases are not substitutes.");
+        // Explicit authoritative stores only. Completed v1 migrations/backups stay untouched, not opened as active databases.
+        var databases = new[] { application, accounts }.Where(File.Exists).ToArray();
         var scratch = Directory.CreateTempSubdirectory("saplens-inspect-").FullName;
         static string SharedHash(string path)
         {
@@ -197,6 +211,10 @@ public static class MaintenanceCommands
         }
         try
         {
+            string[] Inputs(string database) => new[] { database, database + "-wal", database + "-journal" }.Where(File.Exists).ToArray();
+            var inputsByDatabase = databases.ToDictionary(database => database, Inputs);
+            var hashes = inputsByDatabase.Values.SelectMany(inputs => inputs).ToDictionary(path => path, path => { Plain(path); return SharedHash(path); });
+            var copies = new Dictionary<string, string>();
             var results = new JsonArray();
             foreach (var database in databases)
             {
@@ -205,20 +223,31 @@ public static class MaintenanceCommands
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 // SHM is a disposable WAL index with Windows byte-range locks, not durable data.
                 // SQLite rebuilds it in scratch from the copied database and WAL. Never read the live lock bytes.
-                var inputs = new[] { database, database + "-wal", database + "-journal" }.Where(File.Exists).ToArray();
+                var inputs = inputsByDatabase[database];
                 var sidecars = new[] { database + "-wal", database + "-shm", database + "-journal" }.Where(File.Exists).Select(Path.GetFileName).ToArray();
-                var hashes = inputs.ToDictionary(f => f, SharedHash);
                 foreach (var input in inputs)
                 {
+                    Plain(input);
                     using var source = new FileStream(input, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                    using var destination = new FileStream(target + input[database.Length..], FileMode.CreateNew, FileAccess.Write);
+                    var copied = target + input[database.Length..];
+                    using var destination = new FileStream(copied, FileMode.CreateNew, FileAccess.Write);
                     source.CopyTo(destination);
+                    copies.Add(input, copied);
                 }
-                if (inputs.Any(f => !File.Exists(f) || hashes[f] != SharedHash(f)) ||
-                    new[] { database + "-wal", database + "-journal" }.Any(f => File.Exists(f) && !inputs.Contains(f)))
-                    throw new InvalidOperationException("The database changed during inspection. Repeat during a quiet period.");
+                results.Add(new JsonObject { ["file"] = relative, ["role"] = database == application ? "application" : "security",
+                    ["sidecars"] = new JsonArray([.. sidecars.Select(f => (JsonNode?)f)]) });
+            }
+            // A live read is observational, not a backup: require unchanged source sets/bytes AND matching copied bytes
+            // across both stores before opening SQLite, and refuse activity instead of accepting a main-file-only copy.
+            if (new[] { application, accounts }.Where(File.Exists).Except(databases).Any() ||
+                inputsByDatabase.Any(pair => !pair.Value.SequenceEqual(Inputs(pair.Key))) ||
+                hashes.Any(pair => { Plain(pair.Key); return !File.Exists(pair.Key) || pair.Value != SharedHash(pair.Key) || pair.Value != SharedHash(copies[pair.Key]); }))
+                throw new InvalidOperationException("An active SQLite store changed during inspection. Repeat during a quiet period; preflight never stops the service.");
+            foreach (var result in results)
+            {
+                var target = Path.Combine(scratch, (string)result!["file"]!);
                 var integrity = DatabaseMaintenance.VerifyFileAsync(target).GetAwaiter().GetResult();
-                results.Add(new JsonObject { ["file"] = relative, ["ok"] = integrity.Ok, ["sidecars"] = new JsonArray([.. sidecars.Select(f => (JsonNode?)f)]) });
+                result["ok"] = integrity.Ok;
             }
             var schema = SchemaInfo(scratch);
             var sourcePaths = new JsonObject();
@@ -239,7 +268,9 @@ public static class MaintenanceCommands
                 }
             }
             return new JsonObject { ["ok"] = results.All(r => (bool)r!["ok"]!), ["databases"] = results, ["schema"] = schema, ["source_paths"] = sourcePaths,
-                ["capabilities"] = new JsonArray("rebase-upload-paths-v1") };
+                ["data_directory"] = data, ["database_path"] = application, ["database_exists"] = true, ["inspection_mode"] = "stable-private-copy",
+                ["ignored_historical_databases"] = files.Count(file => !databases.Contains(file) && (file.EndsWith(".sqlite3", StringComparison.OrdinalIgnoreCase) || file.EndsWith(".db", StringComparison.OrdinalIgnoreCase))),
+                ["capabilities"] = new JsonArray("rebase-upload-paths-v1", "canonical-sqlite-stores-v1") };
         }
         finally
         {

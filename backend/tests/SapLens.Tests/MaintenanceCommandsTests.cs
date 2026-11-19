@@ -172,7 +172,8 @@ public sealed class MaintenanceCommandsTests : IAsyncLifetime
         foreach (var file in shmBefore.Keys) Assert.Equal(shmBefore[file], File.GetLastWriteTimeUtc(file));
         Assert.Throws<InvalidOperationException>(() => MaintenanceCommands.InspectData(Path.Combine(_root, "missing")));
         Assert.False(Directory.Exists(Path.Combine(_root, "missing")));
-        var bad = Path.Combine(Data, "broken.sqlite3");
+        var bad = SapLens.Application.Accounts.AccountStore.For(Data);
+        Directory.CreateDirectory(Path.GetDirectoryName(bad)!);
         File.WriteAllText(bad, "not SQLite");
         Assert.Throws<Microsoft.Data.Sqlite.SqliteException>(() => MaintenanceCommands.InspectData(Data));
     }

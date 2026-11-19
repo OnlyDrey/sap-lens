@@ -16,6 +16,7 @@
     InstallService  Creates (or with -Reconfigure updates) the sap-lens service from the configuration. Needs -Yes.
                     An existing service of an earlier installation (SapLens2) is detected and used; a second service is never created.
     PreflightMigration Read-only inspection of explicit source/target configurations, release, data, TLS, keys, ACLs and recovery state.
+                    Requires -InspectorExecutable from a newly verified Windows release; no executable or database fallback is selected.
     MigrateService  Journaled directory and service cutover to sap-lens; preserves the source release, network settings and account requirements.
                     Takes verified backups, stages private state, and retains SapLens2 stopped/disabled. Needs -TargetConfigFile,
                     -InspectorExecutable and -Yes. -DryRun performs only preflight. No automatic deletion of either installation.

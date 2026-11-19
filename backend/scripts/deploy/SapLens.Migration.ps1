@@ -371,6 +371,31 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
     }
 }
 
+# The running service selects the store; neither recursive filename searches nor configuration fallbacks may adopt another database.
+function Get-SL2MigrationSourceData($Source, $Service) {
+    if (-not $Service.Exists -or $Service.State -ne 'Running') { Stop-SL2 'The source service must be running before resolving its data directory.' }
+    $tokens = @(Split-SL2CommandLine $Service.PathName)
+    try { $arguments = ConvertTo-SL2ArgumentMap @($tokens | Select-Object -Skip 1) }
+    catch { Stop-SL2 'The source service arguments are invalid or repeated; reconcile them without exposing argument values.' }
+    if (-not $arguments.ContainsKey('--data-dir') -or [string]::IsNullOrWhiteSpace($arguments['--data-dir'])) {
+        Stop-SL2 'The running source service requires one nonempty --data-dir argument; environment/default fallback is forbidden for migration.'
+    }
+    $data = $arguments['--data-dir']
+    if (-not [IO.Path]::IsPathRooted($data) -or $data.StartsWith('\\') -or $data.StartsWith('//') -or $data.Contains('://')) { Stop-SL2 'The source service --data-dir must be an absolute local directory.' }
+    if ([IO.Path]::GetFullPath($data).TrimEnd('\', '/') -eq [IO.Path]::GetPathRoot([IO.Path]::GetFullPath($data)).TrimEnd('\', '/')) { Stop-SL2 'The source service --data-dir must not be a drive root.' }
+    if ([string]::IsNullOrWhiteSpace($Source.DataDirectory)) { Stop-SL2 'The source configuration DataDirectory is empty; reconcile it with the running service.' }
+    $data = [IO.Path]::GetFullPath($data).TrimEnd('\', '/')
+    if (-not [string]::Equals($data, [IO.Path]::GetFullPath($Source.DataDirectory).TrimEnd('\', '/'), [StringComparison]::OrdinalIgnoreCase)) {
+        Stop-SL2 'The source configuration DataDirectory differs from the running service --data-dir; no database was selected.'
+    }
+    Test-SL2PathTree $data
+    # Matches DatabaseOptions.DatabasePath / ApplicationBackups.DatabaseEntry, not the optional security store or migration history.
+    $database = Join-SL2 $data 'sap-lens-v2.sqlite3'
+    [pscustomobject]@{ resolution = 'running_service --data-dir'; data_directory = $data; database_path = $database
+        database_exists = (Test-Path -LiteralPath $database -PathType Leaf)
+        wal_present = (Test-Path -LiteralPath "$database-wal" -PathType Leaf); shm_present = (Test-Path -LiteralPath "$database-shm" -PathType Leaf) }
+}
+
 function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutable) {
     $checks = [Collections.Generic.List[object]]::new()
     $details = [ordered]@{}
@@ -382,16 +407,17 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
     Check 'service_conflicts' {
         if ($Source.ServiceName -eq 'SapLens2' -and (Get-SL2Service 'SapLens').Exists) { Stop-SL2 'The previous SapLens service already exists; reconcile it explicitly before canonical migration.' }
         $old = Get-SL2Service $Source.ServiceName; $new = Get-SL2Service $Target.ServiceName
-        $details.service = $old
         if ($new.Exists) { Stop-SL2 'sap-lens already exists. Nothing may be adopted or overwritten by migration.' }
         if (-not $old.Exists -or $old.State -ne 'Running') { Stop-SL2 'SapLens2 must exist and be running for initial migration.' }
         if ($old.Account -notin @('LocalSystem', 'NT AUTHORITY\SYSTEM', "NT SERVICE\$($Source.ServiceName)")) { Stop-SL2 'Custom service accounts require a separately reviewed credential and permission migration.' }
         $expected = if ($old.Account -eq "NT SERVICE\$($Source.ServiceName)") { "NT SERVICE\$($Target.ServiceName)" } else { 'LocalSystem' }
         if ($Target.ServiceAccount -ne $expected) { Stop-SL2 "Target ServiceAccount must preserve the source identity: $expected." }
         $tokens = @(Split-SL2CommandLine $old.PathName)
+        $details.source_data = Get-SL2MigrationSourceData $Source $old
         if (@(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) @(Get-SL2ServiceArguments $Source)).Count) { Stop-SL2 'Source configuration does not match the actual service arguments.' }
         $owners = @(Get-SL2Listener $Source.ListenAddress ([int]$Source.Port))
         if ($owners.Count -ne 1 -or $owners[0] -ne $old.ProcessId) { Stop-SL2 'The source service does not exclusively own the configured listener.' }
+        $details.service = $old # only retain a command line after every argument passed the supported-option/configuration checks
     }
     Check 'network_unchanged' {
         foreach ($p in 'ListenAddress', 'Port') { if ($Source.$p -ne $Target.$p) { Stop-SL2 "Migration cannot change $p." } }
@@ -400,6 +426,7 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         }
     }
     Check 'source_release' {
+        if (-not $details.Contains('service')) { Stop-SL2 'Resolve source service conflicts before querying the source release.' }
         $details.release_junction = Get-SL2ReleaseJunction $Source.ReleasesRoot
         $tokens = @(Split-SL2CommandLine (Get-SL2Service $Source.ServiceName).PathName)
         $release = Split-Path (Split-Path $tokens[0])
@@ -422,7 +449,7 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         # Ask the old binary only for its compiled migration list at a missing path. SQLite never opens source state.
         $probe = Join-SL2 $Source.WorkRoot ('.schema-probe-' + [guid]::NewGuid().ToString('N'))
         $schema = Invoke-SL2Maintenance $tokens[0] @('--schema-info', '--data-dir', $probe)
-        $details.schema = $schema
+        $details.release_schema = [pscustomobject]@{ purpose = 'compiled_migrations_only'; database_opened = $false; known = @($schema.known) }
     }
     Check 'private_state' {
         Test-SL2MigrationEnvironment $Source.ServiceName
@@ -439,13 +466,25 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         Test-SL2MigrationTls $Source
     }
     Check 'sqlite_consistency' {
-        if (-not (Test-Path -LiteralPath $InspectorExecutable -PathType Leaf)) { Stop-SL2 'Supply -InspectorExecutable from a build containing --inspect-data (it is never installed as the service).' }
-        $inspection = Invoke-SL2Maintenance $InspectorExecutable @('--inspect-data', '--data-dir', $Source.DataDirectory)
+        if (-not $details.Contains('service') -or -not $details.Contains('source_data')) { Stop-SL2 'Resolve source service arguments/conflicts before inspecting SQLite; no fallback database is selected.' }
+        $active = $details.source_data
+        $details.schema = [pscustomobject]@{ database_exists = $active.database_exists; inspection_status = 'not_run' }
+        if (-not $active.database_exists) { Stop-SL2 "The active SAP Lens database is missing: $($active.database_path). Historical and security databases are not substitutes." }
+        if ([string]::IsNullOrWhiteSpace($InspectorExecutable)) { Stop-SL2 'Supply an explicit -InspectorExecutable from a verified Windows release containing the current --inspect-data; no inspector was selected.' }
+        if (-not [IO.Path]::IsPathRooted($InspectorExecutable) -or -not (Test-Path -LiteralPath $InspectorExecutable -PathType Leaf)) { Stop-SL2 'The explicit -InspectorExecutable must be an existing absolute server executable path.' }
+        Test-SL2PathTree $InspectorExecutable
+        $inspectorVerification = Test-SL2PublishedRelease (Split-Path (Split-Path $InspectorExecutable))
+        if (-not $inspectorVerification.Verified) { Stop-SL2 'The inspector release does not verify with verify-release.ps1 -Scope Server; no SQLite inspection ran.' }
+        $details.inspector_executable = [IO.Path]::GetFullPath($InspectorExecutable)
+        $inspection = Invoke-SL2Maintenance $InspectorExecutable @('--inspect-data', '--data-dir', $active.data_directory)
         $details.inspection = $inspection
         if (-not $inspection.ok) { Stop-SL2 'SQLite integrity inspection failed.' }
         $hasPaths = if ($inspection -is [Collections.IDictionary]) { $inspection.Contains('source_paths') } else { [bool]$inspection.PSObject.Properties['source_paths'] }
         if (-not $hasPaths) { Stop-SL2 'Inspector lacks source-path checks. Use the current inspector build.' }
         if (@($inspection.capabilities) -notcontains 'rebase-upload-paths-v1') { Stop-SL2 'Inspector lacks verified upload rebasing. Use the current inspector build.' }
+        if (@($inspection.capabilities) -notcontains 'canonical-sqlite-stores-v1') { Stop-SL2 'Inspector lacks canonical SQLite store discovery and stable-copy verification. Use a newly verified inspector release.' }
+        if (-not $inspection.schema.database_exists -or -not [string]::Equals($inspection.database_path, $active.database_path, [StringComparison]::OrdinalIgnoreCase)) { Stop-SL2 'Inspector did not verify the selected active database path; no fallback database may be adopted.' }
+        $details.schema = $inspection.schema
         $details.source_paths_to_rebase = @()
         $sourceKinds = @{ data_csv_path = 'roles'; user_csv_path = 'users'; employee_csv_path = 'employees'; sod_csv_path = 'sod' }
         foreach ($path in $inspection.source_paths.PSObject.Properties) {
@@ -462,8 +501,8 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
                 if ($root -and (Test-SL2PathOverlap $root $path.Value)) { Stop-SL2 'A configured CSV source depends on the old installation. Re-import from a durable external source before migration; paths are never rewritten blindly.' }
             }
         }
-        if ($details.Contains('schema')) {
-            $known = @($details.schema.known); $applied = @($inspection.schema.applied)
+        if ($details.Contains('release_schema')) {
+            $known = @($details.release_schema.known); $applied = @($inspection.schema.applied)
             if (-not $applied.Count -or @($applied | Where-Object { $known -notcontains $_ }).Count -or @($known | Where-Object { $applied -notcontains $_ }).Count) {
                 Stop-SL2 'Source database must be compatible with its release and have no pending migrations.'
             }

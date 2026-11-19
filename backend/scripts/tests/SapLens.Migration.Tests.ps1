@@ -42,7 +42,7 @@ BeforeAll {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             switch ($Arguments[0]) {
-                '--inspect-data' { [pscustomobject]@{ capabilities = @('rebase-upload-paths-v1'); source_paths = [pscustomobject]@{}; ok = $true; databases = @('synthetic'); schema = @{ compatible = $true; applied = @('m1') } } }
+                '--inspect-data' { [pscustomobject]@{ database_path = (Join-Path $Arguments[2] 'sap-lens-v2.sqlite3'); capabilities = @('rebase-upload-paths-v1', 'canonical-sqlite-stores-v1'); source_paths = [pscustomobject]@{}; ok = $true; databases = @('synthetic'); schema = @{ database_exists = $true; compatible = $true; applied = @('m1') } } }
                 '--rebase-upload-paths' { @{ rebased = 0; changed_fields = @() } }
                 '--schema-info' { [pscustomobject]@{ database_exists = $false; compatible = $true; pending = @('m1'); applied = @(); known = @('m1') } }
             }
@@ -61,7 +61,7 @@ Describe 'Migration preflight: source release integrity' {
         $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         ($preflight.checks | Where-Object name -eq 'source_release').passed | Should -BeTrue
         $preflight.details.release_verification | Should -Contain '  omitted (not part of a server package): desktop/SapLens.exe'
-        Should -Invoke -ModuleName $M Test-SL2PublishedRelease -Times 1 -ParameterFilter { $Folder -eq (Split-Path (Split-Path $script:Inspector)) }
+        Should -Invoke -ModuleName $M Test-SL2PublishedRelease -Times 2 -ParameterFilter { $Folder -eq (Split-Path (Split-Path $script:Inspector)) }
     }
     It 'blocks migration when the running release does not verify, naming the defect and changing nothing' {
         Mock -ModuleName $M Test-SL2PublishedRelease { [pscustomobject]@{ Verified = $false; Output = @('verify-release: missing: server/e_sqlite3.dll', 'verify-release: SHA256SUMS lists a missing file: server/e_sqlite3.dll') } }
@@ -72,6 +72,98 @@ Describe 'Migration preflight: source release integrity' {
         $check.message | Should -Match 'Source release verification failed \(verify-release.ps1 -Scope Server\): verify-release: missing: server/e_sqlite3.dll'
         Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
         Should -Invoke -ModuleName $M Set-SL2ServiceEntry -Times 0
+    }
+}
+
+Describe 'Migration preflight: active SQLite discovery' {
+    BeforeEach { New-MigrationFixture }
+    It 'reports a missing inspector explicitly instead of binding an empty LiteralPath' {
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target ''
+        $check = $result.checks | Where-Object name -eq 'sqlite_consistency'
+        $check.passed | Should -BeFalse
+        $check.message | Should -BeLike '*-InspectorExecutable*'
+        $check.message | Should -Not -Match 'LiteralPath'
+        Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 0 -ParameterFilter { $Arguments[0] -eq '--inspect-data' }
+    }
+    It 'reports the active database separately from the deliberately missing compiled-schema probe' {
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $result.details.schema.database_exists | Should -BeTrue
+        $result.details.source_data.data_directory | Should -Be $script:Source.DataDirectory
+        $result.details.source_data.database_path | Should -Be (Join-Path $script:Source.DataDirectory 'sap-lens-v2.sqlite3')
+        $result.details.release_schema.purpose | Should -Be 'compiled_migrations_only'
+        $result.details.release_schema.database_opened | Should -BeFalse
+        Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 0 -ParameterFilter { $Arguments[0] -eq '--schema-info' -and $Arguments[2] -eq $script:Source.DataDirectory }
+    }
+    It 'resolves a quoted running data directory and records its WAL and SHM' {
+        $active = Join-Path (Split-Path $script:Source.DataDirectory) 'acceptance/active data'
+        New-Item -ItemType Directory $active | Out-Null
+        foreach ($name in 'sap-lens-v2.sqlite3', 'sap-lens-v2.sqlite3-wal', 'sap-lens-v2.sqlite3-shm') { Set-Content (Join-Path $active $name) 'synthetic' }
+        Copy-Item (Join-Path $script:Source.DataDirectory 'backup-key-location.json') (Join-Path $active 'backup-key-location.json')
+        $script:Source.DataDirectory = $active
+        $script:Services.SapLens2.PathName = '"' + $script:Inspector + '" ' + ((Get-SL2ServiceArguments $script:Source | ForEach-Object { '"' + $_ + '"' }) -join ' ')
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        ($result.checks | Where-Object name -eq 'sqlite_consistency').passed | Should -BeTrue
+        $result.details.source_data.data_directory | Should -Be $active
+        $result.details.source_data.wal_present | Should -BeTrue
+        $result.details.source_data.shm_present | Should -BeTrue
+        Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 1 -ParameterFilter { $Arguments[0] -eq '--inspect-data' -and $Arguments[2] -eq $active }
+    }
+    It 'refuses a missing active database even when security and historical database names exist' {
+        $database = Join-Path $script:Source.DataDirectory 'sap-lens-v2.sqlite3'
+        Remove-Item -LiteralPath $database # synthetic fixture file only, never a deployment path
+        foreach ($relative in 'security/accounts.sqlite3', 'migration/previous/sap-lens-v2.sqlite3') {
+            $path = Join-Path $script:Source.DataDirectory $relative
+            New-Item -ItemType Directory (Split-Path $path) -Force | Out-Null
+            Set-Content $path 'retained synthetic history'
+        }
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $result.details.source_data.database_exists | Should -BeFalse
+        ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -BeLike "*active SAP Lens database is missing: $database*"
+        Test-Path $database | Should -BeFalse
+        Get-Content (Join-Path $script:Source.DataDirectory 'migration/previous/sap-lens-v2.sqlite3') | Should -Be 'retained synthetic history'
+        Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 0 -ParameterFilter { $Arguments[0] -eq '--inspect-data' }
+    }
+    It 'refuses <Case> service data arguments without selecting a fallback or exposing argument values' -ForEach @(
+        @{Case='empty'}, @{Case='missing'}, @{Case='relative'}, @{Case='root'}, @{Case='duplicate'}, @{Case='different'}, @{Case='unsupported'}
+    ) {
+        $arguments = @(Get-SL2ServiceArguments $script:Source)
+        switch ($Case) {
+            'empty' { $arguments[1] = '' }
+            'missing' { $arguments = @($arguments | Select-Object -Skip 2) }
+            'relative' { $arguments[1] = 'relative-data' }
+            'root' { $arguments[1] = [IO.Path]::GetPathRoot($script:Source.DataDirectory) }
+            'duplicate' { $arguments += @('--data-dir', $script:Source.DataDirectory) }
+            'different' { $arguments[1] = Join-Path (Split-Path $script:Source.DataDirectory) 'different-data' }
+            'unsupported' { $arguments += @('--password', 'synthetic-secret-sentinel') }
+        }
+        $script:Services.SapLens2.PathName = '"' + $script:Inspector + '" ' + (($arguments | ForEach-Object { '"' + $_ + '"' }) -join ' ')
+        $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $result.safe | Should -BeFalse
+        ($result.checks | Where-Object name -eq 'service_conflicts').passed | Should -BeFalse
+        ($result.checks | Where-Object name -eq 'sqlite_consistency').passed | Should -BeFalse
+        ($result | ConvertTo-Json -Depth 12) | Should -Not -Match 'synthetic-secret-sentinel'
+        Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 0
+        Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
+    }
+    It 'refuses an empty source configuration data path explicitly' {
+        $script:Source.DataDirectory = ''
+        { Get-SL2MigrationSourceData $script:Source $script:Services.SapLens2 } | Should -Throw '*DataDirectory is empty*'
+    }
+    It 'refuses an older inspector that lacks canonical store and stable-copy verification' {
+        Mock -ModuleName $M Invoke-SL2Maintenance {
+            param($ExePath, $Arguments)
+            if ($Arguments[0] -eq '--schema-info') { return @{ known=@('m1') } }
+            @{ok=$true; source_paths=[pscustomobject]@{}; capabilities=@('rebase-upload-paths-v1')}
+        }
+        $check = (Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector).checks | Where-Object name -eq 'sqlite_consistency'
+        $check.message | Should -BeLike '*lacks canonical SQLite store discovery*'
+        Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
+    }
+    It 'refuses an unverified inspector release before executing SQLite inspection' {
+        Mock -ModuleName $M Test-SL2PublishedRelease { param($Folder) @{Verified=$false;Output=@('synthetic integrity failure')} }
+        $check = (Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector).checks | Where-Object name -eq 'sqlite_consistency'
+        $check.message | Should -BeLike '*inspector release does not verify*'
+        Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 0 -ParameterFilter { $Arguments[0] -eq '--inspect-data' }
     }
 }
 
@@ -159,7 +251,7 @@ Describe 'Migration backup, journal and staging contracts' {
     }
 }
 
-# Windows only: drives C:\ target roots, NTFS ACLs (Get-Acl) and robocopy; runs in CI's windows-latest job.
+# Windows-only NTFS/robocopy fixtures. SCM and native copying remain mocked; no installed service is touched.
 Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
     BeforeEach {
         New-MigrationFixture
@@ -169,6 +261,10 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
             param($File, $Arguments)
             if ($File -eq 'robocopy.exe') {
                 if ($script:Failure -eq 'copy') { return @{ ExitCode = 8; Output = @() } }
+                if ($Arguments[0] -eq $script:Source.DataDirectory) {
+                    $script:Services[$script:Source.ServiceName].State | Should -Be 'Stopped'
+                    $script:Services[$script:Source.ServiceName].StartMode | Should -Be 'Disabled'
+                }
                 foreach ($item in Get-ChildItem -LiteralPath $Arguments[0] -Force) { Copy-Item -LiteralPath $item.FullName -Destination $Arguments[1] -Recurse }
             }
             if ($File -eq 'sc.exe') {
@@ -184,9 +280,10 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
             switch ($Arguments[0]) {
                 '--rebase-upload-paths' { @{ rebased = 0; changed_fields = @() } }
                 '--schema-info' { if ($Arguments[2] -like '*.schema-probe-*') { @{ database_exists = $false; compatible = $true; known = @('m1'); pending = @('m1'); applied = @() } } else { @{ database_exists = $true; compatible = $true; known = @('m1'); pending = @(); applied = @('m1') } } }
-                '--inspect-data' { @{ capabilities = @('rebase-upload-paths-v1'); source_paths = [pscustomobject]@{}; ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ applied = @('m1') } } }
+                '--inspect-data' { @{ database_path = (Join-Path $Arguments[2] 'sap-lens-v2.sqlite3'); capabilities = @('rebase-upload-paths-v1', 'canonical-sqlite-stores-v1'); source_paths = [pscustomobject]@{}; ok = ($script:Failure -ne 'integrity' -or $Arguments[2] -eq $script:Source.DataDirectory); schema = @{ database_exists = $true; applied = @('m1') } } }
                 '--backup-local' {
                     $script:BackupCount++
+                    if ($script:BackupCount -eq 2) { $script:Services[$script:Source.ServiceName].State | Should -Be 'Stopped' }
                     if ($script:Failure -eq 'target-race' -and $script:BackupCount -eq 1) {
                         New-Item -ItemType Directory $script:Target.WorkRoot -Force | Out-Null
                         Set-Content (Join-Path $script:Target.WorkRoot 'migration-journal.json') 'unrelated retained file'
@@ -222,6 +319,11 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         Mock -ModuleName $M Wait-SL2Ready { param($Config, $Commit, $Version) if ($Config.ServiceName -eq 'sap-lens' -and $script:Failure -in @('readiness', 'written')) { throw 'synthetic readiness failure' }; @{ process_id = 43; identity = @{ source_sha = $Commit; version = $Version } } }
     }
     It 'backs up online and offline, preserves identity, moves private state and retains the disabled legacy service' {
+        foreach ($name in 'sap-lens-v2.sqlite3-wal', 'sap-lens-v2.sqlite3-shm') { Set-Content (Join-Path $script:Source.DataDirectory $name) "retained synthetic $name" }
+        $historical = Join-Path $script:Source.DataDirectory 'migration/previous/sap-lens-v2.sqlite3'
+        New-Item -ItemType Directory (Split-Path $historical) -Force | Out-Null
+        Set-Content $historical 'retained completed v1 migration evidence'
+        $before = @(Get-SL2TreeInventory $script:Source.DataDirectory)
         $result = Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector
         $result.phase | Should -Be 'complete'
         $script:BackupCount | Should -Be 2
@@ -233,6 +335,10 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         (Get-Content (Join-Path $script:Target.DataDirectory 'backup-key-location.json') -Raw | ConvertFrom-Json).path | Should -Be $journal.key_after
         Test-Path $journal.key_before | Should -BeTrue
         Test-Path $journal.key_after | Should -BeTrue
+        (Test-SL2InventoryEqual $before @(Get-SL2TreeInventory $script:Source.DataDirectory)) | Should -BeTrue
+        foreach ($name in 'sap-lens-v2.sqlite3-wal', 'sap-lens-v2.sqlite3-shm') { Get-Content (Join-Path $script:Target.DataDirectory $name) | Should -Be "retained synthetic $name" }
+        Get-Content (Join-Path $script:Target.DataDirectory 'migration/previous/sap-lens-v2.sqlite3') | Should -Be 'retained completed v1 migration evidence'
+        Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 1 -ParameterFilter { $Arguments[0] -eq '--inspect-data' -and $Arguments[2] -eq $script:Target.DataDirectory }
         @($script:Mutations | Where-Object { $_ -match 'delete' }).Count | Should -Be 0
         $calls = $script:Mutations.Count
         (Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector).phase | Should -Be 'complete'
@@ -332,7 +438,7 @@ Describe 'Read-only identity and directory migration preflight' {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             if ($Arguments[0] -eq '--schema-info') { return @{ known = @('m1') } }
-            @{ capabilities = @('rebase-upload-paths-v1'); ok = $true; schema = @{ applied = @('m1') }; source_paths = [pscustomobject]@{ data_csv_path = (Join-Path $script:Source.WorkRoot 'roles.csv') } }
+            @{ database_path = (Join-Path $Arguments[2] 'sap-lens-v2.sqlite3'); capabilities = @('rebase-upload-paths-v1', 'canonical-sqlite-stores-v1'); ok = $true; schema = @{ database_exists = $true; applied = @('m1') }; source_paths = [pscustomobject]@{ data_csv_path = (Join-Path $script:Source.WorkRoot 'roles.csv') } }
         }
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -Match 'depends on the old installation'
@@ -341,7 +447,7 @@ Describe 'Read-only identity and directory migration preflight' {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             if ($Arguments[0] -eq '--schema-info') { return @{ known = @('m1') } }
-            @{ capabilities = @('rebase-upload-paths-v1'); ok = $true; schema = @{ applied = @('m1') }; source_paths = [pscustomobject]@{ data_csv_path = (Join-Path $script:Source.DataDirectory 'sources/roles-0123456789abcdef.csv') } }
+            @{ database_path = (Join-Path $Arguments[2] 'sap-lens-v2.sqlite3'); capabilities = @('rebase-upload-paths-v1', 'canonical-sqlite-stores-v1'); ok = $true; schema = @{ database_exists = $true; applied = @('m1') }; source_paths = [pscustomobject]@{ data_csv_path = (Join-Path $script:Source.DataDirectory 'sources/roles-0123456789abcdef.csv') } }
         }
         $before = @(Get-SL2TreeInventory $script:Source.DataDirectory)
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
@@ -354,7 +460,7 @@ Describe 'Read-only identity and directory migration preflight' {
         Mock -ModuleName $M Invoke-SL2Maintenance {
             param($ExePath, $Arguments)
             if ($Arguments[0] -eq '--schema-info') { return @{ known = @('m1') } }
-            @{ capabilities = @(); ok = $true; schema = @{ applied = @('m1') }; source_paths = [pscustomobject]@{} }
+            @{ capabilities = @(); ok = $true; schema = @{ database_exists = $true; applied = @('m1') }; source_paths = [pscustomobject]@{} }
         }
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -Match 'lacks verified upload rebasing'
