@@ -7,6 +7,11 @@ Evidence tags used in these documents: **[M]** measured on Linux x64 (4 vCPU, 15
 test, **[U]** not verified. Documents written before the promotion refer to `experiments/dotnet-backend`, which is now `backend/`, and to the
 Python `backend/`, which was archived (last present at commit `604f21e`).
 
+Windows service/directory preparation is a separate acceptance gate from the completed v1 data import. Follow
+[migration preparation](../deployment/WINDOWS_DEPLOYMENT.md#preparing-the-migration) and
+[Windows script validation](../deployment/WINDOWS_DEPLOYMENT.md#windows-script-validation); preserve existing migration evidence and do not
+repeat an activated v1 import. A passing Pester run on another Windows workstation does not establish the VM's release, ACL or preflight state.
+
 ## Documents
 
 | Document | Content |

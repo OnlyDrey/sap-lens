@@ -183,6 +183,20 @@ In this order; steps 1 to 3 change nothing. Status: the procedure is implemented
    printed backup folder; then `AuditAcl` again until it exits 0. The service keeps running.
 6. **Preflight.** `-Action PreflightMigration …` until `safe: true`. Migration is only ready then; `MigrateService` still needs authorization.
 
+If an old target work folder contains operator configuration, retain it and choose a new, absent work root instead of cleaning it up.
+For example, keep `C:\sap-lens\deploy` and all of `C:\sap-lens\migration` as historical evidence; put a new reviewed target configuration in
+`C:\sap-lens\configuration\target-<unique-id>.local.json` and explicitly set `WorkRoot` to an absent
+`C:\sap-lens\deploy-<unique-id>`. Do not create that work root. Moving configuration changes configuration-relative defaults: carry explicit
+`WorkRoot`, `ReleasesRoot`, `BackupRoot`, `DataDirectory`, TLS paths, service identity and network values forward before validating it.
+Use create-new semantics for the new configuration, and retain the original unchanged. Check all six target roots for existence and overlap;
+choosing a new work root does not make an existing release/data/TLS/backup root acceptable. Do not delete or relocate migration backups, recovery
+keys, journals or evidence to make a preflight pass. A folder named `backup-runtime-test-*` may be live service data: establish that from SCM
+arguments and the source configuration, never from its name. Never manually copy live SQLite files as preparation.
+
+Run host inspection on the Windows machine that actually owns the source service. If `Get-Service SapLens2` or the explicit source paths are
+absent, stop installation preparation and obtain the correct VM connection; do not create substitute production directories or report a synthetic
+preflight as a production result. Production ACL remediation, restore, destructive cleanup and service cutover require separate authorization.
+
 **Rollback considerations.** Permissions: `-Action RestoreAcl -AclBackup <folder> -Yes` restores every saved ACL; created parents stay
 (empty, protected). Releases: nothing is rewritten, so there is nothing to roll back; a failed publication leaves only
 `ReleasesRoot\.staging\<name>` for inspection. Migration: `RecoverMigration`/`RollbackMigration` as described below; `SapLens2`, its release,
@@ -319,6 +333,13 @@ The shared test helper removes loaded copies and imports the resolved canonical 
 do not share that process with operator actions. The regression creates a synthetic second module and proves the mock becomes unambiguous.
 The real NTFS fixtures touch only TestDrive. Their restore test explicitly reports a skip without elevation; mocked remediation is reported
 separately. Linux shell-server fixtures remain Windows skips. Missing `pwsh` never skips deployment or release-contract tests.
+
+Windows script checkpoint, 2026-11-19: Windows PowerShell 5.1 with Pester 5.9.1 discovered 187 tests: **177 passed, 0 failed, 10 skipped,
+0 failed containers**. Nine skips were Linux shell-server fixtures; one was native ACL restoration without an elevated token. The 5.1 parser
+accepted all 21 active scripts. PowerShell 7 was unavailable. Real NTFS SID/inheritance and ACL-save tests passed; full native remediation/restore,
+SCM, service continuity and production preflight remain unverified. The test workstation did not contain the active VM installation, so this run
+did not prepare its target directories, verify its installed release, build a new production package or establish `safe: true`. Keep the existing
+release manifest unchanged and obtain the actual VM connection before continuing the preparation checklist.
 
 ## Service model and permissions
 

@@ -27,6 +27,10 @@ embeds `frontend/dist` as it is; it builds the frontend itself only when `dist` 
 run `npm run build` (or pass `-p:BuildFrontend=true`), or the server keeps serving the previously built UI. Releases always rebuild it
 ([build and publish flow](#build-and-publish-flow)).
 
+Windows deployment tests support Windows PowerShell 5.1 with Pester 5; child scripts use that edition's executable under `$PSHOME`, without
+requiring `pwsh` on PATH. See [Windows script validation](../deployment/WINDOWS_DEPLOYMENT.md#windows-script-validation) for explicit executable
+selection, duplicate-module isolation and the elevated native NTFS restore gate. PowerShell 7 compatibility is checked separately when installed.
+
 ## Repository ownership
 
 | Path | Owns | Not here |
