@@ -3,15 +3,15 @@
   Repeatable Windows x64 release build of SAP Lens (.NET Server and Desktop) with the production React UI. Windows PowerShell 5.1 and PowerShell 7.
 
 .DESCRIPTION
-  1. Builds the .NET solution (Release) with -p:BuildFrontend=true: MSBuild (SapLens.Api.csproj) runs npm ci and npm run build once, into a
+  1. Builds the .NET solution (Release) with -p:BuildFrontend=true: MSBuild (AuthLens.Api.csproj) runs npm ci and npm run build once, into a
      frontend/dist that this script removed first, and embeds it (Node.js 24 or 25, as frontend/package.json requires; checked here first).
   2. Runs the test suite (unless -SkipTests; -SkipPublishTests skips only the slow publish tests; -TestFilter runs only the matching tests, as a
      deployment's focused validation does).
   3. Publishes both self-contained single-file executables (no trimming, Native AOT or compression) into a new versioned release folder:
 
        <Output>\SAP-Lens-<version>-<yyyyMMdd-HHmmss>-<commit>-win-x64\
-         server\SapLens.Api.exe          Server (console or Windows service), plus e_sqlite3.dll and libSkiaSharp.dll (SQLite and image/PDF native libraries, loaded from beside the exe)
-         desktop\SapLens.exe            Desktop (WebView2, loopback only)
+         server\AuthLens.Api.exe          Server (console or Windows service), plus e_sqlite3.dll and libSkiaSharp.dll (SQLite and image/PDF native libraries, loaded from beside the exe)
+         desktop\AuthLens.exe            Desktop (WebView2, loopback only)
          symbols\server\, symbols\desktop\   .pdb files for diagnostics (not needed at runtime)
          build-manifest.json             commit, version, build time, platform, publish settings, size and SHA-256 of every artifact
          README.txt                      which executable to run and how to configure the Server
@@ -65,25 +65,25 @@ $release = Join-Path $Output ('SAP-Lens-{0}-{1}-{2}-{3}' -f $version, $built.ToS
 if (Test-Path -LiteralPath $release) { throw "Release folder $release exists; an existing release is never overwritten." }
 $identity = "-p:SourceRevisionId=$sha"
 
-# MSBuild owns the frontend build (SapLensBuildFrontend in SapLens.Api.csproj). A release removes frontend\dist first and builds it exactly once,
+# MSBuild owns the frontend build (AuthLensBuildFrontend in AuthLens.Api.csproj). A release removes frontend\dist first and builds it exactly once,
 # with -p:BuildFrontend=true on the solution build; the publish steps below find that dist and embed it without rebuilding it. The solution contains
 # every project, the test project included, so `dotnet test --no-build` runs exactly what this build produced, never older binaries in tests\*\bin.
 $dist = Join-Path $frontend 'dist'
 if (Test-Path -LiteralPath $dist) { Remove-Item -LiteralPath $dist -Recurse -Force }
-Invoke-Step 'Build the React UI and the .NET solution' { & dotnet build (Join-Path $root 'SapLens.slnx') -c Release $identity '-p:BuildFrontend=true' }
+Invoke-Step 'Build the React UI and the .NET solution' { & dotnet build (Join-Path $root 'AuthLens.slnx') -c Release $identity '-p:BuildFrontend=true' }
 $uiIdentity = Join-Path $dist 'product-version.json'
 if (-not (Test-Path -LiteralPath (Join-Path $dist 'index.html')) -or -not (Test-Path -LiteralPath $uiIdentity)) { throw 'The .NET build did not produce frontend\dist.' }
 if ((Get-Content -LiteralPath $uiIdentity -Raw | ConvertFrom-Json).source_sha -ne $sha) { throw "frontend\dist was not built from commit $sha." }
 if (-not $SkipTests) {
     $filter = if ($TestFilter) { $TestFilter } elseif ($SkipPublishTests) { 'Category!=Publish' } else { '' }
-    if ($filter) { Invoke-Step 'Run tests' { & dotnet test (Join-Path $root 'tests\SapLens.Tests') -c Release --no-build --filter $filter } }
-    else { Invoke-Step 'Run tests' { & dotnet test (Join-Path $root 'tests\SapLens.Tests') -c Release --no-build } }
+    if ($filter) { Invoke-Step 'Run tests' { & dotnet test (Join-Path $root 'tests\AuthLens.Tests') -c Release --no-build --filter $filter } }
+    else { Invoke-Step 'Run tests' { & dotnet test (Join-Path $root 'tests\AuthLens.Tests') -c Release --no-build } }
 }
 
-# Single-file settings live in the project files (SapLens.Api for win-x64, SapLens.Desktop always), so a manual `dotnet publish` gives the same layout.
+# Single-file settings live in the project files (AuthLens.Api for win-x64, AuthLens.Desktop always), so a manual `dotnet publish` gives the same layout.
 $server = Join-Path $release 'server'; $desktop = Join-Path $release 'desktop'
-Invoke-Step 'Publish server (win-x64, single file)' { & dotnet publish (Join-Path $root 'src\SapLens.Api') -c Release -r $platform -o $server $identity }
-Invoke-Step 'Publish desktop (win-x64, single file)' { & dotnet publish (Join-Path $root 'src\SapLens.Desktop') -c Release -o $desktop $identity }
+Invoke-Step 'Publish server (win-x64, single file)' { & dotnet publish (Join-Path $root 'src\AuthLens.Api') -c Release -r $platform -o $server $identity }
+Invoke-Step 'Publish desktop (win-x64, single file)' { & dotnet publish (Join-Path $root 'src\AuthLens.Desktop') -c Release -o $desktop $identity }
 foreach ($part in 'server', 'desktop') {
     $symbols = Join-Path $release "symbols\$part"
     New-Item -ItemType Directory -Force $symbols | Out-Null
@@ -100,23 +100,23 @@ function Test-Contains([string]$Path, [string]$Text) {
     }
     return $false
 }
-$expected = @{ server = @('SapLens.Api.exe', 'e_sqlite3.dll', 'libSkiaSharp.dll'); desktop = @('SapLens.exe') }
+$expected = @{ server = @('AuthLens.Api.exe', 'e_sqlite3.dll', 'libSkiaSharp.dll'); desktop = @('AuthLens.exe') }
 foreach ($part in 'server', 'desktop') {
     $actual = @(Get-ChildItem (Join-Path $release $part) -Recurse -File | ForEach-Object { $_.FullName.Substring((Join-Path $release $part).Length + 1) } | Sort-Object)
     if (($actual -join '|') -ne (($expected[$part] | Sort-Object) -join '|')) { throw "Unexpected files in ${part}: $($actual -join ', ') (expected $($expected[$part] -join ', '))." }
 }
-foreach ($check in 'server\SapLens.Api.exe', 'desktop\SapLens.exe') {
+foreach ($check in 'server\AuthLens.Api.exe', 'desktop\AuthLens.exe') {
     $file = Join-Path $release $check
     if (-not (Test-Contains $file "$version+$sha")) { throw "Product version and build identity $version+$sha missing in $check." }
-    # The UI is embedded as resources named SapLensUi/<path> (the separator after "assets" is the build machine's; the server normalizes it).
-    if (-not (Test-Contains $file 'SapLensUi/index.html')) { throw "index.html missing from the embedded UI of $check." }
-    if (-not ((Test-Contains $file 'SapLensUi/assets/') -or (Test-Contains $file 'SapLensUi/assets\'))) { throw "React UI assets missing in $check." }
+    # The UI is embedded as resources named AuthLensUi/<path> (the separator after "assets" is the build machine's; the server normalizes it).
+    if (-not (Test-Contains $file 'AuthLensUi/index.html')) { throw "index.html missing from the embedded UI of $check." }
+    if (-not ((Test-Contains $file 'AuthLensUi/assets/') -or (Test-Contains $file 'AuthLensUi/assets\'))) { throw "React UI assets missing in $check." }
     # Freshness: the embedded index.html (which names the content-hashed bundles) and the UI build identity (with this commit) are this run's files.
     foreach ($ui in 'index.html', 'product-version.json') {
         if (-not (Test-Contains $file ([System.IO.File]::ReadAllText((Join-Path $dist $ui))))) { throw "The embedded $ui in $check is not the frontend built by this release." }
     }
 }
-if (-not (Test-Contains (Join-Path $server 'SapLens.Api.exe') 'Microsoft.Extensions.Hosting.WindowsServices.dll')) { throw 'The Windows service host is missing in the server executable.' }
+if (-not (Test-Contains (Join-Path $server 'AuthLens.Api.exe') 'Microsoft.Extensions.Hosting.WindowsServices.dll')) { throw 'The Windows service host is missing in the server executable.' }
 
 $readme = (Get-Content (Join-Path $PSScriptRoot 'release-README.txt') -Raw).Replace('{{VERSION}}', $version).Replace('{{SHA}}', $sha).
     Replace('{{BUILT}}', $built.ToString('yyyy-MM-dd HH:mm:ss')).Replace('{{PLATFORM}}', 'Windows x64')
@@ -140,7 +140,7 @@ $manifest = [ordered]@{
     dotnet_sdk = $sdk; node = $nodeVersion
     publish = [ordered]@{ self_contained = $true; single_file = $true; trimmed = $false; native_aot = $false; compressed = $false
         server_native_libraries = 'beside the executable (e_sqlite3.dll, libSkiaSharp.dll)'; desktop_native_libraries = 'bundled, extracted to a temporary folder at start' }
-    executables = [ordered]@{ server = 'server/SapLens.Api.exe'; desktop = 'desktop/SapLens.exe' }
+    executables = [ordered]@{ server = 'server/AuthLens.Api.exe'; desktop = 'desktop/AuthLens.exe' }
     artifacts = @(Get-Artifacts $release @('build-manifest.json', 'SHA256SUMS'))
 }
 [System.IO.File]::WriteAllText((Join-Path $release 'build-manifest.json'), ($manifest | ConvertTo-Json -Depth 5))
@@ -154,6 +154,6 @@ if ($python) { Invoke-Step 'Secret scan of the release folder' { & $python (Join
 else { Write-Warning 'Python not found: the release secret scan (scripts/check-secrets.py --path) was NOT run.' }
 & (Join-Path $PSScriptRoot 'verify-release.ps1') -ReleasePath $release
 if ($LASTEXITCODE -ne 0) { throw 'Release verification failed.' }
-foreach ($exe in 'server\SapLens.Api.exe', 'desktop\SapLens.exe') { Write-Host ('{0}: {1:N1} MB' -f $exe, ((Get-Item (Join-Path $release $exe)).Length / 1MB)) }
+foreach ($exe in 'server\AuthLens.Api.exe', 'desktop\AuthLens.exe') { Write-Host ('{0}: {1:N1} MB' -f $exe, ((Get-Item (Join-Path $release $exe)).Length / 1MB)) }
 Write-Host "Release build complete: $release"
 Write-Host 'Nothing was installed or started.'

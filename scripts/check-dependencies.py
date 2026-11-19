@@ -22,7 +22,7 @@ def findings(report):
 
 
 def main():
-    done = subprocess.run(['dotnet', 'list', str(ROOT / 'backend/SapLens.slnx'), 'package', '--vulnerable', '--include-transitive', '--format', 'json'],
+    done = subprocess.run(['dotnet', 'list', str(ROOT / 'backend/AuthLens.slnx'), 'package', '--vulnerable', '--include-transitive', '--format', 'json'],
                           capture_output=True, text=True, timeout=180)
     if done.returncode:
         print('NuGet advisory query failed; run dotnet list package locally for feed diagnostics.')

@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param([ValidateRange(1, 10000)][int]$Objects = 100, [switch]$SkipBaseline)
 $ErrorActionPreference = 'Stop'
-Import-Module (Join-Path $PSScriptRoot '../deploy/SapLens.Deploy.psm1') -Force
+Import-Module (Join-Path $PSScriptRoot '../deploy/AuthLens.Deploy.psm1') -Force
 if ([IO.Path]::DirectorySeparatorChar -ne '\') { throw 'This benchmark requires Windows NTFS.' }
 $artifacts = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../../../build/test-artifacts'))
 $run = Join-Path $artifacts ('acl-benchmark-' + [guid]::NewGuid().ToString('N'))

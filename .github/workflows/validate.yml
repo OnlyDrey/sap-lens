@@ -63,9 +63,9 @@ jobs:
         with:
           name: frontend-dist
           path: frontend/dist
-      - run: dotnet restore backend/SapLens.slnx
-      - run: dotnet build backend/SapLens.slnx -c Release --no-restore
-      - run: dotnet test backend/tests/SapLens.Tests -c Release --no-build --filter "Category!=Publish" --logger trx
+      - run: dotnet restore backend/AuthLens.slnx
+      - run: dotnet build backend/AuthLens.slnx -c Release --no-restore
+      - run: dotnet test backend/tests/AuthLens.Tests -c Release --no-build --filter "Category!=Publish" --logger trx
       - run: python scripts/check-dependencies.py
       - shell: pwsh
         run: ./backend/scripts/check-powershell.ps1

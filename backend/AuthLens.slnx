@@ -1,0 +1,15 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AuthLens.Api/AuthLens.Api.csproj" />
+    <Project Path="src/AuthLens.Application/AuthLens.Application.csproj" />
+    <Project Path="src/AuthLens.Cli/AuthLens.Cli.csproj" />
+    <Project Path="src/AuthLens.Desktop/AuthLens.Desktop.csproj" />
+    <Project Path="src/AuthLens.Documents/AuthLens.Documents.csproj" />
+    <Project Path="src/AuthLens.Domain/AuthLens.Domain.csproj" />
+    <Project Path="src/AuthLens.Persistence/AuthLens.Persistence.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AuthLens.BrowserHost/AuthLens.BrowserHost.csproj" />
+    <Project Path="tests/AuthLens.Tests/AuthLens.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build, validate and deploy SAP Lens on a Windows host over SSH (the Windows side is Deploy-SapLens.ps1).
+# Build, validate and deploy SAP Lens on a Windows host over SSH (the Windows side is Deploy-AuthLens.ps1).
 #
 #   scripts/deploy/deploy-windows.sh --host HOST --user USER [options]
 #
@@ -12,7 +12,7 @@
 #   rollback         return to the previous release when it can open the data (needs --yes)
 #   recover          finish an interrupted deployment (needs --yes)
 #   install-service  create or (--reconfigure) update the Windows service from the host's configuration (needs --yes)
-#   migrate-service  rename an earlier SapLens2 service to SapLens, verify it, remove SapLens2; restores SapLens2 on failure (needs --yes)
+#   migrate-service  rename an earlier SapLens2 service to AuthLens, verify it, remove SapLens2; restores SapLens2 on failure (needs --yes)
 #
 # Options:
 #   --branch NAME        branch to build (default experiment/dotnet-backend); main and work are refused
@@ -129,7 +129,7 @@ if (-not (Test-Path -LiteralPath \$deploy)) {
   Expand-Archive -LiteralPath (Join-Path \$dir 'deploy.zip') -DestinationPath \$dir -Force
 }
 # Commits before the rename to SAP Lens carry Deploy-SapLens2.ps1.
-\$script = @('Deploy-SapLens.ps1', 'Deploy-SapLens2.ps1') | ForEach-Object { Join-Path \$deploy \$_ } | Where-Object { Test-Path -LiteralPath \$_ } | Select-Object -First 1
+\$script = @('Deploy-AuthLens.ps1', 'Deploy-SapLens2.ps1') | ForEach-Object { Join-Path \$deploy \$_ } | Where-Object { Test-Path -LiteralPath \$_ } | Select-Object -First 1
 if (-not \$script) { throw "commit \$sha has no Windows deployment script" }
 & \$script $arguments -Commit \$sha
 exit \$LASTEXITCODE

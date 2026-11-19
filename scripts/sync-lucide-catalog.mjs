@@ -4,7 +4,7 @@ const source = readFileSync(new URL('../frontend/node_modules/lucide-react/dynam
 const names = [...source.matchAll(/"([a-z0-9-]+)": \(\) => import/g)].map(([, slug]) => slug.split('-').map(part => part[0].toUpperCase() + part.slice(1)).join(''))
 if (names.length < 100) throw Error('Lucide catalog could not be read; no files updated.')
 const legacy = ['DollarSign', 'BarChart2', 'Package', 'Wrench', 'Users', 'TrendingUp', 'Cog', 'FolderKanban', 'CheckCircle', 'Server', 'Warehouse', 'Layers', 'Shield', 'Database', 'Truck', 'Building2', 'Globe', 'Code', 'FileText', 'Leaf', 'Hash']
-const target = new URL('../backend/src/SapLens.Api/V1Reference/registry.json', import.meta.url)
+const target = new URL('../backend/src/AuthLens.Api/V1Reference/registry.json', import.meta.url)
 const registry = JSON.parse(readFileSync(target, 'utf8'))
 const icons = [...new Set([...legacy, ...names])].sort()
 if (process.argv.includes('--check')) {

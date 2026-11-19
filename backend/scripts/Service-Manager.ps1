@@ -18,11 +18,11 @@ param(
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 if (-not $Executable) {
-    $Executable = Join-Path $PSScriptRoot 'server\SapLens.Api.exe'
-    if (-not (Test-Path -LiteralPath $Executable)) { $Executable = 'C:\sap-lens\releases\current\server\SapLens.Api.exe' }
+    $Executable = Join-Path $PSScriptRoot 'server\AuthLens.Api.exe'
+    if (-not (Test-Path -LiteralPath $Executable)) { $Executable = 'C:\sap-lens\releases\current\server\AuthLens.Api.exe' }
 }
 
-function Get-SapLensAdminArguments([string]$Operation, [string]$Data, [string]$File, [string]$User) {
+function Get-AuthLensAdminArguments([string]$Operation, [string]$Data, [string]$File, [string]$User) {
     if ($Data -notmatch '^([A-Za-z]:[\\/]|\\\\|/)') { throw 'Select an absolute application data directory.' }
     if ($Operation -in @('CreateKey', 'ExportKey', 'VerifyKey') -and $File -notmatch '^([A-Za-z]:[\\/]|\\\\|/)') { throw 'Select an absolute recovery-key file path.' }
     $arguments = switch ($Operation) {
@@ -37,17 +37,17 @@ function Get-SapLensAdminArguments([string]$Operation, [string]$Data, [string]$F
     @($arguments) + @('--data-dir', $Data)
 }
 
-function Test-SapLensAdminElevation {
+function Test-AuthLensAdminElevation {
     ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
 }
 
-function Invoke-SapLensLocalAdmin([string]$Operation, [string]$File, [string]$User, [bool]$Confirmed) {
-    if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { throw 'Packaged SapLens.Api.exe was not found. Specify -Executable from a verified release.' }
+function Invoke-AuthLensLocalAdmin([string]$Operation, [string]$File, [string]$User, [bool]$Confirmed) {
+    if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { throw 'Packaged AuthLens.Api.exe was not found. Specify -Executable from a verified release.' }
     if ($Operation -ne 'Status') {
         if (-not $Confirmed) { throw 'Repeat with -Yes after reviewing the data directory and operation. Key and code actions are never automatic.' }
-        if (-not (Test-SapLensAdminElevation)) { throw 'Open PowerShell as administrator for this local operation.' }
+        if (-not (Test-AuthLensAdminElevation)) { throw 'Open PowerShell as administrator for this local operation.' }
     }
-    $arguments = @(Get-SapLensAdminArguments $Operation $DataDirectory $File $User)
+    $arguments = @(Get-AuthLensAdminArguments $Operation $DataDirectory $File $User)
     if ($Operation -eq 'CreateKey') {
         $directory = Split-Path $File
         $ancestor = [IO.Path]::GetFullPath($directory)
@@ -89,4 +89,4 @@ if ($Action -eq 'Menu') {
         $Yes = (Read-Host "Confirm $Action for $DataDirectory by typing YES") -ceq 'YES'
     }
 }
-Invoke-SapLensLocalAdmin $Action $Path $Username ([bool]$Yes)
+Invoke-AuthLensLocalAdmin $Action $Path $Username ([bool]$Yes)

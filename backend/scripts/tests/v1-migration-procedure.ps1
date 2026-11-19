@@ -2,11 +2,11 @@
 .SYNOPSIS
   Runs the SAP Lens 1 to .NET .slbak migration procedure of docs/migration/V1_MIGRATION.md against the synthetic fixture.
 .DESCRIPTION
-  Uses only synthetic data (tests/SapLens.Tests/Fixtures/v1-data, written by the SAP Lens 1 application) and a scratch folder; never a real
+  Uses only synthetic data (tests/AuthLens.Tests/Fixtures/v1-data, written by the SAP Lens 1 application) and a scratch folder; never a real
   installation. Steps: host key, preview with the recovery key file, refusal of a wrong key, run, activation at the next start, HTTP check, status,
   rollback at the next start. Exits 0 when every step behaves as documented, 1 otherwise.
 .EXAMPLE
-  pwsh -File scripts/tests/v1-migration-procedure.ps1 -Exe C:\sap-lens\release\server\SapLens.Api.exe -Root C:\sap-lens\procedure-test
+  pwsh -File scripts/tests/v1-migration-procedure.ps1 -Exe C:\sap-lens\release\server\AuthLens.Api.exe -Root C:\sap-lens\procedure-test
 #>
 param(
     [Parameter(Mandatory)] [string] $Exe,
@@ -14,7 +14,7 @@ param(
     [int] $Port = 18796
 )
 $ErrorActionPreference = 'Stop'
-$Fixture = Join-Path $PSScriptRoot '../../tests/SapLens.Tests/Fixtures/v1-data'
+$Fixture = Join-Path $PSScriptRoot '../../tests/AuthLens.Tests/Fixtures/v1-data'
 $failures = 0
 function Check([bool] $ok, [string] $what) { if ($ok) { "ok    $what" } else { "FAIL  $what"; $script:failures++ } }
 function Status { (& $Exe --migrate-v1 status --id $Preview.id --data-dir $DataDir | Out-String | ConvertFrom-Json).status }

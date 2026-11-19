@@ -4,7 +4,7 @@
 
 .DESCRIPTION
   1. Verifies the release folder with verify-release.ps1 (every artifact against build-manifest.json and SHA256SUMS) and refuses a dirty or non-win-x64 build.
-  2. Compiles installer\SapLens-Desktop.iss and installer\SapLens-Server.iss with the manifest's version and file version.
+  2. Compiles installer\AuthLens-Desktop.iss and installer\AuthLens-Server.iss with the manifest's version and file version.
   3. Writes SAP-Lens-<version>-Setup.exe, SAP-Lens-Server-<version>-Setup.exe and installers-SHA256SUMS into -Output.
   Nothing is signed, uploaded, tagged or installed. Code signing is a separate, authorized release step.
 
@@ -39,7 +39,7 @@ if (-not $Iscc -or -not (Test-Path -LiteralPath $Iscc)) { throw 'Inno Setup 6 (I
 New-Item -ItemType Directory -Force $Output | Out-Null
 $Output = (Resolve-Path -LiteralPath $Output).ProviderPath
 
-foreach ($script in 'SapLens-Desktop.iss', 'SapLens-Server.iss') {
+foreach ($script in 'AuthLens-Desktop.iss', 'AuthLens-Server.iss') {
     $ErrorActionPreference = 'Continue'
     & $Iscc '/Q' "/O$Output" "/DFullVersion=$version" "/DNumericVersion=$numeric" "/DReleaseDir=$release" (Join-Path $installers $script)
     $code = $LASTEXITCODE

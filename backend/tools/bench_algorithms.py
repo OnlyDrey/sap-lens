@@ -1,5 +1,5 @@
 """Language-level benchmark: the PRODUCTION Python v1 functions on the large synthetic dataset, in one process, no HTTP and no storage.
-The .NET counterpart is `SapLens.Cli bench --data DIR --out FILE`; both write the same JSON shape for tools/bench_report.py.
+The .NET counterpart is `AuthLens.Cli bench --data DIR --out FILE`; both write the same JSON shape for tools/bench_report.py.
 
   python -I bench_algorithms.py --data DATASETS_DIR --out python-bench.json"""
 import argparse

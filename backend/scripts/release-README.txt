@@ -2,20 +2,20 @@ SAP Lens (.NET) {{VERSION}}, commit {{SHA}}, built {{BUILT}} UTC, {{PLATFORM}}.
 Development and acceptance testing only; not a production release.
 
 WHICH EXECUTABLE
-  desktop\SapLens.exe            One user on this PC. Double-click; needs the Microsoft Edge WebView2 Runtime. Data and logs go to
+  desktop\AuthLens.exe            One user on this PC. Double-click; needs the Microsoft Edge WebView2 Runtime. Data and logs go to
                                  %LOCALAPPDATA%\SAP Lens Desktop (an existing %LOCALAPPDATA%\SAP Lens 2 Prototype folder is kept and used).
                                  It never uses %LOCALAPPDATA%\SAP Lens (SAP Lens v1). It extracts its native libraries to a temporary folder at start.
-  server\SapLens.Api.exe         Browser access from this PC or the LAN. Keep e_sqlite3.dll and libSkiaSharp.dll next to it. Console or Windows service.
+  server\AuthLens.Api.exe         Browser access from this PC or the LAN. Keep e_sqlite3.dll and libSkiaSharp.dll next to it. Console or Windows service.
   No .NET installation is needed. Requires Windows 10 1903 / Windows Server 2019 or later (system ICU for Unicode text).
   symbols\ holds debugging symbols only.
 
 SERVER QUICK START
-  server\SapLens.Api.exe --help        all options and environment variables
-  server\SapLens.Api.exe --version
-  server\SapLens.Api.exe --data-dir C:\ProgramData\sap-lens\data
+  server\AuthLens.Api.exe --help        all options and environment variables
+  server\AuthLens.Api.exe --version
+  server\AuthLens.Api.exe --data-dir C:\ProgramData\sap-lens\data
       Loopback only: http://127.0.0.1:18790/ on this PC.
   LAN (HTTPS required; all values are examples):
-  server\SapLens.Api.exe --data-dir C:\ProgramData\sap-lens\data --network --listen 192.0.2.10 --port 18795 --allowed-hosts lens.example.com,192.0.2.10
+  server\AuthLens.Api.exe --data-dir C:\ProgramData\sap-lens\data --network --listen 192.0.2.10 --port 18795 --allowed-hosts lens.example.com,192.0.2.10
       --cert C:\ProgramData\sap-lens\tls\server.pfx --cert-password-file C:\ProgramData\sap-lens\tls\cert-password
   Behind a reverse proxy, add --trusted-proxies <the proxy's address as seen by this server>.
   Local administration (no SDK): open an elevated PowerShell and run .\Service-Manager.ps1 -DataDirectory <data-dir>.

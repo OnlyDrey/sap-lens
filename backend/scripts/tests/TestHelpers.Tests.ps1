@@ -38,21 +38,21 @@ Describe 'PowerShell test infrastructure' {
     It 'removes a second module identity before Pester resolves a mock by name' {
         $copy = Join-Path $TestDrive 'other-checkout'
         New-Item -ItemType Directory $copy | Out-Null
-        Copy-Item (Join-Path $PSScriptRoot '../deploy/SapLens.Deploy.psm1'),
-            (Join-Path $PSScriptRoot '../deploy/SapLens.Migration.ps1'),
-            (Join-Path $PSScriptRoot '../deploy/SapLens.Acl.ps1'),
-            (Join-Path $PSScriptRoot '../deploy/SapLens.Configuration.ps1') -Destination $copy
+        Copy-Item (Join-Path $PSScriptRoot '../deploy/AuthLens.Deploy.psm1'),
+            (Join-Path $PSScriptRoot '../deploy/AuthLens.Migration.ps1'),
+            (Join-Path $PSScriptRoot '../deploy/AuthLens.Acl.ps1'),
+            (Join-Path $PSScriptRoot '../deploy/AuthLens.Configuration.ps1') -Destination $copy
         try {
             Import-TestDeploymentModule
-            Import-Module (Join-Path $copy 'SapLens.Deploy.psm1') -Force -Global
-            @(Get-Module SapLens.Deploy -All).Count | Should -Be 2
-            { InModuleScope SapLens.Deploy { } } | Should -Throw '*Multiple script or manifest modules*'
+            Import-Module (Join-Path $copy 'AuthLens.Deploy.psm1') -Force -Global
+            @(Get-Module AuthLens.Deploy -All).Count | Should -Be 2
+            { InModuleScope AuthLens.Deploy { } } | Should -Throw '*Multiple script or manifest modules*'
             Import-TestDeploymentModule
-            $loaded = @(Get-Module SapLens.Deploy -All)
+            $loaded = @(Get-Module AuthLens.Deploy -All)
             $loaded.Count | Should -Be 1
-            $loaded[0].Path | Should -Be (Resolve-Path (Join-Path $PSScriptRoot '../deploy/SapLens.Deploy.psm1')).ProviderPath
-            Mock -ModuleName SapLens.Deploy Get-SL2Service { 'isolated fixture' }
-            InModuleScope SapLens.Deploy { Get-SL2Service 'unused' | Should -Be 'isolated fixture' }
-        } finally { Get-Module SapLens.Deploy -All | Remove-Module -Force }
+            $loaded[0].Path | Should -Be (Resolve-Path (Join-Path $PSScriptRoot '../deploy/AuthLens.Deploy.psm1')).ProviderPath
+            Mock -ModuleName AuthLens.Deploy Get-SL2Service { 'isolated fixture' }
+            InModuleScope AuthLens.Deploy { Get-SL2Service 'unused' | Should -Be 'isolated fixture' }
+        } finally { Get-Module AuthLens.Deploy -All | Remove-Module -Force }
     }
 }

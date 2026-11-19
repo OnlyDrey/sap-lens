@@ -4,8 +4,8 @@
   win-x64 and linux-x64 apart from the platform rules below), every listed file with its size and SHA-256, no unlisted file, and SHA256SUMS
   covering every file (build-manifest.json included). Read-only. Exit code 0 valid, 1 invalid.
 
-  Platform rules: win-x64 lists server/SapLens.Api.exe and a desktop executable and describes desktop_native_libraries; linux-x64 lists only
-  server/SapLens.Api. Releases built before the rename to SAP Lens (product "SAP Lens 2", desktop/SapLens2Prototype.exe, a SAP Lens 1
+  Platform rules: win-x64 lists server/AuthLens.Api.exe and a desktop executable and describes desktop_native_libraries; linux-x64 lists only
+  server/AuthLens.Api. Releases built before the rename to SAP Lens (product "SAP Lens 2", desktop/SapLens2Prototype.exe, a SAP Lens 1
   ui_source_version) keep verifying: the migration preflight verifies the release an existing service runs.
 
   -Scope Full (default): the complete build output; every listed artifact must be present. A folder with deployment-package.json is refused here.
@@ -47,12 +47,12 @@ $executables = Field 'executables'; $publish = Field 'publish'
 $names = if ($executables) { @($executables.PSObject.Properties.Name) } else { @() }
 switch ($platform) {
     'win-x64' {
-        if ($executables.server -ne 'server/SapLens.Api.exe') { $problems.Add('win-x64: executables.server is not server/SapLens.Api.exe') }
+        if ($executables.server -ne 'server/AuthLens.Api.exe') { $problems.Add('win-x64: executables.server is not server/AuthLens.Api.exe') }
         if ("$($executables.desktop)" -notmatch '^desktop/[^/]+\.exe$') { $problems.Add('win-x64: executables.desktop is missing') }
         if (-not (Text $publish.desktop_native_libraries)) { $problems.Add('win-x64: publish.desktop_native_libraries is missing') }
     }
     'linux-x64' {
-        if ($executables.server -ne 'server/SapLens.Api') { $problems.Add('linux-x64: executables.server is not server/SapLens.Api') }
+        if ($executables.server -ne 'server/AuthLens.Api') { $problems.Add('linux-x64: executables.server is not server/AuthLens.Api') }
         if ($names -contains 'desktop') { $problems.Add('linux-x64: a Desktop executable is listed; the Desktop is Windows only') }
         if ($publish -and $publish.PSObject.Properties.Name -contains 'desktop_native_libraries') { $problems.Add('linux-x64: publish.desktop_native_libraries is listed') }
     }

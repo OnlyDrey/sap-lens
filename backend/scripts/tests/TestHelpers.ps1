@@ -23,9 +23,9 @@ function Invoke-TestPowerShell([string[]]$Arguments) {
 }
 
 function Import-TestDeploymentModule {
-    $path = (Resolve-Path (Join-Path $PSScriptRoot '../deploy/SapLens.Deploy.psm1')).ProviderPath
+    $path = (Resolve-Path (Join-Path $PSScriptRoot '../deploy/AuthLens.Deploy.psm1')).ProviderPath
     # -Force reloads a path; it does not unload same-named modules imported from other checkouts.
     # Pester resolves Mock/InModuleScope by name and rejects those distinct module identities.
-    Get-Module SapLens.Deploy -All | Remove-Module -Force
+    Get-Module AuthLens.Deploy -All | Remove-Module -Force
     Import-Module $path -Force -Global
 }

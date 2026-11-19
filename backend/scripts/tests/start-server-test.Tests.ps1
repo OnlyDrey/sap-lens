@@ -11,8 +11,8 @@ BeforeAll {
         New-Item -ItemType Directory -Force $server | Out-Null
         foreach ($file in $layout.Required) { if ($Skip -notcontains $file) { Set-Content -LiteralPath (Join-Path $server $file) -Value 'x' } }
         if ($ExeContent) {
-            [System.IO.File]::WriteAllText((Join-Path $server 'SapLens.Api.exe'), $ExeContent.Replace("`r`n", "`n"))
-            if ([System.IO.Path]::DirectorySeparatorChar -eq '/') { & chmod +x (Join-Path $server 'SapLens.Api.exe') }
+            [System.IO.File]::WriteAllText((Join-Path $server 'AuthLens.Api.exe'), $ExeContent.Replace("`r`n", "`n"))
+            if ([System.IO.Path]::DirectorySeparatorChar -eq '/') { & chmod +x (Join-Path $server 'AuthLens.Api.exe') }
         }
         if (-not $NoManifest) {
             $manifest = Join-Path (Join-Path $Root $Name) $layout.Manifest
@@ -42,7 +42,7 @@ Describe 'Release selection' {
         New-Item -ItemType Directory (Join-Path $builds 'r5-empty') | Out-Null
         $release = Resolve-ServerRelease -BuildsRoot $builds -ReleasePath ''
         $release.Release | Should -Be (Get-Item $expected).FullName
-        $release.Executable | Should -Be (Join-Path (Join-Path $expected 'server') 'SapLens.Api.exe')
+        $release.Executable | Should -Be (Join-Path (Join-Path $expected 'server') 'AuthLens.Api.exe')
         $release.Layout | Should -Be 'single-file'
     }
 
@@ -56,7 +56,7 @@ Describe 'Release selection' {
     }
 
     It 'fails when no complete release exists' {
-        New-FakeRelease $builds 'broken' ([datetime]'2026-11-10T10:00:00Z') -Skip 'SapLens.Api.exe' | Out-Null
+        New-FakeRelease $builds 'broken' ([datetime]'2026-11-10T10:00:00Z') -Skip 'AuthLens.Api.exe' | Out-Null
         { Resolve-ServerRelease -BuildsRoot $builds -ReleasePath '' } | Should -Throw '*No complete Server release*'
         { Resolve-ServerRelease -BuildsRoot (Join-Path $builds 'absent') -ReleasePath '' } | Should -Throw '*does not exist*'
     }
@@ -122,7 +122,7 @@ Describe 'Configuration validation' {
         $saved = $env:LOCALAPPDATA, $env:ProgramData
         try {
             $env:LOCALAPPDATA = Join-Path $TestDrive 'local'; $env:ProgramData = Join-Path $TestDrive 'programdata'
-            foreach ($path in (Join-Path $env:ProgramData 'sap-lens/data'), (Join-Path $env:ProgramData 'SapLens2/data'), (Join-Path $env:ProgramData 'SapLens/data'), (Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop/data'), (Join-Path $env:ProgramData 'SAP Lens Server'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype/data'), (Join-Path $env:LOCALAPPDATA 'SAP LENS/x')) {
+            foreach ($path in (Join-Path $env:ProgramData 'sap-lens/data'), (Join-Path $env:ProgramData 'SapLens2/data'), (Join-Path $env:ProgramData 'AuthLens/data'), (Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop/data'), (Join-Path $env:ProgramData 'SAP Lens Server'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype/data'), (Join-Path $env:LOCALAPPDATA 'SAP LENS/x')) {
                 $config = $valid.Clone(); $config.DataDirectory = $path
                 { Assert-TestConfiguration @config } | Should -Throw '*production or Desktop location*'
             }
@@ -135,9 +135,9 @@ Describe 'Configuration validation' {
 Describe 'Argument construction' {
     It 'uses only the supported options, defaults allowed hosts to the listen address and never includes the password' {
         $arguments = New-ServerArguments -ListenAddress '192.168.10.20' -Port 18795 -AllowedHosts @() -DataDirectory (Join-Path $TestDrive 'runtime-test') `
-            -CertificatePath 'C:\ProgramData\SapLens\tls\server.pfx' -CertificatePasswordFile 'C:\ProgramData\SapLens\tls\cert-password'
+            -CertificatePath 'C:\ProgramData\AuthLens\tls\server.pfx' -CertificatePasswordFile 'C:\ProgramData\AuthLens\tls\cert-password'
         $arguments | Should -Be @('--data-dir', [System.IO.Path]::GetFullPath((Join-Path $TestDrive 'runtime-test')), '--network', '--listen', '192.168.10.20', '--port', '18795',
-            '--allowed-hosts', '192.168.10.20', '--cert', 'C:\ProgramData\SapLens\tls\server.pfx', '--cert-password-file', 'C:\ProgramData\SapLens\tls\cert-password')
+            '--allowed-hosts', '192.168.10.20', '--cert', 'C:\ProgramData\AuthLens\tls\server.pfx', '--cert-password-file', 'C:\ProgramData\AuthLens\tls\cert-password')
         (New-ServerArguments -ListenAddress '192.168.10.20' -Port 1 -AllowedHosts 'saplens.test.example', '192.168.10.20' -DataDirectory $TestDrive -CertificatePath c -CertificatePasswordFile p)[8] |
             Should -Be 'saplens.test.example,192.168.10.20'
     }
@@ -151,12 +151,12 @@ Describe 'Argument construction' {
     }
 
     It 'quotes paths with spaces for display' {
-        Format-CommandLine 'C:\a b\SapLens.Api.exe' @('--data-dir', 'C:\x y') | Should -Be '"C:\a b\SapLens.Api.exe" --data-dir "C:\x y"'
+        Format-CommandLine 'C:\a b\AuthLens.Api.exe' @('--data-dir', 'C:\x y') | Should -Be '"C:\a b\AuthLens.Api.exe" --data-dir "C:\x y"'
     }
 }
 
 Describe 'End to end with a fake Server executable' -Skip:([System.IO.Path]::DirectorySeparatorChar -ne '/') {
-    # A shell script named SapLens.Api.exe stands in for the Server (Linux test hosts only): it records its arguments and exits with a chosen code.
+    # A shell script named AuthLens.Api.exe stands in for the Server (Linux test hosts only): it records its arguments and exits with a chosen code.
     BeforeAll {
         $address = @(Get-LocalIPAddresses | Where-Object { $_.AddressFamily -eq 'InterNetwork' -and -not [System.Net.IPAddress]::IsLoopback($_) }) | Select-Object -First 1
         $tls = Join-Path $TestDrive 'e2e-tls'; New-Item -ItemType Directory -Force $tls | Out-Null

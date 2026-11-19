@@ -5,12 +5,12 @@
 .DESCRIPTION
   Not a production deployment mechanism. The script:
   1. Selects the newest complete release under -BuildsRoot (a folder written by build-release.ps1: build-manifest.json plus server\ with the
-     single-file SapLens.Api.exe and e_sqlite3.dll; earlier folder-publish releases with manifest.json and server-win-x64\ are still recognized),
+     single-file AuthLens.Api.exe and e_sqlite3.dll; earlier folder-publish releases with manifest.json and server-win-x64\ are still recognized),
      or the release given with -ReleasePath (a release folder, its server folder, or a plain publish folder).
   2. Validates the configuration before anything starts: the listen address is an IP assigned to this machine (not loopback or all interfaces),
      the port is free, the certificate and password files exist, and the data directory is an absolute local path outside known production
      and Desktop data locations.
-  3. Runs SapLens.Api.exe in the foreground with --data-dir, --network, --listen, --port, --allowed-hosts, --cert and --cert-password-file
+  3. Runs AuthLens.Api.exe in the foreground with --data-dir, --network, --listen, --port, --allowed-hosts, --cert and --cert-password-file
      (plus --trusted-proxies when -TrustedProxies is given; reverse-proxy tests only).
      Ctrl+C stops it. The script exits with the Server's exit code (3 = the Server refused its configuration); 2 means this script refused.
 
@@ -57,15 +57,15 @@ param(
 Set-StrictMode -Version 3.0
 $ErrorActionPreference = 'Stop'
 
-$script:ServerExecutable = 'SapLens.Api.exe'
+$script:ServerExecutable = 'AuthLens.Api.exe'
 # Release layouts written by build-release.ps1/.sh, newest first. Each lists the files its Server cannot start without.
 $script:Layouts = @(
-    # Single-file (current): everything managed inside SapLens.Api.exe, SQLite's native library beside it.
-    @{ Name = 'single-file'; Folder = 'server'; Manifest = 'build-manifest.json'; Required = @('SapLens.Api.exe', 'e_sqlite3.dll') },
+    # Single-file (current): everything managed inside AuthLens.Api.exe, SQLite's native library beside it.
+    @{ Name = 'single-file'; Folder = 'server'; Manifest = 'build-manifest.json'; Required = @('AuthLens.Api.exe', 'e_sqlite3.dll') },
     # Folder publish (earlier builds).
     @{ Name = 'folder'; Folder = 'server-win-x64'; Manifest = 'manifest.json'; Required = @(
-        'SapLens.Api.exe', 'SapLens.Api.dll', 'SapLens.Api.deps.json', 'SapLens.Api.runtimeconfig.json',
-        'SapLens.Application.dll', 'SapLens.Domain.dll', 'SapLens.Persistence.dll',
+        'AuthLens.Api.exe', 'AuthLens.Api.dll', 'AuthLens.Api.deps.json', 'AuthLens.Api.runtimeconfig.json',
+        'AuthLens.Application.dll', 'AuthLens.Domain.dll', 'AuthLens.Persistence.dll',
         'hostfxr.dll', 'hostpolicy.dll', 'coreclr.dll', 'System.Private.CoreLib.dll', 'e_sqlite3.dll') }
 )
 # Kept for the tests and callers of the earlier layout: the current layout's required files.
@@ -116,7 +116,7 @@ function Resolve-ServerRelease {
             Add-Member -NotePropertyName Name -NotePropertyValue $folder.Name -PassThru
     }
     $newest = @($candidates | Sort-Object -Property @{ Expression = 'Built'; Descending = $true }, @{ Expression = 'Name'; Descending = $true }) | Select-Object -First 1
-    if (-not $newest) { throw "No complete Server release under '$BuildsRoot' (expected <release>\build-manifest.json and <release>\server\SapLens.Api.exe with e_sqlite3.dll)." }
+    if (-not $newest) { throw "No complete Server release under '$BuildsRoot' (expected <release>\build-manifest.json and <release>\server\AuthLens.Api.exe with e_sqlite3.dll)." }
     @{ Release = $newest.Release; Server = $newest.Server; Executable = (Join-Path $newest.Server $script:ServerExecutable); Manifest = $newest.Manifest; Layout = $newest.Layout }
 }
 
@@ -135,7 +135,7 @@ function Test-PortAvailable([System.Net.IPAddress]$Address, [int]$Port) {
 function Get-ProtectedDataPaths {
     <# Production and Desktop data locations that a test run must never use (v1 and .NET, current and earlier names). #>
     $paths = @()
-    if ($env:ProgramData) { $paths += (Join-Path $env:ProgramData 'sap-lens'), (Join-Path $env:ProgramData 'SapLens'), (Join-Path $env:ProgramData 'SapLens2'), (Join-Path $env:ProgramData 'SAP Lens Server') }
+    if ($env:ProgramData) { $paths += (Join-Path $env:ProgramData 'sap-lens'), (Join-Path $env:ProgramData 'AuthLens'), (Join-Path $env:ProgramData 'SapLens2'), (Join-Path $env:ProgramData 'SAP Lens Server') }
     if ($env:LOCALAPPDATA) { $paths += (Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype'), (Join-Path $env:LOCALAPPDATA 'SAP Lens') }
     if ($env:ProgramFiles) { $paths += $env:ProgramFiles }
     if ($env:SystemRoot) { $paths += $env:SystemRoot }
@@ -155,7 +155,7 @@ function Assert-TestConfiguration {
     $address = $null
     if (-not [System.Net.IPAddress]::TryParse($ListenAddress, [ref]$address)) { throw "-ListenAddress must be an IP address, not '$ListenAddress'." }
     if ($address.Equals([System.Net.IPAddress]::Any) -or $address.Equals([System.Net.IPAddress]::IPv6Any)) { throw '-ListenAddress must be one specific address; all interfaces are never used.' }
-    if ([System.Net.IPAddress]::IsLoopback($address)) { throw '-ListenAddress must be a LAN address; for loopback-only tests start SapLens.Api.exe without --network.' }
+    if ([System.Net.IPAddress]::IsLoopback($address)) { throw '-ListenAddress must be a LAN address; for loopback-only tests start AuthLens.Api.exe without --network.' }
     if (-not (@(Get-LocalIPAddresses) | Where-Object { $_.Equals($address) })) { throw "$ListenAddress is not assigned to this machine (see Get-NetIPAddress)." }
     if ($Port -lt 1 -or $Port -gt 65535) { throw "-Port must be between 1 and 65535, not $Port." }
     if (-not (Test-PortAvailable $address $Port)) { throw "Port $Port on $ListenAddress is already in use (see Get-NetTCPConnection -LocalPort $Port)." }

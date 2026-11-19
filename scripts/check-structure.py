@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def check(root=ROOT):
-    for path in ('backend/SapLens.slnx', 'backend/product-version.json', 'backend/scripts/build-release.ps1',
+    for path in ('backend/AuthLens.slnx', 'backend/product-version.json', 'backend/scripts/build-release.ps1',
                  'backend/scripts/build-release.sh', 'frontend/playwright.config.ts', 'scripts/browser-server.mjs',
                  ):
         assert (root / path).is_file(), f'Missing canonical path: {path}'
@@ -17,8 +17,8 @@ def check(root=ROOT):
         assert not (root / path).exists(), f'Docker support was removed (no supported use); unexpected {path}'
     # The Server's environment variables are SAP_LENS_*; SAP_LENS_V2_* is named only by the startup guard, its test, the key-file detection of
     # the deployment migration and the naming register (docs/architecture/VERSIONING.md).
-    allowed_v2 = {'backend/src/SapLens.Api/ServerConfiguration.cs', 'backend/tests/SapLens.Tests/NetworkTests.cs',
-                  'backend/scripts/deploy/SapLens.Migration.ps1', 'docs/architecture/VERSIONING.md'}
+    allowed_v2 = {'backend/src/AuthLens.Api/ServerConfiguration.cs', 'backend/tests/AuthLens.Tests/NetworkTests.cs',
+                  'backend/scripts/deploy/AuthLens.Migration.ps1', 'docs/architecture/VERSIONING.md'}
     v2 = subprocess.run(['git', '-C', str(root), 'grep', '-l', '-i', 'SAP_LENS_V2_', '--', '.', ':!scripts/check-structure.py'],
                         capture_output=True, text=True, check=False).stdout.split()
     assert not set(v2) - allowed_v2, f'The SAP_LENS_V2_ prefix was renamed to SAP_LENS_; found in: {sorted(set(v2) - allowed_v2)}'

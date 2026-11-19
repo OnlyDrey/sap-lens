@@ -44,8 +44,8 @@ try {
   const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('SAP_LENS_') && name !== 'DATA_CSV_PATH'))
   const env = { ...inherited, SAP_LENS_BROWSER_DATA: directory, SAP_LENS_BROWSER_TOKEN: token,
     SAP_LENS_BROWSER_TEST_PORT: String(port), DOTNET_CLI_TELEMETRY_OPTOUT: '1', MSBUILDDISABLENODEREUSE: '1' }
-  const project = 'backend/tests/SapLens.BrowserHost/SapLens.BrowserHost.csproj'
+  const project = 'backend/tests/AuthLens.BrowserHost/AuthLens.BrowserHost.csproj'
   let code = await run(['build', project, '-c', 'Release', '--nologo', '-v', 'quiet', '-nodeReuse:false', '-p:UseSharedCompilation=false'], env)
-  if (!code && !stopping) code = await run(['backend/tests/SapLens.BrowserHost/bin/Release/net10.0/SapLens.BrowserHost.dll'], env)
+  if (!code && !stopping) code = await run(['backend/tests/AuthLens.BrowserHost/bin/Release/net10.0/AuthLens.BrowserHost.dll'], env)
   await stop(code)
 } catch (error) { console.error('Disposable .NET host failed:', error.message); await stop(1) }

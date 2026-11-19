@@ -2,7 +2,7 @@
 # Repeatable release build on Linux: .NET build (MSBuild builds and embeds the React UI once), tests, then two versioned release folders under OUTPUT_DIR (default artifacts/release):
 #   SAP-Lens-<version>-<UTC time>-<commit>-win-x64/   the same layout as build-release.ps1 (server/, desktop/, symbols/, build-manifest.json, README.txt,
 #                                                       SHA256SUMS), cross-published
-#   SAP-Lens-<version>-<UTC time>-<commit>-linux-x64/ server/SapLens.Api (single file), libe_sqlite3.so and libSkiaSharp.so, symbols/, build-manifest.json, SHA256SUMS
+#   SAP-Lens-<version>-<UTC time>-<commit>-linux-x64/ server/AuthLens.Api (single file), libe_sqlite3.so and libSkiaSharp.so, symbols/, build-manifest.json, SHA256SUMS
 # Self-contained single-file executables; no trimming, Native AOT or compression. Nothing is installed or started.
 #   scripts/build-release.sh [OUTPUT_DIR] [--skip-tests] [--skip-publish-tests] [--allow-unsupported-node]
 set -euo pipefail
@@ -27,23 +27,23 @@ now="$(date -u +%s)"; stamp="$(date -u -d "@$now" +%Y%m%d-%H%M%S)"; built="$(dat
 win="$output/SAP-Lens-$version-$stamp-${sha:0:7}-win-x64"; linux="$output/SAP-Lens-$version-$stamp-${sha:0:7}-linux-x64"
 for release in "$win" "$linux"; do [ ! -e "$release" ] || { echo "$release exists; an existing release is never overwritten" >&2; exit 1; }; done
 identity=(-p:SourceRevisionId="$sha")
-# MSBuild owns the frontend build (SapLensBuildFrontend in SapLens.Api.csproj). A release removes frontend/dist first and builds it exactly once, with
+# MSBuild owns the frontend build (AuthLensBuildFrontend in AuthLens.Api.csproj). A release removes frontend/dist first and builds it exactly once, with
 # -p:BuildFrontend=true on the solution build; the publish steps find that dist and embed it without rebuilding it. The solution contains every project,
 # the test project included, so `dotnet test --no-build` runs exactly what this build produced, never older binaries left in tests/*/bin.
 rm -rf "$frontend/dist"
-dotnet build "$root/SapLens.slnx" -c Release "${identity[@]}" -p:BuildFrontend=true
+dotnet build "$root/AuthLens.slnx" -c Release "${identity[@]}" -p:BuildFrontend=true
 [ -f "$frontend/dist/index.html" ] && [ -f "$frontend/dist/product-version.json" ] || { echo "the .NET build did not produce frontend/dist" >&2; exit 1; }
 [ "$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["source_sha"])' "$frontend/dist/product-version.json")" = "$sha" ] \
   || { echo "frontend/dist was not built from commit $sha" >&2; exit 1; }
 if [ "$tests" = 1 ]; then
-  if [ "$publish_tests" = 1 ]; then dotnet test "$root/tests/SapLens.Tests" -c Release --no-build
-  else dotnet test "$root/tests/SapLens.Tests" -c Release --no-build --filter "Category!=Publish"; fi
+  if [ "$publish_tests" = 1 ]; then dotnet test "$root/tests/AuthLens.Tests" -c Release --no-build
+  else dotnet test "$root/tests/AuthLens.Tests" -c Release --no-build --filter "Category!=Publish"; fi
 fi
 mkdir -p "$output"
 # Windows single-file settings live in the project files; Linux passes the same ones explicitly (native library beside the executable, not extracted).
-dotnet publish "$root/src/SapLens.Api" -c Release -r win-x64 -o "$win/server" "${identity[@]}"
-dotnet publish "$root/src/SapLens.Desktop" -c Release -o "$win/desktop" "${identity[@]}"
-dotnet publish "$root/src/SapLens.Api" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false \
+dotnet publish "$root/src/AuthLens.Api" -c Release -r win-x64 -o "$win/server" "${identity[@]}"
+dotnet publish "$root/src/AuthLens.Desktop" -c Release -o "$win/desktop" "${identity[@]}"
+dotnet publish "$root/src/AuthLens.Api" -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=false \
   -o "$linux/server" "${identity[@]}"
 for release in "$win" "$linux"; do
   for part in server desktop; do
@@ -64,22 +64,22 @@ def run(*cmd): return subprocess.run(cmd, capture_output=True, text=True).stdout
 def files(folder): return sorted(str(f.relative_to(folder)).replace('\\', '/') for f in folder.rglob('*') if f.is_file())
 def check(cond, message):
     if not cond: sys.exit(f'release validation failed: {message}')
-expected = {win: {'server': ['SapLens.Api.exe', 'e_sqlite3.dll', 'libSkiaSharp.dll'], 'desktop': ['SapLens.exe']}, linux: {'server': ['SapLens.Api', 'libSkiaSharp.so', 'libe_sqlite3.so']}}
+expected = {win: {'server': ['AuthLens.Api.exe', 'e_sqlite3.dll', 'libSkiaSharp.dll'], 'desktop': ['AuthLens.exe']}, linux: {'server': ['AuthLens.Api', 'libSkiaSharp.so', 'libe_sqlite3.so']}}
 for release, parts in expected.items():
     for part, names in parts.items():
         check(files(release / part) == sorted(names), f'{release.name}/{part} holds {files(release / part)}, expected {sorted(names)}')
-for exe in (win / 'server/SapLens.Api.exe', win / 'desktop/SapLens.exe', linux / 'server/SapLens.Api'):
+for exe in (win / 'server/AuthLens.Api.exe', win / 'desktop/AuthLens.exe', linux / 'server/AuthLens.Api'):
     data = exe.read_bytes()
     check(f'{version}+{sha}'.encode() in data, f'product version and build identity {version}+{sha} missing in {exe.name}')
-    check(b'SapLensUi/index.html' in data, f'index.html missing from the embedded UI of {exe.name}')
-    check(b'SapLensUi/assets/' in data or b'SapLensUi/assets\\' in data, f'React UI assets missing in {exe.name}')
+    check(b'AuthLensUi/index.html' in data, f'index.html missing from the embedded UI of {exe.name}')
+    check(b'AuthLensUi/assets/' in data or b'AuthLensUi/assets\\' in data, f'React UI assets missing in {exe.name}')
     # Freshness: the embedded index.html (which names the content-hashed bundles) and the UI build identity (with this commit) are this run's files.
     for ui in ('index.html', 'product-version.json'):
         check((Path(sys.argv[8]) / ui).read_bytes() in data, f'the embedded {ui} in {exe.name} is not the frontend built by this release')
-check(b'Microsoft.Extensions.Hosting.WindowsServices.dll' in (win / 'server/SapLens.Api.exe').read_bytes(), 'Windows service host missing')
+check(b'Microsoft.Extensions.Hosting.WindowsServices.dll' in (win / 'server/AuthLens.Api.exe').read_bytes(), 'Windows service host missing')
 def digest(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 for release, platform in ((win, 'win-x64'), (linux, 'linux-x64')):
-    executables = {'server': 'server/SapLens.Api.exe', 'desktop': 'desktop/SapLens.exe'} if platform == 'win-x64' else {'server': 'server/SapLens.Api'}
+    executables = {'server': 'server/AuthLens.Api.exe', 'desktop': 'desktop/AuthLens.exe'} if platform == 'win-x64' else {'server': 'server/AuthLens.Api'}
     artifacts = [dict(path=p, bytes=(release / p).stat().st_size, sha256=digest(release / p)) for p in files(release)]
     match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)(?:-(alpha|beta|rc)\.(\d+))?', version)
     ui_version = json.loads((Path(sys.argv[7]) / 'frontend/package.json').read_text())['version']   # checked by the frontend prebuild contract

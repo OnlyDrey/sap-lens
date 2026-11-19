@@ -6,15 +6,15 @@ $script:Verify = (Resolve-Path (Join-Path $PSScriptRoot '..\verify-release.ps1')
 # A complete schema-1 release as build-release.ps1 (win-x64) or build-release.sh (linux-x64) writes it; -Historical is a release built before
 # the rename to SAP Lens (product "SAP Lens 2", desktop/SapLens2Prototype.exe, a SAP Lens 1 ui_source_version).
 function New-VerifiableRelease([string]$Path, [string]$Platform = 'win-x64', [switch]$Historical) {
-    $desktopExe = if ($Historical) { 'desktop/SapLens2Prototype.exe' } else { 'desktop/SapLens.exe' }
-    $files = if ($Platform -eq 'win-x64') { @('README.txt', $desktopExe, 'server/SapLens.Api.exe', 'server/e_sqlite3.dll', 'symbols/server/SapLens.Api.pdb') } else { @('server/SapLens.Api', 'server/libe_sqlite3.so') }
+    $desktopExe = if ($Historical) { 'desktop/SapLens2Prototype.exe' } else { 'desktop/AuthLens.exe' }
+    $files = if ($Platform -eq 'win-x64') { @('README.txt', $desktopExe, 'server/AuthLens.Api.exe', 'server/e_sqlite3.dll', 'symbols/server/AuthLens.Api.pdb') } else { @('server/AuthLens.Api', 'server/libe_sqlite3.so') }
     foreach ($relative in $files) { $file = Join-Path $Path $relative; New-Item -ItemType Directory -Force (Split-Path $file) | Out-Null; Set-Content $file $relative }
     $artifacts = foreach ($relative in $files | Sort-Object) {
         $file = Get-Item (Join-Path $Path $relative)
         [ordered]@{ path = $relative; bytes = $file.Length; sha256 = (Get-FileHash $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant() }
     }
     $publish = [ordered]@{ self_contained = $true; single_file = $true; trimmed = $false; native_aot = $false; compressed = $false; server_native_libraries = 'beside the executable' }
-    $executables = [ordered]@{ server = $(if ($Platform -eq 'win-x64') { 'server/SapLens.Api.exe' } else { 'server/SapLens.Api' }) }
+    $executables = [ordered]@{ server = $(if ($Platform -eq 'win-x64') { 'server/AuthLens.Api.exe' } else { 'server/AuthLens.Api' }) }
     if ($Platform -eq 'win-x64') { $publish.desktop_native_libraries = 'bundled, extracted to a temporary folder at start'; $executables.desktop = $desktopExe }
     $manifest = [ordered]@{ schema = 1; product = $(if ($Historical) { 'SAP Lens 2' } else { 'SAP Lens' }); version = '2.0.0-alpha.1'; channel = 'alpha'; file_version = @(2, 0, 0, 1)
         ui_source_version = $(if ($Historical) { '1.4.0' } else { '2.0.0-alpha.1' }); source_sha = ('a' * 40); source_dirty = $false; source_committed_at = '2026-11-16T09:00:00+00:00'

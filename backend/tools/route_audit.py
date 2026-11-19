@@ -17,7 +17,7 @@ for file in sorted((root / 'frontend' / 'src').rglob('*.ts*')):
         route = re.sub(r'\{x\}[^/]*', '{x}', route)
         routes.setdefault(route, set()).add(str(file.relative_to(root)))
 
-source = (root / 'backend/src/SapLens.Api/V1Compatibility.cs').read_text(encoding='utf-8')
+source = (root / 'backend/src/AuthLens.Api/V1Compatibility.cs').read_text(encoding='utf-8')
 block = source[source.index('public static readonly string[] Migrated'):]
 block = block[:block.index('];')]
 implemented = {}

@@ -25,9 +25,9 @@ Describe 'Release verification' {
     }
 
     It 'refuses <Name> in a Linux release' -ForEach @(
-        @{ Name = 'a Desktop executable'; Change = { param($m) $m.executables | Add-Member desktop 'desktop/SapLens.exe' }; Message = 'linux-x64: a Desktop executable is listed' }
+        @{ Name = 'a Desktop executable'; Change = { param($m) $m.executables | Add-Member desktop 'desktop/AuthLens.exe' }; Message = 'linux-x64: a Desktop executable is listed' }
         @{ Name = 'Desktop native libraries'; Change = { param($m) $m.publish | Add-Member desktop_native_libraries 'bundled' }; Message = 'linux-x64: publish.desktop_native_libraries is listed' }
-        @{ Name = 'the Windows server executable'; Change = { param($m) $m.executables.server = 'server/SapLens.Api.exe' }; Message = 'linux-x64: executables.server is not server/SapLens.Api' }
+        @{ Name = 'the Windows server executable'; Change = { param($m) $m.executables.server = 'server/AuthLens.Api.exe' }; Message = 'linux-x64: executables.server is not server/AuthLens.Api' }
     ) {
         $path = Join-Path $TestDrive "SAP-Lens-2.0.0-alpha.1-20261116-100000-aaaaaaa-$([guid]::NewGuid().ToString('n').Substring(0, 6))-linux-x64"; New-VerifiableRelease $path 'linux-x64'
         Edit-Manifest $path $Change
@@ -51,7 +51,7 @@ Describe 'Release verification' {
     }
 
     It 'detects <Name>' -ForEach @(
-        @{ Name = 'a modified executable'; Change = { param($p) Add-Content (Join-Path $p 'server/SapLens.Api.exe') 'tampered' }; Message = 'differs: server/SapLens.Api.exe' }
+        @{ Name = 'a modified executable'; Change = { param($p) Add-Content (Join-Path $p 'server/AuthLens.Api.exe') 'tampered' }; Message = 'differs: server/AuthLens.Api.exe' }
         @{ Name = 'a missing native library'; Change = { param($p) Remove-Item (Join-Path $p 'server/e_sqlite3.dll') }; Message = 'missing: server/e_sqlite3.dll' }
         @{ Name = 'an added file'; Change = { param($p) Set-Content (Join-Path $p 'server/appsettings.json') '{}' }; Message = 'not in the manifest: server/appsettings.json' }
         @{ Name = 'an edited manifest'; Change = { param($p) Add-Content (Join-Path $p 'build-manifest.json') ' ' }; Message = 'SHA256SUMS checksum differs: build-manifest.json' }
@@ -68,7 +68,7 @@ Describe 'Release verification' {
         @{ Name = 'a Windows release without the Desktop'; Change = { param($p) Edit-Manifest $p { param($m) $m.executables.PSObject.Properties.Remove('desktop') } }; Message = 'win-x64: executables.desktop is missing' }
         @{ Name = 'a trimmed publish'; Change = { param($p) Edit-Manifest $p { param($m) $m.publish.trimmed = $true } }; Message = 'publish.trimmed is not false' }
         @{ Name = 'an artifact path outside the release'; Change = { param($p) Edit-Manifest $p { param($m) $m.artifacts[0].path = '../outside.txt' } }; Message = "artifact path not allowed: '../outside.txt'" }
-        @{ Name = 'an artifact with an invalid checksum'; Change = { param($p) Edit-Manifest $p { param($m) $m.artifacts[0].sha256 = 'ABC' } }; Message = 'artifact metadata invalid: desktop/SapLens.exe' }
+        @{ Name = 'an artifact with an invalid checksum'; Change = { param($p) Edit-Manifest $p { param($m) $m.artifacts[0].sha256 = 'ABC' } }; Message = 'artifact metadata invalid: desktop/AuthLens.exe' }
         @{ Name = 'SHA256SUMS without an artifact'; Change = { param($p) $f = Join-Path $p 'SHA256SUMS'; [System.IO.File]::WriteAllText($f, ((Get-Content $f | Where-Object { $_ -notmatch 'README' }) -join "`n") + "`n") }; Message = 'SHA256SUMS does not cover README.txt' }
     ) {
         $path = Join-Path $TestDrive ([guid]::NewGuid().ToString('n')); New-VerifiableRelease $path
@@ -82,8 +82,8 @@ Describe 'Release verification' {
         $path = Join-Path $TestDrive 'SAP-Lens-2.0.0-alpha.1-20261118-070450-aaaaaaa-win-x64'; New-HistoricalPackage $path
         $run = Invoke-Verify $path
         $run.Code | Should -Be 1
-        $run.Output | Should -Match 'missing: desktop/SapLens.exe'
-        $run.Output | Should -Match 'missing: symbols/server/SapLens.Api.pdb'
+        $run.Output | Should -Match 'missing: desktop/AuthLens.exe'
+        $run.Output | Should -Match 'missing: symbols/server/AuthLens.Api.pdb'
     }
 }
 
@@ -95,8 +95,8 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
         $run = Invoke-Verify $path 'Server'
         $run.Code | Should -Be 0
         $run.Output | Should -Match 'server package \(undeclared: published before deployment-package.json existed\): 3 of 5 artifacts present and matching, 2 omitted'
-        $run.Output | Should -Match 'omitted \(not part of a server package\): desktop/SapLens.exe'
-        $run.Output | Should -Match 'omitted \(not part of a server package\): symbols/server/SapLens.Api.pdb'
+        $run.Output | Should -Match 'omitted \(not part of a server package\): desktop/AuthLens.exe'
+        $run.Output | Should -Match 'omitted \(not part of a server package\): symbols/server/AuthLens.Api.pdb'
     }
 
     It 'verifies an undeclared package of a release built before the rename' {
@@ -106,7 +106,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
     }
 
     It 'never accepts a missing <Name> in a server package' -ForEach @(
-        @{ Name = 'server file'; File = 'server/e_sqlite3.dll' }, @{ Name = 'server executable'; File = 'server/SapLens.Api.exe' }, @{ Name = 'README'; File = 'README.txt' }
+        @{ Name = 'server file'; File = 'server/e_sqlite3.dll' }, @{ Name = 'server executable'; File = 'server/AuthLens.Api.exe' }, @{ Name = 'README'; File = 'README.txt' }
     ) {
         $path = Join-Path $TestDrive ([guid]::NewGuid().ToString('n')); New-HistoricalPackage $path
         Remove-Item -LiteralPath (Join-Path $path $File)
@@ -116,7 +116,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
     }
 
     It 'refuses a server package whose files or manifest no longer match' -ForEach @(
-        @{ Name = 'a modified server executable'; Change = { param($p) Add-Content (Join-Path $p 'server/SapLens.Api.exe') 'x' }; Message = 'checksum differs: server/SapLens.Api.exe' }
+        @{ Name = 'a modified server executable'; Change = { param($p) Add-Content (Join-Path $p 'server/AuthLens.Api.exe') 'x' }; Message = 'checksum differs: server/AuthLens.Api.exe' }
         @{ Name = 'an edited manifest'; Change = { param($p) Add-Content (Join-Path $p 'build-manifest.json') ' ' }; Message = 'SHA256SUMS checksum differs: build-manifest.json' }
         @{ Name = 'an added file'; Change = { param($p) Set-Content (Join-Path $p 'server/extra.dll') 'x' }; Message = 'not in the manifest: server/extra.dll' }
     ) {
@@ -129,7 +129,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
 
     Context 'packages published by Publish-SL2Release' {
         BeforeAll { Import-TestDeploymentModule }
-        AfterAll { Remove-Module SapLens.Deploy -ErrorAction SilentlyContinue }
+        AfterAll { Remove-Module AuthLens.Deploy -ErrorAction SilentlyContinue }
 
         It 'publishes the server package with its declaration, verifies it before it appears, and reuses it' {
             $build = Join-Path $TestDrive 'build/SAP-Lens-2.0.0-alpha.1-20261119-055432-aaaaaaa-win-x64'; New-VerifiableRelease $build
@@ -138,10 +138,10 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
             $published = Publish-SL2Release $config $build $manifest
             Test-Path (Join-Path $config.ReleasesRoot '.staging') | Should -BeFalse
             @(Get-ChildItem $published -Recurse -File | ForEach-Object { $_.FullName.Substring($published.Length + 1).Replace('\', '/') } | Sort-Object) |
-                Should -Be @('build-manifest.json', 'deployment-package.json', 'README.txt', 'server/e_sqlite3.dll', 'server/SapLens.Api.exe', 'SHA256SUMS')
+                Should -Be @('build-manifest.json', 'deployment-package.json', 'README.txt', 'server/AuthLens.Api.exe', 'server/e_sqlite3.dll', 'SHA256SUMS')
             $declaration = Get-Content (Join-Path $published 'deployment-package.json') -Raw | ConvertFrom-Json
             $declaration.kind | Should -Be 'server'
-            @($declaration.omitted) | Should -Be @('desktop/SapLens.exe', 'symbols/server/SapLens.Api.pdb')
+            @($declaration.omitted) | Should -Be @('desktop/AuthLens.exe', 'symbols/server/AuthLens.Api.pdb')
             (Get-FileHash (Join-Path $published 'build-manifest.json')).Hash | Should -Be (Get-FileHash (Join-Path $build 'build-manifest.json')).Hash   # never rewritten
             $run = Invoke-Verify $published 'Server'
             $run.Code | Should -Be 0; $run.Output | Should -Match 'declared by deployment-package.json'
@@ -173,13 +173,13 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
     }
 
     It 'refuses a declaration that disagrees with the package' -ForEach @(
-        @{ Name = 'another omitted list'; Change = { param($d) $d.omitted = @('desktop/SapLens.exe') }; Message = 'declares other omitted files than are absent' }
+        @{ Name = 'another omitted list'; Change = { param($d) $d.omitted = @('desktop/AuthLens.exe') }; Message = 'declares other omitted files than are absent' }
         @{ Name = 'another manifest'; Change = { param($d) $d.build_manifest_sha256 = ('0' * 64) }; Message = 'names another build-manifest.json' }
         @{ Name = 'another kind'; Change = { param($d) $d.kind = 'full' }; Message = 'not a schema-1 server package declaration' }
     ) {
         $path = Join-Path $TestDrive ([guid]::NewGuid().ToString('n')); New-HistoricalPackage $path
         $declaration = [pscustomobject]@{ schema = 1; kind = 'server'; source_release = (Split-Path $path -Leaf); build_manifest_sha256 = (Get-FileHash (Join-Path $path 'build-manifest.json')).Hash.ToLowerInvariant()
-            omitted = @('desktop/SapLens.exe', 'symbols/server/SapLens.Api.pdb'); created_utc = '2026-11-19T00:00:00Z' }
+            omitted = @('desktop/AuthLens.exe', 'symbols/server/AuthLens.Api.pdb'); created_utc = '2026-11-19T00:00:00Z' }
         & $Change $declaration
         [System.IO.File]::WriteAllText((Join-Path $path 'deployment-package.json'), ($declaration | ConvertTo-Json))
         $run = Invoke-Verify $path 'Server'

@@ -15,18 +15,18 @@
        SDK appends to the informational version (2.0.0-alpha.1+<commit>); build time and artifact hashes live in build-manifest.json.
        FileVersion follows the v1 contract (MAJOR.MINOR.PATCH plus the alpha/beta/rc number, 0 for a stable release). -->
   <PropertyGroup>
-    <SapLensVersionFile>$(MSBuildThisFileDirectory)product-version.json</SapLensVersionFile>
-    <SapLensVersion>$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(SapLensVersionFile)')), '(?s)^.*"version"\s*:\s*"([^"]*)".*$', '$1'))</SapLensVersion>
-    <SapLensVersionValid>$([System.Text.RegularExpressions.Regex]::IsMatch('$(SapLensVersion)', '^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})(-(alpha|beta|rc)\.[1-9]\d{0,4})?$'))</SapLensVersionValid>
-    <SapLensBaseVersion>$([System.Text.RegularExpressions.Regex]::Replace('$(SapLensVersion)', '^(\d+\.\d+\.\d+).*$', '$1'))</SapLensBaseVersion>
-    <SapLensPrerelease Condition="$(SapLensVersion.Contains('-'))">$([System.Text.RegularExpressions.Regex]::Replace('$(SapLensVersion)', '^.*\.(\d+)$', '$1'))</SapLensPrerelease>
-    <SapLensPrerelease Condition="!$(SapLensVersion.Contains('-'))">0</SapLensPrerelease>
-    <Version>$(SapLensVersion)</Version>
-    <FileVersion>$(SapLensBaseVersion).$(SapLensPrerelease)</FileVersion>
-    <AssemblyVersion>$(SapLensBaseVersion).0</AssemblyVersion>
+    <AuthLensVersionFile>$(MSBuildThisFileDirectory)product-version.json</AuthLensVersionFile>
+    <AuthLensVersion>$([System.Text.RegularExpressions.Regex]::Replace($([System.IO.File]::ReadAllText('$(AuthLensVersionFile)')), '(?s)^.*"version"\s*:\s*"([^"]*)".*$', '$1'))</AuthLensVersion>
+    <AuthLensVersionValid>$([System.Text.RegularExpressions.Regex]::IsMatch('$(AuthLensVersion)', '^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})(-(alpha|beta|rc)\.[1-9]\d{0,4})?$'))</AuthLensVersionValid>
+    <AuthLensBaseVersion>$([System.Text.RegularExpressions.Regex]::Replace('$(AuthLensVersion)', '^(\d+\.\d+\.\d+).*$', '$1'))</AuthLensBaseVersion>
+    <AuthLensPrerelease Condition="$(AuthLensVersion.Contains('-'))">$([System.Text.RegularExpressions.Regex]::Replace('$(AuthLensVersion)', '^.*\.(\d+)$', '$1'))</AuthLensPrerelease>
+    <AuthLensPrerelease Condition="!$(AuthLensVersion.Contains('-'))">0</AuthLensPrerelease>
+    <Version>$(AuthLensVersion)</Version>
+    <FileVersion>$(AuthLensBaseVersion).$(AuthLensPrerelease)</FileVersion>
+    <AssemblyVersion>$(AuthLensBaseVersion).0</AssemblyVersion>
     <Product>SAP Lens</Product>
   </PropertyGroup>
-  <Target Name="SapLensValidateVersion" BeforeTargets="CoreCompile" Condition="'$(SapLensVersionValid)' != 'True'">
-    <Error Text="$(SapLensVersionFile): version '$(SapLensVersion)' must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-alpha.N|-beta.N|-rc.N." />
+  <Target Name="AuthLensValidateVersion" BeforeTargets="CoreCompile" Condition="'$(AuthLensVersionValid)' != 'True'">
+    <Error Text="$(AuthLensVersionFile): version '$(AuthLensVersion)' must be MAJOR.MINOR.PATCH or MAJOR.MINOR.PATCH-alpha.N|-beta.N|-rc.N." />
   </Target>
 </Project>

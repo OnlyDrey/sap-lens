@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Windows Desktop shell: WinForms + WebView2 hosting the shared ASP.NET Core core in-process on loopback. Cross-compiled on Linux
+       (EnableWindowsTargeting); it runs only on Windows. Not a replacement of the production v1 launcher or installer. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <!-- `dotnet publish -c Release` alone produces the complete package: one self-contained exe; the UI is embedded in AuthLens.Api.dll inside it. -->
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <AssemblyName>AuthLens</AssemblyName>
+    <!-- The official multi-size icon (16 to 256 px), embedded in AuthLens.exe and used for the window. -->
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\assets\sap-lens.ico</ApplicationIcon>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- AuthLens.Api is also the Server executable; Desktop uses it as a library. -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+    <!-- No XML API documentation from packages in the package (symbols are collected separately by the release scripts). -->
+    <AllowedReferenceRelatedFileExtensions>.pdb</AllowedReferenceRelatedFileExtensions>
+    <!-- No trimming, Native AOT or compression (not validated). -->
+    <PublishTrimmed>false</PublishTrimmed>
+    <PublishAot>false</PublishAot>
+    <EnableCompressionInSingleFile>false</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AuthLens.Api\AuthLens.Api.csproj" />
+  </ItemGroup>
+
+  <!-- The referenced Server project is an executable: its own apphost, deps.json and runtimeconfig.json are copied along but never used by the
+       Desktop (AuthLens.Api.dll itself is bundled into AuthLens.exe). -->
+  <Target Name="DropServerHostFiles" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'AuthLens.Api' Or '%(Filename)%(Extension)' == 'AuthLens.Api.exe'" />
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'AuthLens.Api.deps.json' Or '%(Filename)%(Extension)' == 'AuthLens.Api.runtimeconfig.json'" />
+    </ItemGroup>
+  </Target>
+  <Target Name="DropServerAppHost" AfterTargets="Publish">
+    <Delete Files="$(PublishDir)AuthLens.Api;$(PublishDir)AuthLens.Api.exe;$(PublishDir)AuthLens.Api.staticwebassets.endpoints.json" />
+  </Target>
+
+  <!-- The WebView2 package always references its WPF control; this WinForms app does not use WPF (avoids a WindowsBase version conflict). -->
+  <Target Name="DropWebView2Wpf" BeforeTargets="ResolveAssemblyReferences">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'Microsoft.Web.WebView2.Wpf'" />
+    </ItemGroup>
+  </Target>
+
+</Project>
