@@ -132,15 +132,24 @@ public sealed class BuildIntegrationTests
     [Theory]
     [InlineData("build-release.sh")]
     [InlineData("build-release.ps1")]
-    public void The_release_scripts_build_the_ui_then_the_solution_then_test_that_build(string script)
+    public void The_release_scripts_let_msbuild_build_a_fresh_ui_once_then_test_and_publish_that_build(string script)
     {
-        var lines = File.ReadAllLines(Path.Combine(SolutionRoot().FullName, "scripts", script));
-        int First(Func<string, bool> predicate) => Array.FindIndex(lines, l => !l.TrimStart().StartsWith('#') && predicate(l));
-        var ui = First(l => l.Contains("npm run build", StringComparison.Ordinal));
+        var lines = File.ReadAllLines(Path.Combine(SolutionRoot().FullName, "scripts", script)).Where(l => !l.TrimStart().StartsWith('#')).ToArray();
+        int First(Predicate<string> predicate) => Array.FindIndex(lines, predicate);
+        // MSBuild (SapLensBuildFrontend) is the only frontend build: no npm step of its own, a removed dist, then one solution build that builds it.
+        Assert.DoesNotContain(lines, l => System.Text.RegularExpressions.Regex.IsMatch(l, @"(^\s*|[&(;|]\s*)npm\s+(ci|run|install)\b"));   // a command, not help text
+        var clean = First(l => l.Contains("dist", StringComparison.Ordinal) && (l.Contains("rm -rf", StringComparison.Ordinal) || l.Contains("Remove-Item", StringComparison.Ordinal)));
         var build = First(l => l.Contains("dotnet build", StringComparison.Ordinal) && l.Contains("SapLens.slnx", StringComparison.Ordinal));
         var test = First(l => l.Contains("dotnet test", StringComparison.Ordinal));
-        Assert.True(ui >= 0 && build > ui && test > build, $"{script}: expected npm run build ({ui}) < dotnet build SapLens.slnx ({build}) < dotnet test ({test}).");
+        var publish = First(l => l.Contains("dotnet publish", StringComparison.Ordinal));
+        Assert.True(clean >= 0 && build > clean && test > build && publish > build, $"{script}: expected remove dist ({clean}) < dotnet build ({build}) < dotnet test ({test}), publish ({publish}).");
+        Assert.Contains("-p:BuildFrontend=true", lines[build]);
+        // The publishes reuse that dist (BuildFrontend only on the solution build), and the tests run exactly what was built.
+        Assert.Single(lines, l => l.Contains("dotnet ", StringComparison.Ordinal) && l.Contains("BuildFrontend=true", StringComparison.Ordinal));
         Assert.All(lines.Where(l => l.Contains("dotnet test", StringComparison.Ordinal)), l => Assert.Contains("--no-build", l));
+        // Freshness: the dist carries this commit, and each executable embeds this run's index.html and product-version.json.
+        Assert.Contains(lines, l => l.Contains("source_sha", StringComparison.Ordinal) && l.Contains("dist", StringComparison.Ordinal));
+        Assert.Contains(lines, l => l.Contains("'index.html', 'product-version.json'", StringComparison.Ordinal) || l.Contains("('index.html', 'product-version.json')", StringComparison.Ordinal));
     }
 
     private static (int Code, string Log) Build(string frontendRoot, string artifacts)

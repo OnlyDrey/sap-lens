@@ -3,9 +3,10 @@
   Repeatable Windows x64 release build of SAP Lens (.NET Server and Desktop) with the production React UI. Windows PowerShell 5.1 and PowerShell 7.
 
 .DESCRIPTION
-  1. Builds the React UI from frontend/ (npm ci + npm run build; Node.js 24 or 25, as frontend/package.json requires).
-  2. Builds the .NET solution (Release) and runs the test suite (unless -SkipTests; -SkipPublishTests skips only the slow publish tests;
-     -TestFilter runs only the matching tests, as a deployment's focused validation does).
+  1. Builds the .NET solution (Release) with -p:BuildFrontend=true: MSBuild (SapLens.Api.csproj) runs npm ci and npm run build once, into a
+     frontend/dist that this script removed first, and embeds it (Node.js 24 or 25, as frontend/package.json requires; checked here first).
+  2. Runs the test suite (unless -SkipTests; -SkipPublishTests skips only the slow publish tests; -TestFilter runs only the matching tests, as a
+     deployment's focused validation does).
   3. Publishes both self-contained single-file executables (no trimming, Native AOT or compression) into a new versioned release folder:
 
        <Output>\SAP-Lens-<version>-<yyyyMMdd-HHmmss>-<commit>-win-x64\
@@ -64,15 +65,15 @@ $release = Join-Path $Output ('SAP-Lens-{0}-{1}-{2}-{3}' -f $version, $built.ToS
 if (Test-Path -LiteralPath $release) { throw "Release folder $release exists; an existing release is never overwritten." }
 $identity = "-p:SourceRevisionId=$sha"
 
-Push-Location $frontend
-try {
-    Invoke-Step 'Install frontend dependencies (npm ci)' { & npm ci --no-audit --no-fund }
-    Invoke-Step 'Build the React UI' { & npm run build }
-} finally { Pop-Location }
-
-# The solution contains every project, the test project included, so `dotnet test --no-build` runs exactly what this build produced (with the UI
-# embedded from the dist just built), never older binaries left in tests\*\bin.
-Invoke-Step 'Build the .NET solution' { & dotnet build (Join-Path $root 'SapLens.slnx') -c Release $identity }
+# MSBuild owns the frontend build (SapLensBuildFrontend in SapLens.Api.csproj). A release removes frontend\dist first and builds it exactly once,
+# with -p:BuildFrontend=true on the solution build; the publish steps below find that dist and embed it without rebuilding it. The solution contains
+# every project, the test project included, so `dotnet test --no-build` runs exactly what this build produced, never older binaries in tests\*\bin.
+$dist = Join-Path $frontend 'dist'
+if (Test-Path -LiteralPath $dist) { Remove-Item -LiteralPath $dist -Recurse -Force }
+Invoke-Step 'Build the React UI and the .NET solution' { & dotnet build (Join-Path $root 'SapLens.slnx') -c Release $identity '-p:BuildFrontend=true' }
+$uiIdentity = Join-Path $dist 'product-version.json'
+if (-not (Test-Path -LiteralPath (Join-Path $dist 'index.html')) -or -not (Test-Path -LiteralPath $uiIdentity)) { throw 'The .NET build did not produce frontend\dist.' }
+if ((Get-Content -LiteralPath $uiIdentity -Raw | ConvertFrom-Json).source_sha -ne $sha) { throw "frontend\dist was not built from commit $sha." }
 if (-not $SkipTests) {
     $filter = if ($TestFilter) { $TestFilter } elseif ($SkipPublishTests) { 'Category!=Publish' } else { '' }
     if ($filter) { Invoke-Step 'Run tests' { & dotnet test (Join-Path $root 'tests\SapLens.Tests') -c Release --no-build --filter $filter } }
@@ -110,6 +111,10 @@ foreach ($check in 'server\SapLens.Api.exe', 'desktop\SapLens.exe') {
     # The UI is embedded as resources named SapLensUi/<path> (the separator after "assets" is the build machine's; the server normalizes it).
     if (-not (Test-Contains $file 'SapLensUi/index.html')) { throw "index.html missing from the embedded UI of $check." }
     if (-not ((Test-Contains $file 'SapLensUi/assets/') -or (Test-Contains $file 'SapLensUi/assets\'))) { throw "React UI assets missing in $check." }
+    # Freshness: the embedded index.html (which names the content-hashed bundles) and the UI build identity (with this commit) are this run's files.
+    foreach ($ui in 'index.html', 'product-version.json') {
+        if (-not (Test-Contains $file ([System.IO.File]::ReadAllText((Join-Path $dist $ui))))) { throw "The embedded $ui in $check is not the frontend built by this release." }
+    }
 }
 if (-not (Test-Contains (Join-Path $server 'SapLens.Api.exe') 'Microsoft.Extensions.Hosting.WindowsServices.dll')) { throw 'The Windows service host is missing in the server executable.' }
 
