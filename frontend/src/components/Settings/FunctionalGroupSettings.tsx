@@ -11,7 +11,7 @@ import { SuggestionRules } from './SuggestionRules'
 import { Button, IconButton } from '@/components/Shared/Button'
 import { Dialog } from '@/components/Shared/Dialog'
 import { FormField, SearchInput, controlClass } from '@/components/Shared/Controls'
-import { DataTable, EmptyState, LoadingState, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
+import { DataTable, EmptyState, LoadingState, MetadataList, StatusBadge, Toolbar } from '@/components/Shared/Presentation'
 
 const message = (error: unknown) => (error instanceof Error ? error.message : 'The request failed.')
 
@@ -33,17 +33,50 @@ function GroupDialog({ group, onClose }: { group: FunctionalGroup | null; onClos
   )
 }
 
-/** Why an archived group cannot be deleted, in the words of the server rule. */
-const blockers = (group: FunctionalGroup) => [group.references.members && `${group.references.members.toLocaleString()} ${group.references.members === 1 ? 'member' : 'members'}`,
-  group.references.rules && `${group.references.rules.toLocaleString()} suggestion ${group.references.rules === 1 ? 'rule' : 'rules'}`,
-  group.references.history && 'classification history'].filter(Boolean).join(', ') + '. It stays archived.'
+const plural = (count: number, word: string) => `${count.toLocaleString()} ${word}${count === 1 ? '' : 's'}`
+
+/** Permanent deletion of an archived group: shows what is removed and what is kept, and needs the exact group name typed. */
+function DeleteGroupDialog({ group, onClose, onDeleted }: { group: FunctionalGroup; onClose: () => void; onDeleted: (text: string) => void }) {
+  const client = useQueryClient(), [typed, setTyped] = useState('')
+  const remove = useMutation({
+    mutationFn: () => deleteGroup(group.id, group.references.members),
+    onSuccess: async result => {
+      onDeleted(`"${result.name}" was deleted permanently: ${plural(result.members_removed, 'membership')} and ${plural(result.rules_removed, 'suggestion rule')} removed.`)
+      await client.invalidateQueries({ queryKey: ['functional-groups'] })
+    },
+    // A concurrent change (another member count) or a removed group: reload so the dialog can be reopened with current numbers.
+    onError: () => client.invalidateQueries({ queryKey: ['functional-groups'] }),
+  })
+  return (
+    <Dialog title="Delete Functional Group" onClose={onClose}
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="destructive" loading={remove.isPending} disabled={typed !== group.name || remove.isPending} onClick={() => remove.mutate()}>Delete permanently</Button></>}>
+      <div className="grid gap-3">
+        <p>Delete <strong>{group.name}</strong> permanently? This cannot be undone.</p>
+        <MetadataList items={[{ label: 'Members', value: group.references.members.toLocaleString() }, { label: 'Suggestion rules', value: group.references.rules.toLocaleString() }]} />
+        <p className="ui-description">{group.references.members ? `${group.references.members === 1 ? 'The membership in this group is' : `The ${group.references.members.toLocaleString()} memberships in this group are`} removed and each removal is recorded in the user's classification history. ` : ''}
+          The users, their other groups, SAP roles, review decisions and reports are not changed, and the existing history keeps the group name. The deletion is recorded in the Functional Group audit trail.</p>
+        <FormField label={`Type the group name (${group.name}) to confirm`}><input className={controlClass} value={typed} onChange={event => setTyped(event.target.value)} autoComplete="off" autoFocus /></FormField>
+        {remove.isError && <p role="alert">{message(remove.error)}</p>}
+      </div>
+    </Dialog>
+  )
+}
 
 export function FunctionalGroupSettings() {
   const client = useQueryClient(), query = useQuery({ queryKey: groupsKey, queryFn: fetchGroups })
   const [search, setSearch] = useState(''), [editing, setEditing] = useState<FunctionalGroup | 'new' | null>(null), [analysing, setAnalysing] = useState<FunctionalGroup | null>(null), [viewing, setViewing] = useState<FunctionalGroup | null>(null)
-  const archive = useMutation({ mutationFn: (group: FunctionalGroup) => setGroupArchived(group.id, group.status === 'active'), onSuccess: () => client.invalidateQueries({ queryKey: ['functional-groups'] }) })
+  const [notice, setNotice] = useState('')
+  const archive = useMutation({
+    mutationFn: (group: FunctionalGroup) => setGroupArchived(group.id, group.status === 'active'),
+    onMutate: () => setNotice(''),
+    onSuccess: async (result, group) => {
+      setNotice(result.status === 'archived'
+        ? `"${result.name}" was archived. It keeps its ${plural(group.references.members, 'member')}, takes no new members and can be restored or deleted permanently.`
+        : `"${result.name}" was restored and can take new members again.`)
+      await client.invalidateQueries({ queryKey: ['functional-groups'] })
+    },
+  })
   const [tab, setTab] = useState('groups'), [status, setStatus] = useState<'all' | 'active' | 'archived'>('all'), [deleting, setDeleting] = useState<FunctionalGroup | null>(null)
-  const remove = useMutation({ mutationFn: (group: FunctionalGroup) => deleteGroup(group.id), onSuccess: async () => { setDeleting(null); await client.invalidateQueries({ queryKey: ['functional-groups'] }) } })
   const items = (query.data?.items ?? []).filter(group => (status === 'all' || group.status === status) && (!search.trim() || `${group.name} ${group.description}`.toLowerCase().includes(search.trim().toLowerCase())))
   return (
     <section className="grid min-w-0 gap-4" aria-label="Functional Groups">
@@ -56,6 +89,7 @@ export function FunctionalGroupSettings() {
         <Button variant="primary" onClick={() => setEditing('new')}><Plus size={14} aria-hidden="true" /> New group</Button>
       </Toolbar>
       {archive.isError && <p role="alert">{message(archive.error)}</p>}
+      {notice && <p role="status">{notice}</p>}
       {query.isError ? <p role="alert">{message(query.error)}</p> : !query.data ? <LoadingState /> : items.length ? (
         <DataTable caption="Functional Groups" density="compact">
           <thead><tr><th>Name</th><th>Description</th><th>Users</th><th>Status</th><th>Actions</th></tr></thead>
@@ -68,19 +102,13 @@ export function FunctionalGroupSettings() {
                 <IconButton label={`Edit ${group.name}`} tooltip="Edit" size="icon" onClick={() => setEditing(group)}><Pencil size={14} aria-hidden="true" /></IconButton>
                 <IconButton label={`${group.status === 'active' ? 'Archive' : 'Restore'} ${group.name}`} tooltip={group.status === 'active' ? 'Archive' : 'Restore'} size="icon" onClick={() => archive.mutate(group)}>
                   {group.status === 'active' ? <Archive size={14} aria-hidden="true" /> : <RotateCcw size={14} aria-hidden="true" />}</IconButton>
-                {group.status === 'archived' && <IconButton label={`Delete ${group.name}`} tooltip={group.deletable ? 'Delete permanently' : `Cannot be deleted: ${blockers(group)}`} size="icon" disabled={!group.deletable} onClick={() => setDeleting(group)}><Trash2 size={14} aria-hidden="true" /></IconButton>}</span></td></tr>))}</tbody>
+                {group.status === 'archived' && <IconButton label={`Delete ${group.name}`} tooltip="Delete permanently" size="icon" onClick={() => { setNotice(''); setDeleting(group) }}><Trash2 size={14} aria-hidden="true" /></IconButton>}</span></td></tr>))}</tbody>
         </DataTable>
       ) : <EmptyState>{query.data.items.length ? 'No Functional Groups match the search and status filter.' : 'No Functional Groups yet. Create one to start classifying users.'}</EmptyState>}
       </div>}
       {tab === 'rules' && (query.isError ? <p role="alert">{message(query.error)}</p> : query.data ? <SuggestionRules groups={query.data.items} /> : <LoadingState />)}
       </ContentTabs>
-      {deleting && (
-        <Dialog title="Delete Functional Group" onClose={() => { setDeleting(null); remove.reset() }}
-          footer={<><Button onClick={() => { setDeleting(null); remove.reset() }}>Cancel</Button><Button variant="destructive" disabled={remove.isPending} onClick={() => remove.mutate(deleting)}>Delete permanently</Button></>}>
-          <p>Delete <strong>{deleting.name}</strong> permanently? It has no members, no suggestion rules and no classification history, so nothing else is removed. This cannot be undone.</p>
-          {remove.isError && <p role="alert">{message(remove.error)}</p>}
-        </Dialog>
-      )}
+      {deleting && <DeleteGroupDialog group={deleting} onClose={() => setDeleting(null)} onDeleted={text => { setDeleting(null); setNotice(text) }} />}
       {analysing && <FunctionalGroupAnalysis id={analysing.id} name={analysing.name} onClose={() => setAnalysing(null)} onViewMembers={() => { setViewing(analysing); setAnalysing(null) }} />}
       {viewing && <GroupMembersDialog group={viewing} onClose={() => setViewing(null)} />}
       {editing && <GroupDialog group={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}

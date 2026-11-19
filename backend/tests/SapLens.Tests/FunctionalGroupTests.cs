@@ -182,19 +182,90 @@ public sealed class FunctionalGroupTests : IAsyncLifetime
         Assert.Equal(2, (int)review["total"]!);                                                 // v1 filters by the sole membership's group
         Assert.Contains(review["functional_group_options"]!.AsArray(), o => (string)o!["value"]! == gid);
 
-        // Rules: duplicate refused; archive before delete; a group with references is never deleted.
+        // Rules: duplicate refused; a group is deleted only when archived and with the confirmed member count (permanent deletion: see below).
         var (_, rule) = await Send(HttpMethod.Post, "/api/functional-groups/rules", new { group_id = gid, department = "Finance" });
         Assert.Equal("contains", (string)rule["department_mode"]!);
         Assert.Equal(HttpStatusCode.Conflict, (await Send(HttpMethod.Post, "/api/functional-groups/rules", new { group_id = gid, department = " finance " })).Status);
-        Assert.Equal(HttpStatusCode.Conflict, (await Send(HttpMethod.Delete, $"/api/functional-groups/{gid}")).Status);
+        Assert.Equal(HttpStatusCode.Conflict, (await Send(HttpMethod.Delete, $"/api/functional-groups/{gid}?expected_members=3")).Status);
         await Send(HttpMethod.Post, $"/api/functional-groups/{gid}/archive");
-        var (deleteStatus, refusal) = await Send(HttpMethod.Delete, $"/api/functional-groups/{gid}");
-        Assert.Equal(HttpStatusCode.Conflict, deleteStatus);
-        Assert.Contains("member(s)", (string)refusal["detail"]!);
         Assert.Equal(HttpStatusCode.Conflict, (await Send(HttpMethod.Post, "/api/functional-groups/memberships", new { username = "USER00296", group_id = gid, reviewer = "Ada Reviewer", expected_revision = 0 })).Status);
         var (_, empty) = await Send(HttpMethod.Post, "/api/functional-groups", new { name = "Temporary" });
         await Send(HttpMethod.Post, $"/api/functional-groups/{(string)empty["id"]!}/archive");
-        Assert.Equal("deleted", (string)(await Send(HttpMethod.Delete, $"/api/functional-groups/{(string)empty["id"]!}")).Body["status"]!);
+        Assert.Equal("deleted", (string)(await Send(HttpMethod.Delete, $"/api/functional-groups/{(string)empty["id"]!}?expected_members=0")).Body["status"]!);
+    }
+
+    [Fact]
+    public async Task An_archived_group_with_members_is_deleted_permanently_without_touching_users_or_evidence()
+    {
+        await ImportAsync();
+        var (_, kept) = await Send(HttpMethod.Post, "/api/functional-groups", new { name = "Buyers" });
+        var (_, doomed) = await Send(HttpMethod.Post, "/api/functional-groups", new { name = "Planners" });
+        var (keptId, gid) = ((string)kept["id"]!, (string)doomed["id"]!);
+        async Task<int> Revision(string user) => (int)JsonNode.Parse(await _client.GetStringAsync($"/api/functional-groups/users/{user}"))!["classification"]!["revision"]!;
+        foreach (var user in new[] { "USER00152", "USER00170" })
+            Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Post, "/api/functional-groups/memberships", new { username = user, group_id = gid, reviewer = "Ada Reviewer", expected_revision = await Revision(user) })).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Send(HttpMethod.Post, "/api/functional-groups/memberships", new { username = "USER00152", group_id = keptId, reviewer = "Ada Reviewer", expected_revision = await Revision("USER00152") })).Status);
+        await Send(HttpMethod.Post, "/api/functional-groups/rules", new { group_id = gid, department = "Planning" });
+        await Send(HttpMethod.Post, "/api/functional-groups/rules", new { group_id = keptId, department = "Purchasing" });
+        var usersBefore = (int)JsonNode.Parse(await _client.GetStringAsync("/api/access/users?limit=1"))!["total"]!;
+        var rolesBefore = await _client.GetStringAsync("/api/roles");
+        var document = async () => await _client.GetStringAsync("/api/functional-groups") + await _client.GetStringAsync("/api/functional-groups/rules")
+            + await _client.GetStringAsync("/api/functional-groups/users/USER00152") + await _client.GetStringAsync("/api/functional-groups/users/USER00170");
+
+        // Active groups are never deleted; a request without the confirmed member count, or with a different one, changes nothing.
+        var before = await document();
+        var active = await Send(HttpMethod.Delete, $"/api/functional-groups/{gid}?expected_members=2");
+        Assert.Equal(HttpStatusCode.Conflict, active.Status);
+        Assert.Contains("Archive", (string)active.Body["detail"]!);
+        await Send(HttpMethod.Post, $"/api/functional-groups/{gid}/archive");
+        var archived = await document();
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Send(HttpMethod.Delete, $"/api/functional-groups/{gid}")).Status);
+        var stale = await Send(HttpMethod.Delete, $"/api/functional-groups/{gid}?expected_members=1");      // a member was added after the dialog opened
+        Assert.Equal(HttpStatusCode.Conflict, stale.Status);
+        Assert.Contains("now has 2 member(s), not the 1 confirmed", (string)stale.Body["detail"]!);
+        Assert.Equal(archived, await document());
+        Assert.NotEqual(before, archived);                                                     // only the archive itself changed the catalogue
+
+        // Delete: the memberships and the group's rules go; users, other memberships, other rules, SAP data and history stay.
+        var revision = await Revision("USER00170");
+        var (status, deleted) = await Send(HttpMethod.Delete, $"/api/functional-groups/{gid}?expected_members=2");
+        Assert.Equal(HttpStatusCode.OK, status);
+        Assert.Equal(("deleted", 2, 1), ((string)deleted["status"]!, (int)deleted["members_removed"]!, (int)deleted["rules_removed"]!));
+        Assert.DoesNotContain(JsonNode.Parse(await _client.GetStringAsync("/api/functional-groups"))!["items"]!.AsArray(), g => (string)g!["id"]! == gid);
+        var rules = JsonNode.Parse(await _client.GetStringAsync("/api/functional-groups/rules"))!["items"]!.AsArray();
+        Assert.Equal([keptId], rules.Select(r => (string)r!["group_id"]!));
+        var buyer = JsonNode.Parse(await _client.GetStringAsync("/api/functional-groups/users/USER00152"))!;
+        Assert.Equal([keptId], buyer["classification"]!["memberships"]!.AsArray().Select(m => (string)m!["group_id"]!));
+        var planner = JsonNode.Parse(await _client.GetStringAsync("/api/functional-groups/users/USER00170"))!;
+        Assert.Equal("Unassigned", (string)planner["classification"]!["status"]!);
+        Assert.Equal(usersBefore, (int)JsonNode.Parse(await _client.GetStringAsync("/api/access/users?limit=1"))!["total"]!);
+        Assert.Equal(rolesBefore, await _client.GetStringAsync("/api/roles"));
+        // History keeps the assignment and records the removal; the deleted group's name stays resolvable.
+        var history = planner["history"]!["items"]!.AsArray();
+        Assert.Equal(["removed", "assigned"], history.Select(e => (string)e!["event"]!));
+        Assert.All(history, e => Assert.Equal(("Planners", true), ((string?)e!["previous_group_name"] ?? (string?)e["new_group_name"], (bool)e["group_deleted"]!)));
+        Assert.Equal("Functional Group \"Planners\" was deleted.", (string)history[0]!["reason"]!);
+        // A classification loaded before the deletion is refused instead of silently restoring the membership.
+        Assert.Equal(HttpStatusCode.Conflict, (await Send(HttpMethod.Post, "/api/functional-groups/memberships", new { username = "USER00170", group_id = keptId, reviewer = "Ada Reviewer", expected_revision = revision })).Status);
+        // Audit trail: archive and delete with actor, time, identity and counts.
+        var audit = JsonNode.Parse(await _client.GetStringAsync("/api/functional-groups/audit"))!["items"]!.AsArray();
+        Assert.Equal(["deleted", "archived"], audit.Select(e => (string)e!["event"]!));
+        Assert.Equal((gid, "Planners", 2, 1, "operator"), ((string)audit[0]!["group_id"]!, (string)audit[0]!["group_name"]!, (int)audit[0]!["members"]!, (int)audit[0]!["rules"]!, (string)audit[0]!["actor"]!));
+        Assert.True(DateTimeOffset.TryParse((string)audit[0]!["timestamp"]!, out _));
+        Assert.Equal(HttpStatusCode.NotFound, (await Send(HttpMethod.Delete, $"/api/functional-groups/{gid}?expected_members=0")).Status);
+        // The stored document stays valid across a restart (deleted references resolve through the audit event).
+        await _app.StopAsync(); await _app.DisposeAsync(); _client.Dispose();
+        await StartAsync(HostMode.Desktop);
+        Assert.Equal(2, (int)JsonNode.Parse(await _client.GetStringAsync("/api/functional-groups/users/USER00170"))!["history"]!["total"]!);
+    }
+
+    [Fact]
+    public void Deletion_and_the_audit_trail_are_administrator_operations()
+    {
+        Assert.Equal("admin", V1Auth.Permission("DELETE", "/api/functional-groups/fg_000000000000"));
+        Assert.Equal("admin", V1Auth.Permission("POST", "/api/functional-groups/fg_000000000000/archive"));
+        Assert.Equal("admin", V1Auth.Permission("GET", "/api/functional-groups/audit"));
+        Assert.Equal("read", V1Auth.Permission("GET", "/api/functional-groups"));
     }
 
     [Fact]

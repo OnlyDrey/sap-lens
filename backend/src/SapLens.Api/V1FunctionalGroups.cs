@@ -51,7 +51,19 @@ public static class V1FunctionalGroups
         });
         fg.MapPost("/{gid}/archive", async (string gid, HttpContext http, FunctionalGroupStore store, CancellationToken ct) => Json(await store.SetStatusAsync(gid, "archived", Actors.Name(http), ct)));
         fg.MapPost("/{gid}/restore", async (string gid, HttpContext http, FunctionalGroupStore store, CancellationToken ct) => Json(await store.SetStatusAsync(gid, "active", Actors.Name(http), ct)));
-        fg.MapDelete("/{gid}", async (string gid, HttpContext http, FunctionalGroupStore store, CancellationToken ct) => Json(await store.DeleteGroupAsync(gid, Actors.Name(http), ct)));
+        // Permanent deletion: the group must be archived and the request must repeat the member count the person confirmed (`expected_members`).
+        fg.MapDelete("/{gid}", async (string gid, HttpContext http, FunctionalGroupStore store, CancellationToken ct) =>
+        {
+            if (!int.TryParse(http.Request.Query["expected_members"], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var expected))
+                return Detail(422, "Confirm the deletion with the number of members shown (expected_members).");
+            return Json(await store.DeleteGroupAsync(gid, expected, Actors.Name(http), ct));
+        });
+        fg.MapGet("/audit", async (FunctionalGroupStore store, int? offset, int? limit, CancellationToken ct) =>
+        {
+            var (o, l) = (offset ?? 0, limit ?? 50);
+            if (o < 0 || l is < 1 or > 200) return Detail(422, "Invalid audit query.");
+            return Json(FunctionalGroupStore.CatalogueHistory(await store.ReadAsync(ct), o, l));
+        });
 
         var mapped = fg.MapGroup("").AddEndpointFilter(async (context, next) =>
         {

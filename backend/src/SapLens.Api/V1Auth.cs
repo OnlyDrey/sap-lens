@@ -31,7 +31,7 @@ public static partial class V1Auth
 {
     public const string SessionCookie = "sap-lens-session", CsrfCookie = "sap-lens-csrf", CsrfHeader = "X-SAP-Lens-CSRF";
     public static readonly HashSet<string> PublicPaths = ["/api/auth/state", "/api/auth/login", "/api/auth/reset", "/api/auth/activate", "/api/auth/recover"];
-    private static readonly string[] AdminRead = ["/api/v1/admin", "/api/backups", "/api/storage", "/api/retention", "/api/diagnostics", "/api/configuration", "/api/settings"];
+    private static readonly string[] AdminRead = ["/api/v1/admin", "/api/backups", "/api/storage", "/api/retention", "/api/diagnostics", "/api/configuration", "/api/settings", "/api/functional-groups/audit"];
     private static readonly string[] AdminWrite = ["/api/settings", "/api/configuration", "/api/refresh", "/api/server/", "/api/data-sources", "/api/sources", "/api/branding", "/api/storage",
         "/api/retention", "/api/backups", "/api/import", "/api/sod/configuration", "/api/sod/reference", "/api/sod/periods", "/api/saved-filters", "/api/functional-groups",
         "/api/user-import", "/api/employees", "/api/data/cancel", "/api/refresh-schedule", "/api/sod/catalogue", "/api/sod/reports/branding"];

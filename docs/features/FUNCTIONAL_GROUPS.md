@@ -9,10 +9,11 @@ One store, `functional-groups.json` (format 2) in the application data folder, i
 
 | Part | Content |
 | --- | --- |
-| `groups` | Global catalogue: stable id `fg_<12 hex>`, unique name, description, `active` or `archived`, created and modified timestamps. Groups are archived; an archived group that nothing refers to can be deleted (see Settings below). |
+| `groups` | Global catalogue: stable id `fg_<12 hex>`, unique name, description, `active` or `archived`, created and modified timestamps. Groups are archived first; an archived group can then be deleted permanently, also with members (see [Permanent deletion](#permanent-deletion)). |
 | `users` | At most one record per canonical SAP user (the upper-cased user name, hashed as in Account Review): `group_id`, status, revision, confirmation time and reviewer, rationale, open review, handled change ids. |
 | `history` | Append-only events: assigned, changed, confirmed, removed, review_required, reconfirmed, manager_changed. Each keeps user, previous and new group and status, actor, time, reason and the related organizational change id. |
 | `rules` | Advisory suggestion rules (see below). |
+| `catalogue_events` | Audit trail of group lifecycle actions (`archived`, `restored`, `deleted`): group id and name, actor, time, member and rule counts. Optional: created with the first event, so a store without one keeps the v1 shape. A `deleted` event keeps the deleted group's id and name resolvable for the history. |
 
 Classification states: `Unassigned` (no group), `Confirmed`, `Needs review` (a group is kept but needs reconfirmation). A user can belong to several groups: a user record holds `memberships`, one entry per group with its own status, confirmation time and reviewer, rationale and open review. Every write is validated (names unique after Unicode, case and spacing normalization,
 references resolve, status agrees with group) and replaced atomically. Changes carry the revision the reviewer saw; a stale revision is rejected
@@ -23,9 +24,32 @@ SAP-to-Directory match, which already refuses missing, duplicate and ambiguous m
 
 ## API
 
-`/api/functional-groups`: list, create, rename or edit (`PATCH`), `archive`, `restore`, `DELETE` (archived and unreferenced only, otherwise 409); `users/{username}` reads and writes one classification
+`/api/functional-groups`: list, create, rename or edit (`PATCH`), `archive`, `restore`, `DELETE /{id}?expected_members=N` (archived only; see
+[Permanent deletion](#permanent-deletion)), `audit` (the catalogue audit trail, administrators); `users/{username}` reads and writes one classification
 (`group_id` null clears it, rationale required when clearing); `history/{username}`. A reviewer name is required unless the server supplies the
 signed-in actor.
+
+## Permanent deletion
+
+Implemented and tested on Linux (.NET `FunctionalGroupTests`, browser `functional-groups.spec.ts`).
+
+- **Only archived groups.** An active group is refused with HTTP 409; archive it first. Archiving keeps all members.
+- **Explicit confirmation.** The dialog shows the group name, its member count and its suggestion rule count, says what is removed and what is kept,
+  and enables **Delete permanently** only after the exact group name is typed. Cancel changes nothing.
+- **Concurrency.** The request carries the member count the person confirmed (`expected_members`). If the group has a different number of members
+  when the server applies it (someone added or removed a member meanwhile), it answers 409 and changes nothing. A request without the count is refused
+  with 422. All writes to the store are serialized and the deletion is one atomic write: all of it or nothing.
+- **What is removed:** the group, its memberships and its suggestion rules. Each removed membership gets a `removed` event in the user's
+  classification history (reason `Functional Group "<name>" was deleted.`), and each affected user's revision is raised, so an edit loaded before the
+  deletion is refused instead of restoring the membership.
+- **What is kept:** users, their other memberships, other rules, SAP roles and imports, Employee Directory data, Account Review decisions, SoD
+  decisions, snapshots and reports (none of them store Functional Group ids), and all existing classification history. History events keep the
+  group id; the API adds `previous_group_name`/`new_group_name` and `group_deleted`, resolved through the `deleted` audit event.
+- **Audit:** a `deleted` event in `catalogue_events` with actor, time, group id and name, removed memberships and rules; `GET
+  /api/functional-groups/audit` lists the trail (newest first, administrators only). The trail is not yet shown in the UI.
+- **Authorization:** `DELETE`, `archive`, `restore` and `audit` are administrator operations in Server Accounts mode (`V1Auth.Permission`); the
+  server enforces every rule independently of the UI.
+- **Saved filters** that name a deleted group select nobody; they are not rewritten.
 
 ## Backup and restore
 
@@ -37,9 +61,8 @@ the file restore to an empty catalogue.
 - **Settings > Functional Groups:** searchable table (name, description, assigned users, Active or Archived), create, edit and archive or restore.
   Duplicate names (case, spacing and Unicode-normalized) are refused. Archived groups stay on existing users and in history but cannot be newly assigned.
   The section has two tabs, **Groups** and **Suggestion Rules**; search text and the status filter (All, Active, Archived) are kept when switching.
-  **Permanent deletion** is offered only for an archived group with no members, no suggestion rules and no classification history event, after an
-  explicit confirmation. Any of those references keeps the group archived (the button is disabled and names the reason, the API answers 409 and changes
-  nothing), so memberships are never dropped and every history event keeps resolving to its group. A new group can be created inside the suggestion
+  Archive, restore and delete each report their result in a status line under the toolbar (for archive: the members kept). **Permanent
+  deletion** of an archived group is described below. A new group can be created inside the suggestion
   rule dialog; it is created active and without members, is selected at once, and the rule fields are kept. Nothing is ever assigned by creating a
   group or a rule.
   **Users count:** one definition everywhere a group is listed in Settings (`user_count`): distinct users with a stored membership in the group,

@@ -23,10 +23,13 @@ public sealed class V1Problem(int status, object detail) : Exception(detail as s
 public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> factory, WriteCoordinator writer, TimeProvider clock)
 {
     public const string Document = "functional-groups";
-    public const int Format = 2, LegacyFormat = 1, MaxGroups = 500, MaxHistory = 50000, MaxHandled = 200, MaxBytes = 20 * 1024 * 1024;
+    public const int Format = 2, LegacyFormat = 1, MaxGroups = 500, MaxHistory = 50000, MaxHandled = 200, MaxBytes = 20 * 1024 * 1024, MaxCatalogueEvents = 10000;
     public static readonly string[] Statuses = ["Unassigned", "Confirmed", "Needs review"];
     private static readonly string[] GroupStates = ["active", "archived"];
     private static readonly string[] Events = ["assigned", "changed", "confirmed", "removed", "review_required", "reconfirmed", "manager_changed"];
+    /// <summary>Catalogue audit trail (`catalogue_events`): group lifecycle actions with actor and time. A `deleted` event is also the tombstone that keeps
+    /// the deleted group's identity and name resolvable for the classification history that still references it.</summary>
+    private static readonly string[] CatalogueEvents = ["archived", "restored", "deleted"];
     private readonly SemaphoreSlim _lock = new(1, 1);
 
     [GeneratedRegex("^fg_[a-f0-9]{12}$")] public static partial Regex GroupId();
@@ -58,6 +61,11 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
     public static string Fold(string value) => SapLens.Domain.Text.PythonText.Casefold(value);
 
     public static JsonObject Empty() => new() { ["format"] = Format, ["groups"] = new JsonObject(), ["users"] = new JsonObject(), ["history"] = new JsonArray(), ["rules"] = new JsonArray() };
+
+    /// <summary>Group ids of deleted groups (their `deleted` catalogue events) with the name they had.</summary>
+    public static Dictionary<string, string> DeletedGroups(JsonObject data) =>
+        (data["catalogue_events"] as JsonArray ?? []).OfType<JsonObject>().Where(e => (string?)e["event"] == "deleted")
+            .ToDictionary(e => (string)e["group_id"]!, e => (string)e["group_name"]!);
 
     // --- persistence ---------------------------------------------------------------------------------------------------------
 
@@ -144,8 +152,18 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
     {
         Require(data["groups"] is JsonObject && data["users"] is JsonObject && data["history"] is JsonArray, "shape");
         data["rules"] ??= new JsonArray();
-        Require(data["rules"] is JsonArray, "shape");
+        // Optional, so that a store without lifecycle events keeps v1's exact shape (it is created with the first event).
+        Require(data["rules"] is JsonArray && data["catalogue_events"] is null or JsonArray { Count: <= MaxCatalogueEvents }, "shape");
         var groups = data["groups"]!.AsObject();
+        var deleted = new HashSet<string>();
+        var eventIds = new HashSet<string>();
+        foreach (var item in data["catalogue_events"] as JsonArray ?? [])
+        {
+            Require(item is JsonObject && CatalogueEvents.Contains((string?)item["event"]) && eventIds.Add((string?)item["id"] ?? "") && GroupId().IsMatch((string?)item["group_id"] ?? ""), "catalogue event");
+            Require((string?)item!["group_name"] is { Length: > 0 and <= 80 } && item["actor"] is JsonValue a && a.TryGetValue<string>(out _), "catalogue event");
+            Require(item["timestamp"] is not null, "catalogue event timestamp"); Stamp(item["timestamp"], "catalogue event timestamp");
+            if ((string?)item["event"] == "deleted") Require(deleted.Add((string)item["group_id"]!), "catalogue event");
+        }
         Require(groups.Count <= MaxGroups && data["history"]!.AsArray().Count <= MaxHistory, "size");
         var names = new HashSet<string>();
         foreach (var (gid, group) in groups)
@@ -164,11 +182,12 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
             Require(item is JsonObject && Events.Contains((string?)item["event"]) && seen.Add((string?)item["id"] ?? "") && Hex64().IsMatch((string?)item["user_key"] ?? ""), "history");
             Stamp(item!["timestamp"], "history timestamp");
             foreach (var side in new[] { "previous_group", "new_group" })
-                Require(item[side] is null || groups.ContainsKey((string)item[side]!), "history group reference");
+                Require(item[side] is null || groups.ContainsKey((string)item[side]!) || deleted.Contains((string)item[side]!), "history group reference");
             Require(Statuses.Contains((string?)item["previous_status"]) && Statuses.Contains((string?)item["new_status"]), "history status");
             Require(item["actor"] is JsonValue a && a.TryGetValue<string>(out _) && IsText(item["reason"], 2000), "history actor");
         }
         foreach (var rule in data["rules"]!.AsArray()) Require(rule is JsonObject && groups.ContainsKey((string?)rule["group_id"] ?? ""), "rule group reference");
+        foreach (var gid in deleted) Require(!groups.ContainsKey(gid), "deleted group still present");
     }
 
     private static void ValidateLegacyUsers(JsonObject data)
@@ -247,7 +266,7 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
         foreach (var (gid, count) in Counts(data)) result[gid] = result[gid] with { Members = count };
         foreach (var rule in data["rules"]!.AsArray()) { var gid = (string)rule!["group_id"]!; result[gid] = result[gid] with { Rules = result[gid].Rules + 1 }; }
         foreach (var item in data["history"]!.AsArray())
-            foreach (var gid in new[] { (string?)item!["previous_group"], (string?)item["new_group"] }.Where(g => g is not null).Distinct())
+            foreach (var gid in new[] { (string?)item!["previous_group"], (string?)item["new_group"] }.Where(g => g is not null && result.ContainsKey(g)).Distinct())
                 result[gid!] = result[gid!] with { History = result[gid!].History + 1 };
         return result;
     }
@@ -264,7 +283,7 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
                 var item = g.DeepClone().AsObject();
                 item["user_count"] = r.Members;
                 item["references"] = new JsonObject { ["members"] = r.Members, ["rules"] = r.Rules, ["history"] = r.History };
-                item["deletable"] = (string?)g["status"] == "archived" && r.Members + r.Rules + r.History == 0;
+                item["deletable"] = (string?)g["status"] == "archived";
                 return item;
             }).ToList();
     }
@@ -303,22 +322,55 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
         var group = Group(data, gid);
         if ((string?)group["status"] == status) return (group.DeepClone().AsObject(), false);
         group["status"] = status; group["modified"] = Now();
+        CatalogueEvent(data, status == "archived" ? "archived" : "restored", gid, (string)group["name"]!, actor, Counts(data).GetValueOrDefault(gid), 0);
         return (group.DeepClone().AsObject(), true);
     }, actor, ct);
 
-    public Task<JsonObject> DeleteGroupAsync(string gid, string actor, CancellationToken ct) => UpdateAsync(data =>
+    private void CatalogueEvent(JsonObject data, string kind, string gid, string name, string actor, int members, int rules)
+    {
+        if (data["catalogue_events"] is not JsonArray events) data["catalogue_events"] = events = [];
+        if (events.Count >= MaxCatalogueEvents) throw new V1Problem(409, "The Functional Group audit trail is full. Nothing was changed.");
+        events.Add(new JsonObject
+        {
+            ["id"] = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(16)), ["event"] = kind, ["group_id"] = gid, ["group_name"] = name,
+            ["actor"] = actor, ["timestamp"] = Now(), ["members"] = members, ["rules"] = rules,
+        });
+    }
+
+    /// <summary>Permanent deletion of an archived group, also with members. <paramref name="expectedMembers"/> is the member count the person confirmed: a
+    /// different current count (a concurrent change) refuses the deletion with nothing changed. The group's memberships are removed (each with a `removed`
+    /// classification event, and the user's revision raised so that an edit loaded earlier is refused), its suggestion rules are removed, and a `deleted`
+    /// catalogue event records actor, time, identity and counts. Users, SAP roles, imports, review decisions, SoD data and the existing classification
+    /// history are not changed; history keeps resolving the group's name through the catalogue event. Everything is one write: all of it or nothing.</summary>
+    public Task<JsonObject> DeleteGroupAsync(string gid, int expectedMembers, string actor, CancellationToken ct) => UpdateAsync(data =>
     {
         var group = Group(data, gid);
-        if ((string?)group["status"] != "archived") throw new V1Problem(409, "Archive the Functional Group before deleting it.");
-        var used = References(data)[gid];
-        var blockers = new List<string>();
-        if (used.Members > 0) blockers.Add($"{used.Members} member(s)");
-        if (used.Rules > 0) blockers.Add($"{used.Rules} suggestion rule(s)");
-        if (used.History > 0) blockers.Add($"{used.History} classification history event(s)");
-        if (blockers.Count > 0) throw new V1Problem(409, $"\"{group["name"]}\" cannot be deleted because it still has {string.Join(", ", blockers)}. It stays archived; nothing was changed.");
+        var name = (string)group["name"]!;
+        if ((string?)group["status"] != "archived") throw new V1Problem(409, $"\"{name}\" is active. Archive the Functional Group before deleting it; nothing was changed.");
+        var members = data["users"]!.AsObject().Select(p => p.Value!.AsObject()).Where(u => u["memberships"]![gid] is not null).ToList();
+        if (members.Count != expectedMembers)
+            throw new V1Problem(409, $"\"{name}\" now has {members.Count} member(s), not the {expectedMembers} confirmed. Review the group again; nothing was changed.");
+        var reason = $"Functional Group \"{name}\" was deleted.";
+        foreach (var stored in members)
+        {
+            var user = stored.DeepClone().AsObject();
+            Remove(data, user, gid, reason, actor);
+            Commit(data, user);
+        }
+        var rules = data["rules"]!.AsArray();
+        var removedRules = rules.Count(r => (string?)r!["group_id"] == gid);
+        foreach (var rule in rules.Where(r => (string?)r!["group_id"] == gid).ToList()) rules.Remove(rule);
         data["groups"]!.AsObject().Remove(gid);
-        return (new JsonObject { ["status"] = "deleted", ["id"] = gid, ["name"] = group["name"]!.DeepClone() }, true);
+        CatalogueEvent(data, "deleted", gid, name, actor, members.Count, removedRules);
+        return (new JsonObject { ["status"] = "deleted", ["id"] = gid, ["name"] = name, ["members_removed"] = members.Count, ["rules_removed"] = removedRules }, true);
     }, actor, ct);
+
+    /// <summary>The catalogue audit trail, newest first.</summary>
+    public static JsonObject CatalogueHistory(JsonObject data, int offset, int limit)
+    {
+        var events = (data["catalogue_events"] as JsonArray ?? []).Reverse().Select(e => e!.DeepClone()).ToList();
+        return new JsonObject { ["items"] = new JsonArray([.. events.Skip(offset).Take(limit)]), ["total"] = events.Count, ["offset"] = offset, ["limit"] = limit };
+    }
 
     // --- classification ------------------------------------------------------------------------------------------------------------
 
@@ -604,7 +656,15 @@ public sealed partial class FunctionalGroupStore(IDbContextFactory<SapLensDb> fa
     public static JsonObject UserHistory(JsonObject data, string username, int offset, int limit)
     {
         var key = UserKey(username);
-        var events = data["history"]!.AsArray().Reverse().Where(e => (string?)e!["user_key"] == key).Select(e => e!.DeepClone()).ToList();
+        var deleted = DeletedGroups(data);
+        string? Name(JsonNode? gid) => (string?)gid is { } id ? (string?)data["groups"]![id]?["name"] ?? (deleted.TryGetValue(id, out var n) ? n : null) : null;
+        var events = data["history"]!.AsArray().Reverse().Where(e => (string?)e!["user_key"] == key).Select(e =>
+        {
+            var item = e!.DeepClone().AsObject();
+            item["previous_group_name"] = Name(item["previous_group"]); item["new_group_name"] = Name(item["new_group"]);
+            item["group_deleted"] = new[] { (string?)item["previous_group"], (string?)item["new_group"] }.Any(g => g is not null && deleted.ContainsKey(g));
+            return (JsonNode)item;
+        }).ToList();
         return new JsonObject { ["items"] = new JsonArray([.. events.Skip(offset).Take(limit)]), ["total"] = events.Count, ["offset"] = offset, ["limit"] = limit };
     }
 
