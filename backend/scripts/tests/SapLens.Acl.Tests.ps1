@@ -58,7 +58,7 @@ BeforeAll {
             if ($Arguments -contains '/inheritance:r') { [void]$script:Protected.Add([IO.Path]::GetFullPath($Arguments[0]).TrimEnd('/')) }
             if ($Arguments -contains '/save') {
                 $parent = Split-Path $Arguments[0]
-                $lines = @(Get-SL2AclSnapshot $Arguments[0] | ForEach-Object { $_.path.Substring($parent.Length + 1); $_.dacl })
+                $lines = @((Split-Path $Arguments[0] -Leaf), (Get-Acl -LiteralPath $Arguments[0]).GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access))
                 [IO.File]::WriteAllLines($Arguments[2], [string[]]$lines, [Text.Encoding]::Unicode)
             }
             [pscustomobject]@{ ExitCode = 0; Output = @() }
@@ -198,7 +198,7 @@ Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
         New-AclFixture
         $script:Broad[$script:Source.DataDirectory] = @((Rule 'S-1-5-21-1-2-3-513' $script:Modify), (Rule 'S-1-5-21-1-2-3-514' $script:ReadExecute))
         $null = Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots
-        $remove = @($script:Icacls | Where-Object { $_ -like "$($script:Source.DataDirectory) /remove:g *" })
+        $remove = @($script:Icacls | Where-Object { $_ -like "$($script:Source.DataDirectory) /L /remove:g *" })
         $remove.Count | Should -Be 1
         $remove[0] | Should -Match '\*S-1-5-21-1-2-3-513'
         $remove[0] | Should -Match '\*S-1-5-21-1-2-3-514'
@@ -215,12 +215,12 @@ Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
         $script:CreatedSecure | Should -Contain $result.backup # protected at creation, before the first backup file
         foreach ($path in $result.changed | Where-Object { $_ -notin $result.created }) {
             $save = [Array]::FindIndex([string[]]$calls, [Predicate[string]] { param($c) $c -like "$path /save *" })
-            $change = [Array]::FindIndex([string[]]$calls, [Predicate[string]] { param($c) $c -like "$path /inheritance:r*" })
+            $change = [Array]::FindIndex([string[]]$calls, [Predicate[string]] { param($c) $c -like "$path /L /inheritance:r*" })
             ($save -ge 0 -and $change -gt $save) | Should -BeTrue -Because "$path must be saved before it changes"
         }
-        $calls | Should -Contain "$($script:Source.DataDirectory) /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F NT SERVICE\SapLens2:(OI)(CI)M"
-        $calls | Should -Contain "$(Join-Path $script:Source.DataDirectory '*') /reset /T /C /Q"
-        $calls | Should -Contain "$($script:Source.ReleasesRoot) /grant:r *S-1-5-11:(OI)(CI)RX"
+        $calls | Should -Contain "$($script:Source.DataDirectory) /L /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F NT SERVICE\SapLens2:(OI)(CI)M"
+        $calls | Should -Contain "$(Join-Path $script:Source.DataDirectory 'logs/server.log') /reset /L /C /Q"
+        $calls | Should -Contain "$($script:Source.ReleasesRoot) /L /grant:r *S-1-5-11:(OI)(CI)RX"
         $calls | Where-Object { $_ -like "$($script:Paths.ProgramData) *" } | Should -BeNullOrEmpty            # ProgramData itself is never changed
         $record = Get-Content (Join-Path $result.backup 'acl-backup.json') -Raw | ConvertFrom-Json
         ($record.entries | Where-Object created).path | Should -Be (Join-Path $script:Paths.ProgramData 'sap-lens')
@@ -253,7 +253,7 @@ Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
         $restored = Invoke-SL2RestoreAcl $result.backup $script:ApprovedRoots
         $restored.kept_created | Should -Be @((Join-Path $script:Paths.ProgramData 'sap-lens'))
         $script:Icacls.Count | Should -Be $restored.restored.Count
-        $script:Icacls | ForEach-Object { $_ | Should -Match ' /restore .+\.acl /C /Q$' }
+        $script:Icacls | ForEach-Object { $_ | Should -Match ' /restore .+\.acl /L /C /Q$' }
         $script:Icacls[0] | Should -BeLike "$(Split-Path $restored.restored[0]) /restore *"
         { Invoke-SL2RestoreAcl (Join-Path $TestDrive 'not-a-backup') @($TestDrive) } | Should -Throw '*not an ACL backup*'
     }

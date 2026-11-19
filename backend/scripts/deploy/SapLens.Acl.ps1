@@ -64,8 +64,7 @@ function Get-SL2AclAudit([string]$Path, [string]$Class, [string]$Role, [switch]$
     $item = Get-Item -LiteralPath $Path -Force
     $findings = @(Get-SL2AclFindings @(Get-SL2AclRules $Path) $Class $item.PSIsContainer | ForEach-Object { $_ | Add-Member -NotePropertyName path -NotePropertyValue $Path -PassThru })
     if ($Recurse -and $item.PSIsContainer) {
-        foreach ($child in Get-ChildItem -LiteralPath $Path -Recurse -Force) {
-            if ($child.Attributes -band [IO.FileAttributes]::ReparsePoint) { continue }
+        foreach ($child in @(Get-SL2AclItems $Path | Where-Object FullName -ne $item.FullName)) {
             $findings += @(Get-SL2AclFindings @(Get-SL2AclRules $child.FullName) $Class $child.PSIsContainer | Where-Object { -not $_.inherited } |
                 ForEach-Object { $_ | Add-Member -NotePropertyName path -NotePropertyValue $child.FullName -PassThru })
         }
@@ -192,16 +191,79 @@ function Assert-SL2AclApproved([string]$Path, [string[]]$ApprovedRoots) {
     Test-SL2PathTree $Path
 }
 
-function Get-SL2AclSnapshot([string]$Path) {
-    Test-SL2PathTree $Path
-    $items = @((Get-Item -LiteralPath $Path -Force))
-    if ($items[0].PSIsContainer) {
-        $null = @(Get-SL2TreeFiles $Path) # reject descendant links before recursing
-        $items += @(Get-ChildItem -LiteralPath $Path -Force -Recurse | Sort-Object FullName)
+# The sole ACL-inventory exception: the configured source releases/current junction. Never traverse it.
+function Get-SL2ReleaseJunction([string]$ReleasesRoot, [string[]]$ApprovedRoots = @()) {
+    Test-SL2PathTree $ReleasesRoot
+    $path = Join-SL2 $ReleasesRoot 'current'
+    $item = Get-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+    if (-not $item) { return $null }
+    if (-not ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -or $item.LinkType -cne 'Junction' -or @($item.Target).Count -ne 1) {
+        Stop-SL2 'The configured releases/current must be a directory junction, not another link or ordinary directory.'
     }
-    foreach ($item in $items) {
+    $raw = [string]@($item.Target)[0]
+    if (-not [IO.Path]::IsPathRooted($raw) -or $raw -match '(^|[\\/])\.\.?([\\/]|$)') { Stop-SL2 'Release junction target must be an absolute physical release path.' }
+    $target = [IO.Path]::GetFullPath($raw).TrimEnd('\', '/')
+    $root = [IO.Path]::GetFullPath($ReleasesRoot).TrimEnd('\', '/')
+    if ((Split-Path $target) -cne $root -or (Split-Path $target -Leaf) -ieq 'current') { Stop-SL2 'Release junction target must be a direct physical release inside the configured releases root.' }
+    Test-SL2PathTree $target
+    if (-not (Test-Path -LiteralPath $target -PathType Container) -or
+        -not (Test-Path -LiteralPath (Join-SL2 $target 'build-manifest.json') -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-SL2 $target 'server') -PathType Container)) { Stop-SL2 'Release junction target is missing or is not a release directory.' }
+    $null = @(Get-SL2TreeFiles $target) # reject links anywhere in the physical target, including empty directory links
+    if ($ApprovedRoots.Count) {
+        Assert-SL2AclApproved $target $ApprovedRoots
+        $exact = @($ApprovedRoots | Where-Object {
+            $approved = [IO.Path]::GetFullPath($_).TrimEnd('\', '/')
+            $target -ceq $approved -or $target.StartsWith($approved + [IO.Path]::DirectorySeparatorChar, [StringComparison]::Ordinal)
+        })
+        if (-not $exact.Count) { Stop-SL2 'Junction target must match the exact spelling of an approved physical root.' }
+    }
+    [pscustomobject]@{ path = [IO.Path]::GetFullPath($path); target = $target }
+}
+
+function Get-SL2AclItems([string]$Path, [string]$ReleasesRoot = '') {
+    Test-SL2PathTree $Path
+    $item = Get-Item -LiteralPath $Path -Force
+    $item
+    if (-not $item.PSIsContainer) { return }
+    foreach ($child in Get-ChildItem -LiteralPath $Path -Force | Sort-Object FullName) {
+        if ($child.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            if (-not $ReleasesRoot -or $child.FullName -cne [IO.Path]::GetFullPath((Join-SL2 $ReleasesRoot 'current'))) { Stop-SL2 'Unexpected reparse point in ACL inventory.' }
+            if (-not (Get-SL2ReleaseJunction $ReleasesRoot)) { Stop-SL2 'Expected release junction disappeared during ACL inventory.' }
+            continue
+        }
+        Get-SL2AclItems $child.FullName $ReleasesRoot
+    }
+}
+
+function Get-SL2AclSnapshot([string]$Path, [string]$ReleasesRoot = '') {
+    foreach ($item in @(Get-SL2AclItems $Path $ReleasesRoot)) {
         [pscustomobject]@{ path = $item.FullName; dacl = (Get-Acl -LiteralPath $item.FullName).GetSecurityDescriptorSddlForm([Security.AccessControl.AccessControlSections]::Access) }
     }
+}
+
+function Save-SL2AclInventory($Snapshot, [string]$Parent, [string]$File) {
+    $lines = [Collections.Generic.List[string]]::new()
+    foreach ($item in @($Snapshot)) {
+        Test-SL2PathTree $item.path
+        $part = "$File.part"
+        Invoke-SL2Icacls @($item.path, '/save', $part, '/L', '/C', '/Q')
+        $saved = [IO.File]::ReadAllLines($part, [Text.Encoding]::Unicode)
+        if ($saved.Count -ne 2 -or -not (Test-SL2DaclEqual $item.dacl $saved[1])) { Stop-SL2 'Nonrecursive ACL save differs from its inventory; application permissions are unchanged.' }
+        $lines.Add($item.path.Substring($Parent.Length + 1)); $lines.Add($saved[1])
+    }
+    [IO.File]::WriteAllLines($File, $lines.ToArray(), [Text.Encoding]::Unicode)
+}
+
+function Assert-SL2AclRecordTree($Entry, [string[]]$ApprovedRoots) {
+    $context = if ($Entry.PSObject.Properties['releases_root']) { $Entry.releases_root } else { '' }
+    if ($context) {
+        Assert-SL2AclApproved $context $ApprovedRoots
+        $actual = Get-SL2ReleaseJunction $context $ApprovedRoots
+        $expected = $Entry.junction
+        if (($actual | ConvertTo-Json -Compress) -cne ($expected | ConvertTo-Json -Compress)) { Stop-SL2 'Release junction binding changed since the ACL backup; nothing further may be modified.' }
+    }
+    $null = @(Get-SL2AclItems $Entry.path $context)
 }
 
 function Assert-SL2AclRequiredAccess([string]$Path) {
@@ -308,6 +370,13 @@ function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$
         Assert-SL2AclApproved $entry.Path $ApprovedRoots; Test-SL2PathTree $entry.Path
         if (Test-SL2PathOverlap $entry.Path $BackupRoot) { Stop-SL2 'ACL backup storage must be disjoint from every affected application tree; supply a dedicated -AclBackupRoot.' }
     }
+    foreach ($entry in $plan) {
+        if (Test-Path -LiteralPath $entry.Path) {
+            $context = if ($Source -and $entry.Role -in @('source releases', 'source installation folder')) { $Source.ReleasesRoot } else { '' }
+            if ($context) { $null = Get-SL2ReleaseJunction $context $ApprovedRoots }
+            $null = @(Get-SL2AclItems $entry.Path $context)
+        }
+    }
     $report = Get-SL2AclReport $plan
     $changes = @(foreach ($entry in $plan) {
         $row = @($report.entries | Where-Object { $_.path -eq $entry.Path -and $_.role -eq $entry.Role })[0]
@@ -322,30 +391,40 @@ function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$
     foreach ($change in $changes) {
         $path = $change.Entry.Path
         if ($change.Create) { $records.Add([pscustomobject]@{ path = $path; created = $true; file = ''; parent = ''; sha256 = ''; snapshot = @() }); continue }
-        $snapshot = @(Get-SL2AclSnapshot $path)
+        $context = if ($Source -and $change.Entry.Role -in @('source releases', 'source installation folder')) { $Source.ReleasesRoot } else { '' }
+        $junction = if ($context) { Get-SL2ReleaseJunction $context $ApprovedRoots } else { $null }
+        $snapshot = @(Get-SL2AclSnapshot $path $context)
+        foreach ($item in $snapshot) { Assert-SL2AclApproved $item.path $ApprovedRoots }
         $file = Join-SL2 $backup ('{0:D2}.acl' -f ++$index)
-        $arguments = @($path, '/save', $file, '/C', '/Q'); if ((Get-Item -LiteralPath $path -Force).PSIsContainer) { $arguments += '/T' }
-        Invoke-SL2Icacls $arguments
+        Save-SL2AclInventory $snapshot (Split-Path $path) $file
         if (-not (Test-Path -LiteralPath $file -PathType Leaf) -or (Get-Item -LiteralPath $file).Length -eq 0) { Stop-SL2 'ACL backup was not written; application permissions are unchanged.' }
         $records.Add([pscustomobject]@{ path = $path; created = $false; file = $file; parent = (Split-Path $path)
-            sha256 = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash; snapshot = $snapshot })
+            sha256 = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash; snapshot = $snapshot; releases_root = $context; junction = $junction })
     }
     [IO.File]::WriteAllText((Join-SL2 $backup 'acl-backup.json'), ([pscustomobject]@{ schema = 2; entries = $records.ToArray() } | ConvertTo-Json -Depth 8))
     foreach ($change in $changes) {
         $path = $change.Entry.Path
         if ($change.Create) { New-SL2SecureDirectory $path $ApprovedRoots; continue }
+        $record = @($records | Where-Object path -eq $path)[0]
+        Assert-SL2AclRecordTree $record $ApprovedRoots
         $isContainer = (Get-Item -LiteralPath $path -Force).PSIsContainer
-        Invoke-SL2Icacls (@($path, '/inheritance:r', '/grant:r') + @(Get-SL2AclGrants $change.Entry $serviceAccount $isContainer))
+        Invoke-SL2Icacls (@($path, '/L', '/inheritance:r', '/grant:r') + @(Get-SL2AclGrants $change.Entry $serviceAccount $isContainer))
         $broad = @(@($script:BroadSids.Keys) + @($change.BroadSids) | Sort-Object -Unique | ForEach-Object { "*$_" })
-        Invoke-SL2Icacls (@($path, '/remove:g') + $broad)
+        Invoke-SL2Icacls (@($path, '/L', '/remove:g') + $broad)
         if ($change.Entry.Class -eq 'binaries' -and $change.Entry.Role -notin @('source configuration', 'target configuration')) {
-            Invoke-SL2Icacls @($path, '/grant:r', "*S-1-5-11:$(if ($isContainer) { '(OI)(CI)' })RX")
+            Invoke-SL2Icacls @($path, '/L', '/grant:r', "*S-1-5-11:$(if ($isContainer) { '(OI)(CI)' })RX")
         }
-        if ($isContainer -and $change.Entry.Recurse -and @(Get-ChildItem -LiteralPath $path -Force).Count) {
-            Invoke-SL2Icacls @((Join-SL2 $path '*'), '/reset', '/T', '/C', '/Q')
+        if ($isContainer -and $change.Entry.Recurse) {
+            foreach ($child in @($record.snapshot | Where-Object path -ne $path | Sort-Object { $_.path.Length }, path)) {
+                Assert-SL2AclApproved $child.path $ApprovedRoots
+                Invoke-SL2Icacls @($child.path, '/reset', '/L', '/C', '/Q')
+            }
         }
         Assert-SL2AclRequiredAccess $path
     }
+    try {
+        foreach ($record in $records) { if (-not $record.created) { Assert-SL2AclRecordTree $record $ApprovedRoots } }
+    } catch { Stop-SL2 "ACL verification detected changed tree/junction state; retain $backup for manual review." 4 }
     $after = Get-SL2AclReport (Get-SL2AclPlan $Source $Target)
     if (-not $after.safe) { Stop-SL2 "ACL remediation verification failed; retain $backup for reviewed restoration." 1 }
     [pscustomobject]@{ changed = @($changes | ForEach-Object { $_.Entry.Path }); created = @($changes | Where-Object Create | ForEach-Object { $_.Entry.Path })
@@ -365,6 +444,7 @@ function Invoke-SL2RestoreAcl([string]$Backup, [string[]]$ApprovedRoots) {
     foreach ($entry in $entries) {
         Assert-SL2AclApproved $entry.path $ApprovedRoots; Test-SL2PathTree $entry.path
         if ($entry.created) { continue }
+        Assert-SL2AclRecordTree $entry $ApprovedRoots
         if ($entry.parent -ne (Split-Path $entry.path) -or (Split-Path $entry.file) -ne $Backup) { Stop-SL2 'ACL backup paths do not match their reviewed scope.' }
         Test-SL2PathTree $entry.file
         if (-not (Test-Path -LiteralPath $entry.file -PathType Leaf) -or (Get-FileHash -LiteralPath $entry.file -Algorithm SHA256).Hash -ne $entry.sha256) { Stop-SL2 'ACL backup is missing or its checksum differs; nothing was restored.' }
@@ -376,7 +456,8 @@ function Invoke-SL2RestoreAcl([string]$Backup, [string[]]$ApprovedRoots) {
     }
     foreach ($entry in $entries) {
         if ($entry.created) { continue }
-        Invoke-SL2Icacls @($entry.parent, '/restore', $entry.file, '/C', '/Q')
+        Assert-SL2AclRecordTree $entry $ApprovedRoots
+        Invoke-SL2Icacls @($entry.parent, '/restore', $entry.file, '/L', '/C', '/Q')
         foreach ($item in @($entry.snapshot)) {
             Test-SL2PathTree $item.path
             if (-not (Test-Path -LiteralPath $item.path) -or
@@ -385,6 +466,9 @@ function Invoke-SL2RestoreAcl([string]$Backup, [string[]]$ApprovedRoots) {
             }
         }
     }
+    try {
+        foreach ($entry in $entries) { if (-not $entry.created) { Assert-SL2AclRecordTree $entry $ApprovedRoots } }
+    } catch { Stop-SL2 'Restored ACL tree/junction state changed; manual recovery is required.' 4 }
     [pscustomobject]@{ verified = $true; restored = @($entries | Where-Object { -not $_.created } | ForEach-Object path)
         kept_created = @($entries | Where-Object created | ForEach-Object path) }
 }

@@ -10,6 +10,11 @@ Windows [U]. Use the checklist at the end.
 
 Existing installations may retain the `SapLens2` service, older CA subjects and older firewall-rule labels. Do not recreate services, reissue TLS certificates or change firewall/proxy settings for branding. Use the explicit [Windows migration preflight](WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-sap-lens) before an authorized cutover. The setup examples below describe new installations.
 
+Windows ACL remediation has one bounded exception for the configured source `releases\current` junction: it validates the physical release target
+and excludes the junction from native ACL save/reset/restore traversal. Unexpected links still fail closed; migration copying remains strict.
+See the [release junction security boundary](WINDOWS_DEPLOYMENT.md#release-junction-boundary) before approved ACL remediation. No global Windows
+ACL, active service or release pointer is changed by read-only inspection.
+
 ## 1. Secure defaults and fail-closed rules
 
 | Rule | Behaviour |

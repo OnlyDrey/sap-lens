@@ -400,6 +400,7 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         }
     }
     Check 'source_release' {
+        $details.release_junction = Get-SL2ReleaseJunction $Source.ReleasesRoot
         $tokens = @(Split-SL2CommandLine (Get-SL2Service $Source.ServiceName).PathName)
         $release = Split-Path (Split-Path $tokens[0])
         if (Test-SL2ServiceBinary (Get-SL2Service $Source.ServiceName).PathName $Source) { $release = Get-SL2Link (Get-SL2CurrentLink $Source) }

@@ -309,10 +309,10 @@ $aclBackupRoot = 'C:\ProgramData\sap-lens-acl-recovery' # dedicated, outside aff
 
 1. Requires explicit `-ApprovedAclRoot` application-owned roots and a disjoint `-AclBackupRoot` outside every affected tree. It rejects system
    roots, unapproved paths and reparse points before any change. Creates the backup storage with a protected DACL (SYSTEM, Administrators) and saves every affected ACL with its
-   descendants (`icacls <path> /save <file> /T /C`), plus schema-2 `acl-backup.json` with file checksums, DACL inventories and created-parent records.
+   descendants (individual `icacls <physical-path> /save <fragment> /L /C` calls, without recursive traversal), plus schema-2 `acl-backup.json` with file checksums, DACL inventories and created-parent records.
 2. For each path: `icacls /inheritance:r` with SYSTEM and Administrators full control (and the service's virtual account where the table says
    so), removes explicit grants to the broad SIDs (including the actual Domain Users/Guests SIDs found by the audit), grants authenticated users read and execute again on release folders only, and resets the
-   descendants of private folders to inherit (their earlier explicit entries are in the backup).
+   inventoried physical descendants of private folders individually to inherit (their earlier explicit entries are in the backup).
 3. Creates missing target parents with the same protected DACL supplied in the native exclusive [CreateDirectoryW operation](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw), verifies ACE bytes/protection
    and required SYSTEM/Administrators access, then permits file writes. Creation failure, a raced existing path, unsupported storage or verification
    failure refuses further writes. Migration staging uses this boundary too, before journal, TLS, key or database copies. ProtectAcl leaves target roots absent; the separately authorized migration creates them exclusively.
@@ -327,6 +327,53 @@ exit 4 indicates an unverified restore requiring manual recovery. Created protec
 untouched and require reviewed manual restoration; they lack the inventories required for an automated verified restore.
 An elevated Windows token is required for native remediation/restore acceptance. An unprivileged `icacls /restore` can fail with exit 1300
 (missing privilege); that is an infrastructure limitation, not evidence that restoration passed. Keep the original ACL backup and investigate.
+
+### Release junction boundary
+
+The source service may run through `<Source.ReleasesRoot>\current`. The former ACL backup path was
+`Invoke-SL2ProtectAcl` -> `Get-SL2AclSnapshot` -> `Get-SL2TreeFiles`; the last helper intentionally rejects all reparse points, so snapshotting the
+releases or installation folder rejected its legitimate release junction. Migration traversal keeps that strict behavior.
+
+ACL inventory alone accepts the exact `current` **directory junction** directly below the explicitly configured source releases root. Its target
+must be an existing direct physical child of that root, contain a release manifest and Server directory, and have no linked ancestors or linked
+descendants. Symbolic links, ordinary directories at `current`, missing/external/looping targets, additional aliases and nested reparse points
+are refused. Approved roots must themselves remain physical; the exception never grants access through `current` or expands an approved root.
+The exception compares configured paths and approved-root spelling exactly, including case, rather than accepting case-folded aliases. Use the
+same physical path spelling in the source configuration, junction target and approved roots; a mismatch is refused without changing the junction.
+
+The junction is validated and omitted from ACL inventory. Physical release files are inventoried once through their real directory. ACL saves
+operate on each physical object with `/save /L`, never `/T`; the verified records are rebased into the saved root's UTF-16 restore inventory.
+Reset operations name individual physical descendants without wildcards or `/T`. Restore validates every recorded destination, rejects any path
+through a link and uses `/restore /L`. See the [icacls command contract](https://learn.microsoft.com/en-us/windows-server/administration/windows-commands/icacls).
+Neither ACL remediation nor restoration deletes, recreates or redirects `current`. The physical target remains subject to its approved ACL policy.
+
+New schema-2 backup entries for source release/installation roots record `releases_root` and the observed `junction` path/target. Binding and tree
+checks run before commands and again before success. A changed binding, new unexpected link or unsafe target blocks further operations; a failed
+post-operation check requires manual review (exit 4), retaining the backup. Do not run concurrent release switching during ACL operations. These
+checks are fail-closed observations, not an atomic lock against a privileged administrator changing the filesystem concurrently.
+Older backups receive no inferred junction exemption: link-free inventories remain supported, while an unrecorded junction requires manual review.
+The release's historical build manifest is never regenerated for this procedure.
+
+Read-only inspection from the updated checkout on the actual Windows host:
+
+```powershell
+Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
+$source = Read-SapLensSettings 'C:\saplens2\deploy.local.json'
+Get-SL2ReleaseJunction $source.ReleasesRoot | ConvertTo-Json
+# ACL metadata only: validates the whole installation tree and omits the validated current junction.
+@(Get-SL2AclSnapshot (Split-Path $source.ConfigFile) $source.ReleasesRoot).Count
+```
+
+Run `SapLens.Junction.Tests.ps1` on isolated Windows fixtures. It covers allowed and rejected junctions, nonrecursive native ACL save, restore
+binding/path boundaries and strict migration staging. The native junction restore round trip additionally requires elevation; a skipped check is
+pending acceptance, not a production-ready result. Per-object native ACL saves cost more process launches than recursive saves; allow for the
+installation's file count when planning the approved window. No performance improvement or production acceptance is claimed.
+
+Windows junction checkpoint (2026-11-19, Windows PowerShell 5.1 / Pester 5.9.1): complete suite **208 passed, 0 failed, 11 skipped**,
+0 failed containers (219 discovered). Nine skips are Linux-only fixtures and two require elevated native ACL restore. The final focused junction
+spec passed 15 tests with its elevated restore case explicitly skipped. The 5.1 parser accepted all 24 active scripts; documentation links passed.
+No production service, ACL, release pointer or private state was modified, and no full .NET/browser run was required for this PowerShell change.
+
 
 ### Windows script validation
 
