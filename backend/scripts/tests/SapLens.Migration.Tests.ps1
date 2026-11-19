@@ -17,7 +17,7 @@ BeforeAll {
             AllowedHosts = @('lens.example.com'); TrustedProxies = @('192.0.2.1'); StopTimeoutSeconds = 1; ReadyTimeoutSeconds = 1 }
         $script:Target = $script:Source.PSObject.Copy()
         foreach ($p in 'WorkRoot', 'ReleasesRoot', 'BackupRoot', 'DataDirectory', 'CertificatePath', 'CertificatePasswordFile') { $script:Target.$p = $script:Source.$p.Replace($old, $new) }
-        $script:Target.ServiceName = 'SapLens'; $script:Target.ConfigFile = Join-Path $root 'target.json'
+        $script:Target.ServiceName = 'sap-lens'; $script:Target.ConfigFile = Join-Path $root 'target.json'
         $script:Source | ConvertTo-Json | Set-Content $script:Source.ConfigFile
         $script:Target | ConvertTo-Json | Set-Content $script:Target.ConfigFile
         $script:Inspector = Join-Path $old 'releases/release/server/SapLens.Api.exe'
@@ -27,7 +27,13 @@ BeforeAll {
         Mock -ModuleName $M Get-SL2Service { param($Name) if ($script:Services.ContainsKey($Name)) { $script:Services[$Name] } else { [pscustomobject]@{ Exists = $false; State = 'Missing'; ProcessId = 0 } } }
         Mock -ModuleName $M Get-SL2Listener { foreach ($svc in $script:Services.Values) { if ($svc.State -eq 'Running') { $svc.ProcessId } } }
         Mock -ModuleName $M Get-SL2Link { '' }
-        Mock -ModuleName $M Get-SL2AclRules { @() }
+        $script:ApprovedRoots = @($root)
+        Mock -ModuleName $M Get-SL2MigrationProvisioningRoots { $script:ApprovedRoots }
+        $script:SafeAcl = @([pscustomobject]@{ Sid='S-1-5-18'; Rights=0x1F01FF; Allow=$true; InheritOnly=$false; Inherited=$false; ContainerInherit=$true; ObjectInherit=$true }, [pscustomobject]@{ Sid='S-1-5-32-544'; Rights=0x1F01FF; Allow=$true; InheritOnly=$false; Inherited=$false; ContainerInherit=$true; ObjectInherit=$true })
+        Mock -ModuleName $M Get-SL2AclRules { $script:SafeAcl }
+        Mock -ModuleName $M New-SL2DirectoryWithAcl { param($Path, $Security) New-Item -ItemType Directory -Path $Path -ErrorAction Stop | Out-Null }
+        # Canonical production paths are tested separately; this state machine uses isolated TestDrive roots.
+        Mock -ModuleName $M Assert-SL2CanonicalTargetLayout { }
         Mock -ModuleName $M Test-SL2MigrationEnvironment { }
         Mock -ModuleName $M Test-SL2MigrationTls { }
         Mock -ModuleName $M Get-SL2FreeSpace { 100GB }
@@ -76,6 +82,7 @@ Describe 'Migration preflight: NTFS permissions' {
         $script:Unsafe = $true
         Mock -ModuleName $M Get-SL2AclRules {
             param($Path)
+            $script:SafeAcl
             if ($script:Unsafe -and [IO.Path]::GetFullPath($Path) -eq $data) { [pscustomobject]@{ Sid = 'S-1-5-11'; Rights = 0x301BF; Allow = $true; Inherited = $true; ContainerInherit = $true; ObjectInherit = $true; InheritOnly = $false } }
         }
         $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
@@ -133,17 +140,17 @@ Describe 'Migration backup, journal and staging contracts' {
             foreach ($item in Get-ChildItem -LiteralPath $from -Force) { Copy-Item -LiteralPath $item.FullName -Destination $to -Recurse }
             [pscustomobject]@{ ExitCode = 1; Output = @() }
         }
-        Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory
+        Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory $script:ApprovedRoots
         (Test-SL2InventoryEqual @(Get-SL2TreeInventory $script:Source.DataDirectory) @(Get-SL2TreeInventory $script:Target.DataDirectory)) | Should -BeTrue
-        { Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory } | Should -Throw '*never merges*'
+        { Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory $script:ApprovedRoots } | Should -Throw '*never merges*'
     }
     It 'retains partial copies and refuses a robocopy failure or content mismatch' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {
         Mock -ModuleName $M Invoke-SL2Process { [pscustomobject]@{ ExitCode = 8; Output = @() } }
-        { Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory } | Should -Throw '*staging failed*'
+        { Copy-SL2MigrationTree $script:Source.DataDirectory $script:Target.DataDirectory $script:ApprovedRoots } | Should -Throw '*staging failed*'
         Test-Path $script:Target.DataDirectory | Should -BeTrue
-        { Copy-SL2MigrationTree $script:Source.DataDirectory (Join-Path $script:Source.DataDirectory 'nested') } | Should -Throw '*overlap*'
+        { Copy-SL2MigrationTree $script:Source.DataDirectory (Join-Path $script:Source.DataDirectory 'nested') $script:ApprovedRoots } | Should -Throw '*overlap*'
         Mock -ModuleName $M Invoke-SL2Process { [pscustomobject]@{ ExitCode = 0; Output = @() } }
-        { Copy-SL2MigrationTree (Split-Path $script:Source.CertificatePath) (Split-Path $script:Target.CertificatePath) } | Should -Throw '*differs*'
+        { Copy-SL2MigrationTree (Split-Path $script:Source.CertificatePath) (Split-Path $script:Target.CertificatePath) $script:ApprovedRoots } | Should -Throw '*differs*'
     }
     It 'rejects content and ACL drift independently' {
         $left = @([pscustomobject]@{ path = 'file'; hash = 'a'; acl = 'private' })
@@ -195,8 +202,8 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         Mock -ModuleName $M Stop-SL2Service { param($Name) $script:Mutations.Add("stop:$Name"); $script:Services[$Name].State = 'Stopped'; if ($script:Failure -eq 'stop' -and $Name -eq 'SapLens2') { throw 'interrupted after stopping' } }
         Mock -ModuleName $M Set-SL2ServiceEntry {
             param($Config, $Binary, $Exists, $StartMode)
-            $script:Mutations.Add('create:SapLens')
-            $script:Services.SapLens = [pscustomobject]@{ Exists = $true; State = 'Stopped'; Account = $Config.ServiceAccount; StartMode = 'Manual'; ProcessId = 43; PathName = $Binary }
+            $script:Mutations.Add('create:sap-lens')
+            $script:Services['sap-lens'] = [pscustomobject]@{ Exists = $true; State = 'Stopped'; Account = $Config.ServiceAccount; StartMode = 'Manual'; ProcessId = 43; PathName = $Binary }
             if ($script:Failure -eq 'create') { throw 'interrupted after creating' }
         }
         Mock -ModuleName $M Grant-SL2Access { }
@@ -204,7 +211,7 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         Mock -ModuleName $M Start-SL2Service {
             param($Name)
             $script:Mutations.Add("start:$Name")
-            if ($Name -eq 'SapLens') {
+            if ($Name -eq 'sap-lens') {
                 $script:Services.SapLens2.State | Should -Be 'Stopped'
                 $script:Services.SapLens2.StartMode | Should -Be 'Disabled'
                 if ($script:Failure -eq 'startup') { throw 'synthetic startup failure' }
@@ -212,7 +219,7 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
             }
             $script:Services[$Name].State = 'Running'
         }
-        Mock -ModuleName $M Wait-SL2Ready { param($Config, $Commit, $Version) if ($Config.ServiceName -eq 'SapLens' -and $script:Failure -in @('readiness', 'written')) { throw 'synthetic readiness failure' }; @{ process_id = 43; identity = @{ source_sha = $Commit; version = $Version } } }
+        Mock -ModuleName $M Wait-SL2Ready { param($Config, $Commit, $Version) if ($Config.ServiceName -eq 'sap-lens' -and $script:Failure -in @('readiness', 'written')) { throw 'synthetic readiness failure' }; @{ process_id = 43; identity = @{ source_sha = $Commit; version = $Version } } }
     }
     It 'backs up online and offline, preserves identity, moves private state and retains the disabled legacy service' {
         $result = Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector
@@ -220,8 +227,8 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         $script:BackupCount | Should -Be 2
         $script:Services.SapLens2.State | Should -Be 'Stopped'
         $script:Services.SapLens2.StartMode | Should -Be 'Disabled'
-        $script:Services.SapLens.State | Should -Be 'Running'
-        $script:Services.SapLens.Account | Should -Be 'LocalSystem'
+        $script:Services['sap-lens'].State | Should -Be 'Running'
+        $script:Services['sap-lens'].Account | Should -Be 'LocalSystem'
         $journal = Read-SL2MigrationJournal $script:Target
         (Get-Content (Join-Path $script:Target.DataDirectory 'backup-key-location.json') -Raw | ConvertFrom-Json).path | Should -Be $journal.key_after
         Test-Path $journal.key_before | Should -BeTrue
@@ -237,7 +244,7 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         (Get-Content (Join-Path $script:Target.WorkRoot 'migration-journal.json') -Raw).Trim() | Should -Be 'unrelated retained file'
         $script:Services.SapLens2.State | Should -Be 'Running'
         $script:Mutations | Should -Not -Contain 'stop:SapLens2'
-        $script:Mutations | Should -Not -Contain 'create:SapLens'
+        $script:Mutations | Should -Not -Contain 'create:sap-lens'
     }
     It 'returns to the untouched source after <Failure> failure' -ForEach @(
         @{ Failure = 'backup' }, @{ Failure = 'copy' }, @{ Failure = 'stop' }, @{ Failure = 'integrity' }, @{ Failure = 'create' }, @{ Failure = 'startup' }, @{ Failure = 'readiness' }
@@ -247,7 +254,7 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         (Read-SL2MigrationJournal $script:Source).phase | Should -Be 'rolled_back'
         $script:Services.SapLens2.State | Should -Be 'Running'
         Test-Path $script:Source.DataDirectory | Should -BeTrue
-        if ($script:Services.ContainsKey('SapLens')) { $script:Services.SapLens.StartMode | Should -Be 'Disabled'; $script:Services.SapLens.State | Should -Be 'Stopped' }
+        if ($script:Services.ContainsKey('sap-lens')) { $script:Services['sap-lens'].StartMode | Should -Be 'Disabled'; $script:Services['sap-lens'].State | Should -Be 'Stopped' }
     }
     It 'stops for manual recovery when target writes make rollback unproven' {
         $script:Failure = 'written'
@@ -256,7 +263,7 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         $journal.phase | Should -Be 'manual_recovery_required'
         $journal.recovery | Should -Match 'NEW directory'
         $script:Services.SapLens2.State | Should -Be 'Stopped'
-        $script:Services.SapLens.State | Should -Be 'Stopped'
+        $script:Services['sap-lens'].State | Should -Be 'Stopped'
         Get-Content (Join-Path $script:Target.DataDirectory 'sap-lens-v2.sqlite3') | Should -Contain 'new committed data'
     }
     It 'recovers a persisted cutover intent after interruption and retains both service records' {
@@ -266,13 +273,13 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         (Invoke-SL2MigrationRecovery $script:Source).phase | Should -Be 'rolled_back'
         (Invoke-SL2MigrationRecovery $script:Source).changed | Should -BeFalse
         $script:Services.SapLens2.State | Should -Be 'Running'
-        $script:Services.SapLens.StartMode | Should -Be 'Disabled'
+        $script:Services['sap-lens'].StartMode | Should -Be 'Disabled'
     }
     It 'refuses recovery after configuration drift or an unrelated canonical service appears' {
         $null = Invoke-SL2MigrateService $script:Source $script:Target $script:Inspector
         Add-Content -LiteralPath $script:Target.ConfigFile ' '
         { Invoke-SL2MigrationRecovery $script:Source -Rollback } | Should -Throw '*configuration changed*'
-        $script:Services.SapLens.State | Should -Be 'Running'
+        $script:Services['sap-lens'].State | Should -Be 'Running'
     }
     It 'supports Build and Replace and ordinary release rollback with the canonical persistent paths' {
         Mock -ModuleName $M Write-SL2Journal { param($Config, $Journal) $Journal.updated = [DateTime]::UtcNow.ToString('o'); $Journal | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath (Get-SL2JournalPath $Config) }
@@ -280,7 +287,7 @@ Describe 'Journaled service cutover and interruption recovery' -Skip:([System.IO
         { Assert-SL2DeploymentAllowed $script:Source } | Should -Throw '*inactive migration*'
         { Assert-SL2DeploymentAllowed $script:Target } | Should -Not -Throw
         $canonical = Read-SapLensSettings (Join-Path $script:Target.WorkRoot 'deploy.local.json')
-        $canonical.ServiceName | Should -Be 'SapLens'
+        $canonical.ServiceName | Should -Be 'sap-lens'
         $canonical.ServiceAccount | Should -Be 'LocalSystem'
         $release = Join-Path $script:Target.ReleasesRoot 'next'
         New-Item -ItemType Directory -Path (Join-Path $release 'server') -Force | Out-Null
@@ -311,8 +318,8 @@ Describe 'Read-only identity and directory migration preflight' {
         $script:Services[$script:Source.ServiceName] = $script:Services.SapLens2
         $script:Services.Remove('SapLens2')
         (Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector).safe | Should -BeTrue
-        Should -Invoke -ModuleName $M Get-SL2Service -Times 0 -ParameterFilter { $Name -in @('SapLens', 'SapLens2') }
-        $script:Target.ServiceName = 'SapLens'
+        Should -Invoke -ModuleName $M Get-SL2Service -Times 0 -ParameterFilter { $Name -in @('sap-lens', 'SapLens2') }
+        $script:Target.ServiceName = 'sap-lens'
         { Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector } | Should -Throw '*matching unique*'
     }
     It 'blocks a healthy listener answering with the wrong source release identity' {
@@ -372,8 +379,8 @@ Describe 'Read-only identity and directory migration preflight' {
         Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
         Should -Invoke -ModuleName $M Write-SL2Journal -Times 0
     }
-    It 'blocks an existing canonical service including v1 without adopting it' {
-        $script:Services.SapLens = $script:Services.SapLens2.PSObject.Copy()
+    It 'blocks an existing <Existing> service without adopting it' -ForEach @(@{ Existing = 'sap-lens' }, @{ Existing = 'SapLens' }) {
+        $script:Services[$Existing] = $script:Services.SapLens2.PSObject.Copy()
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         $result.safe | Should -BeFalse
         ($result.checks | Where-Object name -eq 'service_conflicts').message | Should -Match 'already exists'

@@ -37,7 +37,7 @@ public sealed partial class InstallerTests
         Assert.Equal("{{{#AppIdGuid}}", Setting(Server, "AppId"));
         // Never v1's program folder.
         Assert.Equal(@"{localappdata}\Programs\SAP Lens Desktop", Setting(Desktop, "DefaultDirName"));
-        Assert.Equal(@"{autopf}\SAP Lens Server", Setting(Server, "DefaultDirName"));
+        Assert.Equal(@"C:\sap-lens", Setting(Server, "DefaultDirName"));
     }
 
     [Fact]
@@ -47,7 +47,7 @@ public sealed partial class InstallerTests
         Assert.All([Desktop, Server], s => Assert.Contains(@"#define ProductIcon RepoRoot + ""\assets\sap-lens.ico""", s));
         Assert.All([Desktop, Server], s => Assert.Equal("SAP Lens", Setting(s, "VersionInfoProductName")));
         Assert.Equal("SAP Lens", Setting(Desktop, "AppName"));
-        Assert.Equal("SAP Lens Server", Setting(Server, "AppName"));
+        Assert.Equal("SAP Lens", Setting(Server, "AppName"));
         var ico = File.ReadAllBytes(Path.Combine(Repo, "assets", "sap-lens.ico"));
         Assert.Equal([0, 0, 1, 0], ico[..4]);                                                  // ICONDIR, type icon
         var sizes = Enumerable.Range(0, BitConverter.ToUInt16(ico, 4)).Select(i => ico[6 + 16 * i] == 0 ? 256 : ico[6 + 16 * i]).Order().ToArray();
@@ -85,8 +85,9 @@ public sealed partial class InstallerTests
         Assert.Equal("admin", Setting(Server, "PrivilegesRequired"));
         Assert.Contains("'stop ' + Names[I]", Server);
         Assert.DoesNotMatch(@"Exec\([^)]*sc\.exe", Server);
-        Assert.Contains("Result[0] := 'SapLens';", Server);
-        Assert.Contains("Result[1] := 'SapLens2';", Server);
+        Assert.Contains("Result[0] := 'sap-lens';", Server);
+        Assert.Contains("Result[1] := 'SapLens';", Server);
+        Assert.Contains("Result[2] := 'SapLens2';", Server);
         Assert.Contains("function InitializeUninstall", Server);
     }
 

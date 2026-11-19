@@ -117,7 +117,7 @@ try
     var app = SapLensHost.Build(settings, [], builder =>
     {
         // Canonical name for new own-process services. Legacy SCM registrations remain supported by deployment detection.
-        builder.Services.AddWindowsService(o => o.ServiceName = "SapLens");
+        builder.Services.AddWindowsService(o => o.ServiceName = "sap-lens");
         // A Windows service has no console: keep the same (secret-free) log lines in <data-dir>\logs.
         if (Microsoft.Extensions.Hosting.WindowsServices.WindowsServiceHelpers.IsWindowsService())
             builder.Logging.AddProvider(new FileLoggerProvider(Path.Combine(settings.DataDirectory, "logs"), "server"));

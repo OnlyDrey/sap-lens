@@ -8,7 +8,7 @@ machine's non-loopback interface [T] on Linux. On Windows 11 that test failed at
 not yet re-run on Windows [U]. Access **from another device** (desktop or mobile) has **not** been verified, and nothing ran on
 Windows [U]. Use the checklist at the end.
 
-Existing installations may retain the `SapLens2` service, older CA subjects and older firewall-rule labels. Do not recreate services, reissue TLS certificates or change firewall/proxy settings for branding. Use the explicit [Windows migration preflight](WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-saplens) before an authorized cutover. The setup examples below describe new installations.
+Existing installations may retain the `SapLens2` service, older CA subjects and older firewall-rule labels. Do not recreate services, reissue TLS certificates or change firewall/proxy settings for branding. Use the explicit [Windows migration preflight](WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-sap-lens) before an authorized cutover. The setup examples below describe new installations.
 
 ## 1. Secure defaults and fail-closed rules
 
@@ -19,7 +19,7 @@ Existing installations may retain the `SapLens2` service, older CA subjects and 
 | `--network` | Needs **one specific** address; `0.0.0.0` and `::` are always refused (never "all interfaces") |
 | Address range | Only private or link-local unicast: 10/8, 172.16/12, 192.168/16, 169.254/16, fc00::/7, fe80::/10. Public addresses are refused |
 | Protocol | HTTPS (TLS 1.2/1.3) is mandatory with `--network`; plain HTTP on a LAN address cannot be configured |
-| Certificate | Must load, have a private key, be within its validity period, allow server authentication (if EKU present), RSA ≥ 2048, and its SAN must cover every `--allowed-hosts` entry. Expiry within 30 days is logged as a warning. Chain trust is the clients' decision |
+| Certificate | Must load, have a private key, be within its validity period, allow server authentication (if EKU present), RSA Ã¢â€°Â¥ 2048, and its SAN must cover every `--allowed-hosts` entry. Expiry within 30 days is logged as a warning. Chain trust is the clients' decision |
 | Host names | Requests are answered only for loopback names and the explicit `--allowed-hosts` list (421 otherwise): no wildcards |
 | Desktop | Loopback only; network, certificate and host options are refused |
 | Configuration errors | Unknown options, missing values, invalid ports or addresses: exit code 3 with the reason; nothing starts |
@@ -139,12 +139,12 @@ Examples (replace every address, name and path):
 & .\SapLens.Api.exe --data-dir C:\sap-lens\local-test
 # Windows: LAN HTTPS, password from a protected file
 & .\SapLens.Api.exe --data-dir C:\sap-lens\runtime-test --network --listen 192.168.10.20 --port 18795 `
-  --allowed-hosts saplens.test.example,192.168.10.20 --cert C:\ProgramData\SapLens\tls\server.pfx `
-  --cert-password-file C:\ProgramData\SapLens\tls\cert-password
+  --allowed-hosts saplens.test.example,192.168.10.20 --cert C:\ProgramData\sap-lens\tls\server.pfx `
+  --cert-password-file C:\ProgramData\sap-lens\tls\cert-password
 # Windows: the same through environment variables (current session only)
 $env:SAP_LENS_DATA_DIR = 'C:\sap-lens\runtime-test'; $env:SAP_LENS_NETWORK = 'true'; $env:SAP_LENS_LISTEN = '192.168.10.20'
-$env:SAP_LENS_PORT = '18795'; $env:SAP_LENS_ALLOWED_HOSTS = '192.168.10.20'; $env:SAP_LENS_CERT = 'C:\ProgramData\SapLens\tls\server.pfx'
-$env:SAP_LENS_CERT_PASSWORD_FILE = 'C:\ProgramData\SapLens\tls\cert-password'
+$env:SAP_LENS_PORT = '18795'; $env:SAP_LENS_ALLOWED_HOSTS = '192.168.10.20'; $env:SAP_LENS_CERT = 'C:\ProgramData\sap-lens\tls\server.pfx'
+$env:SAP_LENS_CERT_PASSWORD_FILE = 'C:\ProgramData\sap-lens\tls\cert-password'
 & .\SapLens.Api.exe
 ```
 
@@ -223,7 +223,9 @@ commands below create a small private CA for a lab; keep the CA private key off 
 
 ```powershell
 $dns = 'saplens.corp.example'; $ip = '192.168.10.20'
-New-Item -ItemType Directory -Force C:\ProgramData\SapLens\tls | Out-Null
+# NEW installations only, after explicit approval in an elevated session; migration preserves existing TLS material.
+Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1
+New-SL2SecureDirectory 'C:\ProgramData\sap-lens\tls' @('C:\ProgramData\sap-lens')
 $ca = New-SelfSignedCertificate -Subject 'CN=SAP Lens LAN CA' -KeyUsage CertSign,CRLSign,DigitalSignature -KeyLength 3072 -HashAlgorithm SHA256 `
   -NotAfter (Get-Date).AddYears(5) -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable `
   -TextExtension @('2.5.29.19={critical}{text}ca=1&pathlength=0')
@@ -232,9 +234,9 @@ $server = New-SelfSignedCertificate -Subject "CN=$dns" -Signer $ca -KeyLength 20
   -TextExtension @("2.5.29.17={text}DNS=$dns&IPAddress=$ip", '2.5.29.37={text}1.3.6.1.5.5.7.3.1')
 # Random PFX password, written only to an ACL-protected file the service reads (--cert-password-file).
 $bytes = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); $plain = [Convert]::ToBase64String($bytes)
-Export-PfxCertificate -Cert $server -FilePath C:\ProgramData\SapLens\tls\server.pfx -Password (ConvertTo-SecureString $plain -AsPlainText -Force) | Out-Null
-Set-Content -Path C:\ProgramData\SapLens\tls\cert-password -Value $plain -NoNewline -Encoding ASCII; Remove-Variable plain
-Export-Certificate -Cert $ca -FilePath C:\ProgramData\SapLens\tls\saplens-ca.cer | Out-Null   # public CA certificate for clients
+Export-PfxCertificate -Cert $server -FilePath C:\ProgramData\sap-lens\tls\server.pfx -Password (ConvertTo-SecureString $plain -AsPlainText -Force) | Out-Null
+Set-Content -Path C:\ProgramData\sap-lens\tls\cert-password -Value $plain -NoNewline -Encoding ASCII; Remove-Variable plain
+Export-Certificate -Cert $ca -FilePath C:\ProgramData\sap-lens\tls\saplens-ca.cer | Out-Null   # public CA certificate for clients
 # Lab only: remove the CA and server keys from the user store (export the CA with a password to offline media first if you need it again).
 Remove-Item $server.PSPath; Remove-Item $ca.PSPath
 ```
@@ -263,26 +265,11 @@ cp ca.crt ~/saplens-ca.crt                                                      
 tool. The executable contains the service host (`AddWindowsService`, service name `SapLens`), but the procedure has **not been run on
 Windows yet** [U]. Treat every step as pending acceptance.
 
-```powershell
-# On the build machine
-dotnet publish backend\src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\Build\saplens-server
-
-# On the server
-$app = 'C:\Program Files\SapLens\server'; $data = 'C:\ProgramData\SapLens\data'; $tls = 'C:\ProgramData\SapLens\tls'
-New-Item -ItemType Directory -Force $app, $data | Out-Null
-Copy-Item C:\Build\saplens-server\* $app -Recurse -Force
-$bin = "`"$app\SapLens.Api.exe`" --data-dir `"$data`" --network --listen 192.168.10.20 --port 18791 " +
-       "--allowed-hosts saplens.corp.example,192.168.10.20 --cert `"$tls\server.pfx`" --cert-password-file `"$tls\cert-password`""
-New-Service -Name SapLens -DisplayName 'SAP Lens server' -BinaryPathName $bin -StartupType Automatic
-sc.exe config SapLens obj= "NT SERVICE\SapLens"                 # virtual service account, no password
-sc.exe failure SapLens reset= 86400 actions= restart/60000
-foreach ($dir in $data, $tls) {                                     # only the service and administrators
-  icacls $dir /inheritance:r /grant:r 'Administrators:(OI)(CI)F' 'SYSTEM:(OI)(CI)F' 'NT SERVICE\SapLens:(OI)(CI)M' | Out-Null }
-icacls "$tls\cert-password" /inheritance:r /grant:r 'Administrators:F' 'NT SERVICE\SapLens:R' | Out-Null
-Start-Service SapLens; Get-Service SapLens
-Get-Content "$data\logs\server-*.log" -Tail 20                       # startup line: address, port, https, certificate expiry
-Get-Content "$data\api-token"                                        # the token users enter at sign-in; share it through a secure channel
-```
+Use the [managed Windows deployment procedure](WINDOWS_DEPLOYMENT.md) for canonical `sap-lens` / DisplayName `SAP Lens` installation under
+`C:\sap-lens`, with data, pre-deployment backups and TLS under `C:\ProgramData\sap-lens`. It verifies private directory provisioning before
+sensitive files are staged and rejects existing services and target roots. The earlier manual copy/create-service recipe is superseded; do not
+use it to bypass ACL readiness or to replace a running `SapLens2` service. Existing service identity, certificates and network settings require
+an explicitly reviewed migration, not regeneration for naming.
 
 ### Linux (systemd)
 
@@ -329,7 +316,7 @@ The Server never creates firewall rules. An administrator adds exactly one inbou
 # Windows: only from 192.168.10.0/24, only to this address and port, only on Domain/Private profiles, only for this program
 New-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' -Direction Inbound -Action Allow -Protocol TCP `
   -LocalAddress 192.168.10.20 -LocalPort 18791 -RemoteAddress 192.168.10.0/24 -Profile Domain,Private `
-  -Program 'C:\Program Files\SapLens\server\SapLens.Api.exe'
+  -Program 'C:\sap-lens\releases\current\server\SapLens.Api.exe'
 Get-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' | Get-NetFirewallAddressFilter
 # Remove: Remove-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)'
 ```
@@ -401,8 +388,8 @@ From a device **outside** the trusted subnet the connection must time out (firew
 ## 8. Mobile browser testing
 
 1. Copy the **public** CA certificate (`saplens-ca.cer`/`.crt`, never the PFX or a key) to the device (mail, MDM, AirDrop).
-2. iOS/iPadOS: open it, Settings → Profile Downloaded → Install; then Settings → General → About → Certificate Trust Settings → enable full
-   trust for "SAP Lens LAN CA". Android: Settings → Security → Encryption & credentials → Install a certificate → CA certificate
+2. iOS/iPadOS: open it, Settings Ã¢â€ â€™ Profile Downloaded Ã¢â€ â€™ Install; then Settings Ã¢â€ â€™ General Ã¢â€ â€™ About Ã¢â€ â€™ Certificate Trust Settings Ã¢â€ â€™ enable full
+   trust for "SAP Lens LAN CA". Android: Settings Ã¢â€ â€™ Security Ã¢â€ â€™ Encryption & credentials Ã¢â€ â€™ Install a certificate Ã¢â€ â€™ CA certificate
    (Chrome honours user CAs; menu names vary by vendor). Managed devices: deploy the CA through MDM instead.
 3. Connect to the corporate Wi-Fi in the trusted subnet (not a guest network), open `https://saplens.corp.example:18791/`: the browser must
    show a valid lock without warnings. Never accept a certificate warning: it means the trust setup is wrong.
@@ -413,16 +400,16 @@ From a device **outside** the trusted subnet the connection must time out (firew
 ## 9. Secure shutdown and restart
 
 ```powershell
-Stop-Service SapLens      # graceful: running import handed back (Queued), SQLite closed; Start-Service / Restart-Service SapLens
-Get-Content 'C:\ProgramData\SapLens\data\logs\server-*.log' -Tail 5
+Stop-Service sap-lens      # graceful: running import handed back (Queued), SQLite closed; Start-Service / Restart-Service sap-lens
+Get-Content 'C:\ProgramData\sap-lens\data\logs\server-*.log' -Tail 5
 ```
 
 Windows service operation (pending native verification [U]):
 
 ```powershell
-Get-Service SapLens | Format-List Name, Status, StartType
+Get-Service sap-lens | Format-List Name, Status, StartType
 Get-CimInstance Win32_Service -Filter "Name='SapLens'" | Format-List State, StartName, PathName, ProcessId   # identity and command line
-Restart-Service SapLens
+Restart-Service sap-lens
 # Service Control Manager: start/stop (7036), failures to start (7000, 7009), unexpected exits and recovery (7031, 7034)
 Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Service Control Manager'; StartTime = (Get-Date).AddHours(-1) } |
   Where-Object Message -like '*SAP Lens*' | Format-Table TimeCreated, Id, Message -Wrap
@@ -436,10 +423,10 @@ which a service does not show, so reproduce a start failure by running the same 
 Safe removal (keeps data, certificates and the firewall rule unless removed explicitly):
 
 ```powershell
-Stop-Service SapLens
-sc.exe delete SapLens                                        # removes the registration only
+Stop-Service sap-lens
+sc.exe delete sap-lens                                        # removes the registration only
 Remove-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' -ErrorAction SilentlyContinue
-# Data (C:\ProgramData\SapLens\data) and TLS files stay; back them up or delete them deliberately.
+# Data (C:\ProgramData\sap-lens\data) and TLS files stay; back them up or delete them deliberately.
 ```
 
 ```bash
@@ -507,8 +494,8 @@ configuring it.
 
 ```powershell
 & .\SapLens.Api.exe --data-dir C:\sap-lens\runtime-test --network --listen 192.168.10.20 --port 18795 `
-  --allowed-hosts lens.example.com,192.168.10.20 --cert C:\ProgramData\SapLens\tls\server.pfx `
-  --cert-password-file C:\ProgramData\SapLens\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
+  --allowed-hosts lens.example.com,192.168.10.20 --cert C:\ProgramData\sap-lens\tls\server.pfx `
+  --cert-password-file C:\ProgramData\sap-lens\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
 ```
 
 With the test launcher: `.\scripts\start-server-test.ps1 -AllowedHosts 'lens.example.com','192.168.10.20' -TrustedProxies '<PANGOLIN_PEER_IP>'`.

@@ -93,8 +93,8 @@ Describe 'Configuration' {
         $template = Get-Content (Join-Path $PSScriptRoot '../deploy/deploy.example.json') -Raw | ConvertFrom-Json
         $template.WorkRoot | Should -Be 'C:\sap-lens\deploy'
         $template.ReleasesRoot | Should -Be 'C:\sap-lens\releases'
-        $template.BackupRoot | Should -Be 'C:\ProgramData\SapLens\predeploy-backups'
-        $template.DataDirectory | Should -Be 'C:\ProgramData\SapLens\data'
+        $template.BackupRoot | Should -Be 'C:\ProgramData\sap-lens\predeploy-backups'
+        $template.DataDirectory | Should -Be 'C:\ProgramData\sap-lens\data'
     }
     It 'refuses unknown settings, missing values and relative paths' {
         $file = Join-Path $TestDrive 'bad.json'
@@ -114,17 +114,17 @@ Describe 'Configuration' {
         $binary | Should -Not -Match '--cert-password '
     }
 
-    It 'names the service SapLens for a new installation and keeps an existing earlier SapLens2 service' {
+    It 'names the service sap-lens for a new installation and keeps an existing earlier SapLens2 service' {
         $config = New-TestConfig
-        ($config.ServiceName, $config.ServiceAccount, $config.ServiceNameConfigured) | Should -Be @('SapLens', 'NT SERVICE\SapLens', $false)
+        ($config.ServiceName, $config.ServiceAccount, $config.ServiceNameConfigured) | Should -Be @('sap-lens', 'NT SERVICE\sap-lens', $false)
         Mock -ModuleName $M Get-SL2Service { param($Name) if ($Name -eq 'SapLens2') { [pscustomobject]@{ Exists = $true; State = 'Running' } } else { $script:Missing } }
         $config = Read-SapLensSettings $config.ConfigFile
         ($config.ServiceName, $config.ServiceAccount) | Should -Be @('SapLens2', 'NT SERVICE\SapLens2')
-        Mock -ModuleName $M Get-SL2Service { [pscustomobject]@{ Exists = $true; State = 'Running' } }      # both exist: SapLens wins
-        (Read-SapLensSettings $config.ConfigFile).ServiceName | Should -Be 'SapLens'
+        Mock -ModuleName $M Get-SL2Service { [pscustomobject]@{ Exists = $true; State = 'Running' } }      # all exist: sap-lens wins
+        (Read-SapLensSettings $config.ConfigFile).ServiceName | Should -Be 'sap-lens'
     }
 
-    It 'finds the configuration under the current and the earlier variable name and defaults folders to the configuration folder' {
+    It 'finds current and earlier configuration variables and gives new canonical services canonical folder defaults' {
         $config = New-TestConfig
         $minimal = Join-Path $TestDrive 'minimal/deploy.local.json'
         New-Item -ItemType Directory -Force (Split-Path $minimal) | Out-Null
@@ -134,8 +134,8 @@ Describe 'Configuration' {
             $env:SAPLENS_DEPLOY_CONFIG = $null; $env:SAPLENS2_DEPLOY_CONFIG = $minimal
             $read = Read-SapLensSettings ''
             $read.ConfigFile | Should -Be $minimal
-            $read.ReleasesRoot | Should -Be ([System.IO.Path]::Combine((Split-Path $minimal), 'releases'))
-            $read.WorkRoot | Should -Be ([System.IO.Path]::Combine((Split-Path $minimal), 'deploy'))
+            $read.ReleasesRoot | Should -Be 'C:\sap-lens\releases'
+            $read.WorkRoot | Should -Be 'C:\sap-lens\deploy'
             $env:SAPLENS_DEPLOY_CONFIG = $config.ConfigFile
             (Read-SapLensSettings '').ConfigFile | Should -Be $config.ConfigFile                  # the current name wins
         } finally { $env:SAPLENS_DEPLOY_CONFIG, $env:SAPLENS2_DEPLOY_CONFIG = $saved }
@@ -321,9 +321,12 @@ Describe 'Service installation and host safety' {
         $config.ServiceName = 'SapLens.Acceptance-' + ('a' * 32) + '-old'
         Set-SL2ServiceEntry $config 'synthetic' $false 'demand'
         Should -Invoke -ModuleName $M New-Service -Times 1 -ParameterFilter { $Name -eq $DisplayName -and $Name -like 'SapLens.Acceptance-*-old' }
-        $config.ServiceName = 'SapLens'
+        $config.ServiceName = 'sap-lens'
         Set-SL2ServiceEntry $config 'synthetic' $false 'demand'
-        Should -Invoke -ModuleName $M New-Service -Times 1 -ParameterFilter { $Name -eq 'SapLens' -and $DisplayName -eq 'SAP Lens' }
+        Should -Invoke -ModuleName $M New-Service -Times 1 -ParameterFilter { $Name -eq 'sap-lens' -and $DisplayName -eq 'SAP Lens' }
+        Should -Invoke -ModuleName $M Invoke-SL2Process -Times 1 -ParameterFilter {
+            $File -eq 'sc.exe' -and $Arguments[1] -eq 'sap-lens' -and $Arguments -contains 'DisplayName=' -and $Arguments[-1] -eq 'SAP Lens'
+        }
     }
     It 'refuses to install while another process holds the port and never stops it' {
         $config = New-TestConfig
@@ -339,7 +342,7 @@ Describe 'Service installation and host safety' {
 
     It 'never creates a second service beside an earlier SapLens2 installation' {
         $config = New-TestConfig
-        $config.ServiceName = 'SapLens'; $config.ServiceNameConfigured = $true
+        $config.ServiceName = 'sap-lens'; $config.ServiceNameConfigured = $true
         Mock -ModuleName $M Get-SL2Service { param($Name) if ($Name -eq 'SapLens2') { [pscustomobject]@{ Exists = $true; State = 'Running'; ProcessId = 7 } } else { $script:Missing } }
         Mock -ModuleName $M New-Service { throw 'must not be created' }
         { Install-SL2Service $config } | Should -Throw '*a second service is never created*'
@@ -464,9 +467,9 @@ Describe 'Adopting a hand-installed service' {
 
 Describe 'Semantic comparison of service arguments' {
     BeforeAll {
-        $script:Base = @('--data-dir', 'C:\ProgramData\SapLens\data', '--network', '--listen', '192.0.2.10', '--port', '18795',
-            '--allowed-hosts', 'lens.example.com,192.0.2.10', '--cert', 'C:\ProgramData\SapLens\tls\server.pfx',
-            '--cert-password-file', 'C:\ProgramData\SapLens\tls\cert-password', '--trusted-proxies', '192.0.2.1,192.0.2.2')
+        $script:Base = @('--data-dir', 'C:\ProgramData\sap-lens\data', '--network', '--listen', '192.0.2.10', '--port', '18795',
+            '--allowed-hosts', 'lens.example.com,192.0.2.10', '--cert', 'C:\ProgramData\sap-lens\tls\server.pfx',
+            '--cert-password-file', 'C:\ProgramData\sap-lens\tls\cert-password', '--trusted-proxies', '192.0.2.1,192.0.2.2')
         function Without([string[]]$Arguments, [string]$Name) {
             $out = New-Object System.Collections.Generic.List[string]
             for ($i = 0; $i -lt $Arguments.Count; $i++) { if ($Arguments[$i] -ceq $Name) { if ($Name -ne '--network') { $i++ }; continue }; $out.Add($Arguments[$i]) }
@@ -478,8 +481,8 @@ Describe 'Semantic comparison of service arguments' {
     }
 
     It 'treats the same options in another order as equivalent' {
-        $reordered = @('--listen', '192.0.2.10', '--port', '18795', '--network', '--trusted-proxies', '192.0.2.1,192.0.2.2', '--cert', 'C:\ProgramData\SapLens\tls\server.pfx',
-            '--allowed-hosts', 'lens.example.com,192.0.2.10', '--cert-password-file', 'C:\ProgramData\SapLens\tls\cert-password', '--data-dir', 'C:\ProgramData\SapLens\data')
+        $reordered = @('--listen', '192.0.2.10', '--port', '18795', '--network', '--trusted-proxies', '192.0.2.1,192.0.2.2', '--cert', 'C:\ProgramData\sap-lens\tls\server.pfx',
+            '--allowed-hosts', 'lens.example.com,192.0.2.10', '--cert-password-file', 'C:\ProgramData\sap-lens\tls\cert-password', '--data-dir', 'C:\ProgramData\sap-lens\data')
         @(Compare-SL2ServiceArguments $reordered $script:Base).Count | Should -Be 0
     }
 
@@ -490,9 +493,9 @@ Describe 'Semantic comparison of service arguments' {
 
     It 'reports every real difference in a security-sensitive value' {
         foreach ($case in @(
-                @('--data-dir', 'C:\ProgramData\SapLens\other'), @('--listen', '192.0.2.11'), @('--port', '18796'), @('--allowed-hosts', 'lens.example.com'),
+                @('--data-dir', 'C:\ProgramData\sap-lens\other'), @('--listen', '192.0.2.11'), @('--port', '18796'), @('--allowed-hosts', 'lens.example.com'),
                 @('--allowed-hosts', 'lens.example.com,192.0.2.10,evil.example.net'), @('--trusted-proxies', '192.0.2.1'), @('--trusted-proxies', '192.0.2.1,192.0.2.3'),
-                @('--cert', 'C:\ProgramData\SapLens\tls\other.pfx'), @('--cert-password-file', 'C:\ProgramData\SapLens\tls\other'), @('--port', '018795x'))) {
+                @('--cert', 'C:\ProgramData\sap-lens\tls\other.pfx'), @('--cert-password-file', 'C:\ProgramData\sap-lens\tls\other'), @('--port', '018795x'))) {
             $differences = @(Compare-SL2ServiceArguments (With $script:Base $case[0] $case[1]) $script:Base)
             $differences.Count | Should -Be 1 -Because "$($case[0]) $($case[1])"
             $differences[0] | Should -BeLike "$($case[0]) differs*"

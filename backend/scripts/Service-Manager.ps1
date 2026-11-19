@@ -9,7 +9,7 @@
 param(
     [ValidateSet('Menu', 'Status', 'CreateKey', 'ExportKey', 'VerifyKey', 'ActivationCode', 'RecoveryCode')]
     [string]$Action = 'Menu',
-    [string]$DataDirectory = 'C:\ProgramData\SapLens\data',
+    [string]$DataDirectory = 'C:\ProgramData\sap-lens\data',
     [string]$Executable = '',
     [string]$Path = '',
     [string]$Username = '',

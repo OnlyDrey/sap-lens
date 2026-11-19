@@ -10,8 +10,8 @@ $ErrorActionPreference = 'Stop'
 $script:Exe = 'SapLens.Api.exe'
 $script:Lock = $null; $script:RunFolder = $null; $script:RunLog = $null; $script:RunId = ''
 $script:HostLock = $null
-# Service names: SapLens for new installations; SapLens2 is the name of earlier installations, detected and kept until MigrateService renames it.
-$script:ServiceName = 'SapLens'; $script:LegacyServiceName = 'SapLens2'
+# Canonical service name: sap-lens. Historical SapLens and SapLens2 registrations are detected and retained; migration is explicit.
+$script:ServiceName = 'sap-lens'; $script:PreviousServiceName = 'SapLens'; $script:LegacyServiceName = 'SapLens2'
 # Configuration lookup when -ConfigFile is not given: the environment variable (current, then earlier name), then the default files in this order.
 $script:ConfigVariables = @('SAPLENS_DEPLOY_CONFIG', 'SAPLENS2_DEPLOY_CONFIG')
 $script:ConfigDefaults = @('C:\sap-lens\deploy\deploy.local.json', 'C:\saplens\deploy.local.json', 'C:\saplens2\deploy.local.json')
@@ -45,9 +45,10 @@ function Find-SL2ConfigFile {
     $script:ConfigDefaults[0]
 }
 
-# The service this host runs: the configured name, otherwise SapLens, otherwise an existing earlier SapLens2 installation (kept as it is).
+# The service this host runs: configured name, otherwise canonical, then historical aliases (kept as they are).
 function Resolve-SL2ServiceName {
     if ((Get-SL2Service $script:ServiceName).Exists) { return $script:ServiceName }
+    if ((Get-SL2Service $script:PreviousServiceName).Exists) { return $script:PreviousServiceName }
     if ((Get-SL2Service $script:LegacyServiceName).Exists) { return $script:LegacyServiceName }
     $script:ServiceName
 }
@@ -67,6 +68,15 @@ function Read-SapLensSettings([string]$Path) {
         if (-not $config.Contains($p.Name)) { Stop-SL2 "Unknown deployment setting '$($p.Name)' in $Path." }
         $config[$p.Name] = $p.Value
     }
+    $selectedService = if ($raw.PSObject.Properties['ServiceName'] -and $raw.ServiceName) { $raw.ServiceName } else { Resolve-SL2ServiceName }
+    if ($selectedService -ceq 'sap-lens') {
+        $canonical = Get-SL2CanonicalPaths
+        foreach ($name in 'WorkRoot', 'ReleasesRoot', 'BackupRoot', 'DataDirectory') {
+            if (-not $raw.PSObject.Properties[$name]) { $config[$name] = $canonical.$name }
+        }
+        if (-not $raw.PSObject.Properties['CertificatePath']) { $config.CertificatePath = Join-SL2 $canonical.TlsRoot 'server.pfx' }
+        if (-not $raw.PSObject.Properties['CertificatePasswordFile']) { $config.CertificatePasswordFile = Join-SL2 $canonical.TlsRoot 'cert-password' }
+    }
     foreach ($required in 'RepositoryPath', 'ListenAddress', 'DataDirectory', 'CertificatePath', 'CertificatePasswordFile') {
         if (-not $config[$required]) { Stop-SL2 "Deployment setting '$required' is required ($Path)." }
     }
@@ -77,7 +87,7 @@ function Read-SapLensSettings([string]$Path) {
     $config.AllowedHosts = @($config.AllowedHosts); $config.TrustedProxies = @($config.TrustedProxies)
     $config['ConfigFile'] = $Path
     $config['ServiceNameConfigured'] = [bool]$config.ServiceName
-    if (-not $config.ServiceName) { $config.ServiceName = Resolve-SL2ServiceName }
+    if (-not $config.ServiceName) { $config.ServiceName = $selectedService }
     if ($config.ServiceName -notmatch '^[A-Za-z0-9_.-]{1,80}$') { Stop-SL2 "Deployment setting 'ServiceName' may contain letters, digits, '.', '_' and '-' only." }
     if (-not $config.ServiceAccount) { $config.ServiceAccount = "NT SERVICE\$($config.ServiceName)" }      # the service's own virtual account
     [pscustomobject]$config
@@ -485,24 +495,24 @@ function Publish-SL2Release($Config, [string]$Release, $Manifest) {
 
 # ---- service installation
 
-# The other SAP Lens service name on this host (SapLens beside SapLens2, or the reverse), when it exists: never create a second service.
+# Any other canonical/historical SAP Lens service on this host: never create a second service.
 function Get-SL2OtherService($Config) {
     if ($Config.ServiceName -cmatch '^(SapLens\.Acceptance-[a-f0-9]{32})-(old|new)$') {
         $other = $Matches[1] + $(if ($Matches[2] -eq 'old') { '-new' } else { '-old' })
         if ((Get-SL2Service $other).Exists) { return $other }
         return $null
     }
-    foreach ($name in $script:ServiceName, $script:LegacyServiceName) { if ($name -ne $Config.ServiceName -and (Get-SL2Service $name).Exists) { return $name } }
+    foreach ($name in $script:ServiceName, $script:PreviousServiceName, $script:LegacyServiceName) { if ($name -ne $Config.ServiceName -and (Get-SL2Service $name).Exists) { return $name } }
     $null
 }
 
 # Creates the service (automatic start, its virtual account, restart on failure) or, for an existing one, sets its command line and account.
 function Set-SL2ServiceEntry($Config, [string]$Binary, [bool]$Exists, [string]$StartMode = 'auto') {
+    $displayName = if ($Config.ServiceName -cmatch '^SapLens\.Acceptance-[a-f0-9]{32}-(old|new)$') { $Config.ServiceName } else { 'SAP Lens' }
     if (-not $Exists) {
-        $displayName = if ($Config.ServiceName -cmatch '^SapLens\.Acceptance-[a-f0-9]{32}-(old|new)$') { $Config.ServiceName } else { 'SAP Lens' }
         New-Service -Name $Config.ServiceName -DisplayName $displayName -BinaryPathName $Binary -StartupType Manual -Description 'SAP Lens (.NET) server' | Out-Null
     }
-    foreach ($arguments in @(@('config', $Config.ServiceName, 'binPath=', $Binary, 'start=', $StartMode), @('config', $Config.ServiceName, 'obj=', $Config.ServiceAccount),
+    foreach ($arguments in @(@('config', $Config.ServiceName, 'binPath=', $Binary, 'start=', $StartMode, 'DisplayName=', $displayName), @('config', $Config.ServiceName, 'obj=', $Config.ServiceAccount),
             @('failure', $Config.ServiceName, 'reset=', '86400', 'actions=', 'restart/60000/restart/60000//'))) {
         $result = Invoke-SL2Process 'sc.exe' $arguments ''     # virtual account: no password
         if ($result.ExitCode -ne 0) { Stop-SL2 "sc.exe $($arguments[0]) $($Config.ServiceName) failed ($(($result.Output | Select-Object -Last 1)))." 1 }
@@ -794,6 +804,7 @@ function Invoke-SL2Rollback($Config, [string]$ToRelease) {
     [pscustomobject]@{ rolled_back = $true; release = $target }
 }
 
+. (Join-Path $PSScriptRoot 'SapLens.Configuration.ps1')
 . (Join-Path $PSScriptRoot 'SapLens.Migration.ps1')
 . (Join-Path $PSScriptRoot 'SapLens.Acl.ps1')
 Export-ModuleMember -Function * -Variable FocusedTests

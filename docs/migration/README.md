@@ -33,7 +33,7 @@ repeat an activated v1 import. A passing Pester run on another Windows workstati
 | [VERSIONING.md](../architecture/VERSIONING.md) | Product version (`2.0.0-alpha.N`, independent of v1), channel and build identity; where each appears; release policy |
 | [WINDOWS_TEST_VM.md](../deployment/WINDOWS_TEST_VM.md) | Windows test VM runbook: native release build, test launcher (`scripts/start-server-test.ps1`), manual start, HTTPS and TLS checks, firewall, logs, restart, and the acceptance levels (build is not runtime acceptance) |
 | [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md) | How v1 data, decisions and evidence move, with rollback |
-| [WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md) | SSH-driven Windows test deployment (build, verify, back up, switch, verify, roll back, recover), `SapLens2` to `SapLens` service migration, Desktop and Server installers, acceptance checklist |
+| [WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md) | SSH-driven Windows test deployment (build, verify, back up, switch, verify, roll back, recover), `SapLens2` to `sap-lens` service migration, Desktop and Server installers, acceptance checklist |
 | [BACKEND_PROMOTION.md](BACKEND_PROMOTION.md) | Promotion of the .NET backend to `backend/` and retirement of the Python backend: gates, what is prepared, what is blocked |
 | [V1_MIGRATION.md](V1_MIGRATION.md) | Administrator procedure: SAP Lens 1 `.slbak` or data directory to SAP Lens (Windows PowerShell), verification and rollback |
 

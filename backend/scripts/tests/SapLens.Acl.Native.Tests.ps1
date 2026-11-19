@@ -20,6 +20,29 @@ BeforeAll {
 }
 
 Describe 'Windows-native NTFS audit and backup restoration' -Skip:([IO.Path]::DirectorySeparatorChar -ne '\') {
+    It 'creates a protected DACL atomically and refuses to overwrite a raced path' {
+        $parent = Join-Path $TestDrive 'atomic parent'
+        New-Item -ItemType Directory $parent | Out-Null
+        $parentAcl = [Security.AccessControl.DirectorySecurity]::new()
+        $parentAcl.SetAccessRuleProtection($true, $false)
+        $parentAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow'))
+        $everyone = [Security.Principal.SecurityIdentifier]::new('S-1-1-0')
+        $parentAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($everyone, 'ReadAndExecute', 'ContainerInherit, ObjectInherit', 'None', 'Allow'))
+        $parentAcl.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new($everyone, 278, 'ContainerInherit, ObjectInherit', 'InheritOnly', 'Allow'))
+        Set-Acl -LiteralPath $parent -AclObject $parentAcl
+        $parentBefore = (Get-Acl -LiteralPath $parent).Sddl
+        $security = [Security.AccessControl.DirectorySecurity]::new()
+        $security.SetAccessRuleProtection($true, $false)
+        $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.WindowsIdentity]::GetCurrent().User, 'FullControl', 'ContainerInherit, ObjectInherit', 'None', 'Allow'))
+        $path = Join-Path $parent 'private child'
+        New-SL2DirectoryWithAcl $path $security
+        (Get-Acl -LiteralPath $path).AreAccessRulesProtected | Should -BeTrue
+        (Get-SL2AclAudit $path 'private' 'native fixture').findings.Count | Should -Be 0
+        Set-Content (Join-Path $path 'synthetic.txt') 'retained'
+        { New-SL2DirectoryWithAcl $path $security } | Should -Throw '*error 183*'
+        Get-Content (Join-Path $path 'synthetic.txt') | Should -Be 'retained'
+        (Get-Acl -LiteralPath $parent).Sddl | Should -Be $parentBefore
+    }
     It 'reads inherited broad grants by SID from a real NTFS DACL' {
         $root = Join-Path $TestDrive 'native audit'
         New-Item -ItemType Directory $root | Out-Null

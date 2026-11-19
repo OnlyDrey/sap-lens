@@ -1,7 +1,7 @@
 # Windows deployment: SSH-driven test server and installers
 
 How the SAP Lens .NET server is built, validated and deployed on a Windows test host from Linux over SSH, how an earlier `SapLens2` service is
-migrated to `SapLens`, and how the Desktop and Server installers are built. Every value below is an example (`192.0.2.0/24`, `lens.example.com`,
+migrated to `sap-lens`, and how the Desktop and Server installers are built. Every value below is an example (`192.0.2.0/24`, `lens.example.com`,
 `deployer`, `C:\Users\example`); real host names, addresses, paths and credentials stay in the host's own configuration file and are never committed.
 
 Status: deployment state-machine tests use mocked SCM/network operations (Pester); SSH tests use a fake SSH (Bash). Windows PowerShell 5.1
@@ -52,8 +52,8 @@ match wins: `$env:SAPLENS_DEPLOY_CONFIG`, `$env:SAPLENS2_DEPLOY_CONFIG`, `C:\sap
 | Setting | Default | Notes |
 | --- | --- | --- |
 | `RepositoryPath` | required | The clone on the host |
-| `WorkRoot`, `ReleasesRoot`, `BackupRoot` | `<config folder>\deploy`, `\releases`, `\predeploy-backups` | An existing `C:\saplens2\deploy.local.json` therefore keeps its `C:\saplens2\...` folders |
-| `ServiceName`, `ServiceAccount` | detected | Leave both out: `SapLens` if it exists, else an existing `SapLens2`, else `SapLens` for a new installation. Account `NT SERVICE\<name>` |
+| `WorkRoot`, `ReleasesRoot`, `BackupRoot` | Canonical roots below for `sap-lens`; configuration-relative for legacy sources | Explicit existing values are retained; use `PlanCanonicalTarget` to review a target conversion |
+| `ServiceName`, `ServiceAccount` | detected | Leave both out: an existing `sap-lens`, historical `SapLens`, or `SapLens2` is retained; new installations use `sap-lens`. Explicit migration targets must name `sap-lens`. Account `NT SERVICE\<name>` |
 | `ListenAddress`, `Port` | required | The server's HTTPS endpoint (`--listen`, `--port`) |
 | `AllowedHosts`, `TrustedProxies` | `[]` | `--allowed-hosts` (every name the browser uses) and `--trusted-proxies` (only the reverse proxy's address) |
 | `DataDirectory`, `CertificatePath`, `CertificatePasswordFile` | required | Absolute paths outside the release and the repository |
@@ -104,8 +104,8 @@ Implemented and tested on Linux (Pester `verify-release.Tests.ps1`, `SapLens.Mig
 
 | Kind | Where | Contents | Verify with |
 | --- | --- | --- | --- |
-| Full release | Builder output (`WorkRoot\builds\<sha12>\SAP-Lens-…-win-x64`, or `build-release.ps1 -Output`) | Every artifact in `build-manifest.json`: `server\`, `desktop\`, `symbols\`, `README.txt`, `Service-Manager.ps1` | `verify-release.ps1 -ReleasePath <folder>` |
-| Server deployment package | `ReleasesRoot\SAP-Lens-…-win-x64` (what the service runs) | Every artifact except `desktop\**` and `symbols\**`, the unchanged `build-manifest.json` and `SHA256SUMS`, and `deployment-package.json` | `verify-release.ps1 -ReleasePath <folder> -Scope Server` |
+| Full release | Builder output (`WorkRoot\builds\<sha12>\SAP-Lens-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦-win-x64`, or `build-release.ps1 -Output`) | Every artifact in `build-manifest.json`: `server\`, `desktop\`, `symbols\`, `README.txt`, `Service-Manager.ps1` | `verify-release.ps1 -ReleasePath <folder>` |
+| Server deployment package | `ReleasesRoot\SAP-Lens-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦-win-x64` (what the service runs) | Every artifact except `desktop\**` and `symbols\**`, the unchanged `build-manifest.json` and `SHA256SUMS`, and `deployment-package.json` | `verify-release.ps1 -ReleasePath <folder> -Scope Server` |
 
 - `build-manifest.json` and `SHA256SUMS` always describe the full build and are **never rewritten** in a package. `deployment-package.json`
   declares the package: kind `server`, the release name, the SHA-256 of `build-manifest.json`, and the exact omitted paths.
@@ -138,10 +138,10 @@ hosts, trusted proxies, certificate and password file); otherwise it is refused 
 semantic: option order and the order of entries in `--allowed-hosts`/`--trusted-proxies` do not matter, host names and Windows paths compare
 without regard to case, addresses as IP addresses. A missing, repeated, unknown or valueless option is always a difference. The original command line is recorded and restored if the adopted deployment fails.
 
-**New host:** `--mode build`, then `--mode deploy --first-install --yes` (installs the `SapLens` service with automatic start, its virtual account,
+**New host:** `--mode build`, then `--mode deploy --first-install --yes` (installs the `sap-lens` service with automatic start, its virtual account,
 restart on failure and least-privilege grants), then `--mode status`.
 
-## Migrating SapLens2 to SapLens
+## Migrating SapLens2 to sap-lens
 
 This is an explicit, separate maintenance operation. Do not run it on the working VM during development. Native acceptance must pass first
 on [unique synthetic fixtures](WINDOWS_TEST_VM.md#isolated-native-migration-acceptance). Production cutover still needs authorization.
@@ -151,18 +151,19 @@ An already activated v1 data migration is preserved; do not preview/run/activate
 | --- | --- |
 | Verified immutable releases / current junction | `C:\sap-lens\releases` / `C:\sap-lens\releases\current` |
 | Deployment tools, private config and mirrored journal | `C:\sap-lens\deploy` |
-| Mutable application data | `C:\ProgramData\SapLens\data` |
-| Existing TLS certificate and password copy | `C:\ProgramData\SapLens\tls` |
-| Existing host key and recovery copies | `C:\ProgramData\SapLens\backup` |
-| Verified pre-deployment/migration archives | `C:\ProgramData\SapLens\predeploy-backups` |
+| Mutable application data | `C:\ProgramData\sap-lens\data` |
+| Existing TLS certificate and password copy | `C:\ProgramData\sap-lens\tls` |
+| Existing host key and recovery copies | `C:\ProgramData\sap-lens\backup` |
+| Verified pre-deployment/migration archives | `C:\ProgramData\sap-lens\predeploy-backups` |
 
 Prepare two private JSON configurations **outside the new target roots**. Source explicitly names `SapLens2` and its actual paths, arguments
-and account. Target explicitly names `SapLens` and the canonical paths above. Preserve `LocalSystem` when the source uses it; a source virtual
-account maps to `NT SERVICE\SapLens`. Custom credential accounts are refused. Never switch the account implicitly. Preserve the exact listen
+and account. Target explicitly names `sap-lens` and the canonical paths above. Preserve `LocalSystem` when the source uses it; a source virtual
+account maps to `NT SERVICE\sap-lens`. Custom credential accounts are refused. Never switch the account implicitly. Preserve the exact listen
 address, port, allowed hosts, trusted proxies and TLS filenames; no certificate regeneration, key rotation, proxy or firewall change occurs.
 Target roots must not exist, must be disjoint local NTFS directories, and must have private parent ACLs and adequate free space.
-Prepare only their containing application/persistent roots with administrator/SYSTEM access before preflight (`-Action ProtectAcl`, see
-[NTFS permissions](#ntfs-permissions)); a public parent that lets ordinary users read or create children is refused. Staging creates its work directory exclusively and never adopts a directory that appeared after inspection.
+Existing application roots must have verified SYSTEM/Administrators access and safe ACLs. Missing application parents below ordinary Windows
+ancestors are reported as requiring exclusive secure provisioning; read/create permissions on `C:\ProgramData` alone are not a global ACL defect.
+See [NTFS permissions](#ntfs-permissions). Staging creates its work directory exclusively and never adopts a directory that appeared after inspection.
 
 ### Preparing the migration
 
@@ -170,34 +171,41 @@ In this order; steps 1 to 3 change nothing. Status: the procedure is implemented
 
 1. **Source release integrity (read-only).** Verify the release the `SapLens2` service runs, as a server package:
    `powershell -NoProfile -File .\backend\scripts\verify-release.ps1 -ReleasePath <ReleasesRoot>\<release> -Scope Server`. Expect
-   "Release verified as a server package (undeclared …)" and the omitted Desktop and symbol files listed by name. Anything else (a changed or
+   "Release verified as a server package (undeclared ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦)" and the omitted Desktop and symbol files listed by name. Anything else (a changed or
    missing server file, a changed manifest) is a real integrity failure: stop and investigate; do not edit the folder. If the full build is
    needed, check `WorkRoot\builds\<sha12>` with the default full scope ([release packages](#release-packages-and-integrity)).
 2. **Target roots.** `Test-Path` each target root of the target configuration (`DataDirectory`, `BackupRoot`, the TLS folder,
    `<data parent>\backup`, `WorkRoot`, `ReleasesRoot`): all must be `False`. A configuration file must not live inside a target root. If, for
-   example, `C:\sap-lens\deploy` already exists and is the target `WorkRoot`, move the operator files out of it in the maintenance window or
-   choose another `WorkRoot`; migration never adopts an existing root.
+   example, `C:\sap-lens\deploy` already exists and is the target `WorkRoot`, retain and inventory the operator files; separately approve their relocation outside the target roots; migration never adopts an existing root.
 3. **ACL audit (read-only).** `-Action AuditAcl -ConfigFile $source -TargetConfigFile $target`; review every finding.
 4. **Backup.** Create and verify an application backup and export the recovery key (checklist steps 2 and 3) before changing permissions.
-5. **ACL remediation (explicit).** `-Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -Yes` in an elevated session; keep the
+5. **ACL remediation (explicit).** `-Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -ApprovedAclRoot $approvedRoots -AclBackupRoot $aclBackupRoot -Yes` in an elevated session; keep the
    printed backup folder; then `AuditAcl` again until it exits 0. The service keeps running.
-6. **Preflight.** `-Action PreflightMigration …` until `safe: true`. Migration is only ready then; `MigrateService` still needs authorization.
+6. **Preflight.** `-Action PreflightMigration ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦` until `safe: true`. Migration is only ready then; `MigrateService` still needs authorization.
 
-If an old target work folder contains operator configuration, retain it and choose a new, absent work root instead of cleaning it up.
-For example, keep `C:\sap-lens\deploy` and all of `C:\sap-lens\migration` as historical evidence; put a new reviewed target configuration in
-`C:\sap-lens\configuration\target-<unique-id>.local.json` and explicitly set `WorkRoot` to an absent
-`C:\sap-lens\deploy-<unique-id>`. Do not create that work root. Moving configuration changes configuration-relative defaults: carry explicit
-`WorkRoot`, `ReleasesRoot`, `BackupRoot`, `DataDirectory`, TLS paths, service identity and network values forward before validating it.
-Use create-new semantics for the new configuration, and retain the original unchanged. Check all six target roots for existence and overlap;
-choosing a new work root does not make an existing release/data/TLS/backup root acceptable. Do not delete or relocate migration backups, recovery
-keys, journals or evidence to make a preflight pass. A folder named `backup-runtime-test-*` may be live service data: establish that from SCM
-arguments and the source configuration, never from its name. Never manually copy live SQLite files as preparation.
+Canonical production targets use `ServiceName=sap-lens`, DisplayName `SAP Lens`, `C:\sap-lens\deploy`, `C:\sap-lens\releases`,
+and `C:\ProgramData\sap-lens\{data,predeploy-backups,tls}`. The backup-key copy goes in `C:\ProgramData\sap-lens\backup`.
+Legacy `SapLens2` source paths remain unchanged. A separately existing historical `SapLens` service blocks migration; it is never renamed or adopted
+implicitly. Only matching unique acceptance service pairs may use synthetic target roots.
 
-Run host inspection on the Windows machine that actually owns the source service. If `Get-Service SapLens2` or the explicit source paths are
-absent, stop installation preparation and obtain the correct VM connection; do not create substitute production directories or report a synthetic
-preflight as a production result. Production ACL remediation, restore, destructive cleanup and service cutover require separate authorization.
+Use `-Action PlanCanonicalTarget -ConfigFile <source> -TargetConfigFile <existing-target>` to print a **read-only** conversion plan. It records both
+configuration hashes, changed settings and `proposed_config`; it never writes either file, creates a directory or changes SCM. Legacy settings may read SCM to resolve an omitted service name. For example,
+an existing `SapLens`/`C:\ProgramData\SapLens` target becomes `sap-lens`/`C:\ProgramData\sap-lens`. The plan carries the source configuration's exact network
+settings and TLS filenames forward. Verify those declared values and the account against read-only Status on the actual VM. It preserves LocalSystem, or explicitly maps `NT SERVICE\SapLens2` to `NT SERVICE\sap-lens`.
+Review and save the proposal using create-new semantics in a protected configuration folder **outside all target roots**, retaining the original;
+all path defaults are made explicit so moving the configuration cannot change them. A configuration plan does not establish migration readiness.
 
-**Rollback considerations.** Permissions: `-Action RestoreAcl -AclBackup <folder> -Yes` restores every saved ACL; created parents stay
+If `C:\sap-lens\deploy` already exists, canonical preflight still refuses it. Inventory it and retain `C:\sap-lens\migration` in place. Do not
+select an alternate work root to bypass the canonical policy. An operator must separately approve any relocation of obsolete deployment artifacts
+to a retained location outside the target roots; no automatic cleanup or relocation occurs. All six target roots must remain absent until migration.
+A folder named `backup-runtime-test-*` may be active service data: establish that from SCM arguments and the source configuration, never its name.
+Never manually copy live SQLite files as preparation or repeat an activated v1 data import.
+
+Run inspection on the Windows machine that actually owns the source service. If `Get-Service SapLens2` or the explicit source paths are absent,
+obtain the correct VM connection; do not create substitute production paths or report synthetic preflight as a production result. Production ACL
+remediation/restore, destructive cleanup and service cutover require separate authorization.
+
+**Rollback considerations.** Permissions: `-Action RestoreAcl -AclBackup <folder> -ApprovedAclRoot $approvedRoots -Yes` restores every saved ACL; created parents stay
 (empty, protected). Releases: nothing is rewritten, so there is nothing to roll back; a failed publication leaves only
 `ReleasesRoot\.staging\<name>` for inspection. Migration: `RecoverMigration`/`RollbackMigration` as described below; `SapLens2`, its release,
 data, keys and TLS are retained, stopped and disabled, and the protected ACLs carry over to the copies (staging compares content and ACLs).
@@ -262,19 +270,20 @@ acceptance** (no real ACL was read or changed from this environment).
 
 **Broad principals** (matched by well-known SID, so localized account names do not matter): Everyone `S-1-1-0`, Authenticated Users
 `S-1-5-11`, Users `S-1-5-32-545`, Interactive `S-1-5-4`, Network `S-1-5-2`, Anonymous Logon `S-1-5-7`, Guests `S-1-5-32-546`, Domain Users and
-Domain Guests (`S-1-5-21-…-513`/`-514`). An allow rule counts when it applies to the object itself or, on a folder, to new children
+Domain Guests (`S-1-5-21-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦-513`/`-514`). An allow rule counts when it applies to the object itself or, on a folder, to new children
 (container/object inherit, also inherit-only): that is what a folder created later inherits. Deny rules and individual accounts are not findings.
 *Read* is ReadData/ListDirectory, GENERIC_READ or GENERIC_ALL; *write* is any of WriteData/CreateFiles, AppendData/CreateDirectories, WriteEA,
 WriteAttributes, DeleteSubdirectoriesAndFiles, Delete, ChangePermissions, TakeOwnership, GENERIC_WRITE or GENERIC_ALL.
 
 | Class | Paths (source configuration, then migration target) | Broad read | Broad write | Required identities |
 | --- | --- | --- | --- | --- |
-| Private | Data directory and every descendant; pre-deployment backups; TLS folder (certificate, password file); the folder of the host backup key; deployment state (`WorkRoot`) | refused | refused | SYSTEM and Administrators full control; the service's virtual account modify on data, read on TLS and key (an `NT SERVICE\…` account only: `LocalSystem` is SYSTEM) |
+| Private | Data directory and every descendant; pre-deployment backups; TLS folder (certificate, password file); the folder of the host backup key; deployment state (`WorkRoot`) | refused | refused | SYSTEM and Administrators full control; the service's virtual account modify on data, read on TLS and key (an `NT SERVICE\ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦` account only: `LocalSystem` is SYSTEM) |
 | Binaries | `ReleasesRoot`, the configuration file, the folder that holds it (for example `C:\saplens2`) | allowed (read and execute) | refused | SYSTEM and Administrators full control; service read and execute on `ReleasesRoot` |
-| Target parent | The folder that will hold a new target root (`C:\ProgramData\SapLens`, `C:\sap-lens`); while missing, its nearest existing ancestor is judged | refused when it holds a private target | refused | SYSTEM and Administrators |
+| Target parent | Existing application parent, or a missing application parent with its ancestor findings reported separately | refused when it holds a private target | refused | SYSTEM and Administrators |
 
-`C:\ProgramData` itself grants Users read and "create folders" to new children by design. It is **never changed**: `ProtectAcl` creates
-`C:\ProgramData\SapLens` with a protected DACL instead. The preflight reports every finding with path, role, principal, access, rights mask,
+`C:\ProgramData` normally grants Users read and inherited create rights. It is **never changed**. Missing application parents are marked
+`provisioning_required`, retaining ancestor findings for review without treating normal read/create rights as blockers. Existing insecure application
+parents remain blocking. Secure provisioning refuses a parent with broad delete/replacement or DACL/owner rights. The preflight reports every finding with path, role, principal, access, rights mask,
 inherited or explicit, and what it applies to.
 
 This is a conservative allow-rule policy audit, not a Windows Authz effective-access calculation for every possible token. A broad allow remains
@@ -287,26 +296,35 @@ and inheritance representation Windows returns. Do not weaken these findings bec
 $entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
 # Read-only: every finding for the source state and the target parents (exit 0 safe, 2 unsafe). Changes nothing.
 & $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target
+# Only after separate production approval and verified application/recovery backups. Review all roots first.
+$approvedRoots = @('C:\saplens2', 'C:\sap-lens', 'C:\ProgramData\sap-lens', 'C:\ProgramData\sap-lens-acl-recovery')
+$aclBackupRoot = 'C:\ProgramData\sap-lens-acl-recovery' # dedicated, outside affected trees; never ProgramData itself
 # Explicit, approved remediation in an elevated session (does not stop or reconfigure the service):
-& $entry -Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -Yes
+& $entry -Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -ApprovedAclRoot $approvedRoots -AclBackupRoot $aclBackupRoot -Yes
 # Undo exactly what ProtectAcl changed:
-& $entry -Action RestoreAcl -ConfigFile $source -AclBackup <WorkRoot>\acl-backups\<UTC time> -Yes
+& $entry -Action RestoreAcl -ConfigFile $source -AclBackup <printed-backup-folder> -ApprovedAclRoot $approvedRoots -Yes
 ```
 
-`ProtectAcl` changes only paths with findings, and missing target parents:
+`ProtectAcl` changes only paths with broad grants or missing required access, and missing target parents:
 
-1. Creates `WorkRoot\acl-backups\<UTC time>` with a protected DACL (SYSTEM, Administrators) and saves every affected ACL with its
-   descendants (`icacls <path> /save <file> /T /C`), plus `acl-backup.json` listing what was saved and what will be created.
+1. Requires explicit `-ApprovedAclRoot` application-owned roots and a disjoint `-AclBackupRoot` outside every affected tree. It rejects system
+   roots, unapproved paths and reparse points before any change. Creates the backup storage with a protected DACL (SYSTEM, Administrators) and saves every affected ACL with its
+   descendants (`icacls <path> /save <file> /T /C`), plus schema-2 `acl-backup.json` with file checksums, DACL inventories and created-parent records.
 2. For each path: `icacls /inheritance:r` with SYSTEM and Administrators full control (and the service's virtual account where the table says
    so), removes explicit grants to the broad SIDs (including the actual Domain Users/Guests SIDs found by the audit), grants authenticated users read and execute again on release folders only, and resets the
    descendants of private folders to inherit (their earlier explicit entries are in the backup).
-3. Creates missing target parents with the same protected DACL. Target roots themselves are never created (the migration requires them new).
-4. Audits again and returns the result; exit 2 when anything is still unsafe.
+3. Creates missing target parents with the same protected DACL supplied in the native exclusive [CreateDirectoryW operation](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw), verifies ACE bytes/protection
+   and required SYSTEM/Administrators access, then permits file writes. Creation failure, a raced existing path, unsupported storage or verification
+   failure refuses further writes. Migration staging uses this boundary too, before journal, TLS, key or database copies. ProtectAcl leaves target roots absent; the separately authorized migration creates them exclusively.
+4. Verifies required SYSTEM/Administrators full control and audits again; an unsafe result fails closed and retains the ACL backup.
 
 It refuses drive roots, `%ProgramData%`, `%ProgramFiles%`, the Windows folder, `%SystemDrive%\Users` and user profiles. The running service
 keeps its access (SYSTEM for `LocalSystem`, its own grant otherwise), so it is not stopped. Before running it on the production host: take a
 verified application backup, run `AuditAcl` and review each listed path, run in a quiet window, and keep the printed backup folder.
-`RestoreAcl` replays the saved ACLs newest first (`icacls <parent> /restore <file>`) and keeps folders `ProtectAcl` created (empty and protected).
+`RestoreAcl` requires the independently approved roots again. Before its first restore command it validates all checksums and every UTF-16
+path/DACL record against the saved inventory, rejecting path escapes. It replays saved ACLs newest first and verifies every original DACL afterward;
+exit 4 indicates an unverified restore requiring manual recovery. Created protected parents and backup storage are retained. Schema-1 backups remain
+untouched and require reviewed manual restoration; they lack the inventories required for an automated verified restore.
 An elevated Windows token is required for native remediation/restore acceptance. An unprivileged `icacls /restore` can fail with exit 1300
 (missing privilege); that is an infrastructure limitation, not evidence that restoration passed. Keep the original ACL backup and investigate.
 
@@ -334,9 +352,9 @@ do not share that process with operator actions. The regression creates a synthe
 The real NTFS fixtures touch only TestDrive. Their restore test explicitly reports a skip without elevation; mocked remediation is reported
 separately. Linux shell-server fixtures remain Windows skips. Missing `pwsh` never skips deployment or release-contract tests.
 
-Windows script checkpoint, 2026-11-19: Windows PowerShell 5.1 with Pester 5.9.1 discovered 187 tests: **177 passed, 0 failed, 10 skipped,
+Windows script checkpoint, 2026-11-19: Windows PowerShell 5.1 with Pester 5.9.1 discovered 203 tests: **193 passed, 0 failed, 10 skipped,
 0 failed containers**. Nine skips were Linux shell-server fixtures; one was native ACL restoration without an elevated token. The 5.1 parser
-accepted all 21 active scripts. PowerShell 7 was unavailable. Real NTFS SID/inheritance and ACL-save tests passed; full native remediation/restore,
+accepted all 23 active scripts. Focused .NET StartupTests (5) and installer contracts (6) also passed. PowerShell 7 was unavailable. Real NTFS secure-at-creation, SID/inheritance and ACL-save tests passed; full native remediation/restore,
 SCM, service continuity and production preflight remain unverified. The test workstation did not contain the active VM installation, so this run
 did not prepare its target directories, verify its installed release, build a new production package or establish `safe: true`. Keep the existing
 release manifest unchanged and obtain the actual VM connection before continuing the preparation checklist.
@@ -349,10 +367,10 @@ release manifest unchanged and obtain the actual VM connection before continuing
   equivalent command line differently (for example without the quotes around the executable when Windows PowerShell 5.1 passes `binPath=` to
   `sc.exe`). A real difference in any argument still reads as not managed.
 
-- One service, never two: installing `SapLens` while `SapLens2` exists (or the reverse) is refused.
+- One service, never two: installing `sap-lens` while `SapLens2` exists (or the reverse) is refused.
 - Account: the service's own virtual account (`NT SERVICE\<name>`), no password. Grants are added, never removed: modify on the data directory
   (inherited), read and execute on `ReleasesRoot`, read on the certificate, its password file and the backup key file.
-- Command line (no secret): `SapLens.Api.exe --data-dir … --network --listen … --port … --allowed-hosts … --cert … --cert-password-file … [--trusted-proxies …]`.
+- Command line (no secret): `SapLens.Api.exe --data-dir ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --network --listen ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --port ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --allowed-hosts ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --cert ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --cert-password-file ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ [--trusted-proxies ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦]`.
   TLS, the Host allow-list, Origin/CSRF checks and the trusted-proxy restriction are the server's own and unchanged by the deployment.
 - Processes: only the service is stopped, through the SCM. A port held by another process (for example `start-server-test.ps1`) is reported and left alone.
 
@@ -377,11 +395,11 @@ release manifest unchanged and obtain the actual VM connection before continuing
 | Exit 255 / `No result line` | SSH or PowerShell failed: check `ssh -o BatchMode=yes deployer@host`, the key in `administrators_authorized_keys`, and `powershell.exe` on the host |
 | `Deployment configuration not found` | Create the file in one of the lookup locations or pass `--config` |
 | `needs an elevated session` | Use an administrator account for SSH |
-| `runs …, not the managed release link` | First deployment: `--adopt-service`; arguments must match the configuration |
-| `interrupted in phase …` | `--mode status`, then `--mode recover --yes` |
-| `did not stop within …` (exit 4) | Investigate the service (Event Viewer, `<data-dir>\logs`); it was not killed. Retry when it is stopped |
+| `runs ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦, not the managed release link` | First deployment: `--adopt-service`; arguments must match the configuration |
+| `interrupted in phase ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦` | `--mode status`, then `--mode recover --yes` |
+| `did not stop within ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦` (exit 4) | Investigate the service (Event Viewer, `<data-dir>\logs`); it was not killed. Retry when it is stopped |
 | `Rollback is not safe` (exit 4) | Read `RECOVERY-REQUIRED.txt`: fix forward, or restore the pre-deployment backup into a new data directory with the previous release |
-| Windows PowerShell 5.1 `[System.Char] … 'Trim'` | Fixed in c772eef; deploy a commit from after it |
+| Windows PowerShell 5.1 `[System.Char] ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ 'Trim'` | Fixed in c772eef; deploy a commit from after it |
 
 ## Installers
 
@@ -397,7 +415,7 @@ powershell -NoProfile -File .\scripts\build-installers.ps1 -ReleasePath $release
 | Installer | Scope and folder | Behavior |
 | --- | --- | --- |
 | `SAP-Lens-<version>-Setup.exe` (Desktop) | Per user, `%LOCALAPPDATA%\Programs\SAP Lens Desktop` | Own AppId; SAP Lens v1 (`%LOCALAPPDATA%\Programs\SAP Lens`, data `%LOCALAPPDATA%\SAP Lens`) is detected and left untouched. Requires WebView2. Waits for a running Desktop (it is never closed by Setup). Refuses downgrades. Data in `%LOCALAPPDATA%\SAP Lens Desktop` (or a kept `SAP Lens 2 Prototype` folder) is never deleted |
-| `SAP-Lens-Server-<version>-Setup.exe` | Machine, `%ProgramFiles%\SAP Lens Server\server` | Own AppId. Never creates, reconfigures or deletes a service and never touches data. On upgrade, a `SapLens`/`SapLens2` service running from this folder is stopped with `net stop` and started again; uninstall is refused while one runs from it. Refuses downgrades |
+| `SAP-Lens-Server-<version>-Setup.exe` | Machine, `C:\sap-lens\server` (new installations); product name `SAP Lens` | Own AppId. Existing installation folders are retained by Inno Setup until explicitly migrated. Never creates, reconfigures or deletes a service and never touches data. On upgrade, a `sap-lens`/historical `SapLens`/`SapLens2` service running from this folder is stopped with `net stop` and started again; uninstall is refused while one runs from it. Refuses downgrades |
 
 Silent: `SAP-Lens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=C:\saplens\install.log`. Installers are unsigned; signing,
 publishing and tagging are separate, authorized release steps. Upgrades replace executables only: the server and Desktop back the database up
@@ -412,7 +430,7 @@ when operating an older installation. Key export/provisioning stays local-only; 
 ```powershell
 $manager='C:\sap-lens\releases\current\Service-Manager.ps1'
 $exe='C:\sap-lens\releases\current\server\SapLens.Api.exe'
-$data='C:\ProgramData\SapLens\data'
+$data='C:\ProgramData\sap-lens\data'
 & $manager -Action Status -DataDirectory $data -Executable $exe
 # Elevated, explicit local operations. Export refuses an existing destination.
 & $manager -Action ExportKey -DataDirectory $data -Executable $exe -Path 'D:\private-recovery\host-copy.key' -Yes
@@ -447,7 +465,7 @@ migration that is already activated on the VM; its data and migration backup mus
 ```powershell
 $entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
 $source = 'C:\private-operations\source.local.json'          # the running SapLens2 installation
-$target = 'C:\private-operations\target.local.json'          # canonical C:\sap-lens and C:\ProgramData\SapLens roots
+$target = 'C:\private-operations\target.local.json'          # canonical C:\sap-lens and C:\ProgramData\sap-lens roots
 $inspector = 'C:\private-operations\verified-release\server\SapLens.Api.exe'
 $admin = '.\backend\scripts\Service-Manager.ps1'
 ```
@@ -456,11 +474,11 @@ $admin = '.\backend\scripts\Service-Manager.ps1'
 | --- | --- | --- | --- |
 | 1 | Preflight (read-only) | `& $entry -Action Status -ConfigFile $source` and `& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector` | `result.safe` true; every check passes; nothing changed (no journal, backup or service change) |
 | 1a | Source release and ACLs (read-only) | `verify-release.ps1 -ReleasePath <running release> -Scope Server`; `Test-Path` on every target root; `& $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target` | Server package verified with only Desktop/symbol files omitted; no target root exists; every ACL finding reviewed |
-| 1b | ACL preparation (after steps 2 and 3) | `& $entry -Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -Yes`, then `AuditAcl` and the preflight again | Backup folder printed; `AuditAcl` exit 0; preflight `safe: true` |
+| 1b | ACL preparation (after steps 2 and 3) | `& $entry -Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -ApprovedAclRoot $approvedRoots -AclBackupRoot $aclBackupRoot -Yes`, then `AuditAcl` and the preflight again | Backup folder printed; `AuditAcl` exit 0; preflight `safe: true` |
 | 2 | Verified backup | Settings > Backup & Restore > Overview > create, then Backup History > verify and download | Archive verified; the download decrypts with `SapLens.Api --backup-verify <file> --data-dir <data>` |
-| 3 | Recovery key | `& $admin -Action Status -DataDirectory <source data dir>`, then `-Action ExportKey -Path <new file>` and `-Action VerifyKey -Path <that file>` (same `-DataDirectory`; the default is the canonical `C:\ProgramData\SapLens\data`) | Same fingerprint; the recovery copy verifies; key material never appears in output |
-| 4 | Service migration | `& $entry -Action MigrateService -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector -Yes`, then `& $entry -Action VerifyMigration -ConfigFile $source` | `SapLens` running with automatic start; `SapLens2` stopped and disabled, not deleted; verification passes |
-| 5 | Startup | `Get-Service SapLens*`; `& $entry -Action Health -ConfigFile 'C:\sap-lens\deploy\deploy.local.json'` | Ready; identity shows version 2.0.0-alpha.1 and the expected commit; `binary_path_matches` true in Status |
+| 3 | Recovery key | `& $admin -Action Status -DataDirectory <source data dir>`, then `-Action ExportKey -Path <new file>` and `-Action VerifyKey -Path <that file>` (same `-DataDirectory`; the default is the canonical `C:\ProgramData\sap-lens\data`) | Same fingerprint; the recovery copy verifies; key material never appears in output |
+| 4 | Service migration | `& $entry -Action MigrateService -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector -Yes`, then `& $entry -Action VerifyMigration -ConfigFile $source` | `sap-lens` running with automatic start; `SapLens2` stopped and disabled, not deleted; verification passes |
+| 5 | Startup | `Get-Service sap-lens,SapLens2`; `& $entry -Action Health -ConfigFile 'C:\sap-lens\deploy\deploy.local.json'` | Ready; identity shows version 2.0.0-alpha.1 and the expected commit; `binary_path_matches` true in Status |
 | 6 | Functional validation | Sign in through the reverse proxy; open Dashboard, User Access, Account Review, SoD | Same data as before (source revisions, evidence snapshots, review and SoD decision counts unchanged) |
 | 7 | Empty import guard | Data Sources > upload a header-only copy of a source and confirm the anomaly | Refused: "contains no usable records"; previous records remain |
 | 8 | Backup after migration | Create, verify and download a backup on the migrated installation | Verified archive; downloadable |

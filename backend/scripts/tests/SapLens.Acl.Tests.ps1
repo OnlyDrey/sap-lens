@@ -22,11 +22,14 @@ BeforeAll {
         $script:Source = [pscustomobject]@{ ServiceName = 'SapLens2'; ServiceAccount = $Account; ConfigFile = (Join-Path $old 'deploy.local.json')
             WorkRoot = (Join-Path $old 'deploy'); ReleasesRoot = (Join-Path $old 'releases'); BackupRoot = (Join-Path $old 'predeploy-backups'); DataDirectory = (Join-Path $old 'data')
             CertificatePath = (Join-Path $old 'tls/server.pfx'); CertificatePasswordFile = (Join-Path $old 'tls/password') }
-        $script:Target = [pscustomobject]@{ ServiceName = 'SapLens'; ServiceAccount = $Account; ConfigFile = (Join-Path $root 'private/target.local.json')
-            WorkRoot = (Join-Path $new 'deploy'); ReleasesRoot = (Join-Path $new 'releases'); BackupRoot = (Join-Path $programData 'SapLens/predeploy-backups')
-            DataDirectory = (Join-Path $programData 'SapLens/data'); CertificatePath = (Join-Path $programData 'SapLens/tls/server.pfx'); CertificatePasswordFile = (Join-Path $programData 'SapLens/tls/password') }
+        $script:Target = [pscustomobject]@{ ServiceName = 'sap-lens'; ServiceAccount = $Account; ConfigFile = (Join-Path $root 'private/target.local.json')
+            WorkRoot = (Join-Path $new 'deploy'); ReleasesRoot = (Join-Path $new 'releases'); BackupRoot = (Join-Path $programData 'sap-lens/predeploy-backups')
+            DataDirectory = (Join-Path $programData 'sap-lens/data'); CertificatePath = (Join-Path $programData 'sap-lens/tls/server.pfx'); CertificatePasswordFile = (Join-Path $programData 'sap-lens/tls/password') }
         New-Item -ItemType Directory -Force (Split-Path $script:Target.ConfigFile) | Out-Null; Set-Content $script:Target.ConfigFile '{}'
         $script:Paths = @{ Old = $old; New = $new; ProgramData = $programData }
+        $script:ApprovedRoots = @($root)
+        $script:AclBackupRoot = Join-Path $root 'acl-recovery'
+        $script:CreatedSecure = [Collections.Generic.List[string]]::new()
         # The VM as reported: Authenticated Users Modify inherited across C:\saplens2 and C:\sap-lens, ProgramData letting users create folders.
         $script:Broad = @{}
         $script:Broad[$old] = @(Rule 'S-1-5-11' $script:Modify -Children)
@@ -42,11 +45,22 @@ BeforeAll {
             foreach ($protected in $script:Protected) { if ($full.StartsWith($protected + '/')) { return $script:Safe } }
             if ($script:Broad.ContainsKey($full)) { $script:Safe + $script:Broad[$full] } else { $script:Safe }
         }
+        Mock -ModuleName $M New-SL2DirectoryWithAcl {
+            param($Path, $Security)
+            $Security.AreAccessRulesProtected | Should -BeTrue
+            $script:CreatedSecure.Add($Path)
+            New-Item -ItemType Directory -Path $Path -ErrorAction Stop | Out-Null
+            [void]$script:Protected.Add([IO.Path]::GetFullPath($Path).TrimEnd('/'))
+        }
         Mock -ModuleName $M Invoke-SL2Process {
             param($File, $Arguments)
             $script:Icacls.Add(($Arguments -join ' '))
             if ($Arguments -contains '/inheritance:r') { [void]$script:Protected.Add([IO.Path]::GetFullPath($Arguments[0]).TrimEnd('/')) }
-            if ($Arguments -contains '/save') { Set-Content -LiteralPath $Arguments[2] 'saved ACL' }
+            if ($Arguments -contains '/save') {
+                $parent = Split-Path $Arguments[0]
+                $lines = @(Get-SL2AclSnapshot $Arguments[0] | ForEach-Object { $_.path.Substring($parent.Length + 1); $_.dacl })
+                [IO.File]::WriteAllLines($Arguments[2], [string[]]$lines, [Text.Encoding]::Unicode)
+            }
             [pscustomobject]@{ ExitCode = 0; Output = @() }
         }
     }
@@ -86,7 +100,7 @@ Describe 'ACL audit plan and preflight refusals' {
     }
     It 'judges a missing target parent by its nearest existing ancestor and keeps the strictest class for a shared parent' {
         $parents = @(Get-SL2AclPlan $null $script:Target | Where-Object Role -eq 'target parent')
-        $programParent = $parents | Where-Object Path -eq (Join-Path $script:Paths.ProgramData 'SapLens')
+        $programParent = $parents | Where-Object Path -eq (Join-Path $script:Paths.ProgramData 'sap-lens')
         ($programParent.Class, $programParent.Existing) | Should -Be @('private', $script:Paths.ProgramData)
         ($parents | Where-Object Path -eq $script:Paths.New).Class | Should -Be 'private'                 # releases and deployment state share C:\sap-lens
     }
@@ -98,22 +112,92 @@ Describe 'ACL audit plan and preflight refusals' {
         $tls = $report.entries | Where-Object role -eq 'source TLS'
         ($tls.findings | Where-Object path -like '*password').principal | Should -Be 'Users'
         # ProgramData itself: users read everything new folders inherit, and may create folders (inherit-only). Both block a private target.
-        $programData = @(($report.entries | Where-Object path -eq (Join-Path $script:Paths.ProgramData 'SapLens')).findings | ForEach-Object { "$($_.access)/$($_.applies)" })
+        $programData = @(($report.entries | Where-Object path -eq (Join-Path $script:Paths.ProgramData 'sap-lens')).findings | ForEach-Object { "$($_.access)/$($_.applies)" })
         $programData | Should -Be @('read/this folder and new children', 'write/new children only')
     }
     It 'accepts protected private state and binaries readable by everyone' {
         $script:Broad.Clear()
         $script:Broad[$script:Source.ReleasesRoot] = @(Rule 'S-1-5-11' 0x1200A9 -Children)
-        New-Item -ItemType Directory (Join-Path $script:Paths.ProgramData 'SapLens') | Out-Null
+        New-Item -ItemType Directory (Join-Path $script:Paths.ProgramData 'sap-lens') | Out-Null
         (Get-SL2AclReport (Get-SL2AclPlan $script:Source $script:Target)).safe | Should -BeTrue
     }
 }
 
 Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
+    It 'refuses unapproved scope before creating backup files or changing ACLs' {
+        New-AclFixture
+        { Invoke-SL2ProtectAcl $script:Source $null (Join-Path $script:Paths.New 'acl-backups') @($script:Paths.New) } | Should -Throw '*outside*approved*'
+        $script:CreatedSecure.Count | Should -Be 0
+        $script:Icacls.Count | Should -Be 0
+    }
+    It 'reports permissive global ancestry as a provisioning requirement and retains existing insecure paths as blockers' {
+        New-AclFixture
+        $script:Broad.Clear()
+        $script:Broad[$script:Paths.ProgramData] = @((Rule 'S-1-5-32-545' $script:ReadExecute -Children), (Rule 'S-1-5-32-545' $script:CreateOnly -Children -InheritOnly))
+        $report = Get-SL2AclReport (Get-SL2AclPlan $null $script:Target)
+        $report.safe | Should -BeTrue
+        $report.provisioning_required | Should -Contain (Join-Path $script:Paths.ProgramData 'sap-lens')
+        $row = $report.entries | Where-Object path -eq (Join-Path $script:Paths.ProgramData 'sap-lens')
+        $row.findings.Count | Should -Be 2
+        $row.blocking | Should -BeFalse
+        $script:Broad[$script:Paths.ProgramData] = @(Rule 'S-1-5-11' $script:Modify)
+        (Get-SL2AclReport (Get-SL2AclPlan $null $script:Target)).safe | Should -BeFalse
+        $script:Broad[$script:Paths.ProgramData] = @()
+        $script:Broad[$script:Paths.New] = @(Rule 'S-1-5-11' $script:Modify)
+        (Get-SL2AclReport (Get-SL2AclPlan $null $script:Target)).safe | Should -BeFalse
+    }
+    It 'is idempotent after verified protection and rejects a raced exclusive directory' {
+        New-AclFixture
+        $first = Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots
+        $script:Icacls.Clear()
+        $second = Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots
+        $second.changed.Count | Should -Be 0
+        $second.backup | Should -BeNullOrEmpty
+        $script:Icacls.Count | Should -Be 0
+        { New-SL2SecureDirectory $first.backup $script:ApprovedRoots -Exclusive } | Should -Throw '*never merges*'
+    }
+    It 'refuses a changed ACL backup before the first restore command' {
+        New-AclFixture
+        $result = Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots
+        $record = Get-Content (Join-Path $result.backup 'acl-backup.json') -Raw | ConvertFrom-Json
+        Add-Content $record.entries[0].file 'tampered'
+        $script:Icacls.Clear()
+        { Invoke-SL2RestoreAcl $result.backup $script:ApprovedRoots } | Should -Throw '*checksum differs*'
+        $script:Icacls.Count | Should -Be 0
+    }
+    It 'fails closed if secure creation or final access verification fails' {
+        New-AclFixture
+        Mock -ModuleName $M New-SL2DirectoryWithAcl { throw 'synthetic secure create failed' }
+        { Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots } | Should -Throw '*secure create failed*'
+        $script:Icacls.Count | Should -Be 0
+        Mock -ModuleName $M Get-SL2AclRules { @() }
+        { Assert-SL2AclRequiredAccess $script:Source.DataDirectory } | Should -Throw '*SYSTEM/Administrators*'
+    }
+    It 'rejects backup storage inside a tree whose ACLs it must save' {
+        New-AclFixture
+        { Invoke-SL2ProtectAcl $script:Source $null (Join-Path $script:Source.WorkRoot 'acl-backups') $script:ApprovedRoots } | Should -Throw '*disjoint*'
+        $script:CreatedSecure.Count | Should -Be 0
+        $script:Icacls.Count | Should -Be 0
+    }
+    It 'rejects an escaping native restore path even when its file checksum was recomputed' {
+        New-AclFixture
+        $result = Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots
+        $recordFile = Join-Path $result.backup 'acl-backup.json'
+        $record = Get-Content $recordFile -Raw | ConvertFrom-Json
+        $entry = @($record.entries | Where-Object { -not $_.created })[0]
+        $lines = [IO.File]::ReadAllLines($entry.file, [Text.Encoding]::Unicode)
+        $lines[0] = '..\..\outside'
+        [IO.File]::WriteAllLines($entry.file, $lines, [Text.Encoding]::Unicode)
+        $entry.sha256 = (Get-FileHash $entry.file).Hash
+        $record | ConvertTo-Json -Depth 8 | Set-Content $recordFile
+        $script:Icacls.Clear()
+        { Invoke-SL2RestoreAcl $result.backup $script:ApprovedRoots } | Should -Throw '*restore paths escape*'
+        $script:Icacls.Count | Should -Be 0
+    }
     It 'removes explicit Domain Users and Domain Guests grants identified by SID pattern' {
         New-AclFixture
         $script:Broad[$script:Source.DataDirectory] = @((Rule 'S-1-5-21-1-2-3-513' $script:Modify), (Rule 'S-1-5-21-1-2-3-514' $script:ReadExecute))
-        $null = Invoke-SL2ProtectAcl $script:Source $null (Join-Path $script:Source.WorkRoot 'acl-backups')
+        $null = Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots
         $remove = @($script:Icacls | Where-Object { $_ -like "$($script:Source.DataDirectory) /remove:g *" })
         $remove.Count | Should -Be 1
         $remove[0] | Should -Match '\*S-1-5-21-1-2-3-513'
@@ -122,13 +206,13 @@ Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
 
     It 'saves every ACL before changing it, protects source and target, creates the missing target parent and passes the audit afterwards' {
         New-AclFixture 'NT SERVICE\SapLens2'
-        $backupRoot = Join-Path $script:Source.WorkRoot 'acl-backups'
-        $result = Invoke-SL2ProtectAcl $script:Source $script:Target $backupRoot
+        $backupRoot = $script:AclBackupRoot
+        $result = Invoke-SL2ProtectAcl $script:Source $script:Target $backupRoot $script:ApprovedRoots
         $result.after.safe | Should -BeTrue
-        $result.created | Should -Be @((Join-Path $script:Paths.ProgramData 'SapLens'))
-        Test-Path (Join-Path $script:Paths.ProgramData 'SapLens') | Should -BeTrue
+        $result.created | Should -Be @((Join-Path $script:Paths.ProgramData 'sap-lens'))
+        Test-Path (Join-Path $script:Paths.ProgramData 'sap-lens') | Should -BeTrue
         $calls = @($script:Icacls)
-        $calls[0] | Should -BeLike "$($result.backup) /inheritance:r /grant:r *S-1-5-18:(OI)(CI)F *S-1-5-32-544:(OI)(CI)F"   # the backup is private first
+        $script:CreatedSecure | Should -Contain $result.backup # protected at creation, before the first backup file
         foreach ($path in $result.changed | Where-Object { $_ -notin $result.created }) {
             $save = [Array]::FindIndex([string[]]$calls, [Predicate[string]] { param($c) $c -like "$path /save *" })
             $change = [Array]::FindIndex([string[]]$calls, [Predicate[string]] { param($c) $c -like "$path /inheritance:r*" })
@@ -139,16 +223,16 @@ Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
         $calls | Should -Contain "$($script:Source.ReleasesRoot) /grant:r *S-1-5-11:(OI)(CI)RX"
         $calls | Where-Object { $_ -like "$($script:Paths.ProgramData) *" } | Should -BeNullOrEmpty            # ProgramData itself is never changed
         $record = Get-Content (Join-Path $result.backup 'acl-backup.json') -Raw | ConvertFrom-Json
-        ($record.entries | Where-Object created).path | Should -Be (Join-Path $script:Paths.ProgramData 'SapLens')
+        ($record.entries | Where-Object created).path | Should -Be (Join-Path $script:Paths.ProgramData 'sap-lens')
     }
     It 'gives LocalSystem services no extra grant: SYSTEM already has full control' {
         New-AclFixture 'LocalSystem'
-        $null = Invoke-SL2ProtectAcl $script:Source $null (Join-Path $script:Source.WorkRoot 'acl-backups')
+        $null = Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots
         $script:Icacls | Where-Object { $_ -like '*NT SERVICE*' -or $_ -like '*LocalSystem*' } | Should -BeNullOrEmpty
     }
     It 'changes nothing when the audit is already safe' {
         New-AclFixture; $script:Broad.Clear()
-        $result = Invoke-SL2ProtectAcl $script:Source $null (Join-Path $script:Source.WorkRoot 'acl-backups')
+        $result = Invoke-SL2ProtectAcl $script:Source $null $script:AclBackupRoot $script:ApprovedRoots
         $result.changed.Count | Should -Be 0
         $script:Icacls.Count | Should -Be 0
     }
@@ -158,19 +242,19 @@ Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
         try {
             $env:ProgramData = $script:Paths.ProgramData
             $script:Target.DataDirectory = Join-Path $script:Paths.ProgramData 'data'
-            { Invoke-SL2ProtectAcl $null $script:Target (Join-Path $script:Paths.New 'acl-backups') } | Should -Throw '*system location*'
+            { Invoke-SL2ProtectAcl $null $script:Target (Join-Path $script:Paths.New 'acl-backups') $script:ApprovedRoots } | Should -Throw '*system location*'
             $script:Icacls.Count | Should -Be 0
         } finally { $env:ProgramData = $previous }
     }
     It 'restores the saved ACLs newest first and keeps the folders it created' {
         New-AclFixture
-        $result = Invoke-SL2ProtectAcl $script:Source $script:Target (Join-Path $script:Source.WorkRoot 'acl-backups')
+        $result = Invoke-SL2ProtectAcl $script:Source $script:Target $script:AclBackupRoot $script:ApprovedRoots
         $script:Icacls.Clear()
-        $restored = Invoke-SL2RestoreAcl $result.backup
-        $restored.kept_created | Should -Be @((Join-Path $script:Paths.ProgramData 'SapLens'))
+        $restored = Invoke-SL2RestoreAcl $result.backup $script:ApprovedRoots
+        $restored.kept_created | Should -Be @((Join-Path $script:Paths.ProgramData 'sap-lens'))
         $script:Icacls.Count | Should -Be $restored.restored.Count
         $script:Icacls | ForEach-Object { $_ | Should -Match ' /restore .+\.acl /C /Q$' }
         $script:Icacls[0] | Should -BeLike "$(Split-Path $restored.restored[0]) /restore *"
-        { Invoke-SL2RestoreAcl (Join-Path $TestDrive 'not-a-backup') } | Should -Throw '*not an ACL backup*'
+        { Invoke-SL2RestoreAcl (Join-Path $TestDrive 'not-a-backup') @($TestDrive) } | Should -Throw '*not an ACL backup*'
     }
 }

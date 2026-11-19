@@ -40,7 +40,8 @@ Describe 'PowerShell test infrastructure' {
         New-Item -ItemType Directory $copy | Out-Null
         Copy-Item (Join-Path $PSScriptRoot '../deploy/SapLens.Deploy.psm1'),
             (Join-Path $PSScriptRoot '../deploy/SapLens.Migration.ps1'),
-            (Join-Path $PSScriptRoot '../deploy/SapLens.Acl.ps1') -Destination $copy
+            (Join-Path $PSScriptRoot '../deploy/SapLens.Acl.ps1'),
+            (Join-Path $PSScriptRoot '../deploy/SapLens.Configuration.ps1') -Destination $copy
         try {
             Import-TestDeploymentModule
             Import-Module (Join-Path $copy 'SapLens.Deploy.psm1') -Force -Global

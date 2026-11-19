@@ -12,11 +12,11 @@ WHICH EXECUTABLE
 SERVER QUICK START
   server\SapLens.Api.exe --help        all options and environment variables
   server\SapLens.Api.exe --version
-  server\SapLens.Api.exe --data-dir C:\ProgramData\SapLens\data
+  server\SapLens.Api.exe --data-dir C:\ProgramData\sap-lens\data
       Loopback only: http://127.0.0.1:18790/ on this PC.
   LAN (HTTPS required; all values are examples):
-  server\SapLens.Api.exe --data-dir C:\ProgramData\SapLens\data --network --listen 192.0.2.10 --port 18795 --allowed-hosts lens.example.com,192.0.2.10
-      --cert C:\ProgramData\SapLens\tls\server.pfx --cert-password-file C:\ProgramData\SapLens\tls\cert-password
+  server\SapLens.Api.exe --data-dir C:\ProgramData\sap-lens\data --network --listen 192.0.2.10 --port 18795 --allowed-hosts lens.example.com,192.0.2.10
+      --cert C:\ProgramData\sap-lens\tls\server.pfx --cert-password-file C:\ProgramData\sap-lens\tls\cert-password
   Behind a reverse proxy, add --trusted-proxies <the proxy's address as seen by this server>.
   Local administration (no SDK): open an elevated PowerShell and run .\Service-Manager.ps1 -DataDirectory <data-dir>.
   It shows key status, creates the initial key, exports/verifies a recovery copy, and issues administrator activation/recovery codes.

@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
-  Builds, validates and deploys SAP Lens (.NET server) on this Windows host as the SapLens Windows service (test server). Windows PowerShell 5.1 and PowerShell 7.
+  Builds, validates and deploys SAP Lens (.NET server) on this Windows host as the sap-lens Windows service (test server). Windows PowerShell 5.1 and PowerShell 7.
 
 .DESCRIPTION
   Usually started over SSH by scripts/deploy/deploy-windows.sh; it can also be run locally in an elevated PowerShell. Actions:
 
+    PlanCanonicalTarget Read-only conversion proposal from explicit source/target files to canonical naming. Writes neither file.
     Status          Service model (windows-service, unmanaged-process or none), state, account, command line, linked release, readiness, journal.
     Build           Fetch the branch, lock the exact commit, build it in an isolated worktree with the release builder and the selected tests,
                     verify the release (manifest, SHA-256, commit, version) and copy it to a versioned folder under ReleasesRoot.
@@ -12,10 +13,10 @@
                     newer build, create and verify an encrypted pre-deployment backup, stop the service, switch the 'current' link, start,
                     verify readiness, version and commit. Any failure rolls back to the previous release when that is proven safe.
                     -DryRun resolves the commit and prints the plan without building, backing up or touching the service. Needs -Yes.
-    InstallService  Creates (or with -Reconfigure updates) the SapLens service from the configuration. Needs -Yes.
+    InstallService  Creates (or with -Reconfigure updates) the sap-lens service from the configuration. Needs -Yes.
                     An existing service of an earlier installation (SapLens2) is detected and used; a second service is never created.
     PreflightMigration Read-only inspection of explicit source/target configurations, release, data, TLS, keys, ACLs and recovery state.
-    MigrateService  Journaled directory and service cutover to SapLens; preserves the source release, network settings and account requirements.
+    MigrateService  Journaled directory and service cutover to sap-lens; preserves the source release, network settings and account requirements.
                     Takes verified backups, stages private state, and retains SapLens2 stopped/disabled. Needs -TargetConfigFile,
                     -InspectorExecutable and -Yes. -DryRun performs only preflight. No automatic deletion of either installation.
     VerifyMigration Verifies the completed cutover and current release (including later Build & Replace deployments).
@@ -27,11 +28,11 @@
     Health          Readiness and identity of the running server.
     AuditAcl        Read-only NTFS audit (by well-known SID) of private state, releases and configuration, and with -TargetConfigFile of the
                     parents of the migration targets. Lists each broad principal with its rights; exit 2 when anything is unsafe.
-    ProtectAcl      Explicit remediation of what AuditAcl reports. Saves every affected ACL first (icacls /save into WorkRoot\acl-backups\<UTC>),
+    ProtectAcl      Explicit remediation of what AuditAcl reports. Saves every affected ACL first (icacls /save into a disjoint -AclBackupRoot),
                     then sets protected DACLs (SYSTEM, Administrators, the service's virtual account), removes broad grants, resets
                     descendants to inherit and creates missing target parents protected. Never changes ProgramData, Program Files, the
-                    Windows folder, user roots or drive roots, and never stops the service. -DryRun prints the audit. Needs -Yes.
-    RestoreAcl      Restores the ACLs saved by ProtectAcl (-AclBackup <folder>). Needs -Yes.
+                    Windows folder, user roots or drive roots, and never stops the service. -DryRun prints the audit. Needs -Yes and explicit -ApprovedAclRoot.
+    RestoreAcl      Restores the ACLs saved by ProtectAcl (-AclBackup <folder>), with checksums, path bounds and DACL verification. Needs -Yes and -ApprovedAclRoot.
 
   Configuration: a JSON file that is not committed (-ConfigFile, $env:SAPLENS_DEPLOY_CONFIG, $env:SAPLENS2_DEPLOY_CONFIG,
   C:\sap-lens\deploy\deploy.local.json, C:\saplens\deploy.local.json or C:\saplens2\deploy.local.json, the first that is set or exists; template deploy.example.json). It holds paths,
@@ -45,7 +46,7 @@
 #>
 [CmdletBinding()]
 param(
-    [ValidateSet('Status', 'Build', 'Deploy', 'InstallService', 'PreflightMigration', 'MigrateService', 'VerifyMigration', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover', 'Health', 'AuditAcl', 'ProtectAcl', 'RestoreAcl')]
+    [ValidateSet('Status', 'PlanCanonicalTarget', 'Build', 'Deploy', 'InstallService', 'PreflightMigration', 'MigrateService', 'VerifyMigration', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover', 'Health', 'AuditAcl', 'ProtectAcl', 'RestoreAcl')]
     [string]$Action = 'Status',
     [string]$ConfigFile = '',
     [string]$TargetConfigFile = '',
@@ -57,6 +58,8 @@ param(
     [string]$Release = '',
     [string]$ToRelease = '',
     [string]$AclBackup = '',
+    [string]$AclBackupRoot = '',
+    [string[]]$ApprovedAclRoot = @(),
     [switch]$DryRun,
     [switch]$FirstInstall,
     [switch]$Reconfigure,
@@ -83,6 +86,10 @@ try {
     $changing = $Action -in @('Deploy', 'InstallService', 'MigrateService', 'RecoverMigration', 'RollbackMigration', 'Rollback', 'Recover', 'ProtectAcl', 'RestoreAcl') -and -not $DryRun
     if ($changing -and -not $Yes) { Stop-SL2 "$Action changes the service or its permissions; repeat with -Yes after reviewing -Action Status or -Action AuditAcl (or -DryRun)." }
     $config = Read-SapLensSettings $ConfigFile
+    if ($Action -eq 'PlanCanonicalTarget') {
+        if (-not $ConfigFile -or -not $TargetConfigFile) { Stop-SL2 'PlanCanonicalTarget requires explicit source and target configuration files.' }
+        Write-Result (Get-SL2CanonicalTargetPlan $config (Read-SapLensSettings $TargetConfigFile)) 0
+    }
     # NTFS audit (read-only): the source configuration's private state, releases and configuration, plus the parents of the target roots when a
     # target configuration is given. Exit code 0 when no broad principal can read private state or write anywhere it matters, 2 otherwise.
     if ($Action -eq 'AuditAcl' -or ($Action -eq 'ProtectAcl' -and $DryRun)) {
@@ -153,12 +160,13 @@ try {
         'ProtectAcl' {
             if (-not $ConfigFile) { Stop-SL2 'ProtectAcl requires an explicit -ConfigFile (and -TargetConfigFile to prepare migration targets).' }
             $target = if ($TargetConfigFile) { Read-SapLensSettings $TargetConfigFile } else { $null }
-            $result = Invoke-SL2ProtectAcl $config $target (Join-SL2 $config.WorkRoot 'acl-backups')
+            $backupRoot = if ($AclBackupRoot) { $AclBackupRoot } else { Join-SL2 $config.WorkRoot 'acl-backups' }
+            $result = Invoke-SL2ProtectAcl $config $target $backupRoot $ApprovedAclRoot
             Write-Result $result $(if ($result.after.safe) { 0 } else { 2 })
         }
         'RestoreAcl' {
             if (-not $AclBackup) { Stop-SL2 'RestoreAcl requires -AclBackup <WorkRoot\acl-backups\<UTC time>> written by ProtectAcl.' }
-            Write-Result (Invoke-SL2RestoreAcl $AclBackup) 0
+            Write-Result (Invoke-SL2RestoreAcl $AclBackup $ApprovedAclRoot) 0
         }
     }
 }

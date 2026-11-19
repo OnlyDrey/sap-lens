@@ -63,10 +63,10 @@ function Test-SL2MigrationEnvironment([string]$ServiceName) {
 }
 
 function Assert-SL2MigrationPair($Source, $Target) {
-    if ($Source.ServiceName -eq 'SapLens2' -and $Target.ServiceName -eq 'SapLens') { return }
+    if ($Source.ServiceName -eq 'SapLens2' -and $Target.ServiceName -ceq 'sap-lens') { return }
     if ($Source.ServiceName -cmatch '^SapLens\.Acceptance-([a-f0-9]{32})-old$' -and
         $Target.ServiceName -ceq "SapLens.Acceptance-$($Matches[1])-new") { return }
-    Stop-SL2 'Select the explicit SapLens2/SapLens pair, or matching unique SapLens.Acceptance-<32 lowercase hex>-old/new test services.'
+    Stop-SL2 'Select the explicit SapLens2/sap-lens pair, or matching unique SapLens.Acceptance-<32 lowercase hex>-old/new test services.'
 }
 
 function Get-SL2FreeSpace([string]$Path) {
@@ -136,13 +136,18 @@ function Test-SL2InventoryEqual($Left, $Right, [switch]$ContentOnly) {
     $true
 }
 
-function Copy-SL2MigrationTree([string]$Source, [string]$Target) {
+function Copy-SL2MigrationTree([string]$Source, [string]$Target, [string[]]$ApprovedRoots, [string]$Class = 'private') {
     Test-SL2PathTree $Source; Test-SL2PathTree $Target
     if (Test-SL2PathOverlap $Source $Target) { Stop-SL2 'Copy source and target overlap.' }
     if (Test-Path -LiteralPath $Target) { Stop-SL2 'Migration never merges or overwrites existing staging.' }
     $before = @(Get-SL2TreeInventory $Source)
-    New-Item -ItemType Directory -Path $Target -Force | Out-Null
+    Assert-SL2AclApproved $Target $ApprovedRoots
+    $audit = Get-SL2AclAudit $Source $Class 'staging source' -Recurse
+    if ($audit.findings.Count) { Stop-SL2 'Staging source ACLs are insecure.' }
+    New-SL2SecureDirectory $Target $ApprovedRoots -Exclusive
     Set-Acl -LiteralPath $Target -AclObject (Get-Acl -LiteralPath $Source)
+    Assert-SL2AclRequiredAccess $Target
+    if ((Get-SL2AclAudit $Target $Class 'staging target').findings.Count) { Stop-SL2 'Staged root ACL verification failed before copying files.' }
     $result = Invoke-SL2Process 'robocopy.exe' @($Source, $Target, '/E', '/COPYALL', '/DCOPY:DAT', '/B', '/XJ', '/R:0', '/W:0', '/NFL', '/NDL', '/NP', '/NJH', '/NJS') ''
     if ($result.ExitCode -ge 8) { Stop-SL2 'Migration file staging failed. Partial targets were retained for inspection.' 1 }
     if (-not (Test-SL2InventoryEqual $before @(Get-SL2TreeInventory $Source)) -or -not (Test-SL2InventoryEqual $before @(Get-SL2TreeInventory $Target))) {
@@ -299,13 +304,14 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
         Set-SL2MigrationPhase $journal 'verified_backup'
         $journal.online_backup = New-SL2MigrationBackup $Source $exe
         Set-SL2MigrationPhase $journal 'target_preparation'
-        New-Item -ItemType Directory -Path $Target.WorkRoot -ErrorAction Stop | Out-Null
+        $approvedRoots = @(Get-SL2MigrationProvisioningRoots $Target)
+        New-SL2SecureDirectory $Target.WorkRoot $approvedRoots -Exclusive
         Set-Acl -LiteralPath $Target.WorkRoot -AclObject (Get-Acl -LiteralPath $Source.WorkRoot)
         $journal.target_prepared = $true
         Set-SL2MigrationPhase $journal 'file_staging'
-        Copy-SL2MigrationTree $journal.release_before $journal.staged_release
-        Copy-SL2MigrationTree (Split-Path $Source.CertificatePath) (Split-Path $Target.CertificatePath)
-        Copy-SL2MigrationTree (Split-Path $journal.key_before) (Split-Path $journal.key_after)
+        Copy-SL2MigrationTree $journal.release_before $journal.staged_release $approvedRoots 'binaries'
+        Copy-SL2MigrationTree (Split-Path $Source.CertificatePath) (Split-Path $Target.CertificatePath) $approvedRoots
+        Copy-SL2MigrationTree (Split-Path $journal.key_before) (Split-Path $journal.key_after) $approvedRoots
         # There is no safe live directory copy of SQLite. Journal the stop before invoking SCM, then copy only after it is quiescent.
         $journal.source_stop_intent = $true
         Set-SL2MigrationPhase $journal 'stopping_source'
@@ -313,8 +319,8 @@ function Invoke-SL2MigrateService($Source, $Target, [string]$InspectorExecutable
         Stop-SL2Service $Source.ServiceName ([int]$Source.StopTimeoutSeconds)
         Set-SL2MigrationPhase $journal 'offline_backup'
         $journal.offline_backup = New-SL2MigrationBackup $Source $exe
-        Copy-SL2MigrationTree $Source.BackupRoot $Target.BackupRoot
-        Copy-SL2MigrationTree $Source.DataDirectory $Target.DataDirectory
+        Copy-SL2MigrationTree $Source.BackupRoot $Target.BackupRoot $approvedRoots
+        Copy-SL2MigrationTree $Source.DataDirectory $Target.DataDirectory $approvedRoots
         $journal.source_inventory = @(Get-SL2TreeInventory $Source.DataDirectory)
         $pointer = Join-SL2 $Target.DataDirectory 'backup-key-location.json'
         $location = Get-Content -LiteralPath $pointer -Raw | ConvertFrom-Json
@@ -374,9 +380,10 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
     }
     Assert-SL2MigrationPair $Source $Target
     Check 'service_conflicts' {
+        if ($Source.ServiceName -eq 'SapLens2' -and (Get-SL2Service 'SapLens').Exists) { Stop-SL2 'The previous SapLens service already exists; reconcile it explicitly before canonical migration.' }
         $old = Get-SL2Service $Source.ServiceName; $new = Get-SL2Service $Target.ServiceName
         $details.service = $old
-        if ($new.Exists) { Stop-SL2 'SapLens already exists (including possible v1 installation). Nothing may be adopted or overwritten by migration.' }
+        if ($new.Exists) { Stop-SL2 'sap-lens already exists. Nothing may be adopted or overwritten by migration.' }
         if (-not $old.Exists -or $old.State -ne 'Running') { Stop-SL2 'SapLens2 must exist and be running for initial migration.' }
         if ($old.Account -notin @('LocalSystem', 'NT AUTHORITY\SYSTEM', "NT SERVICE\$($Source.ServiceName)")) { Stop-SL2 'Custom service accounts require a separately reviewed credential and permission migration.' }
         $expected = if ($old.Account -eq "NT SERVICE\$($Source.ServiceName)") { "NT SERVICE\$($Target.ServiceName)" } else { 'LocalSystem' }
@@ -462,6 +469,7 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         }
     }
     Check 'targets_and_capacity' {
+        Assert-SL2CanonicalTargetLayout $Target
         $sourceRoots = @($Source.DataDirectory, $Source.ReleasesRoot, $Source.WorkRoot, $Source.BackupRoot, (Split-Path $Source.CertificatePath), (Split-Path (Get-SL2MigrationKey $Source)))
         $targets = @($Target.DataDirectory, $Target.ReleasesRoot, $Target.WorkRoot, $Target.BackupRoot, (Split-Path $Target.CertificatePath), (Join-SL2 (Split-Path $Target.DataDirectory) 'backup'))
         for ($i = 0; $i -lt $targets.Count; $i++) {
