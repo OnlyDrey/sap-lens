@@ -135,7 +135,7 @@ function Test-PortAvailable([System.Net.IPAddress]$Address, [int]$Port) {
 function Get-ProtectedDataPaths {
     <# Production and Desktop data locations that a test run must never use (v1 and .NET, current and earlier names). #>
     $paths = @()
-    if ($env:ProgramData) { $paths += (Join-Path $env:ProgramData 'SapLens'), (Join-Path $env:ProgramData 'SapLens2'), (Join-Path $env:ProgramData 'SAP Lens Server') }
+    if ($env:ProgramData) { $paths += (Join-Path $env:ProgramData 'sap-lens'), (Join-Path $env:ProgramData 'SapLens'), (Join-Path $env:ProgramData 'SapLens2'), (Join-Path $env:ProgramData 'SAP Lens Server') }
     if ($env:LOCALAPPDATA) { $paths += (Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype'), (Join-Path $env:LOCALAPPDATA 'SAP Lens') }
     if ($env:ProgramFiles) { $paths += $env:ProgramFiles }
     if ($env:SystemRoot) { $paths += $env:SystemRoot }

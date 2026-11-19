@@ -6,15 +6,18 @@ former placeholder `0.0.0-experiment`.
 
 **Name (2026-11-17):** the product is branded **SAP Lens** everywhere a person sees it (assembly product, `--version`, window title, installers,
 OpenAPI title); the version alone says it is the 2.x line. Executables: `SapLens.exe` (Desktop), `SapLens.Api.exe` (Server); installers
-`SAP-Lens-<version>-Setup.exe` and `SAP-Lens-Server-<version>-Setup.exe`; service `SapLens`. Identifiers that existing data or installations depend on
+`SAP-Lens-<version>-Setup.exe` and `SAP-Lens-Server-<version>-Setup.exe`; service `sap-lens`. Identifiers that existing data or installations depend on
 keep their earlier value: the backup archive's manifest product and key-derivation label (`SAP Lens 2 ...`), the `SapLens2` service until it is
-migrated ([WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-saplens)), the `SAP Lens 2 Prototype` Desktop folder when it exists,
+migrated ([WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-sap-lens)), the `SAP Lens 2 Prototype` Desktop folder when it exists,
 and the `SAPLENS2_DEPLOY_CONFIG` variable (still read). The full list is the naming register below.
 
 ## Naming register
 
 Canonical names: product and display name **SAP Lens**; environment variables `SAP_LENS_*` (Server) and `SAPLENS_*_CONFIG` (operator scripts);
-Windows service `SapLens`; installation `C:\sap-lens`; service data `C:\ProgramData\SapLens`. There is no second naming scheme and no permanent alias.
+Windows ServiceName `sap-lens`, DisplayName `SAP Lens`; installation `C:\sap-lens`, deployment `C:\sap-lens\deploy`, releases `C:\sap-lens\releases`;
+service data `C:\ProgramData\sap-lens\data`, backups `C:\ProgramData\sap-lens\predeploy-backups`, TLS `C:\ProgramData\sap-lens\tls`.
+Historical service names are read for source compatibility and duplicate-service detection; new installations and production migration targets use
+only the canonical name. Configuration conversion is an explicit read-only plan, never an automatic service rename.
 
 **Environment variables renamed (2026-11-18, configuration contract):** the Server's `SAP_LENS_V2_*` variables are now `SAP_LENS_*` (for example
 `SAP_LENS_DATA_DIR`, `SAP_LENS_NETWORK`, `SAP_LENS_BACKUP_KEY_FILE`). The old names are not read. A Server that still finds a `SAP_LENS_V2_*`
@@ -30,7 +33,8 @@ Identifiers that keep a `2` or `V2`, each with its reason and the condition for 
 | `sap-lens-v2.sqlite3` database file, `sap-lens-v2-<kind>-<time>.sqlite3` database backups | `DatabaseOptions`, `DatabaseMaintenance`, backup archive entry | Persisted | Every existing data directory and archive holds this name; renaming needs a migration step of its own | A schema migration that renames the file with rollback, plus archive import of both names |
 | Archive manifest product `SAP Lens 2` | `ApplicationBackups.ManifestProduct` | Persisted (format id) | Every existing `.slbak` declares it; restore validates it | A new archive format version that accepts both |
 | HKDF label `SAP Lens 2 portable archive v3` | `BackupCrypto` | Persisted (crypto) | Changing it makes every existing encrypted archive undecryptable | Never for SLBAK3; a future format uses its own label |
-| Service `SapLens2`, account `NT SERVICE\SapLens2`, Inno Setup fallback `Result[1] := 'SapLens2'` | Deployment module, migration, Server installer | Migration-only | Detects and migrates hosts installed before the rename; never created for a new installation | All supported hosts migrated (`MigrateService`) and owner confirmation |
+| Service `SapLens2`, account `NT SERVICE\SapLens2`, Inno Setup fallback `Result[2] := 'SapLens2'` | Deployment module, migration, Server installer | Migration-only | Detects and migrates hosts installed before the rename; never created for a new installation | All supported hosts migrated (`MigrateService`) and owner confirmation |
+| Service `SapLens`, account `NT SERVICE\SapLens`, old target configuration paths `C:\ProgramData\SapLens` | Deployment lookup, conflict checks, canonical configuration plan | Migration-only | Keeps existing registrations readable and blocks a duplicate service; the old target configuration can be reviewed without writing it | Explicit operator reconciliation and canonical configuration review; never renamed automatically |
 | `SAPLENS2_DEPLOY_CONFIG`, `C:\saplens2\deploy.local.json` | Deployment module lookup | Migration-only | The existing Windows host's operator configuration | Same as the service |
 | `Deploy-SapLens2.ps1`, `SAPLENS2-RESULT`, `experiments/dotnet-backend` project lookup | `deploy-windows.sh` | Historical | Deploying or rolling back to a commit from before the rename runs that commit's own script | When rollback to pre-rename commits is no longer supported |
 | `SAP Lens 2 Prototype` folder, `Local\SapLens2Prototype` mutex | `DesktopLocation`, Desktop installer | Migration-only | Existing Desktop data from prototype builds is kept and used in place | When no prototype data folder remains in use |

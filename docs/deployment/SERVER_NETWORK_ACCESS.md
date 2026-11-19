@@ -19,7 +19,7 @@ Existing installations may retain the `SapLens2` service, older CA subjects and 
 | `--network` | Needs **one specific** address; `0.0.0.0` and `::` are always refused (never "all interfaces") |
 | Address range | Only private or link-local unicast: 10/8, 172.16/12, 192.168/16, 169.254/16, fc00::/7, fe80::/10. Public addresses are refused |
 | Protocol | HTTPS (TLS 1.2/1.3) is mandatory with `--network`; plain HTTP on a LAN address cannot be configured |
-| Certificate | Must load, have a private key, be within its validity period, allow server authentication (if EKU present), RSA Ã¢â€°Â¥ 2048, and its SAN must cover every `--allowed-hosts` entry. Expiry within 30 days is logged as a warning. Chain trust is the clients' decision |
+| Certificate | Must load, have a private key, be within its validity period, allow server authentication (if EKU present), RSA â‰¥ 2048, and its SAN must cover every `--allowed-hosts` entry. Expiry within 30 days is logged as a warning. Chain trust is the clients' decision |
 | Host names | Requests are answered only for loopback names and the explicit `--allowed-hosts` list (421 otherwise): no wildcards |
 | Desktop | Loopback only; network, certificate and host options are refused |
 | Configuration errors | Unknown options, missing values, invalid ports or addresses: exit code 3 with the reason; nothing starts |
@@ -388,8 +388,8 @@ From a device **outside** the trusted subnet the connection must time out (firew
 ## 8. Mobile browser testing
 
 1. Copy the **public** CA certificate (`saplens-ca.cer`/`.crt`, never the PFX or a key) to the device (mail, MDM, AirDrop).
-2. iOS/iPadOS: open it, Settings Ã¢â€ â€™ Profile Downloaded Ã¢â€ â€™ Install; then Settings Ã¢â€ â€™ General Ã¢â€ â€™ About Ã¢â€ â€™ Certificate Trust Settings Ã¢â€ â€™ enable full
-   trust for "SAP Lens LAN CA". Android: Settings Ã¢â€ â€™ Security Ã¢â€ â€™ Encryption & credentials Ã¢â€ â€™ Install a certificate Ã¢â€ â€™ CA certificate
+2. iOS/iPadOS: open it, Settings â†’ Profile Downloaded â†’ Install; then Settings â†’ General â†’ About â†’ Certificate Trust Settings â†’ enable full
+   trust for "SAP Lens LAN CA". Android: Settings â†’ Security â†’ Encryption & credentials â†’ Install a certificate â†’ CA certificate
    (Chrome honours user CAs; menu names vary by vendor). Managed devices: deploy the CA through MDM instead.
 3. Connect to the corporate Wi-Fi in the trusted subnet (not a guest network), open `https://saplens.corp.example:18791/`: the browser must
    show a valid lock without warnings. Never accept a certificate warning: it means the trust setup is wrong.

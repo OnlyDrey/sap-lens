@@ -104,8 +104,8 @@ Implemented and tested on Linux (Pester `verify-release.Tests.ps1`, `SapLens.Mig
 
 | Kind | Where | Contents | Verify with |
 | --- | --- | --- | --- |
-| Full release | Builder output (`WorkRoot\builds\<sha12>\SAP-Lens-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦-win-x64`, or `build-release.ps1 -Output`) | Every artifact in `build-manifest.json`: `server\`, `desktop\`, `symbols\`, `README.txt`, `Service-Manager.ps1` | `verify-release.ps1 -ReleasePath <folder>` |
-| Server deployment package | `ReleasesRoot\SAP-Lens-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦-win-x64` (what the service runs) | Every artifact except `desktop\**` and `symbols\**`, the unchanged `build-manifest.json` and `SHA256SUMS`, and `deployment-package.json` | `verify-release.ps1 -ReleasePath <folder> -Scope Server` |
+| Full release | Builder output (`WorkRoot\builds\<sha12>\SAP-Lens-…-win-x64`, or `build-release.ps1 -Output`) | Every artifact in `build-manifest.json`: `server\`, `desktop\`, `symbols\`, `README.txt`, `Service-Manager.ps1` | `verify-release.ps1 -ReleasePath <folder>` |
+| Server deployment package | `ReleasesRoot\SAP-Lens-…-win-x64` (what the service runs) | Every artifact except `desktop\**` and `symbols\**`, the unchanged `build-manifest.json` and `SHA256SUMS`, and `deployment-package.json` | `verify-release.ps1 -ReleasePath <folder> -Scope Server` |
 
 - `build-manifest.json` and `SHA256SUMS` always describe the full build and are **never rewritten** in a package. `deployment-package.json`
   declares the package: kind `server`, the release name, the SHA-256 of `build-manifest.json`, and the exact omitted paths.
@@ -171,7 +171,7 @@ In this order; steps 1 to 3 change nothing. Status: the procedure is implemented
 
 1. **Source release integrity (read-only).** Verify the release the `SapLens2` service runs, as a server package:
    `powershell -NoProfile -File .\backend\scripts\verify-release.ps1 -ReleasePath <ReleasesRoot>\<release> -Scope Server`. Expect
-   "Release verified as a server package (undeclared ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦)" and the omitted Desktop and symbol files listed by name. Anything else (a changed or
+   "Release verified as a server package (undeclared …)" and the omitted Desktop and symbol files listed by name. Anything else (a changed or
    missing server file, a changed manifest) is a real integrity failure: stop and investigate; do not edit the folder. If the full build is
    needed, check `WorkRoot\builds\<sha12>` with the default full scope ([release packages](#release-packages-and-integrity)).
 2. **Target roots.** `Test-Path` each target root of the target configuration (`DataDirectory`, `BackupRoot`, the TLS folder,
@@ -181,7 +181,7 @@ In this order; steps 1 to 3 change nothing. Status: the procedure is implemented
 4. **Backup.** Create and verify an application backup and export the recovery key (checklist steps 2 and 3) before changing permissions.
 5. **ACL remediation (explicit).** `-Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -ApprovedAclRoot $approvedRoots -AclBackupRoot $aclBackupRoot -Yes` in an elevated session; keep the
    printed backup folder; then `AuditAcl` again until it exits 0. The service keeps running.
-6. **Preflight.** `-Action PreflightMigration ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦` until `safe: true`. Migration is only ready then; `MigrateService` still needs authorization.
+6. **Preflight.** `-Action PreflightMigration …` until `safe: true`. Migration is only ready then; `MigrateService` still needs authorization.
 
 Canonical production targets use `ServiceName=sap-lens`, DisplayName `SAP Lens`, `C:\sap-lens\deploy`, `C:\sap-lens\releases`,
 and `C:\ProgramData\sap-lens\{data,predeploy-backups,tls}`. The backup-key copy goes in `C:\ProgramData\sap-lens\backup`.
@@ -270,14 +270,14 @@ acceptance** (no real ACL was read or changed from this environment).
 
 **Broad principals** (matched by well-known SID, so localized account names do not matter): Everyone `S-1-1-0`, Authenticated Users
 `S-1-5-11`, Users `S-1-5-32-545`, Interactive `S-1-5-4`, Network `S-1-5-2`, Anonymous Logon `S-1-5-7`, Guests `S-1-5-32-546`, Domain Users and
-Domain Guests (`S-1-5-21-ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦-513`/`-514`). An allow rule counts when it applies to the object itself or, on a folder, to new children
+Domain Guests (`S-1-5-21-…-513`/`-514`). An allow rule counts when it applies to the object itself or, on a folder, to new children
 (container/object inherit, also inherit-only): that is what a folder created later inherits. Deny rules and individual accounts are not findings.
 *Read* is ReadData/ListDirectory, GENERIC_READ or GENERIC_ALL; *write* is any of WriteData/CreateFiles, AppendData/CreateDirectories, WriteEA,
 WriteAttributes, DeleteSubdirectoriesAndFiles, Delete, ChangePermissions, TakeOwnership, GENERIC_WRITE or GENERIC_ALL.
 
 | Class | Paths (source configuration, then migration target) | Broad read | Broad write | Required identities |
 | --- | --- | --- | --- | --- |
-| Private | Data directory and every descendant; pre-deployment backups; TLS folder (certificate, password file); the folder of the host backup key; deployment state (`WorkRoot`) | refused | refused | SYSTEM and Administrators full control; the service's virtual account modify on data, read on TLS and key (an `NT SERVICE\ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦` account only: `LocalSystem` is SYSTEM) |
+| Private | Data directory and every descendant; pre-deployment backups; TLS folder (certificate, password file); the folder of the host backup key; deployment state (`WorkRoot`) | refused | refused | SYSTEM and Administrators full control; the service's virtual account modify on data, read on TLS and key (an `NT SERVICE\…` account only: `LocalSystem` is SYSTEM) |
 | Binaries | `ReleasesRoot`, the configuration file, the folder that holds it (for example `C:\saplens2`) | allowed (read and execute) | refused | SYSTEM and Administrators full control; service read and execute on `ReleasesRoot` |
 | Target parent | Existing application parent, or a missing application parent with its ancestor findings reported separately | refused when it holds a private target | refused | SYSTEM and Administrators |
 
@@ -349,7 +349,7 @@ Invoke-Pester -Path .\backend\scripts\tests -Output Detailed
 "Multiple script or manifest modules named 'SapLens.Deploy' are currently loaded." Repeated canonical imports alone do not imply that defect.
 The shared test helper removes loaded copies and imports the resolved canonical module globally at each container's setup. Tests run serially;
 do not share that process with operator actions. The regression creates a synthetic second module and proves the mock becomes unambiguous.
-The real NTFS fixtures touch only TestDrive. Their restore test explicitly reports a skip without elevation; mocked remediation is reported
+The test launcher protects both canonical `ProgramData\sap-lens` and historical production data roots. The real NTFS fixtures touch only TestDrive. Their restore test explicitly reports a skip without elevation; mocked remediation is reported
 separately. Linux shell-server fixtures remain Windows skips. Missing `pwsh` never skips deployment or release-contract tests.
 
 Windows script checkpoint, 2026-11-19: Windows PowerShell 5.1 with Pester 5.9.1 discovered 203 tests: **193 passed, 0 failed, 10 skipped,
@@ -370,7 +370,7 @@ release manifest unchanged and obtain the actual VM connection before continuing
 - One service, never two: installing `sap-lens` while `SapLens2` exists (or the reverse) is refused.
 - Account: the service's own virtual account (`NT SERVICE\<name>`), no password. Grants are added, never removed: modify on the data directory
   (inherited), read and execute on `ReleasesRoot`, read on the certificate, its password file and the backup key file.
-- Command line (no secret): `SapLens.Api.exe --data-dir ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --network --listen ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --port ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --allowed-hosts ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --cert ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ --cert-password-file ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ [--trusted-proxies ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦]`.
+- Command line (no secret): `SapLens.Api.exe --data-dir … --network --listen … --port … --allowed-hosts … --cert … --cert-password-file … [--trusted-proxies …]`.
   TLS, the Host allow-list, Origin/CSRF checks and the trusted-proxy restriction are the server's own and unchanged by the deployment.
 - Processes: only the service is stopped, through the SCM. A port held by another process (for example `start-server-test.ps1`) is reported and left alone.
 
@@ -395,11 +395,11 @@ release manifest unchanged and obtain the actual VM connection before continuing
 | Exit 255 / `No result line` | SSH or PowerShell failed: check `ssh -o BatchMode=yes deployer@host`, the key in `administrators_authorized_keys`, and `powershell.exe` on the host |
 | `Deployment configuration not found` | Create the file in one of the lookup locations or pass `--config` |
 | `needs an elevated session` | Use an administrator account for SSH |
-| `runs ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦, not the managed release link` | First deployment: `--adopt-service`; arguments must match the configuration |
-| `interrupted in phase ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦` | `--mode status`, then `--mode recover --yes` |
-| `did not stop within ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦` (exit 4) | Investigate the service (Event Viewer, `<data-dir>\logs`); it was not killed. Retry when it is stopped |
+| `runs …, not the managed release link` | First deployment: `--adopt-service`; arguments must match the configuration |
+| `interrupted in phase …` | `--mode status`, then `--mode recover --yes` |
+| `did not stop within …` (exit 4) | Investigate the service (Event Viewer, `<data-dir>\logs`); it was not killed. Retry when it is stopped |
 | `Rollback is not safe` (exit 4) | Read `RECOVERY-REQUIRED.txt`: fix forward, or restore the pre-deployment backup into a new data directory with the previous release |
-| Windows PowerShell 5.1 `[System.Char] ÃƒÆ’Ã†â€™Ãƒâ€šÃ‚Â¢ÃƒÆ’Ã‚Â¢ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡Ãƒâ€šÃ‚Â¬ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â¦ 'Trim'` | Fixed in c772eef; deploy a commit from after it |
+| Windows PowerShell 5.1 `[System.Char] … 'Trim'` | Fixed in c772eef; deploy a commit from after it |
 
 ## Installers
 
