@@ -23,11 +23,57 @@ python scripts/check-docs.py && python scripts/check-secrets.py && git diff --ch
 ```
 
 Run the smallest relevant selection while developing and the whole suite at checkpoints (AGENTS.md, progressive validation). The .NET build
-embeds `frontend/dist`: build the frontend first, or the server serves the previously built UI.
+embeds `frontend/dist` as it is; it builds the frontend itself only when `dist` is missing or with `-p:BuildFrontend=true`. After a frontend change,
+run `npm run build` (or pass `-p:BuildFrontend=true`), or the server keeps serving the previously built UI. Releases always rebuild it
+([build and publish flow](#build-and-publish-flow)).
+
+## Repository ownership
+
+| Path | Owns | Not here |
+| --- | --- | --- |
+| `backend/src/` | Application source: the seven .NET projects (business rules, persistence, application services, API and Server host, Desktop host, documents, `SapLens.Cli` for `accounts-code` and developer tools) | Build, release or test logic |
+| `backend/SapLens.slnx`, `Directory.Build.props`, `product-version.json` | The .NET build: one solution, shared compiler settings, the only product version ([versioning](../architecture/VERSIONING.md)) | |
+| `backend/src/SapLens.Api/SapLens.Api.csproj` | **The frontend build and embedding** (`SapLensBuildFrontend`, `SapLensEmbedFrontend`): the only place that turns `frontend/` into the shipped UI | npm steps in scripts |
+| `backend/tests/` | `SapLens.Tests` (xUnit, fixtures) and `SapLens.BrowserHost` (the test-only .NET host Playwright starts) | |
+| `backend/scripts/` | Release (`build-release.ps1`/`.sh`, `verify-release.ps1`, `build-installers.ps1`), Windows deployment (`deploy/`), operator tools (`Service-Manager.ps1`, `start-server-test.ps1`) and their Pester/Bash tests (`scripts/tests/`) | Application code |
+| `backend/installer/` | Inno Setup scripts; built only from a verified release folder | |
+| `backend/tools/` | Historical SAP Lens 1 reference generators, synthetic data and benchmarks; never run by a build or test | |
+| `frontend/` | React/Vite source (`src/`), its configs, unit tests and the Playwright suite (`tests/`, which drives the .NET host) | .NET code |
+| `scripts/` (root) | Repository-wide checks (`check-*.py`, `product-version.mjs`, `sync-lucide-catalog.mjs`) and `browser-server.mjs` (starts `SapLens.BrowserHost` for Playwright and `npm run dev`) | Release or deployment |
+| `docs/`, `examples/`, `assets/` | Documentation, synthetic sample files, the product icon and logo (used by the projects and installers) | Private data |
+| `.github/workflows/validate.yml` | The only CI workflow, on push to `main` only ([CI](CI.md)) | |
+
+## Build and publish flow
+
+MSBuild is the only frontend build of a release; the scripts orchestrate and verify.
+
+1. **Checks** (`build-release.ps1` on Windows, `build-release.sh` on Linux): Node.js 24 or 25, a valid `product-version.json`, the commit and
+   whether the tree is dirty (recorded as `source_dirty`), and that no release folder is overwritten.
+2. **One build:** the script removes `frontend/dist` and runs `dotnet build SapLens.slnx -c Release -p:SourceRevisionId=<commit> -p:BuildFrontend=true`.
+   `SapLensBuildFrontend` runs `npm ci` and `npm run build` once (the `prebuild` step checks the version mirror and writes `dist/product-version.json`
+   with the commit); `SapLensEmbedFrontend` embeds `dist` into `SapLens.Api.dll`. The script checks that `dist` exists and carries this commit.
+3. **Tests:** `dotnet test --no-build` on exactly that build (skippable for development builds; `-TestFilter` for deployment's focused selection).
+4. **Publish:** Server (`win-x64`; Linux also `linux-x64`) and Desktop (`win-x64`) are published without `BuildFrontend`: they find this run's
+   `dist` and embed it without rebuilding the frontend.
+5. **Validation:** exact file lists, the version and commit in every executable, the embedded UI present, and **freshness**: each executable
+   must contain this run's `index.html` (which names the content-hashed bundles) and `product-version.json` (with this commit). A stale UI fails.
+6. **Manifest and verification:** `build-manifest.json` and `SHA256SUMS`, the secret scan, then `verify-release.ps1`, which checks the shared
+   manifest contract (below) independently of the builder. The Linux script runs it when PowerShell 7 is installed and warns otherwise.
+
+**Manifest contract (schema 1, `verify-release.ps1`, Pester `Release verification`):** required fields `schema`, `product`, `version`, `channel`,
+`file_version`, `ui_source_version`, `source_sha` (40 hex), `source_dirty` (boolean), `source_committed_at`, `branch`, `build_timestamp_utc`,
+`target_platform`, `dotnet_sdk`, `node`, `publish`, `executables` and `artifacts`; channel and file version follow from the version; the folder name
+carries version and platform; every artifact has a relative path, its size and SHA-256, and `SHA256SUMS` covers every file. Platform rules:
+`win-x64` lists `server/SapLens.Api.exe`, a Desktop executable and `publish.desktop_native_libraries`; `linux-x64` lists only `server/SapLens.Api`.
+Releases built before the rename to SAP Lens keep verifying (naming register in [versioning](../architecture/VERSIONING.md)). The builders' texts
+may differ where the platform does (for example the native-library note).
+
+Development builds: `dotnet build` uses an existing `dist` as it is. CI builds the frontend once in its frontend job and passes `dist` to the .NET
+and browser jobs, so their builds embed it without rebuilding.
 
 **Browser tests:** `npm --prefix frontend run test:browser` starts the test-only
 .NET host (`backend/tests/SapLens.BrowserHost`) through `scripts/browser-server.mjs`.
-It embeds the current `frontend/dist`; build the frontend first. One worker, one
+It embeds the current `frontend/dist` (built only when missing); build the frontend first after a change. One worker, one
 loopback port and a new disposable data directory per Playwright process. Readiness
 uses `/health/ready`; an occupied port fails without contacting or terminating its
 owner. Shutdown is bounded, waits for the owned child and removes only its temp
@@ -61,11 +107,11 @@ The .NET backend lives in [`backend/`](../../backend):
 | `src/SapLens.Application` | Import pipeline, persistent job queue and worker, snapshot service, review service, accounts, application backups and crypto, SAP Lens 1 archive validation, data retention |
 | `src/SapLens.Api` | ASP.NET Core host and Server entry point: `/api/v1`, OpenAPI, problem details, health, security boundary, embedded production React UI (`frontend/dist`) and sign-in page, v1 compatibility API (`V1Compatibility.cs`), startup probe |
 | `src/SapLens.Desktop` | Windows shell: WinForms + WebView2, in-process core, loopback, per-run token |
-| `src/SapLens.Cli` | Equivalence writer, benchmark, cross-process database probes |
+| `src/SapLens.Cli` | `accounts-code` (administrator activation and recovery code, an operator command), plus developer tools: equivalence writer, benchmark, cross-process database probes |
 | `tests/SapLens.Tests` | xUnit tests (418 at the last full run): domain, SQLite, imports, jobs, reviews, multi-process concurrency, HTTP integration, UI serving, sign-in, startup, network policy, certificates, LAN HTTPS, v1 compatibility contracts (Data Sources, Access, Data Health, Dashboard, Saved Filters, Access Packages, accounts and sessions, Employee Directory, Account Review, SoD source metadata, catalogue, reference workbook and analysis), build integration (embedded UI, incremental embedding, release script order), publish acceptance (`Category=Publish`, slow) |
 | `tools/` | Synthetic data generators, Python v1 reference runner, comparers, benchmark harnesses, v1 reference-data export |
 | `installer/` | Inno Setup installers: `SapLens-Desktop.iss` (per user) and `SapLens-Server.iss` (machine), built by `scripts/build-installers.ps1` ([installers](../deployment/WINDOWS_DEPLOYMENT.md#installers)) |
-| `scripts/` | `build-release.ps1` (Windows) and `build-release.sh` (Linux): UI build, .NET build and tests, self-contained single-file packages in a versioned release folder (`server/`, `desktop/`, `symbols/`, `build-manifest.json`, `README.txt`, `SHA256SUMS`); `verify-release.ps1`; `start-server-test.ps1` (test launcher); `deploy/` (SSH-driven Windows deployment); Pester and Bash tests in `scripts/tests` |
+| `scripts/` | `build-release.ps1` (Windows) and `build-release.sh` (Linux): one .NET build that builds and embeds the UI, tests, self-contained single-file packages in a versioned release folder (`server/`, `desktop/`, `symbols/`, `build-manifest.json`, `README.txt`, `SHA256SUMS`); `verify-release.ps1`; `start-server-test.ps1` (test launcher); `deploy/` (SSH-driven Windows deployment); Pester and Bash tests in `scripts/tests` |
 
 ## Reproduce
 

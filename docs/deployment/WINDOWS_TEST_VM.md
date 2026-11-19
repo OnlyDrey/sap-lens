@@ -46,7 +46,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\backend\scripts\build-rele
 `-ExecutionPolicy Bypass` on the `powershell -File` call applies to that one process only; it changes no machine or user policy. `-Output` is the
 parent folder: each build creates a new folder `SAP-Lens-<version>-<UTC time>-<commit>-win-x64` inside it and never overwrites one.
 
-`build-release.ps1` builds the UI and the solution, runs the tests, publishes both executables, validates the packages, writes `README.txt`,
+`build-release.ps1` builds the solution (which builds the UI once, [build and publish flow](../development/README.md#build-and-publish-flow)), runs the tests, publishes both executables, validates the packages, writes `README.txt`,
 `build-manifest.json` and `SHA256SUMS`, and verifies them with `verify-release.ps1`. It **does not install or start anything**. A completed build
 proves compilation, the automated tests and the publish step; it says nothing about runtime behaviour on this VM (see
 [section 8](#8-what-each-result-proves)).

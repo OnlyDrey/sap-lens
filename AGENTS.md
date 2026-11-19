@@ -54,7 +54,7 @@ Verified against `backend/` project files, `frontend/package.json` and configs.
 From the repository root ([development](docs/development/README.md)).
 
 - .NET: `cd backend && dotnet build SapLens.slnx -c Release`; tests `dotnet test tests/SapLens.Tests -c Release --no-build --filter
-  "FullyQualifiedName~<Class>"` (affected classes), the whole suite only as FULL. The build embeds `frontend/dist`; build the frontend first.
+  "FullyQualifiedName~<Class>"` (affected classes), the whole suite only as FULL. The build embeds `frontend/dist` as it is (built only when missing or with `-p:BuildFrontend=true`); release scripts always rebuild it once.
 - Scripts: `pwsh -NoProfile -Command "Invoke-Pester backend/scripts/tests"` (deployment state machine, test launcher),
   `bash backend/scripts/tests/deploy-windows.test.sh` (SSH orchestrator), PowerShell syntax via the parser for changed scripts.
 - Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run test:unit`, `npm run build`,

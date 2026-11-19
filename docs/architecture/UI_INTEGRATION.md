@@ -7,8 +7,8 @@ and Server. The earlier simplified prototype UI was removed. Status tags as in [
 
 - **Build**: `SapLens.Api.csproj` embeds `frontend/dist/**` under `wwwroot/` (`ManifestEmbeddedFileProvider`). When `frontend/dist/index.html`
   is missing, or with `-p:BuildFrontend=true`, the build runs `npm ci` and `npm run build` first. Node.js 24 or 25 is a build-time requirement
-  only; no Node.js, Python or loose UI files ship. `scripts/build-release.ps1` (Windows) and `scripts/build-release.sh` (Linux) always rebuild
-  the UI, build and test the solution and publish the packages.
+  only; no Node.js, Python or loose UI files ship. Releases remove `frontend/dist` and let this target rebuild it once; the publishes reuse it
+  ([build and publish flow](../development/README.md#build-and-publish-flow)).
 - **Embedding** (the cause of the Windows release failures, "The user interface is incomplete in this build"):
   - Every UI file (`frontend/dist/**` and the sign-in page in `wwwroot/`) is a manifest resource with the explicit name
     `SapLensUi/<relative path>`; `EmbeddedUiFileProvider` (`UiAssets.cs`) serves them, normalizes `\` to `/` (MSBuild's `RecursiveDir` uses
@@ -82,12 +82,12 @@ cd /d C:\src\sap-lens\backend
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Output C:\sap-lens\release-next
 ```
 
-The script runs `npm ci`, `npm run build`, `dotnet build`, `dotnet test` (96 tests; add `-SkipPublishTests` to skip the slow publish
-tests) and publishes `C:\sap-lens\release-next\server-win-x64` and `C:\sap-lens\release-next\desktop-win-x64`. The same steps one by one:
+At that milestone the script ran `npm ci`, `npm run build`, `dotnet build`, `dotnet test` (add `-SkipPublishTests` to skip the slow publish
+tests) and published `C:\sap-lens\release-next\server-win-x64` and `C:\sap-lens\release-next\desktop-win-x64`. Today the UI is built by the
+.NET build itself ([build and publish flow](../development/README.md#build-and-publish-flow)). The same steps one by one:
 
 ```bat
-cd /d C:\src\sap-lens\frontend && npm ci --no-audit --no-fund && npm run build
-cd /d C:\src\sap-lens\backend && dotnet build SapLens.slnx -c Release
+cd /d C:\src\sap-lens\backend && dotnet build SapLens.slnx -c Release -p:BuildFrontend=true
 dotnet test tests\SapLens.Tests -c Release --no-build
 dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\sap-lens\release-next\server-win-x64
 dotnet publish src\SapLens.Desktop -c Release -o C:\sap-lens\release-next\desktop-win-x64

@@ -12,7 +12,7 @@
 ```powershell
 # Windows release folder (Server and Desktop, versioned, with build-manifest.json and SHA256SUMS)
 powershell -NoProfile -File .\backend\scripts\build-release.ps1 -Output C:\saplens\builds
-powershell -NoProfile -File .\backend\scripts\verify-release.ps1 -ReleasePath <release folder>
+powershell -NoProfile -File .\backend\scripts\verify-release.ps1 -ReleasePath <release folder>   # manifest contract, sizes, checksums
 # Installers (Inno Setup 6) from a verified release folder
 powershell -NoProfile -File .\backend\scripts\build-installers.ps1 -ReleasePath <release folder> -Output C:\saplens\installers
 # Managed Windows service deployment on the host (or over SSH with backend/scripts/deploy/deploy-windows.sh)
