@@ -11,7 +11,7 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import python_reference as ref  # noqa: E402  (sets an isolated SAP_LENS_CONFIG_DIR before importing backend modules)
+import python_reference as ref  # noqa: E402  (sets an isolated AUTHLENS_CONFIG_DIR before importing backend modules)
 from config_models import UserImportProfile  # noqa: E402
 
 QUERIES = {

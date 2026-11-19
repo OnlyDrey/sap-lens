@@ -3,7 +3,7 @@ using System.Text;
 
 namespace AuthLens.Domain.Json;
 
-/// <summary>Lower-case hex SHA-256 of a file (streamed), bytes or UTF-8 text: the content addresses and checksums used throughout SAP Lens.</summary>
+/// <summary>Lower-case hex SHA-256 of a file (streamed), bytes or UTF-8 text: the content addresses and checksums used throughout AuthLens.</summary>
 public static class Digests
 {
     public static string File(string path)

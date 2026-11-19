@@ -7,7 +7,7 @@ import { headers } from './support'
 test.beforeEach(async ({request}) => { expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy() })
 
 test('system identity, private logo storage, persisted theme and portable backup/restore',{ tag: '@workflow' }, async ({page}) => {
-  const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-test-logo-'))
+  const directory=mkdtempSync(path.join(tmpdir(),'authlens-test-logo-'))
   const logoPath=path.join(directory,'synthetic-logo.png')
   const logoData=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=320;canvas.height=80;const context=canvas.getContext('2d')!;context.fillStyle='#123456';context.fillRect(0,0,320,80);return canvas.toDataURL('image/png').split(',')[1]})
   writeFileSync(logoPath,Buffer.from(logoData,'base64'))
@@ -21,7 +21,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     await page.getByLabel('SAP system ID',{exact:true}).fill('DEMO2')
     await page.getByLabel('SAP client',{exact:true}).fill('200')
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-    await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
+    await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeHidden()
     await expect(page.getByRole('banner').getByText('Example Test Organization',{exact:true})).toBeVisible()
     await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'Appearance & Branding'}).click()
@@ -34,7 +34,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     unlinkSync(logoPath)
     await page.reload()
     await expect(page.locator('html')).toHaveClass(/dark/)
-    await page.getByRole('button',{name:'Back to SAP Lens'}).click()
+    await page.getByRole('button',{name:'Back to AuthLens'}).click()
     await expect(page.getByRole('banner').getByRole('img',{name:'Example Test Organization logo',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
     const headerLogo=page.getByRole('banner').getByRole('img',{name:'Example Test Organization logo',exact:true})
     await expect(headerLogo).toHaveJSProperty('naturalWidth',320)
@@ -42,7 +42,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     await expect(headerLogo).toHaveCSS('object-fit','contain')
     const bounds=await headerLogo.boundingBox();expect(bounds!.width).toBeLessThanOrEqual(160);expect(bounds!.height).toBeLessThanOrEqual(48)
     // No CSV is configured, so the first-run data section remains accessible.
-    if(!(await page.getByRole('region',{name:'SAP Lens settings',exact:true}).isVisible()))await page.getByRole('button',{name:'Open settings'}).click()
+    if(!(await page.getByRole('region',{name:'AuthLens settings',exact:true}).isVisible()))await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'Health & Diagnostics'}).click()
   await page.getByRole('tab',{name:'Storage & Logs',exact:true}).click()
   await page.getByText('Source locations and storage details',{exact:true}).click()
@@ -70,14 +70,14 @@ test('system identity, private logo storage, persisted theme and portable backup
     await page.getByRole('tab',{name:'Organization & SAP System'}).click()
     await expect(page.getByLabel('Organization name',{exact:true})).toHaveValue('Example Test Organization')
     await page.getByRole('tab',{name:'Appearance & Branding'}).click()
-    await page.getByRole('button',{name:'Remove custom logo / restore SAP Lens default'}).click()
+    await page.getByRole('button',{name:'Remove custom logo / restore AuthLens default'}).click()
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-    await expect(page.getByRole('banner').getByRole('img',{name:'SAP Lens',exact:true})).toHaveAttribute('src','/sap-lens.png')
+    await expect(page.getByRole('banner').getByRole('img',{name:'AuthLens',exact:true})).toHaveAttribute('src','/sap-lens.png')
   } finally {rmSync(directory,{recursive:true,force:true})}
 })
 
 test('custom column mapping preserves relationships and transactions',async ({page,request})=>{
-  const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-mapping-'))
+  const directory=mkdtempSync(path.join(tmpdir(),'authlens-mapping-'))
   const file=path.join(directory,'role-catalogue.csv')
   writeFileSync(file,'Module;Role;Child;Parent;Effective;Transaction\nFI;DEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
   try {
@@ -94,8 +94,8 @@ test('custom column mapping preserves relationships and transactions',async ({pa
     await expect(page.locator('.preview-metrics > div').filter({has:page.getByText('Catalogue roles',{exact:true})}).locator('dd')).toHaveText('1')
     await page.getByRole('button',{name:'Refresh source',exact:true}).click()
     await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
-    await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
-    await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
+    await page.getByRole('button',{name:'Back to AuthLens',exact:true}).click()
+    await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeHidden()
     const detail=await (await request.get('/api/roles/DEMO_ROOT',{headers})).json()
     expect(detail.relationships[0].effective_role).toBe('DEMO_EFFECTIVE')
     expect(detail.single_roles[0].tcodes[0].tcode).toBe('DEMO_TRANSACTION')
@@ -103,7 +103,7 @@ test('custom column mapping preserves relationships and transactions',async ({pa
 })
 
 test('registry customization preserves custom mappings, CSV modules and transactions',async ({page,request})=>{
-  const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-registry-'))
+  const directory=mkdtempSync(path.join(tmpdir(),'authlens-registry-'))
   const file=path.join(directory,'role-catalogue.csv')
   writeFileSync(file,'Module;Role;Child;Parent;Effective;Transaction\nFI;DEMO_ROOT;DEMO_CHILD;DEMO_PARENT;DEMO_EFFECTIVE;DEMO_TRANSACTION\n')
   try {
@@ -124,7 +124,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
     await page.getByLabel('FI hexadecimal color visual selection',{exact:true}).fill('#123456')
     await page.getByRole('button',{name:'Apply module changes',exact:true}).click()
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-    await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
+    await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeHidden()
     const badge=page.getByRole('article',{name:'DEMO_ROOT',exact:true}).locator('.module-badge');await expect(badge).toHaveAttribute('title','Synthetic accounting');await expect(badge).toContainText('FI');await expect(badge).toHaveCSS('--module-color','#123456')
     const registry=(await (await request.get('/api/registry/modules',{headers})).json()).modules
     expect(registry.find((m:{id:string})=>m.id==='FI').color).toBe('#123456')
@@ -141,7 +141,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
 })
 
 test('large catalogs render bounded pages and retain cross-page comparisons',async({page,request})=>{
-  const directory=mkdtempSync(path.join(tmpdir(),'sap-lens-pages-'))
+  const directory=mkdtempSync(path.join(tmpdir(),'authlens-pages-'))
   const file=path.join(directory,'role-catalogue.csv')
   writeFileSync(file,'AGR_NAME,TEXT,TCODE\n'+Array.from({length:205},(_,i)=>`DEMO_PAGE_${String(i).padStart(3,'0')},Synthetic page role ${String(i).padStart(3,'0')},DEMO_T`).join('\n')+'\n')
   try {

@@ -13,10 +13,10 @@ test('data-source actions override every previous section while normal opening k
   await page.goto('/#session=browser-test-session')
   for (const section of sections) {
     await page.getByRole('tab', { name: section, exact: true }).click()
-    await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+    await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
     await expect(page.getByRole('tab', { name: section, exact: true })).toHaveAttribute('aria-selected', 'true')
-    await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+    await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
     await page.getByRole('button', { name: 'Review data source', exact: true }).click()
     await expect(page.getByRole('tab', { name: 'Data Sources', exact: true })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByLabel('CSV file location', { exact: true })).toBeFocused()
@@ -28,14 +28,14 @@ test('data-source actions override every previous section while normal opening k
   await page.getByText('Source locations and storage details',{exact:true}).click()
   await page.getByRole('tab',{name:'Source Health',exact:true}).click()
   await inspectTechnicalSources(page)
-  await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+  await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
   await page.getByRole('button', { name: 'Review data source', exact: true }).click()
   await expect(page.getByLabel('CSV file location', { exact: true })).toBeFocused()
 })
 
 test('data warning follows the content container at wide and narrow desktop widths', async ({ page }) => {
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+  await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
   for (const width of [1920, 1280, 768]) {
     await page.setViewportSize({ width, height: 900 })
     const main = await page.locator('#main-content').evaluate((element) => {
@@ -86,7 +86,7 @@ for (const theme of ['light', 'dark'] as const) {
 }
 
 test('filter availability is keyboard accessible, persists and preserves explicit color and role data', { tag: '@a11y' }, async ({ page, request }) => {
-  const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-ui-filter-'))
+  const directory = mkdtempSync(path.join(tmpdir(), 'authlens-ui-filter-'))
   const file = path.join(directory, 'role-catalogue.csv')
   writeFileSync(file, 'FUNCTION_KEY,AGR_NAME,TCODE\nFI,Z_UI_FINANCE,FB03\nMM,Z_UI_BUYER,ME23N\nLOCAL_FIN,Z_UI_LOCAL,FB03\n')
   try {
@@ -108,7 +108,7 @@ test('filter availability is keyboard accessible, persists and preserves explici
     await expect(checkbox).not.toBeChecked()
     await page.getByRole('button', { name: 'Apply module changes', exact: true }).click()
     await page.getByRole('button', { name: 'Apply settings', exact: true }).click()
-    await expect(page.getByRole('region', { name: 'SAP Lens settings', exact: true })).toBeHidden()
+    await expect(page.getByRole('region', { name: 'AuthLens settings', exact: true })).toBeHidden()
     await expect(page.getByRole('button', { name: /^FI –/ })).toHaveCount(0)
     await page.reload()
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
@@ -120,7 +120,7 @@ test('filter availability is keyboard accessible, persists and preserves explici
     await expect(page.getByLabel('FI hexadecimal color', { exact: true })).toHaveValue('#6f8fc5')
     page.once('dialog', (dialog) => void dialog.accept())
     await page.getByRole('button', { name: 'Cancel module changes', exact: true }).click()
-    await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+    await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
     await page.getByRole('button', { name: 'Open settings', exact: true }).click()
     await page.getByRole('button', { name: 'Edit FI — Financial Accounting', exact: true }).click()
     await expect(page.getByLabel('FI hexadecimal color', { exact: true })).toHaveValue('#123456')
@@ -134,7 +134,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 390])
     expect((await request.post('/api/configuration/theme', { headers, data: { theme } })).ok()).toBeTruthy()
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session')
-    await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+    await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
     const action = page.getByRole('button', { name: 'Review data source', exact: true })
     const banner = page.getByRole('alert').filter({ has: action })
     await expect(banner).toContainText('Choose a SAP role catalogue or user access CSV in Settings.')

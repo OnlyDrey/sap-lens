@@ -10,7 +10,7 @@ const userCsv = (names: string[]) => 'USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_F
 
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-revision-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-revision-'))
   const rolePath = path.join(directory, 'roles.csv')
   usersPath = path.join(directory, 'users.csv')
   writeFileSync(rolePath, roles)

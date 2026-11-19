@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 
 
 // One .NET host and disposable data directory per Playwright process. One worker preserves fixture isolation.
-const port = Number(process.env.SAP_LENS_BROWSER_TEST_PORT || 18745)
+const port = Number(process.env.AUTHLENS_BROWSER_TEST_PORT || 18745)
 
 export default defineConfig({
   testDir: './tests',

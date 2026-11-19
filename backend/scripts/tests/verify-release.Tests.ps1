@@ -4,7 +4,7 @@ Describe 'Release verification' {
     BeforeAll { . (Join-Path $PSScriptRoot 'ReleaseFixture.ps1') }
 
     It 'accepts an intact release' {
-        $path = Join-Path $TestDrive 'SAP-Lens-2-2.0.0-alpha.1-20261116-100000-abc1234-win-x64'; New-VerifiableRelease $path
+        $path = Join-Path $TestDrive 'AuthLens-2.0.0-alpha.1-20261116-100000-abc1234-win-x64'; New-VerifiableRelease $path
         $run = Invoke-Verify $path
         $run.Code | Should -Be 0
         $run.Output | Should -Match 'Release verified: 5 artifacts'
@@ -13,13 +13,13 @@ Describe 'Release verification' {
     It 'accepts the same contract for <Platform>, with its platform-specific executables' -ForEach @(
         @{ Platform = 'win-x64'; Artifacts = 5 }, @{ Platform = 'linux-x64'; Artifacts = 2 }
     ) {
-        $path = Join-Path $TestDrive "SAP-Lens-2.0.0-alpha.1-20261116-100000-aaaaaaa-$Platform"; New-VerifiableRelease $path $Platform
+        $path = Join-Path $TestDrive "AuthLens-2.0.0-alpha.1-20261116-100000-aaaaaaa-$Platform"; New-VerifiableRelease $path $Platform
         $run = Invoke-Verify $path
         $run.Code | Should -Be 0
         $run.Output | Should -Match "Release verified: $Artifacts artifacts, commit a{40}, built 2026-11-16T10:00:00Z for $Platform"
     }
 
-    It 'keeps verifying a release built before the rename to SAP Lens' {
+    It 'keeps verifying a release built before the rename to AuthLens' {
         $path = Join-Path $TestDrive 'SAP-Lens-2-2.0.0-alpha.1-20261117-100000-aaaaaaa-win-x64'; New-VerifiableRelease $path -Historical
         (Invoke-Verify $path).Code | Should -Be 0
     }
@@ -29,7 +29,7 @@ Describe 'Release verification' {
         @{ Name = 'Desktop native libraries'; Change = { param($m) $m.publish | Add-Member desktop_native_libraries 'bundled' }; Message = 'linux-x64: publish.desktop_native_libraries is listed' }
         @{ Name = 'the Windows server executable'; Change = { param($m) $m.executables.server = 'server/AuthLens.Api.exe' }; Message = 'linux-x64: executables.server is not server/AuthLens.Api' }
     ) {
-        $path = Join-Path $TestDrive "SAP-Lens-2.0.0-alpha.1-20261116-100000-aaaaaaa-$([guid]::NewGuid().ToString('n').Substring(0, 6))-linux-x64"; New-VerifiableRelease $path 'linux-x64'
+        $path = Join-Path $TestDrive "AuthLens-2.0.0-alpha.1-20261116-100000-aaaaaaa-$([guid]::NewGuid().ToString('n').Substring(0, 6))-linux-x64"; New-VerifiableRelease $path 'linux-x64'
         Edit-Manifest $path $Change
         $run = Invoke-Verify $path
         $run.Code | Should -Be 1
@@ -37,14 +37,14 @@ Describe 'Release verification' {
     }
 
     It 'refuses a folder name for another platform' {
-        $path = Join-Path $TestDrive 'SAP-Lens-2.0.0-alpha.1-20261116-100000-aaaaaaa-linux-x64'; New-VerifiableRelease $path 'win-x64'
+        $path = Join-Path $TestDrive 'AuthLens-2.0.0-alpha.1-20261116-100000-aaaaaaa-linux-x64'; New-VerifiableRelease $path 'win-x64'
         $run = Invoke-Verify $path
         $run.Code | Should -Be 1
         $run.Output | Should -Match 'does not end with the platform win-x64'
     }
 
     It 'refuses a folder name that carries another version' {
-        $path = Join-Path $TestDrive 'SAP-Lens-2-2.0.0-alpha.2-20261116-100000-abc1234-win-x64'; New-VerifiableRelease $path
+        $path = Join-Path $TestDrive 'AuthLens-2.0.0-alpha.2-20261116-100000-abc1234-win-x64'; New-VerifiableRelease $path
         $run = Invoke-Verify $path
         $run.Code | Should -Be 1
         $run.Output | Should -Match 'does not carry version 2.0.0-alpha.1'
@@ -59,7 +59,7 @@ Describe 'Release verification' {
         @{ Name = 'an invalid version'; Change = { param($p) $m = Get-Content (Join-Path $p 'build-manifest.json') -Raw | ConvertFrom-Json; $m.version = '0.0.0-experiment'; [System.IO.File]::WriteAllText((Join-Path $p 'build-manifest.json'), ($m | ConvertTo-Json -Depth 5)) }; Message = "manifest version '0.0.0-experiment' is not" }
         @{ Name = 'a missing required field'; Change = { param($p) Edit-Manifest $p { param($m) $m.PSObject.Properties.Remove('node') } }; Message = 'manifest field missing: node' }
         @{ Name = 'another schema'; Change = { param($p) Edit-Manifest $p { param($m) $m.schema = 2 } }; Message = "manifest schema '2' is not 1" }
-        @{ Name = 'another product'; Change = { param($p) Edit-Manifest $p { param($m) $m.product = 'Other' } }; Message = "manifest product 'Other' is not SAP Lens" }
+        @{ Name = 'another product'; Change = { param($p) Edit-Manifest $p { param($m) $m.product = 'Other' } }; Message = "manifest product 'Other' is not AuthLens" }
         @{ Name = 'a short commit id'; Change = { param($p) Edit-Manifest $p { param($m) $m.source_sha = 'abc1234' } }; Message = 'is not a 40-character commit id' }
         @{ Name = 'a channel that does not follow from the version'; Change = { param($p) Edit-Manifest $p { param($m) $m.channel = 'stable' } }; Message = "manifest channel 'stable' does not follow" }
         @{ Name = 'a dirty flag that is not a boolean'; Change = { param($p) Edit-Manifest $p { param($m) $m.source_dirty = 'no' } }; Message = 'source_dirty is not true or false' }
@@ -79,7 +79,7 @@ Describe 'Release verification' {
     }
 
     It 'refuses a server package in full scope and names each missing artifact' {
-        $path = Join-Path $TestDrive 'SAP-Lens-2.0.0-alpha.1-20261118-070450-aaaaaaa-win-x64'; New-HistoricalPackage $path
+        $path = Join-Path $TestDrive 'AuthLens-2.0.0-alpha.1-20261118-070450-aaaaaaa-win-x64'; New-HistoricalPackage $path
         $run = Invoke-Verify $path
         $run.Code | Should -Be 1
         $run.Output | Should -Match 'missing: desktop/AuthLens.exe'
@@ -91,7 +91,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
     BeforeAll { . (Join-Path $PSScriptRoot 'ReleaseFixture.ps1') }
 
     It 'verifies an undeclared package published before deployment-package.json, naming every omitted file' {
-        $path = Join-Path $TestDrive 'SAP-Lens-2.0.0-alpha.1-20261118-070450-aaaaaaa-win-x64'; New-HistoricalPackage $path
+        $path = Join-Path $TestDrive 'AuthLens-2.0.0-alpha.1-20261118-070450-aaaaaaa-win-x64'; New-HistoricalPackage $path
         $run = Invoke-Verify $path 'Server'
         $run.Code | Should -Be 0
         $run.Output | Should -Match 'server package \(undeclared: published before deployment-package.json existed\): 3 of 5 artifacts present and matching, 2 omitted'
@@ -132,7 +132,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
         AfterAll { Remove-Module AuthLens.Deploy -ErrorAction SilentlyContinue }
 
         It 'publishes the server package with its declaration, verifies it before it appears, and reuses it' {
-            $build = Join-Path $TestDrive 'build/SAP-Lens-2.0.0-alpha.1-20261119-055432-aaaaaaa-win-x64'; New-VerifiableRelease $build
+            $build = Join-Path $TestDrive 'build/AuthLens-2.0.0-alpha.1-20261119-055432-aaaaaaa-win-x64'; New-VerifiableRelease $build
             $config = [pscustomobject]@{ ReleasesRoot = (Join-Path $TestDrive 'releases') }
             $manifest = Get-Content (Join-Path $build 'build-manifest.json') -Raw | ConvertFrom-Json
             $published = Publish-SL2Release $config $build $manifest
@@ -150,7 +150,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
         }
 
         It 'never publishes an incomplete build: the staging copy is kept for inspection and no release appears' {
-            $build = Join-Path $TestDrive 'broken/SAP-Lens-2.0.0-alpha.1-20261119-060000-aaaaaaa-win-x64'; New-VerifiableRelease $build
+            $build = Join-Path $TestDrive 'broken/AuthLens-2.0.0-alpha.1-20261119-060000-aaaaaaa-win-x64'; New-VerifiableRelease $build
             Add-Content (Join-Path $build 'server/e_sqlite3.dll') 'corrupted after the build'
             $config = [pscustomobject]@{ ReleasesRoot = (Join-Path $TestDrive 'releases-broken') }
             $manifest = Get-Content (Join-Path $build 'build-manifest.json') -Raw | ConvertFrom-Json
@@ -161,7 +161,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
         }
 
         It 'refuses to reuse an existing folder of the same commit that does not verify, and leaves it unchanged' {
-            $build = Join-Path $TestDrive 'again/SAP-Lens-2.0.0-alpha.1-20261118-070450-aaaaaaa-win-x64'; New-VerifiableRelease $build
+            $build = Join-Path $TestDrive 'again/AuthLens-2.0.0-alpha.1-20261118-070450-aaaaaaa-win-x64'; New-VerifiableRelease $build
             $config = [pscustomobject]@{ ReleasesRoot = (Join-Path $TestDrive 'releases-existing') }
             $existing = Join-Path $config.ReleasesRoot (Split-Path $build -Leaf); New-HistoricalPackage $existing
             Remove-Item (Join-Path $existing 'server/e_sqlite3.dll')

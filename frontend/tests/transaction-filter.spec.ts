@@ -25,7 +25,7 @@ U7,ZC:XX:MISSING,G2,20200101,99991231
 `
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-transaction-filter-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-transaction-filter-'))
   const roleFile = path.join(directory, 'roles.csv'), userFile = path.join(directory, 'users.csv')
   writeFileSync(roleFile, roles); writeFileSync(userFile, users)
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings

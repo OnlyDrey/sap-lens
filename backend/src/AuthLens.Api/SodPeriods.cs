@@ -784,7 +784,7 @@ public static class SodPeriods
         var mode = (string)period["state"]! == "Draft" && empty ? "permanent" : "archive";
         var warnings = new JsonArray();
         if (frozen) warnings.Add("This period was approved or closed. Its frozen snapshot, approval record and decisions are retained but hidden from active work, matrices, comparisons and report generation.");
-        if (issued.Count > 0) warnings.Add("Reports already issued from this period stay valid outside SAP Lens. Their entries remain in the report log, but they cannot be regenerated from SAP Lens afterwards.");
+        if (issued.Count > 0) warnings.Add("Reports already issued from this period stay valid outside AuthLens. Their entries remain in the report log, but they cannot be regenerated from AuthLens afterwards.");
         if (dependents) warnings.Add("Reports that use this period as their comparison baseline keep their log entries; new comparisons against this period are no longer possible.");
         if (frozen || dependents) warnings.Add("Findings first seen in this period are classified as new rather than reopened in later comparisons.");
         return new JsonObject
@@ -1048,7 +1048,7 @@ public static class SodPeriods
             sb.Append(string.Join(';', values.Select(v => "\"" + V1Csv.Cell(v).Replace("\"", "\"\"", StringComparison.Ordinal) + "\""))).Append("\r\n");
         }
         http.Response.Headers.CacheControl = "no-store";
-        http.Response.Headers.ContentDisposition = $"attachment; filename=\"sap-lens-sod-{(actions ? "actions" : "reviews")}-{DateTime.Now:yyyy-MM-dd}.csv\"";
+        http.Response.Headers.ContentDisposition = $"attachment; filename=\"authlens-sod-{(actions ? "actions" : "reviews")}-{DateTime.Now:yyyy-MM-dd}.csv\"";
         return Results.Text(sb.ToString(), "text/csv; charset=utf-8", Encoding.UTF8);
     }
 }

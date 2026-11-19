@@ -50,7 +50,7 @@ async function source(page: Page) {
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-employees-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-employees-'))
   csv = path.join(directory, 'Employees Éxport.csv')
   writeFileSync(
     csv,
@@ -332,7 +332,7 @@ test('directory import and clear preserve independent catalogue filters, compari
   await page.getByRole('tab', { name: 'Employee Directory', exact: true }).click()
   await activateCSV(page,'employees',csv)
   await expect(page.getByRole('region', { name: 'Directory import preview' })).toHaveCount(0)
-  await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+  await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
   await expect(search).toHaveValue('finance')
   await expect(page.getByRole('button', { name: 'Remove from comparison', exact: true })).toHaveCount(1)
   expect((await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision).toBe(before)
@@ -340,7 +340,7 @@ test('directory import and clear preserve independent catalogue filters, compari
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: 'Clear source data', exact: true }).click()
   await expect(page.getByLabel('Employee Directory CSV location', { exact: true })).toHaveValue('')
-  await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+  await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
   await expect(search).toHaveValue('finance')
   await expect(page.getByRole('button', { name: 'Remove from comparison', exact: true })).toHaveCount(1)
   expect((await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision).toBe(before)

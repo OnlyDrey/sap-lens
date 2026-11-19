@@ -7,7 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { setTimeout as delay } from 'node:timers/promises'
 const root = fileURLToPath(new URL('../', import.meta.url))
 const dev = process.argv.includes('--dev')
-const port = Number(process.env.SAP_LENS_BROWSER_TEST_PORT || (dev ? 18744 : 18745))
+const port = Number(process.env.AUTHLENS_BROWSER_TEST_PORT || (dev ? 18744 : 18745))
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error('Invalid test port')
 const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-dotnet-browser-'))
 const token = 'synthetic-browser-capability-0000000000000000'
@@ -41,9 +41,9 @@ async function run(args, env) {
   return new Promise((resolve, reject) => { child.once('error', reject); child.once('exit', (code, signal) => resolve(code ?? (signal ? 1 : 0))) })
 }
 try {
-  const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('SAP_LENS_') && name !== 'DATA_CSV_PATH'))
-  const env = { ...inherited, SAP_LENS_BROWSER_DATA: directory, SAP_LENS_BROWSER_TOKEN: token,
-    SAP_LENS_BROWSER_TEST_PORT: String(port), DOTNET_CLI_TELEMETRY_OPTOUT: '1', MSBUILDDISABLENODEREUSE: '1' }
+  const inherited = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('AUTHLENS_') && name !== 'DATA_CSV_PATH'))
+  const env = { ...inherited, AUTHLENS_BROWSER_DATA: directory, AUTHLENS_BROWSER_TOKEN: token,
+    AUTHLENS_BROWSER_TEST_PORT: String(port), DOTNET_CLI_TELEMETRY_OPTOUT: '1', MSBUILDDISABLENODEREUSE: '1' }
   const project = 'backend/tests/AuthLens.BrowserHost/AuthLens.BrowserHost.csproj'
   let code = await run(['build', project, '-c', 'Release', '--nologo', '-v', 'quiet', '-nodeReuse:false', '-p:UseSharedCompilation=false'], env)
   if (!code && !stopping) code = await run(['backend/tests/AuthLens.BrowserHost/bin/Release/net10.0/AuthLens.BrowserHost.dll'], env)

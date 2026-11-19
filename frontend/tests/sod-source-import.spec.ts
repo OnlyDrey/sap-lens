@@ -10,7 +10,7 @@ let directory = '', good = ''
 test.setTimeout(120_000)
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-sod-import-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-sod-import-'))
   good = path.join(directory, 'matrix.csv'); writeFileSync(good, GOOD)
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   expect((await request.post('/api/data-sources/sod/select', { headers, data: { path: good, revision: settings.revision, mode: 'static' } })).ok()).toBeTruthy()

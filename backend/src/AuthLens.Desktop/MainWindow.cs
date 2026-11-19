@@ -18,7 +18,7 @@ internal sealed class MainWindow : Form
     public MainWindow(Uri origin, string token, string profile, ILogger log, string logFile)
     {
         (_origin, _token, _profile, _log, _logFile) = (origin, token, profile, log, logFile);
-        Text = "SAP Lens";
+        Text = "AuthLens";
         Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);   // the embedded application icon (assets/sap-lens.ico)
         Width = 1400;
         Height = 900;
@@ -35,7 +35,7 @@ internal sealed class MainWindow : Form
         }
         catch (WebView2RuntimeNotFoundException)
         {
-            Fail("The Microsoft Edge WebView2 Runtime is not installed. Install it from Microsoft or ask IT, then start SAP Lens again.");
+            Fail("The Microsoft Edge WebView2 Runtime is not installed. Install it from Microsoft or ask IT, then start AuthLens again.");
             return;
         }
         catch (Exception error)

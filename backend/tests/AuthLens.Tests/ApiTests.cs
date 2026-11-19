@@ -192,7 +192,7 @@ public sealed class ApiTests : IAsyncLifetime
         }
         var page = await _client.GetStringAsync("/");
         Assert.Contains(UiAssets.Marker, page);
-        Assert.Contains("<title>SAP Lens</title>", page);
+        Assert.Contains("<title>AuthLens</title>", page);
         Assert.DoesNotContain(_token, page);
     }
 

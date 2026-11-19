@@ -16,10 +16,10 @@ export function About() {
   })
   const info = query.data
   return (
-    <section className="settings-card space-y-4" aria-label="About SAP Lens">
+    <section className="settings-card space-y-4" aria-label="About AuthLens">
       <h2 className="settings-subheading">
         <Info size={18} />
-        SAP Lens
+        AuthLens
       </h2>
       <p>Local SAP role investigation and evidence-based account review.</p>
       {query.isError && (

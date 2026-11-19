@@ -36,7 +36,7 @@ public sealed partial class InstallerTests
         Assert.Equal("{{{#AppIdGuid}}", Setting(Desktop, "AppId"));
         Assert.Equal("{{{#AppIdGuid}}", Setting(Server, "AppId"));
         // Never v1's program folder.
-        Assert.Equal(@"{localappdata}\Programs\SAP Lens Desktop", Setting(Desktop, "DefaultDirName"));
+        Assert.Equal(@"{localappdata}\Programs\AuthLens Desktop", Setting(Desktop, "DefaultDirName"));
         Assert.Equal(@"C:\sap-lens", Setting(Server, "DefaultDirName"));
     }
 
@@ -45,9 +45,9 @@ public sealed partial class InstallerTests
     {
         Assert.All([Desktop, Server], s => Assert.Equal("{#ProductIcon}", Setting(s, "SetupIconFile")));
         Assert.All([Desktop, Server], s => Assert.Contains(@"#define ProductIcon RepoRoot + ""\assets\sap-lens.ico""", s));
-        Assert.All([Desktop, Server], s => Assert.Equal("SAP Lens", Setting(s, "VersionInfoProductName")));
-        Assert.Equal("SAP Lens", Setting(Desktop, "AppName"));
-        Assert.Equal("SAP Lens", Setting(Server, "AppName"));
+        Assert.All([Desktop, Server], s => Assert.Equal("AuthLens", Setting(s, "VersionInfoProductName")));
+        Assert.Equal("AuthLens", Setting(Desktop, "AppName"));
+        Assert.Equal("AuthLens", Setting(Server, "AppName"));
         var ico = File.ReadAllBytes(Path.Combine(Repo, "assets", "sap-lens.ico"));
         Assert.Equal([0, 0, 1, 0], ico[..4]);                                                  // ICONDIR, type icon
         var sizes = Enumerable.Range(0, BitConverter.ToUInt16(ico, 4)).Select(i => ico[6 + 16 * i] == 0 ? 256 : ico[6 + 16 * i]).Order().ToArray();
@@ -57,9 +57,9 @@ public sealed partial class InstallerTests
     [Fact]
     public void Installer_file_names_follow_the_product_version()
     {
-        Assert.Equal("SAP-Lens-{#FullVersion}-Setup", Setting(Desktop, "OutputBaseFilename"));
-        Assert.Equal("SAP-Lens-Server-{#FullVersion}-Setup", Setting(Server, "OutputBaseFilename"));
-        Assert.Equal("SAP-Lens-2.0.0-alpha.1-Setup", Setting(Desktop, "OutputBaseFilename").Replace("{#FullVersion}", ProductIdentity.Version));
+        Assert.Equal("AuthLens-{#FullVersion}-Setup", Setting(Desktop, "OutputBaseFilename"));
+        Assert.Equal("AuthLens-Server-{#FullVersion}-Setup", Setting(Server, "OutputBaseFilename"));
+        Assert.Equal("AuthLens-2.0.0-alpha.1-Setup", Setting(Desktop, "OutputBaseFilename").Replace("{#FullVersion}", ProductIdentity.Version));
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public sealed partial class InstallerTests
         Assert.All([Desktop, Server], s => Assert.DoesNotMatch(DeleteSection(), s));
         Assert.All([Desktop, Server], s => Assert.DoesNotMatch(Destructive(), s));
         Assert.All([Desktop, Server], s => Assert.Equal("no", Setting(s, "CloseApplications")));
-        Assert.DoesNotContain("SAP Lens\\data", Desktop + Server);
+        Assert.DoesNotContain("AuthLens\\data", Desktop + Server);
         // Desktop: per user, and Setup waits for a running Desktop (current or earlier folder) instead of closing it.
         Assert.Equal("lowest", Setting(Desktop, "PrivilegesRequired"));
         Assert.Equal($"{DesktopLocation.MutexName},{DesktopLocation.LegacyMutexName}", Setting(Desktop, "AppMutex"));

@@ -453,7 +453,7 @@ public static class V1SodCatalogue
                 V1Csv.Line(csv, values, cells: true);
             }
             http.Response.Headers.CacheControl = "no-store";
-            http.Response.Headers.ContentDisposition = $"attachment; filename=\"sap-lens-sod-catalogue-{DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.csv\"";
+            http.Response.Headers.ContentDisposition = $"attachment; filename=\"authlens-sod-catalogue-{DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.csv\"";
             return Results.Text(csv.ToString(), "text/csv; charset=utf-8", Encoding.UTF8);
         });
 
@@ -577,7 +577,7 @@ public static class V1SodCatalogue
             using var memory = new MemoryStream();
             stream.CopyTo(memory);
             http.Response.Headers.CacheControl = "no-store";
-            return Results.File(memory.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "sap-lens-sod-reference-template.xlsx");
+            return Results.File(memory.ToArray(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "authlens-sod-reference-template.xlsx");
         });
 
         api.MapGet("/sod/metadata", async (IServiceProvider services, CancellationToken ct) => Json(Lookup(await ContextAsync(services, ct))));

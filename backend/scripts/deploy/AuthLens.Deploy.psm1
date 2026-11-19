@@ -1,4 +1,4 @@
-# SAP Lens controlled deployment to a Windows host (build, validate, install service, deploy, verify, roll back, recover).
+# AuthLens controlled deployment to a Windows host (build, validate, install service, deploy, verify, roll back, recover).
 # Windows PowerShell 5.1 and PowerShell 7. Entry point: Deploy-AuthLens.ps1. Operator guide: docs/deployment/WINDOWS_DEPLOYMENT.md.
 #
 # Every operating-system action goes through a small function below (git, service control, the release link, HTTP, the server's own maintenance
@@ -495,7 +495,7 @@ function Publish-SL2Release($Config, [string]$Release, $Manifest) {
 
 # ---- service installation
 
-# Any other canonical/historical SAP Lens service on this host: never create a second service.
+# Any other canonical/historical AuthLens service on this host: never create a second service.
 function Get-SL2OtherService($Config) {
     if ($Config.ServiceName -cmatch '^(AuthLens\.Acceptance-[a-f0-9]{32})-(old|new)$') {
         $other = $Matches[1] + $(if ($Matches[2] -eq 'old') { '-new' } else { '-old' })
@@ -508,9 +508,9 @@ function Get-SL2OtherService($Config) {
 
 # Creates the service (automatic start, its virtual account, restart on failure) or, for an existing one, sets its command line and account.
 function Set-SL2ServiceEntry($Config, [string]$Binary, [bool]$Exists, [string]$StartMode = 'auto') {
-    $displayName = if ($Config.ServiceName -cmatch '^AuthLens\.Acceptance-[a-f0-9]{32}-(old|new)$') { $Config.ServiceName } else { 'SAP Lens' }
+    $displayName = if ($Config.ServiceName -cmatch '^AuthLens\.Acceptance-[a-f0-9]{32}-(old|new)$') { $Config.ServiceName } else { 'AuthLens' }
     if (-not $Exists) {
-        New-Service -Name $Config.ServiceName -DisplayName $displayName -BinaryPathName $Binary -StartupType Manual -Description 'SAP Lens (.NET) server' | Out-Null
+        New-Service -Name $Config.ServiceName -DisplayName $displayName -BinaryPathName $Binary -StartupType Manual -Description 'AuthLens (.NET) server' | Out-Null
     }
     foreach ($arguments in @(@('config', $Config.ServiceName, 'binPath=', $Binary, 'start=', $StartMode, 'DisplayName=', $displayName), @('config', $Config.ServiceName, 'obj=', $Config.ServiceAccount),
             @('failure', $Config.ServiceName, 'reset=', '86400', 'actions=', 'restart/60000/restart/60000//'))) {
@@ -524,7 +524,7 @@ function Install-SL2Service($Config, [switch]$Reconfigure) {
     $service = Get-SL2Service $Config.ServiceName
     if ($service.Exists -and -not $Reconfigure) { Stop-SL2 "Service $($Config.ServiceName) exists; use -Reconfigure to update its command line and permissions." }
     $other = Get-SL2OtherService $Config
-    if (-not $service.Exists -and $other) { Stop-SL2 "Service $other already runs SAP Lens on this host; a second service is never created. Remove 'ServiceName' from $($Config.ConfigFile) to use $other, or rename it with -Action MigrateService." }
+    if (-not $service.Exists -and $other) { Stop-SL2 "Service $other already runs AuthLens on this host; a second service is never created. Remove 'ServiceName' from $($Config.ConfigFile) to use $other, or rename it with -Action MigrateService." }
     if (-not (Get-SL2Link (Get-SL2CurrentLink $Config))) { Stop-SL2 'No release is linked yet: run the build action and then deploy with -FirstInstall, which installs the service.' }
     $listeners = @(Get-SL2Listener $Config.ListenAddress ([int]$Config.Port))
     $owned = $service.Exists -and $service.ProcessId -gt 0 -and ($listeners -contains $service.ProcessId)
@@ -630,7 +630,7 @@ function Test-SL2RollbackSafe($Config, [string]$ReleaseFolder, $AppliedBefore, [
 function Write-SL2RecoveryInstructions($Config, $Journal, [string]$Reason) {
     $backup = if ($Journal.PSObject.Properties['backup'] -and $Journal.backup) { "$($Journal.backup.file) (SHA-256 $($Journal.backup.sha256))" } else { 'none was taken in this run (no database existed, or this is a manual rollback); use the newest verified backup' }
     $text = @"
-SAP Lens deployment $($Journal.run) needs a manual decision. Nothing further was changed automatically.
+AuthLens deployment $($Journal.run) needs a manual decision. Nothing further was changed automatically.
 
 Reason: $Reason
 Service: $($Config.ServiceName) is stopped. Linked release: $(Get-SL2Link (Get-SL2CurrentLink $Config))
@@ -710,7 +710,7 @@ function Invoke-SL2Deploy($Config, [string]$ReleaseFolder, [string]$Commit, [swi
     }
     $newExe = Join-SL2 (Join-SL2 $ReleaseFolder 'server') $script:Exe
     $schema = Invoke-SL2Maintenance $newExe @('--schema-info', '--data-dir', $Config.DataDirectory)
-    if (-not $schema.compatible) { Stop-SL2 ('The data directory was written by a newer SAP Lens build (unknown migrations: {0}); this release would refuse it.' -f (@($schema.unknown_applied) -join ', ')) }
+    if (-not $schema.compatible) { Stop-SL2 ('The data directory was written by a newer AuthLens build (unknown migrations: {0}); this release would refuse it.' -f (@($schema.unknown_applied) -join ', ')) }
     $journal = [pscustomobject]@{
         run = $script:RunId; commit = $Commit; version = $manifest.version; to_release = $ReleaseFolder; from_release = $previous
         service_state_before = $service.State; applied_before = @($schema.applied); backup = $null; phase = 'prepared'; history = @(); updated = ''

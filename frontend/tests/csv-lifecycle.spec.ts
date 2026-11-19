@@ -46,7 +46,7 @@ async function refresh(page: Page) {
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  root = mkdtempSync(path.join(tmpdir(), 'sap-lens-lifecycle-'))
+  root = mkdtempSync(path.join(tmpdir(), 'authlens-lifecycle-'))
   roles = path.join(root, 'roles.csv')
   users = path.join(root, 'users.csv')
   directory = path.join(root, 'Employees ø.csv')
@@ -130,7 +130,7 @@ test('refresh reports full removals, traps dialog focus and retains history afte
   const download = page.waitForEvent('download')
   await dialog.getByRole('button', { name: 'Export changes CSV' }).click()
   expect((await download).suggestedFilename()).toBe(
-    'SAP-Lens-refresh-changes.csv',
+    'AuthLens-refresh-changes.csv',
   )
   await dialog.getByRole('button', { name: 'Close', exact: true }).focus()
   await page.keyboard.press('Tab')
@@ -287,7 +287,7 @@ test('change CSV export uses the authenticated native save bridge without browse
   expect(calls).toHaveLength(1)
   expect(calls[0].token).toBe('browser-test-session')
   expect(calls[0].filename).toMatch(
-    /^sap-lens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv$/,
+    /^authlens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv$/,
   )
   expect(calls[0].content).toContain(
     '\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n',

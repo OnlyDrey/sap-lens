@@ -1,10 +1,10 @@
-; SAP Lens Server (.NET) machine-wide installer. Built by scripts/build-installers.ps1 from a verified release folder (build-release.ps1):
+; AuthLens Server (.NET) machine-wide installer. Built by scripts/build-installers.ps1 from a verified release folder (build-release.ps1):
 ;   ISCC /DFullVersion=2.0.0-alpha.1 /DNumericVersion=2.0.0.1 /DReleaseDir=<release folder> AuthLens-Server.iss
 ; Installs the server files into {app}\server. It never creates, reconfigures or deletes a Windows service and never touches a data directory (the
 ; server's --data-dir is always outside {app}). On upgrade, a sap-lens (or historical AuthLens/SapLens2) service whose executable is in {app} is stopped through the
 ; Service Control Manager before the files are replaced and started again afterwards; no process is ever killed. A service that runs a managed
 ; release elsewhere (scripts/deploy) is left alone. Uninstall is refused while a service still runs from {app}.
-; Silent: SAP-Lens-Server-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART [/LOG=<file>]
+; Silent: AuthLens-Server-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART [/LOG=<file>]
 #ifndef FullVersion
   #error FullVersion is required
 #endif
@@ -16,15 +16,15 @@
 #endif
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
 #define ProductIcon RepoRoot + "\assets\sap-lens.ico"
-#define AppIdGuid "F11EE7F5-465D-42C3-9781-85149985043C"
-#define VersionKey "Software\SAP Lens\Server"
+#define AppIdGuid "B961C010-9B53-4514-9D2A-73A4641E4AAF"
+#define VersionKey "Software\AuthLens\Server"
 
 [Setup]
 AppId={{{#AppIdGuid}}
-AppName=SAP Lens
+AppName=AuthLens
 AppVersion={#FullVersion}
-AppVerName=SAP Lens {#FullVersion}
-AppPublisher=SAP Lens
+AppVerName=AuthLens {#FullVersion}
+AppPublisher=AuthLens
 DefaultDirName=C:\sap-lens
 UsePreviousAppDir=yes
 DisableDirPage=auto
@@ -38,16 +38,16 @@ Compression=lzma2
 SolidCompression=yes
 SetupIconFile={#ProductIcon}
 UninstallDisplayIcon={app}\server\AuthLens.Api.exe
-UninstallDisplayName=SAP Lens Server
+UninstallDisplayName=AuthLens Server
 CloseApplications=no
 RestartApplications=no
 VersionInfoVersion={#NumericVersion}
 VersionInfoTextVersion={#FullVersion}
-VersionInfoProductName=SAP Lens
+VersionInfoProductName=AuthLens
 VersionInfoProductVersion={#NumericVersion}
 VersionInfoProductTextVersion={#FullVersion}
-VersionInfoDescription=SAP Lens Server Setup
-OutputBaseFilename=SAP-Lens-Server-{#FullVersion}-Setup
+VersionInfoDescription=AuthLens Server Setup
+OutputBaseFilename=AuthLens-Server-{#FullVersion}-Setup
 
 [Files]
 Source: "{#ReleaseDir}\server\AuthLens.Api.exe"; DestDir: "{app}\server"; Flags: ignoreversion
@@ -59,7 +59,7 @@ Source: "{#ReleaseDir}\build-manifest.json"; DestDir: "{app}"; Flags: ignorevers
 Source: "{#RepoRoot}\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\SAP Lens Service Manager"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -File ""{app}\Service-Manager.ps1"""; WorkingDir: "{app}"
+Name: "{group}\AuthLens Service Manager"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -File ""{app}\Service-Manager.ps1"""; WorkingDir: "{app}"
 
 [Registry]
 Root: HKLM; Subkey: "{#VersionKey}"; ValueType: string; ValueName: "FileVersion"; ValueData: "{#NumericVersion}"; Flags: uninsdeletekey
@@ -96,12 +96,12 @@ begin
   Result := True;
   if RegQueryStringValue(HKLM, '{#VersionKey}', 'FileVersion', Installed) and StrToVersion(Installed, InstalledVersion) and
      StrToVersion('{#NumericVersion}', ThisVersion) and (ComparePackedVersion(ThisVersion, InstalledVersion) < 0) then begin
-    SuppressibleMsgBox('A newer SAP Lens Server (' + Installed + ') is installed. Downgrades are not supported; nothing was changed.', mbError, MB_OK, IDOK);
+    SuppressibleMsgBox('A newer AuthLens Server (' + Installed + ') is installed. Downgrades are not supported; nothing was changed.', mbError, MB_OK, IDOK);
     Result := False;
   end;
 end;
 
-// Stops (graceful, through the Service Control Manager; net stop waits for the stop) every SAP Lens service that runs from {app}.
+// Stops (graceful, through the Service Control Manager; net stop waits for the stop) every AuthLens service that runs from {app}.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var Names: TArrayOfString; I, ExitCode: Integer;
 begin

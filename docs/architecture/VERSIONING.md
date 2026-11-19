@@ -13,16 +13,16 @@ and the `SAPLENS2_DEPLOY_CONFIG` variable (still read). The full list is the nam
 
 ## Naming register
 
-Canonical names: product and display name **SAP Lens**; environment variables `SAP_LENS_*` (Server) and `SAPLENS_*_CONFIG` (operator scripts);
+Canonical names: product and display name **SAP Lens**; environment variables `AUTHLENS_*` (Server) and `SAPLENS_*_CONFIG` (operator scripts);
 Windows ServiceName `sap-lens`, DisplayName `SAP Lens`; installation `C:\sap-lens`, deployment `C:\sap-lens\deploy`, releases `C:\sap-lens\releases`;
 service data `C:\ProgramData\sap-lens\data`, backups `C:\ProgramData\sap-lens\predeploy-backups`, TLS `C:\ProgramData\sap-lens\tls`.
 Historical service names are read for source compatibility and duplicate-service detection; new installations and production migration targets use
 only the canonical name. Configuration conversion is an explicit read-only plan, never an automatic service rename.
 
-**Environment variables renamed (2026-11-18, configuration contract):** the Server's `SAP_LENS_V2_*` variables are now `SAP_LENS_*` (for example
-`SAP_LENS_DATA_DIR`, `SAP_LENS_NETWORK`, `SAP_LENS_BACKUP_KEY_FILE`). The old names are not read. A Server that still finds a `SAP_LENS_V2_*`
+**Environment variables renamed (2026-11-18, configuration contract):** the Server's `SAP_LENS_V2_*` variables are now `AUTHLENS_*` (for example
+`AUTHLENS_DATA_DIR`, `AUTHLENS_NETWORK`, `AUTHLENS_BACKUP_KEY_FILE`). The old names are not read. A Server that still finds a `SAP_LENS_V2_*`
 variable refuses to start (exit code 3) and names each replacement, so a renamed setting is never silently ignored. SAP Lens 1 used some of the
-same `SAP_LENS_*` names (`SAP_LENS_DATA_DIR`, `SAP_LENS_PORT`, `SAP_LENS_BACKUP_KEY_FILE`): on a host that still has SAP Lens 1 variables set at
+same `AUTHLENS_*` names (`AUTHLENS_DATA_DIR`, `AUTHLENS_PORT`, `AUTHLENS_BACKUP_KEY_FILE`): on a host that still has SAP Lens 1 variables set at
 machine level, remove or scope them before starting the .NET Server, because it now reads them. The test launcher's `SAPLENS2_TEST_CONFIG` is
 now `SAPLENS_TEST_CONFIG` (its earlier `C:\saplens2` defaults are gone; pass `-ConfigFile` for an old file).
 

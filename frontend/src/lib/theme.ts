@@ -20,7 +20,7 @@ export const defaultLight: ThemePalette = {
   text: '#182c53'
 }
 export const themePresets: ThemePreset[] = [
-  { name: 'SAP Lens Default', mode: 'dark', colors: defaultDark },
+  { name: 'AuthLens Default', mode: 'dark', colors: defaultDark },
   {
     name: 'Midnight Blue',
     mode: 'dark',

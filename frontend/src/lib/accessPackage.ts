@@ -67,4 +67,4 @@ export interface Naming { suffixes: { value: string; roles: number }[]; evidence
 const body = (value: PackageState) => ({ default_suffix: value.defaultSuffix, items: value.items.map((item) => ({ role: item.role, suffix: item.suffix, source: item.source })) })
 export const previewPackage = (value: PackageState) => apiRequest<PackagePreview>('/api/roles/package/preview', 'POST', body(value))
 export const fetchNaming = () => apiRequest<Naming>('/api/roles/naming')
-export const exportPackage = (value: PackageState) => downloadFile('/api/roles/package/export', { method: 'POST', body: body(value), namePattern: /^sap-lens-access-package-\d{4}-\d{2}-\d{2}\.csv$/, kind: 'csv', nativeCsv: 'save_role_package_csv' })
+export const exportPackage = (value: PackageState) => downloadFile('/api/roles/package/export', { method: 'POST', body: body(value), namePattern: /^authlens-access-package-\d{4}-\d{2}-\d{2}\.csv$/, kind: 'csv', nativeCsv: 'save_role_package_csv' })

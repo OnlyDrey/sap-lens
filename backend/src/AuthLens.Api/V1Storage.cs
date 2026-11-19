@@ -6,7 +6,7 @@ using AuthLens.Persistence;
 
 namespace AuthLens.Api;
 
-/// <summary>Port of routers/storage.py (status, migration/confirm, migration/delete-backup) on the SAP Lens database. The pre-migration backup is the
+/// <summary>Port of routers/storage.py (status, migration/confirm, migration/delete-backup) on the AuthLens database. The pre-migration backup is the
 /// verified SQLite copy DatabaseMaintenance takes before applying schema migrations (BackupKind.Migration). Confirming that the upgrade works keeps it; only
 /// an explicit administrator deletion of a confirmed migration backup removes it, and no automatic retention ever does. The identifier is the first 32 hex
 /// characters of the copy's SHA-256.</summary>

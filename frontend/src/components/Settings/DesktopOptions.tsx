@@ -15,9 +15,9 @@ export function DesktopOptions({draft,onChange}:{draft:Configuration;onChange:(v
   <h2 className="settings-subheading"><WindowsIcon/>Windows Desktop</h2>
   <p className="ui-description">These options apply only to the Windows Desktop application. The Windows service and Linux server deployments have no window or tray.</p>
   <Toggle label="Minimize to System Tray on Close" checked={value.close_to_tray} onChange={enabled=>patch({close_to_tray:enabled,...(!enabled?{start_minimized:false}:{})})}/>
-  <p className="ui-description">Closing hides the window only when the tray icon and backend are ready. Use Exit SAP Lens in the tray menu to stop the application.</p>
+  <p className="ui-description">Closing hides the window only when the tray icon and backend are ready. Use Exit AuthLens in the tray menu to stop the application.</p>
   <div className="flex flex-col items-start gap-3">
-  <Checkbox checked={value.run_at_signin} disabled={!runtime.data.startup_supported&&!value.run_at_signin} onChange={event=>patch({run_at_signin:event.target.checked})}>Start SAP Lens at Windows sign-in</Checkbox>
+  <Checkbox checked={value.run_at_signin} disabled={!runtime.data.startup_supported&&!value.run_at_signin} onChange={event=>patch({run_at_signin:event.target.checked})}>Start AuthLens at Windows sign-in</Checkbox>
   <Checkbox checked={value.start_minimized} disabled={!value.close_to_tray} onChange={event=>patch({start_minimized:event.target.checked})}>Start minimized to the system tray</Checkbox>
   </div>
   {!runtime.data.startup_supported&&<p className="ui-description">Sign-in startup requires the packaged Windows EXE.</p>}

@@ -1,4 +1,4 @@
-# Pester 5 tests of the SAP Lens Windows deployment state machine (scripts/deploy/AuthLens.Deploy.psm1). Every operating-system action (service
+# Pester 5 tests of the AuthLens Windows deployment state machine (scripts/deploy/AuthLens.Deploy.psm1). Every operating-system action (service
 # control, the release link, HTTP, git, the server's maintenance commands) is mocked; folders live in TestDrive. Nothing is installed or started.
 BeforeAll {
     . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
@@ -323,9 +323,9 @@ Describe 'Service installation and host safety' {
         Should -Invoke -ModuleName $M New-Service -Times 1 -ParameterFilter { $Name -eq $DisplayName -and $Name -like 'AuthLens.Acceptance-*-old' }
         $config.ServiceName = 'sap-lens'
         Set-SL2ServiceEntry $config 'synthetic' $false 'demand'
-        Should -Invoke -ModuleName $M New-Service -Times 1 -ParameterFilter { $Name -eq 'sap-lens' -and $DisplayName -eq 'SAP Lens' }
+        Should -Invoke -ModuleName $M New-Service -Times 1 -ParameterFilter { $Name -eq 'sap-lens' -and $DisplayName -eq 'AuthLens' }
         Should -Invoke -ModuleName $M Invoke-SL2Process -Times 1 -ParameterFilter {
-            $File -eq 'sc.exe' -and $Arguments[1] -eq 'sap-lens' -and $Arguments -contains 'DisplayName=' -and $Arguments[-1] -eq 'SAP Lens'
+            $File -eq 'sc.exe' -and $Arguments[1] -eq 'sap-lens' -and $Arguments -contains 'DisplayName=' -and $Arguments[-1] -eq 'AuthLens'
         }
     }
     It 'refuses to install while another process holds the port and never stops it' {
@@ -521,13 +521,13 @@ Describe 'Semantic comparison of service arguments' {
     }
 
     It 'reads quoted paths with spaces from a service command line and compares paths without regard to case' {
-        $spaced = With (With $script:Base '--data-dir' 'C:\Program Data\SAP Lens\data') '--cert' 'C:\Program Data\SAP Lens\tls\server.pfx'
-        $line = '"C:\Program Files\SAP Lens Server\server\AuthLens.Api.exe" ' + (($spaced | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' ')
+        $spaced = With (With $script:Base '--data-dir' 'C:\Program Data\AuthLens\data') '--cert' 'C:\Program Data\AuthLens\tls\server.pfx'
+        $line = '"C:\Program Files\AuthLens Server\server\AuthLens.Api.exe" ' + (($spaced | ForEach-Object { if ($_ -match '\s') { '"' + $_ + '"' } else { $_ } }) -join ' ')
         $tokens = @(Split-SL2CommandLine $line)
-        $tokens[0] | Should -Be 'C:\Program Files\SAP Lens Server\server\AuthLens.Api.exe'
+        $tokens[0] | Should -Be 'C:\Program Files\AuthLens Server\server\AuthLens.Api.exe'
         @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) $spaced).Count | Should -Be 0
-        @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) (With $spaced '--data-dir' 'c:\program data\sap lens\DATA')).Count | Should -Be 0
-        @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) (With $spaced '--data-dir' 'C:\Program Data\SAP Lens\data2')).Count | Should -Be 1
+        @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) (With $spaced '--data-dir' 'c:\program data\authlens\DATA')).Count | Should -Be 0
+        @(Compare-SL2ServiceArguments @($tokens | Select-Object -Skip 1) (With $spaced '--data-dir' 'C:\Program Data\AuthLens\data2')).Count | Should -Be 1
     }
 
     It 'compares listen and proxy addresses as IP addresses' {

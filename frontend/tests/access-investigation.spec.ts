@@ -12,7 +12,7 @@ test.beforeEach(async ({ request }) => {
   expect(
     (await request.post("/api/configuration/reset", { headers })).ok(),
   ).toBeTruthy();
-  directory = mkdtempSync(path.join(tmpdir(), "sap-lens-access-"));
+  directory = mkdtempSync(path.join(tmpdir(), "authlens-access-"));
   const file = path.join(directory, "catalogue.csv");
   writeFileSync(file, catalogue);
   const settings = (
@@ -262,7 +262,7 @@ test("user CSV detection preview and independent custom preset create rename dup
     .getByRole("button", { name: "Apply settings", exact: true })
     .click();
   await expect(
-    page.getByRole("region", { name: "SAP Lens settings", exact: true }),
+    page.getByRole("region", { name: "AuthLens settings", exact: true }),
   ).toBeHidden();
   const after = (
     await (await request.get("/api/configuration", { headers })).json()

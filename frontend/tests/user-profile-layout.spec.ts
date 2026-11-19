@@ -37,7 +37,7 @@ for (const theme of DEFAULT_THEME_ONLY) test(`desktop profile layout ${theme}`, 
   const button = group && profile.getByRole('button', { name: 'Assign group' })
   await expect(button!.locator('svg.lucide-users-round')).toHaveCount(1)
   await profile.getByText('About Functional Groups').click()
-  await expect(profile).toContainText('Functional Groups are maintained in SAP Lens')
+  await expect(profile).toContainText('Functional Groups are maintained in AuthLens')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 })
 

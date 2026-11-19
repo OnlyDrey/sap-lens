@@ -4,7 +4,7 @@ sod_scope.model_for / review_model_for, with captured()'s enrichment). Usage:
 python -I tools/sod_decision_items_reference.py BACKEND_DIR DATA_DIR AS_OF OUT.json"""
 import hashlib, json, os, sys, tempfile
 from datetime import date
-os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, data, as_of, out = sys.argv[1:5]
 sys.path.insert(0, backend)
 import cache

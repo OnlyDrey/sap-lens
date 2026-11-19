@@ -3,7 +3,7 @@ Derives synthetic case files from the SoD analysis fixtures, writes them to FIXT
 v1's route bodies return for each: the same CsvImport.inspect_header, cache._build_catalog(...).import_report and build_users(...).report calls
 and the same error mapping as configuration_routes.py. Usage: python -I tools/import_preview_reference.py BACKEND_DIR FIXTURE_DIR"""
 import json, os, shutil, sys, tempfile
-os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, fixtures = sys.argv[1:3]
 sys.path.insert(0, backend)
 from pathlib import Path

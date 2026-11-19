@@ -6,7 +6,7 @@ import { headers, openFilters, closeFilters, backendFixture } from './support'
 let directory = ''
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-ui-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-ui-'))
   const source = path.join(directory, 'roles.csv')
   writeFileSync(source, 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:BUY,ME23N\nFI,ZC:FI:VIEW:*,Accounting,ZS:VIEW,FB03\n')
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings

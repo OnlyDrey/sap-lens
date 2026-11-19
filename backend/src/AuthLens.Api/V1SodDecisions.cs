@@ -547,7 +547,7 @@ public static partial class V1SodDecisions
         result["user"] = user;
         foreach (var (k, v) in simulation) result[k] = v?.DeepClone();
         result["policy"] = SodSource.EvaluationPolicy;
-        result["note"] = "Simulation only: SAP Lens does not change SAP. A removal recommendation is not confirmed removal.";
+        result["note"] = "Simulation only: AuthLens does not change SAP. A removal recommendation is not confirmed removal.";
         return Json(result);
     }
 

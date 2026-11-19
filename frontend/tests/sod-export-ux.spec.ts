@@ -58,7 +58,7 @@ test('exports announce globally without shifting the page; success fades and err
   const before = await top()
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
   const notice = page.locator('.export-notice')
-  await expect(notice).toContainText('Exported sap-lens-sod-explorer-user-risk')
+  await expect(notice).toContainText('Exported authlens-sod-explorer-user-risk')
   expect(await notice.evaluate((node) => getComputedStyle(node).position)).toBe('fixed')
   expect(await top()).toBe(before)
   await page.clock.runFor(10_000)

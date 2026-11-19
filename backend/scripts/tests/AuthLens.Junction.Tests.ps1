@@ -27,7 +27,7 @@ Describe 'Bounded source releases/current junction' -Skip:([IO.Path]::DirectoryS
         $script:Approved = @($script:Root)
         foreach ($name in 'data', 'backups', 'tls', 'work', 'releases') { New-Item -ItemType Directory (Join-Path $script:Install $name) -Force | Out-Null }
         Set-Content (Join-Path $script:Install 'deploy.local.json') '{}'
-        $script:Release = New-FixtureRelease 'SAP-Lens-2.0.0-alpha.1-synthetic-win-x64'
+        $script:Release = New-FixtureRelease 'AuthLens-2.0.0-alpha.1-synthetic-win-x64'
         $script:Current = Join-Path $script:Releases 'current'
         New-FixtureJunction $script:Current $script:Release
         $script:Config = [pscustomobject]@{ ConfigFile = (Join-Path $script:Install 'deploy.local.json'); ServiceAccount = 'LocalSystem'

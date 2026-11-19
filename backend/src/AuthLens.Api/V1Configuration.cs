@@ -38,7 +38,7 @@ public static class V1Configuration
         // The logo travels only in a private export, as its validated image; a missing or altered file drops the reference (v1).
         var image = includePrivate ? logos?.Read((string?)current["logo_id"]) : null;
         exported["logo_id"] = image is null ? null : current["logo_id"]?.DeepClone();
-        return new JsonObject { ["format"] = "SAP Lens configuration", ["package_version"] = 1, ["settings"] = exported, ["logo_base64"] = image is null ? null : Convert.ToBase64String(image) };
+        return new JsonObject { ["format"] = "AuthLens configuration", ["package_version"] = 1, ["settings"] = exported, ["logo_base64"] = image is null ? null : Convert.ToBase64String(image) };
     }
 
     /// <summary>portable_config.read_portable plus the import route: validates the package and returns the settings to apply, or the refusal.</summary>
@@ -48,8 +48,8 @@ public static class V1Configuration
         if (body is not JsonObject package) return (null, Detail(422, "A configuration package is required."));
         foreach (var (key, _) in package)
             if (key is not ("format" or "package_version" or "settings" or "logo_base64")) return (null, Detail(422, $"Unknown package field '{key}'."));
-        if (package.TryGetPropertyValue("format", out var format) && (format?.GetValueKind() != JsonValueKind.String || (string?)format != "SAP Lens configuration"))
-            return (null, Detail(422, "format must be 'SAP Lens configuration'."));
+        if (package.TryGetPropertyValue("format", out var format) && (format?.GetValueKind() != JsonValueKind.String || (string?)format is not ("AuthLens configuration" or "SAP Lens configuration")))
+            return (null, Detail(422, "format must be 'AuthLens configuration'."));
         if (package.TryGetPropertyValue("package_version", out var version) && (version is not JsonValue v || !v.TryGetValue<int>(out var number) || number != 1))
             return (null, Detail(422, "package_version must be 1."));
         if (package["settings"] is not JsonObject settings) return (null, Detail(422, "settings is required."));

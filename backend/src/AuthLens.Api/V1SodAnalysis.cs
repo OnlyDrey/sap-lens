@@ -278,7 +278,7 @@ public static class V1SodAnalysis
                             (string?)references["sod"]?["snapshot"] ?? "", (string?)references["roles"]?["snapshot"] ?? "", (string?)references["users"]?["snapshot"] ?? ""], cells: true);
             var headers = http.Response.Headers;
             headers.CacheControl = "no-store";
-            headers.ContentDisposition = $"attachment; filename=\"sap-lens-sod-{query!.Kind}-findings-{result.AsOf}.csv\"";
+            headers.ContentDisposition = $"attachment; filename=\"authlens-sod-{query!.Kind}-findings-{result.AsOf}.csv\"";
             headers["X-SAP-Lens-Data-Generation"] = result.Generation;
             headers["X-SAP-Lens-As-Of"] = result.AsOf;
             headers["X-SAP-Lens-Finding-Count"] = rows.Count.ToString(CultureInfo.InvariantCulture);

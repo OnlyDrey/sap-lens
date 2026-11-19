@@ -15,13 +15,13 @@ def check(root=ROOT):
     assert not experiments, f'Experimental code was consolidated into backend/ and scripts/; tracked files under experiments/: {experiments[:3]}'
     for path in ('Dockerfile', 'compose.yml', '.dockerignore', 'backend/scripts/docker'):
         assert not (root / path).exists(), f'Docker support was removed (no supported use); unexpected {path}'
-    # The Server's environment variables are SAP_LENS_*; SAP_LENS_V2_* is named only by the startup guard, its test, the key-file detection of
+    # The Server's environment variables are AUTHLENS_*; SAP_LENS_V2_* is named only by the startup guard, its test, the key-file detection of
     # the deployment migration and the naming register (docs/architecture/VERSIONING.md).
     allowed_v2 = {'backend/src/AuthLens.Api/ServerConfiguration.cs', 'backend/tests/AuthLens.Tests/NetworkTests.cs',
                   'backend/scripts/deploy/AuthLens.Migration.ps1', 'docs/architecture/VERSIONING.md'}
     v2 = subprocess.run(['git', '-C', str(root), 'grep', '-l', '-i', 'SAP_LENS_V2_', '--', '.', ':!scripts/check-structure.py'],
                         capture_output=True, text=True, check=False).stdout.split()
-    assert not set(v2) - allowed_v2, f'The SAP_LENS_V2_ prefix was renamed to SAP_LENS_; found in: {sorted(set(v2) - allowed_v2)}'
+    assert not set(v2) - allowed_v2, f'The SAP_LENS_V2_ prefix was renamed to AUTHLENS_; found in: {sorted(set(v2) - allowed_v2)}'
     tracked = subprocess.run(['git', '-C', str(root), 'ls-files', '--', 'legacy'], capture_output=True, text=True, check=False).stdout.split()
     assert not tracked, f'SAP Lens 1 is archived outside the repository; tracked files under legacy/: {tracked[:3]}'
     version = json.loads((root / 'backend/product-version.json').read_text())['version']

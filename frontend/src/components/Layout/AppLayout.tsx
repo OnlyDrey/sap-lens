@@ -101,7 +101,7 @@ export function AppLayout({
               alt={
                 organization?.name.trim() && customLogo?.data_url
                   ? `${organization.name} logo`
-                  : 'SAP Lens'
+                  : 'AuthLens'
               }
               className="h-12 w-auto max-w-40 object-contain flex-shrink-0"
               onError={(e) => {
@@ -112,9 +112,9 @@ export function AppLayout({
             <div>
               <p
                 className="text-[var(--on-primary)] text-md leading-tight font-semibold truncate max-w-[38vw]"
-                title={organization?.name.trim() || 'SAP Lens'}
+                title={organization?.name.trim() || 'AuthLens'}
               >
-                {organization?.name.trim() || 'SAP Lens'}
+                {organization?.name.trim() || 'AuthLens'}
               </p>
               <p
                 className="text-[10px] font-semibold tracking-widest uppercase"

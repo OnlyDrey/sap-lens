@@ -27,7 +27,7 @@ function Test-SL2PathOverlap([string]$Left, [string]$Right) {
 function Get-SL2MigrationKey($Source) {
     # An environment override could make a copied pointer select a different key after cutover. SAP_LENS_V2_BACKUP_KEY_FILE is the name used
     # before the rename (migration-only detection: a host still carrying it is refused until it is reconciled).
-    $overrides = foreach ($name in 'SAP_LENS_BACKUP_KEY_FILE', 'SAP_LENS_V2_BACKUP_KEY_FILE') {
+    $overrides = foreach ($name in 'AUTHLENS_BACKUP_KEY_FILE', 'SAP_LENS_V2_BACKUP_KEY_FILE') {
         [Environment]::GetEnvironmentVariable($name); [Environment]::GetEnvironmentVariable($name, 'Machine')
     }
     if (@($overrides | Where-Object { $_ }).Count -gt 0) {
@@ -57,7 +57,7 @@ function Test-SL2MigrationTls($Source) {
 
 function Test-SL2MigrationEnvironment([string]$ServiceName) {
     $machine = [Environment]::GetEnvironmentVariables('Machine')
-    foreach ($name in $machine.Keys) { if ($name -like 'SAP_LENS_*') { Stop-SL2 'Machine-level SAP Lens environment overrides require manual reconciliation before migration.' } }
+    foreach ($name in $machine.Keys) { if ($name -like 'AUTHLENS_*') { Stop-SL2 'Machine-level AuthLens environment overrides require manual reconciliation before migration.' } }
     $service = Get-ItemProperty -LiteralPath "HKLM:\SYSTEM\CurrentControlSet\Services\$ServiceName" -ErrorAction Stop
     if ($service.PSObject.Properties['Environment'] -and @($service.Environment).Count) { Stop-SL2 'Service-specific environment overrides require manual reconciliation before migration.' }
 }
@@ -469,7 +469,7 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         if (-not $details.Contains('service') -or -not $details.Contains('source_data')) { Stop-SL2 'Resolve source service arguments/conflicts before inspecting SQLite; no fallback database is selected.' }
         $active = $details.source_data
         $details.schema = [pscustomobject]@{ database_exists = $active.database_exists; inspection_status = 'not_run' }
-        if (-not $active.database_exists) { Stop-SL2 "The active SAP Lens database is missing: $($active.database_path). Historical and security databases are not substitutes." }
+        if (-not $active.database_exists) { Stop-SL2 "The active AuthLens database is missing: $($active.database_path). Historical and security databases are not substitutes." }
         if ([string]::IsNullOrWhiteSpace($InspectorExecutable)) { Stop-SL2 'Supply an explicit -InspectorExecutable from a verified Windows release containing the current --inspect-data; no inspector was selected.' }
         if (-not [IO.Path]::IsPathRooted($InspectorExecutable) -or -not (Test-Path -LiteralPath $InspectorExecutable -PathType Leaf)) { Stop-SL2 'The explicit -InspectorExecutable must be an existing absolute server executable path.' }
         Test-SL2PathTree $InspectorExecutable

@@ -26,7 +26,7 @@ public sealed class PdfReportRenderer : IReportRenderer
         var stamp = DateTime.SpecifyKind(DateTime.Parse((string)data["report_date"]!, CultureInfo.InvariantCulture, DateTimeStyles.AdjustToUniversal), DateTimeKind.Utc);
         var metadata = new SKDocumentPdfMetadata
         {
-            Title = ReportText.Clean(data["title"]), Author = ReportText.Clean(data["prepared_by"]), Creator = "SAP Lens", Producer = "SAP Lens",
+            Title = ReportText.Clean(data["title"]), Author = ReportText.Clean(data["prepared_by"]), Creator = "AuthLens", Producer = "AuthLens",
             Creation = stamp, Modified = stamp, RasterDpi = 72, EncodingQuality = 101,
         };
         using (var document = SKDocument.CreatePdf(output, metadata))
@@ -99,7 +99,7 @@ public sealed class PdfReportRenderer : IReportRenderer
         {
             using var font = Font(false, 8);
             using var paint = new SKPaint { Color = Ink, IsAntialias = true };
-            _canvas!.DrawText("SAP Lens · " + version, Left, PageHeight - 26, SKTextAlign.Left, font, paint);
+            _canvas!.DrawText("AuthLens · " + version, Left, PageHeight - 26, SKTextAlign.Left, font, paint);
             _canvas.DrawText(_page.ToString(CultureInfo.InvariantCulture), PageWidth - Right, PageHeight - 26, SKTextAlign.Right, font, paint);
             document.EndPage();
             _canvas = null;

@@ -14,7 +14,7 @@ window.addEventListener('DOMContentLoaded', () => {
     const status = root.querySelector('[role="status"]');
     if (status) {
       status.setAttribute('role', 'alert');
-      status.textContent = 'The interface could not load. Retry, or close and reopen SAP Lens.';
+      status.textContent = 'The interface could not load. Retry, or close and reopen AuthLens.';
       const retry = document.createElement('button');
       retry.textContent = 'Retry interface';
       retry.addEventListener('click', () => window.location.reload());

@@ -358,7 +358,7 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
       )
         throw Error('Review evidence changed. Refresh before exporting.')
       const content = lines.join(''),
-        filename = `sap-lens-account-review-review-${new Date().toISOString().slice(0, 10)}.csv`
+        filename = `authlens-account-review-review-${new Date().toISOString().slice(0, 10)}.csv`
       if (window.pywebview) {
         if (!window.pywebview.api.save_user_access_csv)
           throw Error('Update the desktop application to export CSV.')

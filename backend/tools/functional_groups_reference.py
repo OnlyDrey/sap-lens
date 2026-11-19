@@ -3,7 +3,7 @@ Records user identity keys, text normalization, suggestion-rule matching, consol
 the advisory group analysis over the synthetic SoD analysis users (fixed date). Usage: python -I tools/functional_groups_reference.py BACKEND_DIR FIXTURE_DIR"""
 import json, os, shutil, sys, tempfile
 from datetime import date
-os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, fixtures = sys.argv[1:3]
 sys.path.insert(0, backend)
 from pathlib import Path

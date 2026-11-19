@@ -30,7 +30,7 @@ async function review(page: Page) {
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  root = mkdtempSync(path.join(tmpdir(), 'sap-lens-review-'))
+  root = mkdtempSync(path.join(tmpdir(), 'authlens-review-'))
   source = path.join(root, 'directory.csv')
   const rows = [
     {
@@ -239,7 +239,7 @@ test('review findings, license filter, local decision persistence and spreadshee
   const native = await page.evaluate(() => (window as any).nativeReview)
   expect(native.token).toBe('browser-test-session')
   expect(native.filename).toMatch(
-    /^sap-lens-account-review-review-\d{4}-\d{2}-\d{2}\.csv$/,
+    /^authlens-account-review-review-\d{4}-\d{2}-\d{2}\.csv$/,
   )
   expect(native.content).toContain('DEMO_OPEN')
   await table.getByRole('link', { name: 'DEMO_OPEN', exact: true }).click()
@@ -429,9 +429,9 @@ test('source snapshot recovery persists records after removal and reload with co
   await expect(sourceDetails.getByRole('region', { name: 'Employee Directory diagnostics', exact: true })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(sourceDetails).toHaveCount(0)
-  await page.getByRole('tab', { name: 'About SAP Lens', exact: true }).click()
+  await page.getByRole('tab', { name: 'About AuthLens', exact: true }).click()
   await expect(
-    page.getByRole('region', { name: 'About SAP Lens', exact: true }),
+    page.getByRole('region', { name: 'About AuthLens', exact: true }),
   ).toContainText('Application version')
 })
 

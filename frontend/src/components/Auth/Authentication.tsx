@@ -55,7 +55,7 @@ function Login({setup,onActivated,onReady}:{setup:boolean;onActivated:()=>void;o
    else{await apiRequest('/api/auth/'+(mode==='reset'?'reset':'recover'),'POST',{code,password});setPassword('');setCode('');setMode('login');setMessage('Password updated. Sign in with your new password.')}
   }catch(error){setError(authMessage(error))}finally{setBusy(false)}
  }
- return <main id="main-content" className="startup-screen"><section className="startup-card"><img src="/sap-lens.png" alt="SAP Lens" className="w-20 h-20 object-contain mx-auto"/><h1 className="text-2xl font-semibold">{setup?'Set up SAP Lens':mode==='login'?'Sign in to SAP Lens':'Reset password'}</h1>
+ return <main id="main-content" className="startup-screen"><section className="startup-card"><img src="/sap-lens.png" alt="AuthLens" className="w-20 h-20 object-contain mx-auto"/><h1 className="text-2xl font-semibold">{setup?'Set up AuthLens':mode==='login'?'Sign in to AuthLens':'Reset password'}</h1>
  <form onSubmit={event=>void submit(event)} className="grid gap-4 text-left mt-4">
  {(setup||mode==='login')&&<FormField label="Username"><Input autoComplete="username" value={username} maxLength={100} required onChange={e=>setUsername(e.target.value)}/></FormField>}
  {setup&&<FormField label="Display name"><Input autoComplete="name" value={display} maxLength={120} required onChange={e=>setDisplay(e.target.value)}/></FormField>}
@@ -92,7 +92,7 @@ export function MyProfile({onClose}:{onClose:()=>void}){
  const lengthOk=password.length>=PASSWORD_MIN&&password.length<=PASSWORD_MAX,matches=password.length>0&&password===confirmation
  const passwordReady=!!current&&lengthOk&&matches
  const others=(sessions||[]).filter(session=>!session.current).length
- return <Dialog size="medium" title="My Profile" description="Your SAP Lens account, password and signed-in sessions." onClose={()=>{if(!busy)onClose()}}
+ return <Dialog size="medium" title="My Profile" description="Your AuthLens account, password and signed-in sessions." onClose={()=>{if(!busy)onClose()}}
   footer={<><Button variant="ghost" loading={busy==='logout'} disabled={!!busy&&busy!=='logout'} onClick={()=>void run('logout',setSessionFeedback,auth.logout)}><LogOut size={16} aria-hidden="true"/>Sign out</Button><Button disabled={!!busy} onClick={onClose}>Close</Button></>}>
  <section className="account-section" aria-labelledby="profile-information">
   <header><h3 id="profile-information">Profile information</h3><p className="ui-description">Your display name appears in review history and audit records.</p></header>

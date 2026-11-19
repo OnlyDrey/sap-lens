@@ -90,7 +90,7 @@ export function StorageUpgrade() {
             Confirmation keeps the backup; automatic retention never deletes it. It contains sensitive access data.
           </p>
           <p className="break-all text-xs text-muted">Backup identifier: {current.backup.id}</p>
-          <Checkbox checked={confirmed} onChange={event => setConfirmed(event.target.checked)}>I checked that SAP Lens works after the upgrade</Checkbox>
+          <Checkbox checked={confirmed} onChange={event => setConfirmed(event.target.checked)}>I checked that AuthLens works after the upgrade</Checkbox>
           <div><Button disabled={!confirmed || busy || current.state !== 'ready'} onClick={() => void release()}>Confirm that the upgrade works</Button></div>
           {error && <p role="alert">{error}</p>}
         </div>

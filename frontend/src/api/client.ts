@@ -27,7 +27,7 @@ export function applicationHeaders(): Record<string,string> {
   const csrf = document.cookie.split('; ').find(value=>value.startsWith('sap-lens-csrf='))?.slice('sap-lens-csrf='.length)
   return {'X-SAP-Lens': applicationToken(), ...(csrf ? {'X-SAP-Lens-CSRF': decodeURIComponent(csrf)} : {})}
 }
-const STALE_MESSAGE = 'SAP Lens restarted and your previous local session is no longer valid. Reconnect to continue.'
+const STALE_MESSAGE = 'AuthLens restarted and your previous local session is no longer valid. Reconnect to continue.'
 
 /** Failure classes the UI can explain: network (no response), server (5xx), client (4xx) and format (a response that is not the expected JSON). */
 export class ApiError extends Error {
@@ -42,7 +42,7 @@ function problemDetail(data: unknown, status: number): string {
   if (typeof detail === 'string') return detail
   if (detail && typeof detail === 'object' && typeof (detail as { message?: unknown }).message === 'string') return (detail as { message: string }).message
   if (Array.isArray(detail)) return (detail as {loc?:string[];msg?:string}[]).slice(0,3).map(e=>`${(e.loc||[]).slice(1).join('.')}: ${e.msg||'Invalid value'}`).join('; ')
-  if (status >= 500) return `SAP Lens could not complete the request (server error ${status}). Retry; if it persists, check the application logs.`
+  if (status >= 500) return `AuthLens could not complete the request (server error ${status}). Retry; if it persists, check the application logs.`
   return `Request failed (${status})`
 }
 
@@ -79,7 +79,7 @@ const apiClient = {
       headers: { 'Content-Type': 'application/json', ...applicationHeaders() },
       body: body === undefined ? undefined : JSON.stringify(body),
       cache: 'no-store',
-    }) } catch (error) { recordSession('network'); throw new ApiError(error instanceof DOMException&&error.name==='AbortError' ? 'The read request timed out. The backend may still be running; retry this read.' : 'SAP Lens could not connect. Retry and check the backend service if the problem persists.', 'network') }
+    }) } catch (error) { recordSession('network'); throw new ApiError(error instanceof DOMException&&error.name==='AbortError' ? 'The read request timed out. The backend may still be running; retry this read.' : 'AuthLens could not connect. Retry and check the backend service if the problem persists.', 'network') }
     finally { if(timer)clearTimeout(timer) }
     // Read text first: a proxy or crash page is not JSON and must not surface as a parser exception.
     const text = await response.text().catch(() => '')
@@ -96,7 +96,7 @@ const apiClient = {
       if(response.status===403&&(data as {code?:string}|undefined)?.code==='stale_session'){recordSession('stale');throw new ApiError(STALE_MESSAGE,'session',403)}
       throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status===401?'authentication':response.status===403?'permission':response.status >= 500 ? 'server' : 'client', response.status, parsed ? (data as { detail?: unknown } | undefined)?.detail : undefined)
     }
-    if (!parsed) throw new ApiError('SAP Lens received an unexpected response instead of data. Retry, or reload the application.', 'format', response.status)
+    if (!parsed) throw new ApiError('AuthLens received an unexpected response instead of data. Retry, or reload the application.', 'format', response.status)
     return { data: (data ?? {}) as T }
   },
   get<T>(path: string, options?: { params: Record<string, string> }) {

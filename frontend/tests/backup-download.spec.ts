@@ -2,7 +2,7 @@ import {test, expect} from '@playwright/test'
 import {openSettings} from './support'
 
 const id = 'a'.repeat(32)
-const filename = `SAP-Lens-backup-${id}.slbak`
+const filename = `AuthLens-backup-${id}.slbak`
 const payload = Buffer.from('synthetic encrypted archive bytes')
 
 test('backup download accepts the ASP.NET unquoted filename and preserves response bytes', async ({page}) => {

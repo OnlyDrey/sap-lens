@@ -11,7 +11,7 @@ const users =
   'USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO,USER_VALID_FROM,USER_VALID_TO\nDEMO_ONE,ZC:MM:A,G1,20200101,99991231,20200101,99991231\nDEMO_ONE,ZC:FI:B,G1,20240101,20260101,20200101,99991231\nDEMO_ONE,ZO:MM:M:PR_REL_ST_G1_N1:ALL,G1,20240101,99991231,20200101,99991231\nDEMO_TWO,ZO:MM:M:PR_REL_ST_G1_N1:ALL,G2,20250101,20251231,20200101,99991231\nDEMO_TWO,ZO:MM:M:PO_REL_ST_G2_N2:ALL,G2,,,20200101,99991231\nDEMO_THREE,ZO:UNKNOWN,G2,20300101,99991231,20200101,99991231\n'
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-filter-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-filter-'))
   const rolePath = path.join(directory, 'roles.csv'),
     userPath = path.join(directory, 'users.csv')
   writeFileSync(rolePath, roles)

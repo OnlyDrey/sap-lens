@@ -188,14 +188,14 @@ test('bulk actions add, copy and export distinct filtered roles without changing
   const roleList = page.waitForEvent('download')
   await actions.getByRole('button', { name: 'Export role list' }).click()
   const file = await roleList
-  expect(file.suggestedFilename()).toMatch(/^sap-lens-release-role-list-review-\d{4}-\d{2}-\d{2}\.csv$/)
+  expect(file.suggestedFilename()).toMatch(/^authlens-release-role-list-review-\d{4}-\d{2}-\d{2}\.csv$/)
   const lines = readFileSync((await file.path())!, 'utf8').split('\r\n').filter(Boolean)
   expect(lines).toEqual(['﻿"ROLE_NAME";"ROLE_DESCRIPTION";"RELEASE_AREA";"RELEASE_GROUP";"RELEASE_STRATEGY";"PR_PO"',
     `"${E3}";"";"E";"E3";"N2";"PO"`, `"${E2}";"";"E";"E2";"N1";"PR"`])
   const assignments = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
   const assignmentFile = await assignments
-  expect(assignmentFile.suggestedFilename()).toMatch(/^sap-lens-release-roles-review-/)
+  expect(assignmentFile.suggestedFilename()).toMatch(/^authlens-release-roles-review-/)
   expect(readFileSync((await assignmentFile.path())!, 'utf8').split('\r\n').filter(Boolean)).toHaveLength(1 + 3)
 })
 

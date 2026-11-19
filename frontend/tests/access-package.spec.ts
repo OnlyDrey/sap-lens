@@ -75,7 +75,7 @@ test('package: default suffix, per-role override, validation, copy, CSV, persist
   const download = page.waitForEvent('download')
   await panel.getByRole('button', { name: /Export CSV/ }).click()
   const file = await download
-  expect(file.suggestedFilename()).toMatch(/^sap-lens-access-package-\d{4}-\d{2}-\d{2}\.csv$/)
+  expect(file.suggestedFilename()).toMatch(/^authlens-access-package-\d{4}-\d{2}-\d{2}\.csv$/)
   const text = readFileSync((await file.path())!, 'utf8')
   expect(text.split('\r\n').filter(Boolean)).toEqual([
     '﻿"Generated SAP Role Name";"Role Description";"Suffix";"Validation"',

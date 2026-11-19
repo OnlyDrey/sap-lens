@@ -123,7 +123,7 @@ public static class V1Access
                     char.ToUpperInvariant(status2[0]) + status2[1..], a.Release?.DocumentType, a.Release?.ReleaseGroup, a.Release?.ReleaseStrategy, matched ? "Yes" : "No"], cells: true);
             }
             var day = today.ToString("yyyy-MM-dd");
-            http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"sap-lens-user-directory-review-{day}.csv\"";
+            http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"authlens-user-directory-review-{day}.csv\"";
             http.Response.Headers["X-SAP-Lens-Data-Revision"] = Revision(snapshot);
             http.Response.Headers["X-SAP-Lens-As-Of"] = day;
             http.Response.Headers["X-SAP-Lens-Assignment-Count"] = rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture);

@@ -87,7 +87,7 @@ It embeds the current `frontend/dist` (built only when missing); build the front
 loopback port and a new disposable data directory per Playwright process. Readiness
 uses `/health/ready`; an occupied port fails without contacting or terminating its
 owner. Shutdown is bounded, waits for the owned child and removes only its temp
-directory. `SAP_LENS_BROWSER_TEST_PORT` selects a separate port when needed.
+directory. `AUTHLENS_BROWSER_TEST_PORT` selects a separate port when needed.
 `npm run dev:backend` uses the same disposable host on 18744 (Vite on 18743).
 These are synthetic Desktop-capability fixtures, not a deployed Accounts server.
 The synthetic capability is injected by Playwright/Vite only; production hosts

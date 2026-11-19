@@ -99,7 +99,7 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
 
         var download = await _client.GetAsync($"/api/backups/{id}/download?kind=backup");
         Assert.Equal(HttpStatusCode.OK, download.StatusCode);
-        Assert.Equal($"SAP-Lens-backup-{id}.slbak", download.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
+        Assert.Equal($"AuthLens-backup-{id}.slbak", download.Content.Headers.ContentDisposition!.FileName!.Trim('"'));
         var bytes = await download.Content.ReadAsByteArrayAsync();
         Assert.Equal((string)created["archive_sha256"]!, Convert.ToHexStringLower(SHA256.HashData(bytes)));
         var downloadedFile = Path.Combine(_root, "downloaded.slbak");
@@ -227,9 +227,9 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
             return sealedArchive.ToArray();
         }
 
-        var (renamed, preview) = await Upload(WithProduct("SAP Lens"));
+        var (renamed, preview) = await Upload(WithProduct("AuthLens"));
         Assert.Equal(HttpStatusCode.OK, renamed);
-        Assert.Equal("SAP Lens", (string)preview!["preview"]!["source_mode"]!);
+        Assert.Equal("AuthLens", (string)preview!["preview"]!["source_mode"]!);
         Assert.Equal(HttpStatusCode.OK, (await Post($"/api/backups/uploads/{(string)preview["id"]!}/cancel")).Status);
         Assert.Equal(HttpStatusCode.UnprocessableEntity, (await Upload(WithProduct("Another product"))).Status);
     }

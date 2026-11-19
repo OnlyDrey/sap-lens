@@ -63,7 +63,7 @@ public static partial class V1RefreshReports
                 foreach (var (field, before, after) in lines)
                     Line(csv, [timestamp, (string?)row["source_name"], (string?)row["type"], (string?)row["identifier"], field, before, after]);
             }
-            http.Response.Headers.ContentDisposition = "attachment; filename=\"SAP-Lens-refresh-changes.csv\"";
+            http.Response.Headers.ContentDisposition = "attachment; filename=\"AuthLens-refresh-changes.csv\"";
             return Results.Text(csv.ToString(), "text/csv; charset=utf-8", Encoding.UTF8);
         });
     }

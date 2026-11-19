@@ -11,7 +11,7 @@ const users =
   'USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO\nDEMO_ONE,ZC:MM:A,G1,20200101,99991231\nDEMO_ONE,ZC:FI:B,G1,20200101,99991231\nDEMO_TWO,ZC:MM:A,G2,20200101,99991231\nDEMO_THREE,ZC:SD:C,G2,20200101,99991231\n'
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-dashboard-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-dashboard-'))
   const rolePath = path.join(directory, 'roles.csv'),
     userPath = path.join(directory, 'users.csv')
   writeFileSync(rolePath, roles)

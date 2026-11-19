@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Builds, validates and deploys SAP Lens (.NET server) on this Windows host as the sap-lens Windows service (test server). Windows PowerShell 5.1 and PowerShell 7.
+  Builds, validates and deploys AuthLens (.NET server) on this Windows host as the sap-lens Windows service (test server). Windows PowerShell 5.1 and PowerShell 7.
 
 .DESCRIPTION
   Usually started over SSH by scripts/deploy/deploy-windows.sh; it can also be run locally in an elevated PowerShell. Actions:

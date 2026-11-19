@@ -56,7 +56,7 @@ public static class V1SodGovernance
         var csv = new StringBuilder("﻿");
         V1Csv.Line(csv, columns, cells: false);
         foreach (var row in rows) V1Csv.Line(csv, row, cells: true);
-        http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"sap-lens-sod-{name}-{DateTime.Now:yyyy-MM-dd}.csv\"";
+        http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"authlens-sod-{name}-{DateTime.Now:yyyy-MM-dd}.csv\"";
         http.Response.Headers.CacheControl = "no-store";
         return Results.Text(csv.ToString(), "text/csv; charset=utf-8");
     }

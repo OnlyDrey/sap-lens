@@ -1,5 +1,5 @@
 # Part of AuthLens.Deploy, dot-sourced into the same module. No operations run on import.
-# NTFS policy for SAP Lens private state, release binaries and the parents of migration targets. Principals are compared by well-known SID, never
+# NTFS policy for AuthLens private state, release binaries and the parents of migration targets. Principals are compared by well-known SID, never
 # by (localized) account name. Audit is read-only; Invoke-SL2ProtectAcl changes ACLs only after an explicit, approved call (Deploy-AuthLens.ps1
 # -Action ProtectAcl -Yes), saves every affected DACL first (icacls-compatible inventories, restorable with -Action RestoreAcl) and never touches system roots.
 
@@ -158,7 +158,7 @@ function Assert-SL2AclPlan($Plan, [string]$What) {
 
 # ---- remediation (explicit, approved; never run by the preflight or a deployment)
 
-# System locations whose ACLs SAP Lens never changes, however a configuration names them.
+# System locations whose ACLs AuthLens never changes, however a configuration names them.
 function Test-SL2AclForbidden([string]$Path) {
     $full = [IO.Path]::GetFullPath($Path).TrimEnd('\', '/')
     if (-not [IO.Path]::GetDirectoryName($full) -or $full -eq [IO.Path]::GetPathRoot($full).TrimEnd('\', '/')) { return $true }

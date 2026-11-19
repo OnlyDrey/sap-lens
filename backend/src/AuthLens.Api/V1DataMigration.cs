@@ -14,7 +14,7 @@ using AuthLens.Persistence;
 
 namespace AuthLens.Api;
 
-/// <summary>SAP Lens 1 to SAP Lens data migration, a LOCAL administrator operation of the server binary (--migrate-v1). The v1 data directory (or a
+/// <summary>SAP Lens 1 to AuthLens data migration, a LOCAL administrator operation of the server binary (--migrate-v1). The v1 data directory (or a
 /// v1 .slbak/.tar.gz backup of it) is only ever read. Steps, each explicit:
 ///
 /// 1. preview: inventory with SHA-256 per file, validation of every store, what is imported, preserved or unsupported, blockers, and a digest. Nothing is
@@ -34,7 +34,7 @@ public static partial class V1DataMigration
     [GeneratedRegex("^[a-f0-9]{32}$")] private static partial Regex Hex32();
 
     private static readonly string[] SourceKinds = ["roles", "users", "sod"];
-    /// <summary>v1 JSON stores copied into SAP Lens documents of the same v1 shape (v1 file, v2 document).</summary>
+    /// <summary>v1 JSON stores copied into AuthLens documents of the same v1 shape (v1 file, v2 document).</summary>
     private static readonly (string File, string Document)[] Documents =
     [
         ("functional-groups.json", FunctionalGroupStore.Document), ("report-branding.json", "report-branding"), ("reviewer-profile.json", "reviewer-profile"),
@@ -132,7 +132,7 @@ public static partial class V1DataMigration
         v1.Settings = settings;
         var defaults = V1Compatibility.DefaultSettingsDocument();
         var unknown = settings.Select(p => p.Key).Where(k => !defaults.ContainsKey(k)).ToList();
-        if (unknown.Count > 0) v1.Warnings.Add($"Settings fields not known to this SAP Lens build are kept only in the migration backup: {string.Join(", ", unknown)}.");
+        if (unknown.Count > 0) v1.Warnings.Add($"Settings fields not known to this AuthLens build are kept only in the migration backup: {string.Join(", ", unknown)}.");
         Store(v1, "Settings", "settings.json", "import", 1, unknown.Count > 0 ? $"{unknown.Count} unknown field(s) not imported" : "");
 
         // Source revisions: every content-addressed v1 snapshot of a known source kind; the ones settings point at are active.
@@ -224,7 +224,7 @@ public static partial class V1DataMigration
         var accounts = Path.Combine(root, "security", "accounts.sqlite3");
         if (File.Exists(accounts)) { v1.Accounts = accounts; Store(v1, "Accounts (Server mode)", "security/accounts.sqlite3", "import", 1, "sessions are not carried over"); }
         foreach (var name in Copied.Where(n => File.Exists(Path.Combine(root, n)))) { v1.Copied.Add(name); Store(v1, name, name, "import", 1); }
-        Store(v1, "Data retention approvals", "data-retention.json", "not migrated", File.Exists(Path.Combine(root, "data-retention.json")) ? 1 : 0, "approvals are bound to the installation; approve again in SAP Lens");
+        Store(v1, "Data retention approvals", "data-retention.json", "not migrated", File.Exists(Path.Combine(root, "data-retention.json")) ? 1 : 0, "approvals are bound to the installation; approve again in AuthLens");
         Store(v1, "Application backups of SAP Lens 1", ".application-backups", "not migrated", Directory.Exists(Path.Combine(root, ".application-backups")) ? 1 : 0, "they stay in the SAP Lens 1 directory");
         Store(v1, "Derived SQLite cache", "store/", "not migrated", Directory.Exists(Path.Combine(root, "store")) ? 1 : 0, "rebuilt from the imported data");
         return v1;
@@ -299,7 +299,7 @@ public static partial class V1DataMigration
         else throw new MigrationException("The source does not exist.");
         var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
         if (kind == "directory" && (full.StartsWith(root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar, comparison) || root.StartsWith(full + Path.DirectorySeparatorChar, comparison) || full.Equals(root, comparison)))
-            throw new MigrationException("The SAP Lens .NET data directory and the SAP Lens 1 source must be separate directories.");
+            throw new MigrationException("The AuthLens .NET data directory and the SAP Lens 1 source must be separate directories.");
         var inventory = Inventory(root);
         var v1 = Read(root);
         var uncovered = inventory.Select(f => (string)f!["path"]!).Where(p => !Covered(p)).ToList();
@@ -606,7 +606,7 @@ public static partial class V1DataMigration
                 command.CommandText = "DELETE FROM sessions; VACUUM;";
                 command.ExecuteNonQuery();
             }
-            new AccountStore(target, TimeProvider.System).Prepare();             // the SAP Lens account store accepts the v1 schema
+            new AccountStore(target, TimeProvider.System).Prepare();             // the AuthLens account store accepts the v1 schema
             counts["accounts"] = 1;
         }
         foreach (var image in v1.Branding)
@@ -701,7 +701,7 @@ public static partial class V1DataMigration
         return report;
     }
 
-    /// <summary>Requests a rollback of an activated migration at the next start: the previous SAP Lens files return.</summary>
+    /// <summary>Requests a rollback of an activated migration at the next start: the previous AuthLens files return.</summary>
     public static JsonObject RequestRollback(string data, string id, string actor, DateTimeOffset now)
     {
         data = Path.GetFullPath(data);

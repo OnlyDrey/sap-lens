@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build, validate and deploy SAP Lens on a Windows host over SSH (the Windows side is Deploy-AuthLens.ps1).
+# Build, validate and deploy AuthLens on a Windows host over SSH (the Windows side is Deploy-AuthLens.ps1).
 #
 #   scripts/deploy/deploy-windows.sh --host HOST --user USER [options]
 #
@@ -87,7 +87,7 @@ changing=0
 case "$mode" in deploy|rollback|recover|install-service|migrate-service) changing=1 ;; esac
 if [ "$changing" = 1 ] && [ "$yes" != 1 ]; then
   if [ -t 0 ]; then
-    read -r -p "Mode '$mode' restarts or changes the SAP Lens service on $host. Continue? [y/N] " answer
+    read -r -p "Mode '$mode' restarts or changes the AuthLens service on $host. Continue? [y/N] " answer
     [[ "$answer" =~ ^[Yy]$ ]] || { echo 'cancelled'; exit 2; }
   else
     die "mode '$mode' changes the service: pass --yes (review --mode status or --mode dry-run first)"
@@ -128,7 +128,7 @@ if (-not (Test-Path -LiteralPath \$deploy)) {
   \$null = & \$git @('archive', '--format=zip', '-o', (Join-Path \$dir 'deploy.zip'), \$sha, \$source)
   Expand-Archive -LiteralPath (Join-Path \$dir 'deploy.zip') -DestinationPath \$dir -Force
 }
-# Commits before the rename to SAP Lens carry Deploy-SapLens2.ps1.
+# Commits before the rename to AuthLens carry Deploy-SapLens2.ps1.
 \$script = @('Deploy-AuthLens.ps1', 'Deploy-SapLens2.ps1') | ForEach-Object { Join-Path \$deploy \$_ } | Where-Object { Test-Path -LiteralPath \$_ } | Select-Object -First 1
 if (-not \$script) { throw "commit \$sha has no Windows deployment script" }
 & \$script $arguments -Commit \$sha
@@ -148,7 +148,7 @@ interrupted() {
 }
 trap interrupted INT TERM
 
-echo "SAP Lens deployment: mode $mode on $user@$host (log: $log)"
+echo "AuthLens deployment: mode $mode on $user@$host (log: $log)"
 set +e
 ssh -o BatchMode=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=4 -p "$port" "$user@$host" \
   powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -EncodedCommand "$encoded" 2>&1 | tee "$log"

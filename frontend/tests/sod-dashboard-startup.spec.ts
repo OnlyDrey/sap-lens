@@ -63,7 +63,7 @@ test('an unavailable analysis names the missing input and offers a real button t
   expect(await button.evaluate(el => getComputedStyle(el).outlineStyle)).not.toBe('none')
   await page.keyboard.press('Enter')
   await expect(page.getByRole('tab', { name: /SoD/ }).first()).toBeVisible()
-  await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+  await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
   Object.assign(phase, { sod: 'missing-catalogue' })
   await page.reload()
   await expect(sodCard(page)).toContainText('The Role Catalogue is not loaded.')

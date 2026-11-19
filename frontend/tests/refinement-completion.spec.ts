@@ -14,7 +14,7 @@ async function mode(page:Page,name:string){await page.getByRole('navigation',{na
 async function choose(page:Page,label:string,value:string){const input=page.getByRole('combobox',{name:label,exact:true});await input.click();await input.fill(value);await page.getByRole('option').filter({hasText:value}).first().click()}
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers})
- directory=mkdtempSync(path.join(tmpdir(),'sap-lens-refinement-'))
+ directory=mkdtempSync(path.join(tmpdir(),'authlens-refinement-'))
  const roles=path.join(directory,'roles.csv'),users=path.join(directory,'users.csv')
  writeFileSync(roles,'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n'+`MM,${pattern},Synthetic purchasing investigation,${child},MM - ${'Long synthetic descriptive text '.repeat(8)},MIGO,Goods movement\nMM,${pattern},Synthetic purchasing investigation,ZS:SYN:SECOND,MM - Second description,ME23N,Display purchase order\n`)
  writeFileSync(users,'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,LAST_NAME,EMAIL,USER_VALID_FROM,USER_VALID_TO,USER_LOCKED,ROLE_VALID_FROM,ROLE_VALID_TO\n'+[[actual,'20000101','99991231'],[actual,'20010101','20020101'],[actual,'99980101','99991231'],[actual,'',''],[release,'20000101','99991231']].map(([r,a,b])=>`SYN_A,${r},SYN_GROUP,Alpha,Synthetic,alpha@example.test,20000101,99991231,0,${a},${b}\n`).join('')+`SYN_B,${actual},SYN_GROUP,Beta,Synthetic,beta@example.test,20000101,99991231,X,20000101,99991231\nSYN_B,${release},SYN_GROUP,Beta,Synthetic,beta@example.test,20000101,99991231,X,20000101,99991231\n`)

@@ -8,7 +8,7 @@ let directory = '', userSource = ''
 const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact:true }).click()
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-data-aware-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-data-aware-'))
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = path.join(directory, 'catalogue.csv')
   writeFileSync(settings.data_csv_path, 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:BUY,ME23N\n')
@@ -157,7 +157,7 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
   await page.getByRole('tab',{name:'Appearance & Branding',exact:true}).click()
   await page.getByRole('img',{name:'Header logo preview',exact:true}).scrollIntoViewIfNeeded()
   await shot('branding-controls')
-  await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
+  await page.getByRole('button',{name:'Back to AuthLens',exact:true}).click()
   // The loading state is mocked only after the refresh request has been sent. Mocking it earlier races with the application's own configuration polling: when that poll lands before the click, the Refresh button is disabled (correctly) and the click waits until the test times out.
   let mockedLoading = false
   await page.route('**/api/configuration', async route => {try{const response=await route.fetch();const body=await response.json();await route.fulfill({json:mockedLoading?{...body,loading:true}:body})}catch{await route.abort().catch(()=>{})}})
@@ -171,14 +171,14 @@ for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data
 test('first-launch setup retains an app history boundary before configuration is available', async ({page,request}) => {
   await request.post('/api/configuration/reset',{headers})
   await page.goto('/#session=browser-test-session')
-  await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeVisible()
+  await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeVisible()
   await page.goBack()
-  await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeHidden()
+  await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeHidden()
   await page.goBack()
   await expect.poll(()=>page.evaluate(()=>Boolean(history.state?.sapLensView && !history.state?.sapLensBoundary))).toBeTruthy()
   await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()
   await page.goForward()
-  await expect(page.getByRole('region',{name:'SAP Lens settings',exact:true})).toBeVisible()
+  await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeVisible()
   await expect(page.locator('.startup-screen')).toHaveCount(0)
 })
 

@@ -72,7 +72,7 @@ export interface SeededSources { directory: string; cleanup: () => Promise<void>
  */
 export async function seedSources(request: APIRequestContext, sources: { roles?: string; users?: string }): Promise<SeededSources> {
   await resetConfiguration(request)
-  const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-test-'))
+  const directory = mkdtempSync(path.join(tmpdir(), 'authlens-test-'))
   for (const name of ['roles', 'users'] as const) {
     const text = sources[name]
     if (text === undefined) continue

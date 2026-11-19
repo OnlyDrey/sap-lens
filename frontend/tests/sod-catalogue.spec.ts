@@ -7,7 +7,7 @@ import { layoutMatrix, DEFAULT_THEME_ONLY } from './matrix'
 let directory:string
 const matrix='RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\nSYN01,H,S,Synthetic incompatible activities,CREATE,APPROVE,ACTVT1,CREATE,X001,Synthetic creation\nSYN01,H,S,Synthetic incompatible activities,CREATE,APPROVE,ACTVT2,APPROVE,X002,Synthetic approval\n'
 test.beforeEach(async({request})=>{
- await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'sap-lens-sod-'))
+ await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'authlens-sod-'))
  // Reset intentionally preserves review annotations. Isolate catalogue IDs through the source fixture.
  const filename=path.join(directory,'synthetic-sod.csv');writeFileSync(filename,matrix)
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings

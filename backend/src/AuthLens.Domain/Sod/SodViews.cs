@@ -194,7 +194,7 @@ public static class SodViews
         return (ordered, summaries);
     }
 
-    /// <summary>str.casefold() for the identifiers SAP Lens compares (ASCII and common Unicode letters; ß folds to ss as in Python).</summary>
+    /// <summary>str.casefold() for the identifiers AuthLens compares (ASCII and common Unicode letters; ß folds to ss as in Python).</summary>
     public static string Fold(string value) => AuthLens.Domain.Text.PythonText.Casefold(value);
 
     /// <summary>Flat investigation tables; every row traces back to user, risk, activity and assignment.</summary>

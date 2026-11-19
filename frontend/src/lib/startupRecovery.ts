@@ -1,4 +1,4 @@
-/** Pure rules for starting SAP Lens: which failures are transient, how long to wait, and when a lost local session may be restored automatically.
+/** Pure rules for starting AuthLens: which failures are transient, how long to wait, and when a lost local session may be restored automatically.
  *  No DOM access except through the injected storage, so every rule is unit-tested. */
 
 export type StartupFailure = 'unavailable' | 'session' | 'rejected' | 'failed'
@@ -14,7 +14,7 @@ export interface Store { getItem(key: string): string | null; setItem(key: strin
 
 /** No answer at all, or a gateway answer while the service starts. A 500 is a real failure (for example configuration or storage) and is not retried automatically. */
 const answeredByApplication = (detail: unknown) => (typeof detail === 'string' && detail.trim() !== '') || (Array.isArray(detail) && detail.length > 0)
-/** A 502/503/504 that carries the application's own problem detail was produced by SAP Lens (a real failure), not by a gateway while the service starts. */
+/** A 502/503/504 that carries the application's own problem detail was produced by AuthLens (a real failure), not by a gateway while the service starts. */
 export const isTransient = ({ kind, status, detail }: ErrorShape) => kind === 'network' || ((status === 502 || status === 503 || status === 504) && !answeredByApplication(detail))
 
 export function classifyFailure(error: ErrorShape): StartupFailure {
@@ -48,4 +48,4 @@ export function recordRestoreAttempt(store: Store | null, now: number): void {
 }
 
 /** The labels of the normal start, in order. A recovery screen replaces them only when automatic restoring has failed. */
-export const STARTUP_LABELS = { starting: 'Starting SAP Lens…', connecting: 'Connecting to local service…', restoring: 'Restoring workspace…' } as const
+export const STARTUP_LABELS = { starting: 'Starting AuthLens…', connecting: 'Connecting to local service…', restoring: 'Restoring workspace…' } as const

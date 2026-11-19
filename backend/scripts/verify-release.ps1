@@ -1,11 +1,11 @@
 <#
 .SYNOPSIS
-  Verifies a SAP Lens release folder written by build-release.ps1 or build-release.sh: the build-manifest.json contract (schema 1, the same for
+  Verifies a AuthLens release folder written by build-release.ps1 or build-release.sh: the build-manifest.json contract (schema 1, the same for
   win-x64 and linux-x64 apart from the platform rules below), every listed file with its size and SHA-256, no unlisted file, and SHA256SUMS
   covering every file (build-manifest.json included). Read-only. Exit code 0 valid, 1 invalid.
 
   Platform rules: win-x64 lists server/AuthLens.Api.exe and a desktop executable and describes desktop_native_libraries; linux-x64 lists only
-  server/AuthLens.Api. Releases built before the rename to SAP Lens (product "SAP Lens 2", desktop/SapLens2Prototype.exe, a SAP Lens 1
+  server/AuthLens.Api. Releases built before the rename to AuthLens (product "SAP Lens 2", desktop/SapLens2Prototype.exe, a SAP Lens 1
   ui_source_version) keep verifying: the migration preflight verifies the release an existing service runs.
 
   -Scope Full (default): the complete build output; every listed artifact must be present. A folder with deployment-package.json is refused here.
@@ -16,7 +16,7 @@
   manifest and SHA256SUMS are never rewritten: they keep describing the full build the package came from.
 
 .EXAMPLE
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -ReleasePath C:\sap-lens\acceptance\builds\SAP-Lens-...-win-x64
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\verify-release.ps1 -ReleasePath C:\sap-lens\acceptance\builds\AuthLens-...-win-x64
 #>
 param([Parameter(Mandatory = $true)][string]$ReleasePath, [ValidateSet('Full', 'Server')][string]$Scope = 'Full')
 $ErrorActionPreference = 'Stop'
@@ -37,7 +37,8 @@ foreach ($name in 'schema', 'product', 'version', 'channel', 'file_version', 'ui
 }
 if ((Field 'schema') -ne 1) { $problems.Add("manifest schema '$(Field 'schema')' is not 1") }
 # "SAP Lens 2" is the product name of releases built before the rename (docs/architecture/VERSIONING.md, naming register).
-if ((Field 'product') -notin 'SAP Lens', 'SAP Lens 2') { $problems.Add("manifest product '$(Field 'product')' is not SAP Lens") }
+# AuthLens writes "AuthLens"; releases built under the earlier product name carry "SAP Lens" or "SAP Lens 2" and keep verifying.
+if ((Field 'product') -notin 'AuthLens', 'SAP Lens', 'SAP Lens 2') { $problems.Add("manifest product '$(Field 'product')' is not AuthLens") }
 if ("$(Field 'source_sha')" -cnotmatch '^[0-9a-f]{40}$') { $problems.Add("manifest source_sha '$(Field 'source_sha')' is not a 40-character commit id") }
 if ((Field 'source_dirty') -isnot [bool]) { $problems.Add('manifest source_dirty is not true or false') }
 foreach ($name in 'source_committed_at', 'build_timestamp_utc') { if (-not (Stamp (Field $name))) { $problems.Add("manifest $name is not a timestamp") } }
@@ -65,7 +66,8 @@ if (-not $publish) { } else {
     if (-not (Text $publish.server_native_libraries)) { $problems.Add('publish.server_native_libraries is missing') }
 }
 $folder = Split-Path -Leaf $root
-if ($folder -like 'SAP-Lens-*' -and $platform -and $folder -notlike "*-$platform") { $problems.Add("folder name $folder does not end with the platform $platform") }
+$named = $folder -like 'AuthLens-*' -or $folder -like 'SAP-Lens-*'   # SAP-Lens-* (and SAP-Lens-2-*): releases built before the rename to AuthLens
+if ($named -and $platform -and $folder -notlike "*-$platform") { $problems.Add("folder name $folder does not end with the platform $platform") }
 
 # Product version: a valid version, the same in the folder name, and a file version that follows from it.
 if ("$($manifest.version)" -notmatch '^(\d+)\.(\d+)\.(\d+)(-(alpha|beta|rc)\.(\d+))?$') { $problems.Add("manifest version '$($manifest.version)' is not MAJOR.MINOR.PATCH[-alpha.N|-beta.N|-rc.N]") }
@@ -75,7 +77,7 @@ else {
     if ($manifest.PSObject.Properties.Name -contains 'file_version' -and ((@($manifest.file_version) -join '.') -ne ($expected -join '.'))) { $problems.Add("manifest file_version $(@($manifest.file_version) -join '.') does not follow from version $($manifest.version)") }
     if ($manifest.PSObject.Properties.Name -contains 'channel' -and $manifest.channel -ne $channel) { $problems.Add("manifest channel '$($manifest.channel)' does not follow from version $($manifest.version)") }
     $folder = Split-Path -Leaf $root
-    if ($folder -like 'SAP-Lens-*' -and $folder -notlike "SAP-Lens-$($manifest.version)-*" -and $folder -notlike "SAP-Lens-2-$($manifest.version)-*") { $problems.Add("folder name $folder does not carry version $($manifest.version)") }
+    if ($named -and $folder -notlike "AuthLens-$($manifest.version)-*" -and $folder -notlike "SAP-Lens-$($manifest.version)-*" -and $folder -notlike "SAP-Lens-2-$($manifest.version)-*") { $problems.Add("folder name $folder does not carry version $($manifest.version)") }
 }
 $listed = @{}
 if (@($manifest.artifacts).Count -eq 0) { $problems.Add('manifest lists no artifacts') }

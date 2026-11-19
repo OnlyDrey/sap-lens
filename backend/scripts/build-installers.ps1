@@ -1,15 +1,15 @@
 <#
 .SYNOPSIS
-  Builds the SAP Lens Desktop and Server installers (Inno Setup 6) from a verified Windows release folder. Windows PowerShell 5.1 and PowerShell 7.
+  Builds the AuthLens Desktop and Server installers (Inno Setup 6) from a verified Windows release folder. Windows PowerShell 5.1 and PowerShell 7.
 
 .DESCRIPTION
   1. Verifies the release folder with verify-release.ps1 (every artifact against build-manifest.json and SHA256SUMS) and refuses a dirty or non-win-x64 build.
   2. Compiles installer\AuthLens-Desktop.iss and installer\AuthLens-Server.iss with the manifest's version and file version.
-  3. Writes SAP-Lens-<version>-Setup.exe, SAP-Lens-Server-<version>-Setup.exe and installers-SHA256SUMS into -Output.
+  3. Writes AuthLens-<version>-Setup.exe, AuthLens-Server-<version>-Setup.exe and installers-SHA256SUMS into -Output.
   Nothing is signed, uploaded, tagged or installed. Code signing is a separate, authorized release step.
 
 .EXAMPLE
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-installers.ps1 -ReleasePath C:\saplens\builds\SAP-Lens-2.0.0-alpha.1-...-win-x64 -Output C:\saplens\installers
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-installers.ps1 -ReleasePath C:\saplens\builds\AuthLens-2.0.0-alpha.1-...-win-x64 -Output C:\saplens\installers
 #>
 param(
     [Parameter(Mandatory = $true)][string]$ReleasePath,
@@ -46,7 +46,7 @@ foreach ($script in 'AuthLens-Desktop.iss', 'AuthLens-Server.iss') {
     $ErrorActionPreference = 'Stop'
     if ($code -ne 0) { throw "ISCC failed for $script (exit $code)." }
 }
-$names = "SAP-Lens-$version-Setup.exe", "SAP-Lens-Server-$version-Setup.exe"
+$names = "AuthLens-$version-Setup.exe", "AuthLens-Server-$version-Setup.exe"
 $lines = foreach ($name in $names) {
     $file = Join-Path $Output $name
     if (-not (Test-Path -LiteralPath $file)) { throw "Expected installer $name was not written." }

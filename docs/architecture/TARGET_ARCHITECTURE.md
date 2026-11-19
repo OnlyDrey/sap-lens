@@ -79,7 +79,7 @@ paged, snake_case JSON. Errors become RFC 9457 problem details with the correlat
 | --- | --- | --- |
 | Entry | `SapLens.Desktop` (WinForms + WebView2) | `SapLens.Api` executable |
 | Bind | `127.0.0.1:0` (OS-assigned), never anything else | `127.0.0.1:18790` by default; trusted LAN only with `--network`, one private address, HTTPS and explicit host names ([SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md)) |
-| Token | New 256-bit token per run, injected into `/api` requests by WebView2 `WebResourceRequested`; never visible to page script | `SAP_LENS_TOKEN` or a generated `api-token` file (0600 on Linux) |
+| Token | New 256-bit token per run, injected into `/api` requests by WebView2 `WebResourceRequested`; never visible to page script | `AUTHLENS_TOKEN` or a generated `api-token` file (0600 on Linux) |
 | Data | `%LOCALAPPDATA%\SAP Lens Desktop\data` | `--data-dir` (absolute, local; UNC and network drives refused) |
 | UI | Embedded prototype UI for `/api/v1` (in `SapLens.Api.dll`), token injected by the shell | Same embedded UI; browser sign-in exchanges the token for an HttpOnly session cookie |
 | Shutdown | Window closed -> host stop; running job handed back | SIGTERM / service stop -> same |

@@ -17,7 +17,7 @@ const catalogue = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTE
   'BC,ZC:BC:EXACT,,ZD:EMPTY,,,\n'
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-consolidated-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-consolidated-'))
   const roles = path.join(directory, 'roles.csv'), users = path.join(directory, 'users.csv')
   writeFileSync(roles, catalogue)
   writeFileSync(users, 'USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO,USER_LOCKED,USER_VALID_FROM,USER_VALID_TO\n' +

@@ -17,7 +17,7 @@ export function useAssignmentCSVExport(view:'users'|'releases'|'release-roles',f
    if(!response.ok)throw Error('Assignment export could not be created. Refresh the view and check source availability.')
    if(revision&&response.headers.get('X-SAP-Lens-Data-Revision')!==revision)throw Error('Source data changed. Refresh before exporting.')
    if(asOf&&response.headers.get('X-SAP-Lens-As-Of')!==asOf)throw Error('Assignment validity date changed. Refresh before exporting.')
-   const filename=response.headers.get('Content-Disposition')?.match(/filename="(sap-lens-(?:user-directory|release-roles|release-role-list)-review-\d{4}-\d{2}-\d{2}\.csv)"/)?.[1]
+   const filename=response.headers.get('Content-Disposition')?.match(/filename="(authlens-(?:user-directory|release-roles|release-role-list)-review-\d{4}-\d{2}-\d{2}\.csv)"/)?.[1]
    if(!filename||!response.headers.get('Content-Type')?.startsWith('text/csv'))throw Error('Assignment export response is invalid.')
    const reader=response.body?.getReader();if(!reader)throw Error('Export stream is unavailable.')
    const decoder=new TextDecoder('utf-8',{fatal:true}),parts:string[]=[];let bytes=0

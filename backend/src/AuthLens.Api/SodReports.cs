@@ -80,9 +80,9 @@ public static class SodReports
     public static readonly Dictionary<string, string> StatusStatements = new(StringComparer.Ordinal)
     {
         ["Draft"] = "Draft: this document has not been reviewed or approved.",
-        ["Reviewed"] = "Reviewed: review decisions are recorded with identity provenance. SAP Lens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
-        ["Approved"] = "Approved in SAP Lens: the review period has an explicit recorded approval and is frozen. Identity provenance is retained; Desktop/legacy names are self-reported and not authenticated. This is not a digital signature. Self-approval is permitted.",
-        ["Externally signed"] = "Externally signed: the preparer states that this document was signed outside SAP Lens. SAP Lens cannot verify the signature.",
+        ["Reviewed"] = "Reviewed: review decisions are recorded with identity provenance. AuthLens does not authenticate Desktop/legacy profile names; server session events retain account attribution. Review completion is not approval.",
+        ["Approved"] = "Approved in AuthLens: the review period has an explicit recorded approval and is frozen. Identity provenance is retained; Desktop/legacy names are self-reported and not authenticated. This is not a digital signature. Self-approval is permitted.",
+        ["Externally signed"] = "Externally signed: the preparer states that this document was signed outside AuthLens. AuthLens cannot verify the signature.",
     };
     private static readonly string[][] Glossary =
     [
@@ -96,11 +96,11 @@ public static class SodReports
     ];
     public const string Limitation = "Potential conflicts are based on role-derived transaction evidence, not verified effective SAP authorization. Desktop/legacy identities are self-reported; session-authenticated events retain account provenance. These records are not verified digital signatures.";
     private static readonly Dictionary<string, string> DescriptionSources = new(StringComparer.Ordinal) { ["imported"] = "Imported", ["local"] = "Local override", ["reference"] = "Curated reference library" };
-    private const string DescriptionLegend = "Sources: Imported = text supplied in the SoD Matrix CSV when the evidence was captured; Local override = business description maintained in SAP Lens, takes priority over imported metadata; Curated reference library = non-authoritative business guidance used when neither has text; Not available = no description exists. SAP Lens does not write descriptions from identifiers.";
+    private const string DescriptionLegend = "Sources: Imported = text supplied in the SoD Matrix CSV when the evidence was captured; Local override = business description maintained in AuthLens, takes priority over imported metadata; Curated reference library = non-authoritative business guidance used when neither has text; Not available = no description exists. AuthLens does not write descriptions from identifiers.";
     private static readonly Dictionary<string, string> BasisNotes = new(StringComparer.Ordinal)
     {
         ["captured"] = "These descriptions were frozen with this review period and do not change when data is imported or edited later.",
-        ["legacy"] = "This review period was captured before imported descriptions were retained. Only business descriptions maintained in SAP Lens at capture time are shown; no imported descriptions are available for this period.",
+        ["legacy"] = "This review period was captured before imported descriptions were retained. Only business descriptions maintained in AuthLens at capture time are shown; no imported descriptions are available for this period.",
         ["current"] = "Current evidence: descriptions reflect the data loaded now and can change after the next import. A review period freezes them.",
     };
     private static readonly Dictionary<string, string> SourceNames = new(StringComparer.Ordinal) { ["roles"] = "Role Catalogue", ["users"] = "User–Role Mapping", ["sod"] = "SoD Matrix", ["employees"] = "Employee Directory" };
@@ -412,7 +412,7 @@ public static class SodReports
             controlRows = [.. legacyReviews.Where(r => S(Legacy(r)["mitigating_controls"]).Length > 0)
                 .Select(r => Row(S(r["finding"]!["subject"]) + " / " + S(r["finding"]!["risk_id"]), S(Legacy(r)["mitigating_controls"]), S(Legacy(r)["reviewer"])))];
         }
-        Section("controls", ["Controls are recorded by reviewers and are not independently verified by SAP Lens."], Table(Row("SAP user / risk or activity", "Controls or conditions", "Reviewer"), controlRows));
+        Section("controls", ["Controls are recorded by reviewers and are not independently verified by AuthLens."], Table(Row("SAP user / risk or activity", "Controls or conditions", "Reviewer"), controlRows));
         static string Ref(JsonObject a) => S(a["user"]) + " / " + (S(a["activity"]) is { Length: > 0 } x ? x : S(a["risk_id"]) is { Length: > 0 } y ? y : S(a["role"]));
         if (v2)
             Section("outstanding",
@@ -714,12 +714,12 @@ public static class SodReports
                 var csv = new StringBuilder("\ufeff");
                 V1Csv.Line(csv, V1SodGovernance.RemediationColumns, cells: false);
                 foreach (var row in V1SodGovernance.RemediationCsv(model["rows"]!.AsArray().Select(r => r!.AsObject()))) V1Csv.Line(csv, row, cells: true);
-                http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"sap-lens-sod-access-remediation-{DateTime.Now:yyyy-MM-dd}.csv\"";
+                http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"authlens-sod-access-remediation-{DateTime.Now:yyyy-MM-dd}.csv\"";
                 http.Response.Headers.CacheControl = "no-store";
                 http.Response.Headers["X-SAP-Lens-Model"] = S(model["model_checksum"]);
                 return Results.Text(csv.ToString(), "text/csv; charset=utf-8");
             }
-            return File(http, payload!, kind, $"sap-lens-access-remediation-{context}-{S(model["report_date"])}.{kind}", new() { ["X-SAP-Lens-Model"] = S(model["model_checksum"]) });
+            return File(http, payload!, kind, $"authlens-access-remediation-{context}-{S(model["report_date"])}.{kind}", new() { ["X-SAP-Lens-Model"] = S(model["model_checksum"]) });
         }));
         api.MapPost("/sod/reports/{kind}", (string kind, HttpContext http, CancellationToken ct) => Guard(async () =>
         {
@@ -734,7 +734,7 @@ public static class SodReports
             if (expected is not null && expected != S(model["model_checksum"])) throw new ReportException(409, "Report evidence changed. Preview the current snapshot before exporting.");
             var payload = Render(http.RequestServices, model, kind);
             await LogAsync(http, id, kind, model, options.PreviousPeriodId, ct);
-            return File(http, payload, kind, $"sap-lens-sod-report-{S(model["period"]!["id"])}-{S(model["report_date"])}.{kind}", new()
+            return File(http, payload, kind, $"authlens-sod-report-{S(model["period"]!["id"])}-{S(model["report_date"])}.{kind}", new()
             {
                 ["X-SAP-Lens-Snapshot"] = S(model["snapshot_checksum"]), ["X-SAP-Lens-Report-Model"] = S(model["model_checksum"]),
                 ["X-SAP-Lens-File-SHA256"] = Convert.ToHexStringLower(SHA256.HashData(payload)),

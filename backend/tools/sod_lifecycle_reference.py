@@ -6,7 +6,7 @@ pattern so that absence can be verified (v1 requires a catalogue without invalid
 import hashlib, json, os, sys, tempfile
 from datetime import datetime, timezone
 config_dir = tempfile.mkdtemp()
-os.environ['SAP_LENS_CONFIG_DIR'] = config_dir
+os.environ['AUTHLENS_CONFIG_DIR'] = config_dir
 backend, fixtures, out = sys.argv[1:4]
 sys.path.insert(0, backend)
 import cache, config

@@ -34,7 +34,7 @@ public static class TestCertificates
     public static X509Certificate2 Create(string[] dns, IPAddress[] ips, DateTimeOffset? from = null, DateTimeOffset? to = null, string eku = "1.3.6.1.5.5.7.3.1", int keySize = 2048)
     {
         using var rsa = RSA.Create(keySize);
-        var request = new CertificateRequest("CN=SAP Lens test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
+        var request = new CertificateRequest("CN=AuthLens test", rsa, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         var san = new SubjectAlternativeNameBuilder();
         foreach (var name in dns) san.AddDnsName(name);
         foreach (var ip in ips) san.AddIpAddress(ip);
@@ -52,16 +52,18 @@ public sealed class NetworkPolicyTests : IDisposable
     private readonly string _token = HostSettings.NewToken();
     public void Dispose() { try { Directory.Delete(_root, true); } catch (IOException) { } }
 
-    private Func<string, string?> Env(params (string Key, string Value)[] values) => key => key == "SAP_LENS_TOKEN" ? _token : values.FirstOrDefault(v => v.Key == key).Value;
+    private Func<string, string?> Env(params (string Key, string Value)[] values) => key => key == "AUTHLENS_TOKEN" ? _token : values.FirstOrDefault(v => v.Key == key).Value;
 
     [Fact]
-    public void Startup_refuses_the_environment_names_used_before_the_rename_and_names_their_replacements()
+    public void Earlier_product_environment_names_are_never_read_and_are_reported_with_their_AuthLens_names()
     {
-        Assert.Null(ServerConfiguration.RenamedEnvironment(new System.Collections.Hashtable { ["SAP_LENS_DATA_DIR"] = "/data", ["PATH"] = "/bin" }));
-        var refusal = ServerConfiguration.RenamedEnvironment(new System.Collections.Hashtable { ["SAP_LENS_V2_PORT"] = "1", ["SAP_LENS_V2_DATA_DIR"] = "/d" });
-        Assert.NotNull(refusal);
-        Assert.Contains("SAP_LENS_V2_DATA_DIR -> SAP_LENS_DATA_DIR", refusal);
-        Assert.Contains("SAP_LENS_V2_PORT -> SAP_LENS_PORT", refusal);
+        Assert.Null(ServerConfiguration.RenamedEnvironment(new System.Collections.Hashtable { ["AUTHLENS_DATA_DIR"] = "/data", ["PATH"] = "/bin", ["SAP_LENS_V1_BACKEND"] = "/v1" }));
+        var warning = ServerConfiguration.RenamedEnvironment(new System.Collections.Hashtable { ["SAP_LENS_V2_PORT"] = "1", ["SAP_LENS_DATA_DIR"] = "/d" });
+        Assert.NotNull(warning);
+        Assert.Contains("SAP_LENS_DATA_DIR (AuthLens reads AUTHLENS_DATA_DIR)", warning);
+        Assert.Contains("SAP_LENS_V2_PORT (AuthLens reads AUTHLENS_PORT)", warning);
+        // Only AUTHLENS_* configures the server: an earlier name never changes the data directory.
+        Assert.Throws<InvalidOperationException>(() => ServerConfiguration.Parse([], key => key == "SAP_LENS_DATA_DIR" ? "/d" : null));
     }
 
     [Fact]
@@ -80,11 +82,11 @@ public sealed class NetworkPolicyTests : IDisposable
     {
         var help = ServerConfiguration.Informational(["--data-dir", Path.Combine(_root, "never"), "--help"])!;
         foreach (var option in ServerConfiguration.ValueOptions.Concat(ServerConfiguration.FlagOptions)) Assert.Contains(option + " ", help);
-        foreach (var variable in new[] { "SAP_LENS_DATA_DIR", "SAP_LENS_LISTEN", "SAP_LENS_PORT", "SAP_LENS_NETWORK", "SAP_LENS_ALLOWED_HOSTS", "SAP_LENS_CERT",
-                     "SAP_LENS_CERT_KEY", "SAP_LENS_CERT_PASSWORD_FILE", "SAP_LENS_CERT_PASSWORD", "SAP_LENS_AUTH", "SAP_LENS_TOKEN", "SAP_LENS_PRINCIPAL" })
+        foreach (var variable in new[] { "AUTHLENS_DATA_DIR", "AUTHLENS_LISTEN", "AUTHLENS_PORT", "AUTHLENS_NETWORK", "AUTHLENS_ALLOWED_HOSTS", "AUTHLENS_CERT",
+                     "AUTHLENS_CERT_KEY", "AUTHLENS_CERT_PASSWORD_FILE", "AUTHLENS_CERT_PASSWORD", "AUTHLENS_AUTH", "AUTHLENS_TOKEN", "AUTHLENS_PRINCIPAL" })
             Assert.Contains(variable, help);
         Assert.Equal(help, ServerConfiguration.Informational(["-h"]));
-        Assert.StartsWith("SAP Lens server ", ServerConfiguration.Informational(["--version"]));
+        Assert.StartsWith("AuthLens server ", ServerConfiguration.Informational(["--version"]));
         Assert.Null(ServerConfiguration.Informational(["--data-dir", _root]));
         Assert.False(Directory.Exists(Path.Combine(_root, "never")));
         Assert.Throws<InvalidOperationException>(() => ServerConfiguration.Parse(["--data-dir", _root, "--helpme"], Env()));   // still fail-closed
@@ -102,8 +104,8 @@ public sealed class NetworkPolicyTests : IDisposable
             };
             start.ArgumentList.Add(Path.Combine(AppContext.BaseDirectory, "AuthLens.Api.dll"));
             foreach (var arg in args) start.ArgumentList.Add(arg);
-            start.Environment["SAP_LENS_CERT_PASSWORD"] = "synthetic-secret-value";
-            start.Environment["SAP_LENS_TOKEN"] = "synthetic-token-value-synthetic-token-value";
+            start.Environment["AUTHLENS_CERT_PASSWORD"] = "synthetic-secret-value";
+            start.Environment["AUTHLENS_TOKEN"] = "synthetic-token-value-synthetic-token-value";
             using var process = System.Diagnostics.Process.Start(start)!;
             var output = process.StandardOutput.ReadToEndAsync();
             var error = process.StandardError.ReadToEndAsync();
@@ -117,14 +119,14 @@ public sealed class NetworkPolicyTests : IDisposable
         Assert.DoesNotContain("synthetic-token-value", help.Out + help.Error);
         var version = await Run("--version");
         Assert.Equal(0, version.Code);
-        Assert.StartsWith("SAP Lens server ", version.Out);
+        Assert.StartsWith("AuthLens server ", version.Out);
         Assert.False(Directory.Exists(never));
         var unknown = await Run("--data-dir", never, "--bogus");
         Assert.Equal(3, unknown.Code);
         Assert.Contains("startup refused: Unknown option '--bogus'.", unknown.Error);
         var missing = await Run();
         Assert.Equal(3, missing.Code);
-        Assert.Contains("--data-dir (or SAP_LENS_DATA_DIR) is required.", missing.Error);
+        Assert.Contains("--data-dir (or AUTHLENS_DATA_DIR) is required.", missing.Error);
         Assert.False(Directory.Exists(never));
     }
 
@@ -140,8 +142,8 @@ public sealed class NetworkPolicyTests : IDisposable
     [Fact]
     public void Environment_configures_the_same_settings_as_options()
     {
-        var settings = ServerConfiguration.Parse([], Env(("SAP_LENS_DATA_DIR", _root), ("SAP_LENS_LISTEN", "192.168.10.5"), ("SAP_LENS_PORT", "18791"),
-            ("SAP_LENS_NETWORK", "true"), ("SAP_LENS_ALLOWED_HOSTS", "saplens.corp.example, 192.168.10.5")));
+        var settings = ServerConfiguration.Parse([], Env(("AUTHLENS_DATA_DIR", _root), ("AUTHLENS_LISTEN", "192.168.10.5"), ("AUTHLENS_PORT", "18791"),
+            ("AUTHLENS_NETWORK", "true"), ("AUTHLENS_ALLOWED_HOSTS", "saplens.corp.example, 192.168.10.5")));
         Assert.Equal(IPAddress.Parse("192.168.10.5"), settings.ListenAddress);
         Assert.True(settings.NetworkAccess);
         Assert.Equal(["saplens.corp.example", "192.168.10.5"], settings.AllowedHosts);

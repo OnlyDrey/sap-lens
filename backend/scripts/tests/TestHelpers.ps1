@@ -1,7 +1,7 @@
 # Shared Pester infrastructure. Child scripts use the current PowerShell edition by absolute path;
 # a missing executable is an infrastructure failure, never a reason to skip a test.
 function Get-TestPowerShellExecutable {
-    $path = $env:SAP_LENS_TEST_POWERSHELL
+    $path = $env:AUTHLENS_TEST_POWERSHELL
     if (-not $path) {
         $name = if ($PSVersionTable.PSEdition -eq 'Desktop') { 'powershell.exe' }
             elseif ([IO.Path]::DirectorySeparatorChar -eq '\') { 'pwsh.exe' } else { 'pwsh' }

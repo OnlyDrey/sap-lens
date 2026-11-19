@@ -57,7 +57,7 @@ for (const theme of ['dark', 'light'] as const) {
     page,
     request
   }, testInfo) => {
-    const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-identifiers-'))
+    const directory = mkdtempSync(path.join(tmpdir(), 'authlens-identifiers-'))
     const file = path.join(directory, 'role-catalogue.csv')
     const identifier = 'DEMO_' + 'LONG_IDENTIFIER_'.repeat(24)
     writeFileSync(
@@ -214,7 +214,7 @@ for (const theme of ['light', 'dark'] as const) {
         .getByRole('button', { name: 'Apply settings', exact: true })
         .click()
       await expect(
-        page.getByRole('region', { name: 'SAP Lens settings', exact: true })
+        page.getByRole('region', { name: 'AuthLens settings', exact: true })
       ).toBeHidden()
       await page.getByRole('button', { name: 'Open settings' }).click()
     }
@@ -273,7 +273,7 @@ test('clipboard denial is announced and leaves exact identifier selectable', asy
   )
   await page.goto('/#session=browser-test-session')
   await activateCSV(page,'roles',path.resolve('tests/fixtures/role-catalogue-minimal.csv'))
-  await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
+  await page.getByRole('button',{name:'Back to AuthLens',exact:true}).click()
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   const card = page.getByRole('article').first()
   const copy = card.getByRole('button', { name: /^Copy role identifier/ })

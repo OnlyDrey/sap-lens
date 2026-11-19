@@ -5,6 +5,6 @@ export function backupDownloadFilename(disposition: string | null, kind: string,
   const ordinary = disposition?.match(/(?:^|;)\s*filename\s*=\s*(?:"([^"]*)"|([^;\s]*))/i)
   let name: string | undefined
   try { name = extended ? decodeURIComponent(extended[1].trim()) : ordinary?.[1] ?? ordinary?.[2] } catch { throw Error('Invalid backup filename.') }
-  if (name !== `SAP-Lens-${kind}-${identity}.slbak` && name !== `SAP-Lens-${kind}-${identity}.tar.gz`) throw Error('Invalid backup filename.')
+  if (name !== `AuthLens-${kind}-${identity}.slbak` && name !== `AuthLens-${kind}-${identity}.tar.gz`) throw Error('Invalid backup filename.')
   return name
 }

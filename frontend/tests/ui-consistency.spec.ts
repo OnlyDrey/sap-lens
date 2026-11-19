@@ -7,7 +7,7 @@ let directory:string
 const areas=['MM','FI','SD','BC','PP','QM','PM']
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers})
- directory=mkdtempSync(path.join(tmpdir(),'sap-lens-consistency-'))
+ directory=mkdtempSync(path.join(tmpdir(),'authlens-consistency-'))
  const roles=path.join(directory,'roles.csv'),users=path.join(directory,'users.csv')
  writeFileSync(roles,'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE\n'+areas.map((area,index)=>`${area},ZC:SYN:${area},Synthetic ${area},ZS:SYN:${area},Synthetic component ${area},SYN${index}\n`).join(''))
  writeFileSync(users,'USERNAME,ROLE_NAME,EMAIL,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO,USER_LOCKED\nSYN_VIEW,ZC:SYN:MM,synthetic@example.test,20000101,99991231,20000101,99991231,0\n')

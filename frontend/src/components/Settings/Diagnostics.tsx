@@ -124,7 +124,7 @@ export function Diagnostics({
       )
       const link = document.createElement('a')
       link.href = url
-      link.download = 'SAP-Lens-diagnostics.json'
+      link.download = 'AuthLens-diagnostics.json'
       link.click()
       URL.revokeObjectURL(url)
       setFeedback(

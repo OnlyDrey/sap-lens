@@ -31,7 +31,7 @@ export async function exportAssignments(user: UserDetail, scope: string, status:
   }
   if (seen.size !== user.total || !current()) throw new Error('Export cancelled or incomplete.')
   const content = chunks.join('')
-  const filename = `sap-lens-${user.username.replace(/[^a-z0-9_-]/gi, '_').slice(0, 80)}-${scope}-${user.as_of}.csv`
+  const filename = `authlens-${user.username.replace(/[^a-z0-9_-]/gi, '_').slice(0, 80)}-${scope}-${user.as_of}.csv`
   if (window.pywebview) {
     if (!window.pywebview.api.save_user_access_csv) throw new Error('This desktop version does not support CSV export. Update the desktop application.')
     return window.pywebview.api.save_user_access_csv(applicationToken(), filename, content)

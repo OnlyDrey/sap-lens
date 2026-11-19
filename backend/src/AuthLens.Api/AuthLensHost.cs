@@ -72,7 +72,7 @@ public static class AuthLensHost
         builder.Services.AddExceptionHandler<ProblemMapper>();
         builder.Services.AddOpenApi("v1", o => o.AddDocumentTransformer((doc, _, _) =>
         {
-            doc.Info.Title = "SAP Lens API";
+            doc.Info.Title = "AuthLens API";
             doc.Info.Version = "v1";
             return Task.CompletedTask;
         }));

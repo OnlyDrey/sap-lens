@@ -3,7 +3,7 @@ using System.Text.RegularExpressions;
 namespace AuthLens.Domain.Csv;
 
 /// <summary>Port of CPython's csv.Sniffer delimiter detection (_guess_quote_and_delimiter, then _guess_delimiter with the preferred list), restricted
-/// to the delimiters SAP Lens accepts. Only the delimiter is used, as in csv_import.py. Returns null where Python raises "Could not determine delimiter".</summary>
+/// to the delimiters AuthLens accepts. Only the delimiter is used, as in csv_import.py. Returns null where Python raises "Could not determine delimiter".</summary>
 public static class PythonSniffer
 {
     private static readonly char[] Preferred = [',', '\t', ';', ' ', ':'];

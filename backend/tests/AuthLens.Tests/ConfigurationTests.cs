@@ -55,7 +55,7 @@ public sealed class ConfigurationTests : IAsyncLifetime
     private async Task<JsonObject> Settings() => JsonNode.Parse(await _client.GetStringAsync("/api/configuration"))!["settings"]!.AsObject();
 
     private static JsonObject Expected() =>
-        JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "configuration", "expected.python.json")))!.AsObject();
+        JsonNode.Parse(ProductRename.Apply(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "configuration", "expected.python.json"))))!.AsObject();
 
     private async Task SaveOrganization()
     {

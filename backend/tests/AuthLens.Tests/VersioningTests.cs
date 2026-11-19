@@ -6,7 +6,7 @@ using AuthLens.Api;
 
 namespace AuthLens.Tests;
 
-/// <summary>One product version for SAP Lens (backend/product-version.json), the same in the assemblies, --version, every HTTP
+/// <summary>One product version for AuthLens (backend/product-version.json), the same in the assemblies, --version, every HTTP
 /// identity and the release scripts; independent of SAP Lens v1, whose own version source and frontend mirror stay as they are.</summary>
 public sealed class VersioningTests : IAsyncLifetime
 {
@@ -52,14 +52,14 @@ public sealed class VersioningTests : IAsyncLifetime
     {
         var file = JsonNode.Parse(File.ReadAllText(Path.Combine(Solution.FullName, "product-version.json")))!;
         var version = (string)file["version"]!;
-        Assert.Equal("SAP Lens", (string)file["product"]!);
+        Assert.Equal("AuthLens", (string)file["product"]!);
         Assert.Matches(@"^(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})\.(0|[1-9]\d{0,4})(-(alpha|beta|rc)\.[1-9]\d{0,4})?$", version);
         Assert.Equal(version, ProductIdentity.Version);
         Assert.Equal(FileVersionOf(version), string.Join('.', ProductIdentity.FileVersion));
         Assert.Equal(version.Contains('-') ? version.Split('-')[1].Split('.')[0] : "stable", ProductIdentity.Channel);
         var assembly = typeof(ProductIdentity).Assembly;
         Assert.Equal(FileVersionOf(version), assembly.GetCustomAttribute<AssemblyFileVersionAttribute>()!.Version);
-        Assert.Equal("SAP Lens", assembly.GetCustomAttribute<AssemblyProductAttribute>()!.Product);
+        Assert.Equal("AuthLens", assembly.GetCustomAttribute<AssemblyProductAttribute>()!.Product);
         Assert.StartsWith(version, assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion);
         Assert.Equal(version, typeof(AuthLens.Application.Backups.ApplicationBackups).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0]);
         Assert.Equal(version, AuthLens.Application.Backups.ApplicationBackups.ProductVersion);
@@ -89,7 +89,7 @@ public sealed class VersioningTests : IAsyncLifetime
     {
         var text = ServerConfiguration.Informational(["--version"])!;
         var lines = text.Split(Environment.NewLine);
-        Assert.Equal($"SAP Lens server {ProductIdentity.Version}", lines[0]);
+        Assert.Equal($"AuthLens server {ProductIdentity.Version}", lines[0]);
         Assert.Contains(lines, l => l == $"File version: {string.Join('.', ProductIdentity.FileVersion)}");
         Assert.Contains(lines, l => l.StartsWith("Channel: ", StringComparison.Ordinal) && l.Contains(ProductIdentity.Channel == "stable" ? "stable release" : ProductIdentity.Channel + " pre-release"));
         Assert.Contains(lines, l => l == $"Commit: {ProductIdentity.Commit ?? "not recorded (local build)"}");
@@ -104,7 +104,7 @@ public sealed class VersioningTests : IAsyncLifetime
         var identity = JsonNode.Parse(await _client.GetStringAsync("/product-version.json"))!;
         var diagnostics = JsonNode.Parse(await _client.GetStringAsync("/api/diagnostics"))!;
         foreach (var node in new[] { version, info, identity, diagnostics }) Assert.Equal(ProductIdentity.Version, (string)node["version"]!);
-        Assert.Equal("SAP Lens", (string)identity["product"]!);
+        Assert.Equal("AuthLens", (string)identity["product"]!);
         Assert.Equal(ProductIdentity.Channel, (string)identity["channel"]!);
         Assert.Equal(ProductIdentity.FileVersion, info["file_version"]!.AsArray().Select(n => (int)n!));
         Assert.Equal(ProductIdentity.FileVersion, identity["file_version"]!.AsArray().Select(n => (int)n!));
@@ -119,7 +119,7 @@ public sealed class VersioningTests : IAsyncLifetime
         var text = File.ReadAllText(Path.Combine(Solution.FullName, "scripts", script));
         Assert.Contains("product-version.json", text);
         Assert.DoesNotContain("Directory.Build.props", text);                   // the props no longer hold a version
-        Assert.Contains("SAP-Lens-", text);                                     // the folder name carries the version
+        Assert.Contains("AuthLens-", text);                                     // the folder name carries the version
         Assert.Contains("{version}+{sha}", text.Replace("$version+$sha", "{version}+{sha}"));
         Assert.Contains("ui_source_version", text);                              // the frontend mirrors the same canonical product version
     }

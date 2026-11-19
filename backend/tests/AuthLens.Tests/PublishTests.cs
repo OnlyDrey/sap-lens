@@ -110,7 +110,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         var port = FreePort();
         var info = new ProcessStartInfo(Path.Combine(output, "AuthLens.Api")) { WorkingDirectory = elsewhere, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in new[] { "--data-dir", Path.Combine(_root, "data"), "--port", port.ToString() }) info.ArgumentList.Add(arg);
-        info.Environment["SAP_LENS_TOKEN"] = token;
+        info.Environment["AUTHLENS_TOKEN"] = token;
         info.Environment.Remove("DOTNET_ROOT"); // self-contained: must not need an installed runtime
         using var server = Process.Start(info)!;
         _ = server.StandardOutput.ReadToEndAsync();
@@ -175,7 +175,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
             var info = new ProcessStartInfo(Path.Combine(output, "AuthLens.Api")) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
             foreach (var arg in args) info.ArgumentList.Add(arg);
             info.Environment["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = extract;
-            info.Environment["SAP_LENS_TOKEN"] = HostSettings.NewToken();
+            info.Environment["AUTHLENS_TOKEN"] = HostSettings.NewToken();
             using var process = Process.Start(info)!;
             var stdout = process.StandardOutput.ReadToEndAsync();
             var stderr = process.StandardError.ReadToEndAsync();
@@ -184,7 +184,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         }
         var version = await Run("--version");
         Assert.Equal(0, version.Code);
-        Assert.StartsWith("SAP Lens server ", version.Out);
+        Assert.StartsWith("AuthLens server ", version.Out);
         Assert.Contains("--trusted-proxies", (await Run("--help")).Out);
         var inside = await Run("--data-dir", Path.Combine(output, "data"), "--port", FreePort().ToString());
         Assert.Equal(3, inside.Code);
@@ -194,7 +194,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         var port = FreePort();
         var info = new ProcessStartInfo(Path.Combine(output, "AuthLens.Api")) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in new[] { "--data-dir", Path.Combine(_root, "single-file-data"), "--port", port.ToString() }) info.ArgumentList.Add(arg);
-        info.Environment["SAP_LENS_TOKEN"] = token;
+        info.Environment["AUTHLENS_TOKEN"] = token;
         info.Environment["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = extract;
         using var server = Process.Start(info)!;
         _ = server.StandardOutput.ReadToEndAsync();
@@ -229,7 +229,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         var info = new ProcessStartInfo(Path.Combine(output, "AuthLens.Api")) { WorkingDirectory = Directory.CreateDirectory(Path.Combine(_root, "cwd-" + Guid.NewGuid().ToString("N"))).FullName,
             UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (var arg in args) info.ArgumentList.Add(arg);
-        info.Environment["SAP_LENS_TOKEN"] = HostSettings.NewToken();
+        info.Environment["AUTHLENS_TOKEN"] = HostSettings.NewToken();
         using var server = Process.Start(info)!;
         _ = server.StandardOutput.ReadToEndAsync();
         var error = server.StandardError.ReadToEndAsync();

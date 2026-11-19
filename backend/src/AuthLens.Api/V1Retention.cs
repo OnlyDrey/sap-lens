@@ -68,7 +68,7 @@ public static class V1Retention
         });
     }
 
-    /// <summary>POST /api/retention/review/undo: restores review periods removed by a review cleanup. SAP Lens never removes review periods (they are
+    /// <summary>POST /api/retention/review/undo: restores review periods removed by a review cleanup. AuthLens never removes review periods (they are
     /// immutable audit evidence), so there is never a cleanup to undo; the request is validated as in v1 and answered 409 without changing anything.</summary>
     private static async Task<IResult> UndoAsync(HttpContext http, CancellationToken ct)
     {
@@ -80,7 +80,7 @@ public static class V1Retention
         if (!AuthLens.Application.Backups.ApplicationBackups.Identity().IsMatch(operation)) return Invalid("body", "operation", "string_pattern_mismatch", "String should match pattern '^[a-f0-9]{32}$'");
         if (body["confirm"] is not { } c || c.GetValueKind() is not (JsonValueKind.True or JsonValueKind.False)) return Invalid("body", "confirm", "bool_type", "Input should be a valid boolean");
         if (!c.GetValue<bool>()) return Results.Json(new { detail = "Confirm that the removed review periods should be restored." }, statusCode: 422);
-        return Results.Json(new { detail = "There is no review cleanup to undo: SAP Lens keeps completed review periods as immutable audit evidence." }, statusCode: 409);
+        return Results.Json(new { detail = "There is no review cleanup to undo: AuthLens keeps completed review periods as immutable audit evidence." }, statusCode: 409);
     }
 
     private static IResult? Guard(HttpContext http) => V1Backups.Guard(http);

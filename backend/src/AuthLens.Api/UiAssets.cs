@@ -9,7 +9,7 @@ namespace AuthLens.Api;
 /// names "AuthLensUi/&lt;relative path&gt;". A build without them fails at startup with a clear message instead of serving 404 for "/".</summary>
 public static class UiAssets
 {
-    /// <summary>The React mount point in frontend/index.html: proves "/" is the SAP Lens application, not an error page.</summary>
+    /// <summary>The React mount point in frontend/index.html: proves "/" is the AuthLens application, not an error page.</summary>
     public const string Marker = "<div id=\"root\">";
     public const string ResourcePrefix = "AuthLensUi/";
     public const string ProductIdentityFile = "product-version.json";

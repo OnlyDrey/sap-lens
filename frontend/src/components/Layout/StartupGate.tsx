@@ -11,10 +11,10 @@ const storage = (): Storage | null => { try { return window.sessionStorage } cat
 
 /** Shown only after automatic restoring did not help. One explanation, one primary action, technical details on demand. */
 const FAILURES: Record<StartupFailure, { title: string; text: string }> = {
-  unavailable: { title: 'SAP Lens cannot reach its local service', text: 'The local service did not answer after several attempts. Your saved data is retained. Retry, or close all SAP Lens windows and start it again.' },
-  session: { title: 'SAP Lens could not restore your local session', text: 'The local session ended and could not be re-established automatically. Retry; if this keeps happening, close all SAP Lens windows and start SAP Lens again.' },
-  rejected: { title: 'Access was not accepted', text: 'The local service refused this request. Retry; if it persists, check that you are using the SAP Lens address you were given.' },
-  failed: { title: 'SAP Lens could not load its configuration', text: 'The service is running, but its configuration or storage could not be loaded. Your saved data is retained. Retry, or use Backup & Restore to recover.' },
+  unavailable: { title: 'AuthLens cannot reach its local service', text: 'The local service did not answer after several attempts. Your saved data is retained. Retry, or close all AuthLens windows and start it again.' },
+  session: { title: 'AuthLens could not restore your local session', text: 'The local session ended and could not be re-established automatically. Retry; if this keeps happening, close all AuthLens windows and start AuthLens again.' },
+  rejected: { title: 'Access was not accepted', text: 'The local service refused this request. Retry; if it persists, check that you are using the AuthLens address you were given.' },
+  failed: { title: 'AuthLens could not load its configuration', text: 'The service is running, but its configuration or storage could not be loaded. Your saved data is retained. Retry, or use Backup & Restore to recover.' },
 }
 
 export function StartupGate({ children }: { children: ReactNode }) {
@@ -53,8 +53,8 @@ export function StartupGate({ children }: { children: ReactNode }) {
   return (
     <div className="startup-screen">
       <div className="startup-card">
-        <img src="/sap-lens.png" alt="SAP Lens" className="w-24 h-24 object-contain mx-auto" />
-        <h1 className="text-3xl font-semibold mt-3">SAP Lens</h1>
+        <img src="/sap-lens.png" alt="AuthLens" className="w-24 h-24 object-contain mx-auto" />
+        <h1 className="text-3xl font-semibold mt-3">AuthLens</h1>
         <p className="text-sm text-[var(--muted)] mt-2">Your local SAP role workspace</p>
         {showRecovery && copy ? (
           <>

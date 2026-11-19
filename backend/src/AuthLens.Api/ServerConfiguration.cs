@@ -3,8 +3,8 @@ using System.Net;
 namespace AuthLens.Api;
 
 /// <summary>Server configuration from command-line options and environment variables (options win). No secret is accepted on the command line, where
-/// any local user could read it from the process list: the certificate password comes from SAP_LENS_CERT_PASSWORD or a file
-/// (--cert-password-file, for example a systemd credential), the access token from SAP_LENS_TOKEN or the protected api-token file.
+/// any local user could read it from the process list: the certificate password comes from AUTHLENS_CERT_PASSWORD or a file
+/// (--cert-password-file, for example a systemd credential), the access token from AUTHLENS_TOKEN or the protected api-token file.
 /// Unknown options are errors, so a typo never silently falls back to a default.</summary>
 public static class ServerConfiguration
 {
@@ -20,12 +20,12 @@ public static class ServerConfiguration
         return null;
     }
 
-    /// <summary>--check-sign-in USERNAME with --data-dir (or SAP_LENS_DATA_DIR): the account store path and the username to diagnose.</summary>
+    /// <summary>--check-sign-in USERNAME with --data-dir (or AUTHLENS_DATA_DIR): the account store path and the username to diagnose.</summary>
     public static (string Store, string Username) SignInCheck(string[] args, Func<string, string?> environment)
     {
         string? Value(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null; }
         var username = Value("--check-sign-in") ?? throw new InvalidOperationException("--check-sign-in needs a username.");
-        var data = Value("--data-dir") ?? environment("SAP_LENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_DATA_DIR) is required.");
+        var data = Value("--data-dir") ?? environment("AUTHLENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or AUTHLENS_DATA_DIR) is required.");
         if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
         return (AuthLens.Application.Accounts.AccountStore.For(data), username);
     }
@@ -38,7 +38,7 @@ public static class ServerConfiguration
         if (action is not ("create" or "use" or "export" or "verify" or "status")) throw new InvalidOperationException("--backup-key needs create, use, export, verify or status.");
         var path = action == "status" ? "" : i + 2 < args.Length && !args[i + 2].StartsWith("--", StringComparison.Ordinal) ? args[i + 2] : throw new InvalidOperationException($"--backup-key {action} needs a file path.");
         var d = Array.IndexOf(args, "--data-dir");
-        var data = (d >= 0 && d + 1 < args.Length ? args[d + 1] : null) ?? environment("SAP_LENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_DATA_DIR) is required.");
+        var data = (d >= 0 && d + 1 < args.Length ? args[d + 1] : null) ?? environment("AUTHLENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or AUTHLENS_DATA_DIR) is required.");
         if (!System.IO.Path.IsPathFullyQualified(data) || (path.Length > 0 && !System.IO.Path.IsPathFullyQualified(path))) throw new InvalidOperationException("--data-dir and the key path must be absolute paths.");
         return (action, path, data);
     }
@@ -57,38 +57,40 @@ public static class ServerConfiguration
         }
     }
 
-    /// <summary>The environment variables were named SAP_LENS_V2_* before the product name dropped its version. They are not read any more; a host
-    /// that still sets one would silently lose that setting (data directory, TLS, hosts, proxies), so startup is refused with the new name instead.
-    /// Migration guard only, not an alias. Remove once no installation can carry the old names.</summary>
+    /// <summary>AuthLens reads only AUTHLENS_* variables. SAP_LENS_* (SAP Lens, and SAP Lens 1) and SAP_LENS_V2_* (earlier .NET builds) are never read,
+    /// and are not refused either: a host may still run SAP Lens beside AuthLens during acceptance. The startup warning names each ignored variable
+    /// and its AuthLens name, so a setting is never lost silently. Not an alias.</summary>
     public static string? RenamedEnvironment(System.Collections.IDictionary environment)
     {
-        var old = environment.Keys.OfType<string>().Where(k => k.StartsWith("SAP_LENS_V2_", StringComparison.OrdinalIgnoreCase)).Order(StringComparer.Ordinal).ToList();
+        static string Replacement(string key) => "AUTHLENS_" + (key.StartsWith("SAP_LENS_V2_", StringComparison.OrdinalIgnoreCase) ? key["SAP_LENS_V2_".Length..] : key["SAP_LENS_".Length..]);
+        var old = environment.Keys.OfType<string>().Where(k => k.StartsWith("SAP_LENS_", StringComparison.OrdinalIgnoreCase) && !k.Equals("SAP_LENS_V1_BACKEND", StringComparison.OrdinalIgnoreCase))
+            .Order(StringComparer.Ordinal).ToList();
         return old.Count == 0 ? null
-            : $"environment variables were renamed: {string.Join(", ", old.Select(k => $"{k} -> SAP_LENS_{k["SAP_LENS_V2_".Length..]}"))}. Set the new names and remove the old ones.";
+            : $"ignored environment variables of an earlier product name: {string.Join(", ", old.Select(k => $"{k} (AuthLens reads {Replacement(k)})"))}.";
     }
 
     public const string Help = """
-        SAP Lens server (.NET)
+        AuthLens server (.NET)
 
         Usage: AuthLens.Api --data-dir <absolute path> [options]
 
         Options (each also read from the environment variable shown; a command-line option wins):
-          --data-dir <path>            SAP_LENS_DATA_DIR        Required. Absolute, local path (no network share). Created if missing.
-          --listen <ip>                SAP_LENS_LISTEN          IP address to bind. Default 127.0.0.1. Non-loopback needs --network.
-          --port <1-65535>             SAP_LENS_PORT            Default 18790.
-          --network                    SAP_LENS_NETWORK=true    Allow LAN access: one private --listen address, --cert and --allowed-hosts.
-          --allowed-hosts <a,b>        SAP_LENS_ALLOWED_HOSTS   Host names or addresses clients use (no wildcards). Required with --network.
-          --cert <file>                SAP_LENS_CERT            .pfx/.p12 or PEM certificate; enables HTTPS. Required with --network.
-          --cert-key <file>            SAP_LENS_CERT_KEY        PEM private key file (PEM certificates only).
-          --cert-password-file <file>  SAP_LENS_CERT_PASSWORD_FILE  File holding the certificate password.
-                                       SAP_LENS_CERT_PASSWORD   Password from the environment, used only without a password file.
-          --auth <mode>                SAP_LENS_AUTH            accounts (default) or shared-token.
-          --trusted-proxies <a,b>      SAP_LENS_TRUSTED_PROXIES Reverse proxies (IP or CIDR, at most /24 or /64 wide) whose X-Forwarded-For,
+          --data-dir <path>            AUTHLENS_DATA_DIR        Required. Absolute, local path (no network share). Created if missing.
+          --listen <ip>                AUTHLENS_LISTEN          IP address to bind. Default 127.0.0.1. Non-loopback needs --network.
+          --port <1-65535>             AUTHLENS_PORT            Default 18790.
+          --network                    AUTHLENS_NETWORK=true    Allow LAN access: one private --listen address, --cert and --allowed-hosts.
+          --allowed-hosts <a,b>        AUTHLENS_ALLOWED_HOSTS   Host names or addresses clients use (no wildcards). Required with --network.
+          --cert <file>                AUTHLENS_CERT            .pfx/.p12 or PEM certificate; enables HTTPS. Required with --network.
+          --cert-key <file>            AUTHLENS_CERT_KEY        PEM private key file (PEM certificates only).
+          --cert-password-file <file>  AUTHLENS_CERT_PASSWORD_FILE  File holding the certificate password.
+                                       AUTHLENS_CERT_PASSWORD   Password from the environment, used only without a password file.
+          --auth <mode>                AUTHLENS_AUTH            accounts (default) or shared-token.
+          --trusted-proxies <a,b>      AUTHLENS_TRUSTED_PROXIES Reverse proxies (IP or CIDR, at most /24 or /64 wide) whose X-Forwarded-For,
                                                                    -Proto and -Host are applied. Default none. Needs --network.
-          --trusted-proxy-hops <1-5>   SAP_LENS_TRUSTED_PROXY_HOPS  Trusted proxy hops to walk back through. Default 1.
+          --trusted-proxy-hops <1-5>   AUTHLENS_TRUSTED_PROXY_HOPS  Trusted proxy hops to walk back through. Default 1.
           --no-worker                                              Do not run the background import worker.
-                                       SAP_LENS_TOKEN           API access token (at least 32 characters); otherwise <data-dir>/api-token.
-                                       SAP_LENS_PRINCIPAL       Name recorded for API clients using the token. Default server-operator.
+                                       AUTHLENS_TOKEN           API access token (at least 32 characters); otherwise <data-dir>/api-token.
+                                       AUTHLENS_PRINCIPAL       Name recorded for API clients using the token. Default server-operator.
           --help, -h                                               Show this text and exit.
           --version                                                Show the version and exit.
           --check-sign-in <username>                               With --data-dir: explain locally why a sign-in is refused, then exit.
@@ -134,27 +136,27 @@ public static class ServerConfiguration
         }
         string? Get(string option, string variable) => options.TryGetValue(option, out var v) ? v : environment(variable) is { Length: > 0 } e ? e : null;
 
-        var dataDirectory = Get("--data-dir", "SAP_LENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_DATA_DIR) is required.");
+        var dataDirectory = Get("--data-dir", "AUTHLENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or AUTHLENS_DATA_DIR) is required.");
         if (!Path.IsPathFullyQualified(dataDirectory)) throw new InvalidOperationException("--data-dir must be an absolute path.");
-        var listenText = Get("--listen", "SAP_LENS_LISTEN") ?? "127.0.0.1";
+        var listenText = Get("--listen", "AUTHLENS_LISTEN") ?? "127.0.0.1";
         if (!IPAddress.TryParse(listenText, out var listen)) throw new InvalidOperationException($"--listen must be an IP address, not '{listenText}'.");
-        var portText = Get("--port", "SAP_LENS_PORT");
+        var portText = Get("--port", "AUTHLENS_PORT");
         var port = 18790;
         if (portText is not null && (!int.TryParse(portText, out port) || port is < 1 or > 65535)) throw new InvalidOperationException("--port must be between 1 and 65535.");
-        var network = options.ContainsKey("--network") || string.Equals(environment("SAP_LENS_NETWORK"), "true", StringComparison.OrdinalIgnoreCase);
-        var hosts = (Get("--allowed-hosts", "SAP_LENS_ALLOWED_HOSTS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var network = options.ContainsKey("--network") || string.Equals(environment("AUTHLENS_NETWORK"), "true", StringComparison.OrdinalIgnoreCase);
+        var hosts = (Get("--allowed-hosts", "AUTHLENS_ALLOWED_HOSTS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        var certificatePath = Get("--cert", "SAP_LENS_CERT");
-        var certificate = certificatePath is null ? null : CertificatePolicy.Load(Path.GetFullPath(certificatePath), Get("--cert-key", "SAP_LENS_CERT_KEY"), Password(Get("--cert-password-file", "SAP_LENS_CERT_PASSWORD_FILE"), environment));
-        var auth = (Get("--auth", "SAP_LENS_AUTH") ?? "accounts") switch
+        var certificatePath = Get("--cert", "AUTHLENS_CERT");
+        var certificate = certificatePath is null ? null : CertificatePolicy.Load(Path.GetFullPath(certificatePath), Get("--cert-key", "AUTHLENS_CERT_KEY"), Password(Get("--cert-password-file", "AUTHLENS_CERT_PASSWORD_FILE"), environment));
+        var auth = (Get("--auth", "AUTHLENS_AUTH") ?? "accounts") switch
         {
             "accounts" => AuthenticationMode.Accounts,
             "shared-token" => AuthenticationMode.SharedToken,
             var other => throw new InvalidOperationException($"--auth must be 'accounts' or 'shared-token', not '{other}'."),
         };
-        var proxies = (Get("--trusted-proxies", "SAP_LENS_TRUSTED_PROXIES") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+        var proxies = (Get("--trusted-proxies", "AUTHLENS_TRUSTED_PROXIES") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(ProxyTrust.ParseNetwork).ToList();
-        var hopsText = Get("--trusted-proxy-hops", "SAP_LENS_TRUSTED_PROXY_HOPS");
+        var hopsText = Get("--trusted-proxy-hops", "AUTHLENS_TRUSTED_PROXY_HOPS");
         var hops = 1;
         if (hopsText is not null && (!int.TryParse(hopsText, out hops) || hops is < 1 or > ProxyTrust.MaxHops))
             throw new InvalidOperationException($"--trusted-proxy-hops must be between 1 and {ProxyTrust.MaxHops}.");
@@ -164,13 +166,13 @@ public static class ServerConfiguration
         {
             DataDirectory = Path.GetFullPath(dataDirectory), ListenAddress = listen, Port = port, NetworkAccess = network, AllowedHosts = hosts, Certificate = certificate,
             AccessToken = Token(dataDirectory, environment), WorkerEnabled = !options.ContainsKey("--no-worker"), Authentication = auth,
-            PrincipalName = environment("SAP_LENS_PRINCIPAL") ?? "server-operator", TrustedProxies = proxies, TrustedProxyHops = hops,
+            PrincipalName = environment("AUTHLENS_PRINCIPAL") ?? "server-operator", TrustedProxies = proxies, TrustedProxyHops = hops,
         };
     }
 
     private static string? Password(string? file, Func<string, string?> environment)
     {
-        if (file is null) return environment("SAP_LENS_CERT_PASSWORD");
+        if (file is null) return environment("AUTHLENS_CERT_PASSWORD");
         if (!File.Exists(file)) throw new InvalidOperationException($"The certificate password file '{file}' does not exist.");
         return File.ReadAllText(file).TrimEnd('\r', '\n');
     }
@@ -178,7 +180,7 @@ public static class ServerConfiguration
     /// <summary>The token comes from the environment (service configuration) or is generated once into a file only the service account can read.</summary>
     private static string Token(string dataDirectory, Func<string, string?> environment)
     {
-        if (environment("SAP_LENS_TOKEN") is { Length: > 0 } token) return token;
+        if (environment("AUTHLENS_TOKEN") is { Length: > 0 } token) return token;
         var tokenFile = Path.Combine(dataDirectory, "api-token");
         if (!File.Exists(tokenFile))
         {

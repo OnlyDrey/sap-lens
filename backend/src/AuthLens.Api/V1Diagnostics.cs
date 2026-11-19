@@ -37,7 +37,7 @@ public static class V1Diagnostics
 
         var result = new JsonObject
         {
-            ["application"] = "SAP Lens", ["version"] = V1Compatibility.Version, ["generated_at"] = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'"),
+            ["application"] = "AuthLens", ["version"] = V1Compatibility.Version, ["generated_at"] = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd'T'HH:mm:ss.ffffff'+00:00'"),
             ["platform"] = Platform(), ["python_version"] = null, ["runtime"] = $".NET {Environment.Version}",
             ["configuration_schema"] = settings["schema_version"]?.DeepClone(), ["configuration_revision"] = settings["revision"]?.DeepClone(),
             ["last_failed_load"] = lifecycle["last_failed_refresh"]?.DeepClone(),

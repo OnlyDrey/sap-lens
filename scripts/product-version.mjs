@@ -12,11 +12,11 @@ export function readProduct(directory = root) {
 }
 export function buildIdentity(directory = root, env = process.env) {
   const version = readProduct(directory)
-  let sha = env.SAP_LENS_SOURCE_SHA || ''
+  let sha = env.AUTHLENS_SOURCE_SHA || ''
   if (fs.existsSync(path.join(directory, '.git'))) sha = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: directory, encoding: 'utf8' }).trim()
   if (sha && !/^[a-f0-9]{40}$/.test(sha)) throw Error('Invalid build source commit')
   if (env.GITHUB_ACTIONS === 'true' && sha !== env.GITHUB_SHA) throw Error('Build identity belongs to another source commit')
-  return { product: 'SAP Lens', version, base_version: version.split('-')[0], mode: 'dotnet', source_sha: sha || null }
+  return { product: 'AuthLens', version, base_version: version.split('-')[0], mode: 'dotnet', source_sha: sha || null }
 }
 export function synchronize(directory = root, write = false) {
   const product = readProduct(directory)

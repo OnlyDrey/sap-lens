@@ -15,7 +15,7 @@ const csv='FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n'+[
 'MM,ZC:SYN:B,Synthetic Beta,ZS:SYN:OTHER,MM - Other component,ME23N,Purchase order',
 ].join('\n')+'\n'
 test.beforeEach(async({request})=>{
- await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'sap-lens-stabilization-'))
+ await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'authlens-stabilization-'))
  const roles=path.join(directory,'roles.csv'),users=path.join(directory,'users.csv');writeFileSync(roles,csv);writeFileSync(users,'USERNAME,ROLE_NAME,EMAIL,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nSYN_VIEW,ZC:SYN:A,synthetic@example.test,20000101,99991231,20000101,99991231\n')
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.data_csv_path=roles;settings.user_csv_path=users;expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
 })

@@ -305,7 +305,7 @@ test('SoD configuration is compact with bundled defaults and advanced custom imp
     const advanced=library.getByText('Advanced reference settings',{exact:true})
     await advanced.focus();await page.keyboard.press('Enter')
     await expect(library.getByRole('button',{name:'Import reference workbook',exact:true})).toBeVisible()
-    const download=page.waitForEvent('download');await library.getByRole('button',{name:'Download template',exact:true}).click();expect((await download).suggestedFilename()).toBe('sap-lens-sod-reference-template.xlsx')
+    const download=page.waitForEvent('download');await library.getByRole('button',{name:'Download template',exact:true}).click();expect((await download).suggestedFilename()).toBe('authlens-sod-reference-template.xlsx')
     await page.getByRole('tab',{name:'Activities',exact:true}).click()
     await expect(page.getByRole('searchbox',{name:'Search SoD activities',exact:true})).toBeVisible()
   }

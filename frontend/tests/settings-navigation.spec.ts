@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 
-// Settings sidebar: Back at the top, four groups that scroll on their own, About SAP Lens as the footer. Without a sign-in server (this fixture)
+// Settings sidebar: Back at the top, four groups that scroll on their own, About AuthLens as the footer. Without a sign-in server (this fixture)
 // User Management is not listed; with one, administrators see it (authentication.spec.ts clicks it).
 const groups: [string, string[]][] = [
   ['General', ['Organization & SAP System', 'Appearance & Branding']],
@@ -8,7 +8,7 @@ const groups: [string, string[]][] = [
   ['Security & Governance', ['SoD Risk Configuration', 'Backup & Restore']],
   ['System & Tools', ['Health & Diagnostics', 'Features', 'Component Library']],
 ]
-const order = [...groups.flatMap(([, tabs]) => tabs), 'About SAP Lens']
+const order = [...groups.flatMap(([, tabs]) => tabs), 'About AuthLens']
 
 const open = async (page: Page, width = 1280, height = 900) => {
   await page.setViewportSize({ width, height })
@@ -23,10 +23,10 @@ test('settings navigation is grouped, ordered, and every section opens with its 
   await expect(nav.getByRole('tab')).toHaveText(order)
   await expect(nav.locator('.settings-nav-category')).toHaveText(groups.map(([label]) => label))
   for (const [label, tabs] of groups) await expect(nav.locator('.settings-nav-group').filter({ hasText: label }).getByRole('tab')).toHaveText(tabs)
-  await expect(nav.locator('.settings-nav-footer').getByRole('tab')).toHaveText(['About SAP Lens'])
+  await expect(nav.locator('.settings-nav-footer').getByRole('tab')).toHaveText(['About AuthLens'])
   await expect(nav.getByRole('tab', { name: 'User Management', exact: true })).toHaveCount(0)
-  // Back to SAP Lens stays first, outside the tab list.
-  const back = page.getByRole('button', { name: 'Back to SAP Lens', exact: true })
+  // Back to AuthLens stays first, outside the tab list.
+  const back = page.getByRole('button', { name: 'Back to AuthLens', exact: true })
   expect((await back.boundingBox())!.y).toBeLessThan((await nav.boundingBox())!.y)
   for (const name of order) {
     await nav.getByRole('tab', { name, exact: true }).click()
@@ -48,11 +48,11 @@ test('arrow keys follow the visual order and wrap through the About footer @comp
   await page.keyboard.press('ArrowDown')
   await expect(nav.getByRole('tab', { name: order[0], exact: true })).toBeFocused()
   await page.keyboard.press('ArrowUp')
-  await expect(nav.getByRole('tab', { name: 'About SAP Lens', exact: true })).toBeFocused()
+  await expect(nav.getByRole('tab', { name: 'About AuthLens', exact: true })).toBeFocused()
   await page.keyboard.press('Home')
   await expect(nav.getByRole('tab', { name: order[0], exact: true })).toBeFocused()
   await page.keyboard.press('End')
-  await expect(nav.getByRole('tab', { name: 'About SAP Lens', exact: true })).toBeFocused()
+  await expect(nav.getByRole('tab', { name: 'About AuthLens', exact: true })).toBeFocused()
   // Only the focused tab is in the Tab sequence.
   await expect(nav.locator('[role="tab"][tabindex="0"]')).toHaveCount(1)
 })
@@ -62,7 +62,7 @@ for (const [width, height] of [[1280, 900], [1280, 520], [800, 600], [375, 700]]
     await open(page, width, height)
     const sidebar = page.locator('.settings-sidebar')
     const scroll = page.locator('.settings-nav-scroll')
-    const about = page.getByRole('tab', { name: 'About SAP Lens', exact: true })
+    const about = page.getByRole('tab', { name: 'About AuthLens', exact: true })
     const side = (await sidebar.boundingBox())!, aboutBox = (await about.boundingBox())!, scrollBox = (await scroll.boundingBox())!
     // The footer sits at the bottom of the sidebar, below the scroll area, inside the viewport.
     expect(aboutBox.y + aboutBox.height).toBeLessThanOrEqual(side.y + side.height + 1)

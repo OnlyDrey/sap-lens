@@ -43,7 +43,7 @@ public static class V1AccessPackage
             V1Csv.Line(csv, Columns, cells: false);
             foreach (var line in lines) V1Csv.Line(csv, line, cells: true);
             http.Response.Headers.CacheControl = "no-store";
-            http.Response.Headers.ContentDisposition = $"attachment; filename=\"sap-lens-access-package-{DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.csv\"";
+            http.Response.Headers.ContentDisposition = $"attachment; filename=\"authlens-access-package-{DateTime.Now.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}.csv\"";
             return Results.Text(csv.ToString(), "text/csv; charset=utf-8", Encoding.UTF8);
         });
     }

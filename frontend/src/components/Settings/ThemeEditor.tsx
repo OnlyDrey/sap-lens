@@ -102,7 +102,7 @@ export function ThemeEditor({
               className="h-12 w-auto max-w-24 shrink-0 object-contain sm:max-w-40"
             />
             <div className="min-w-0">
-              <b className="block break-words text-base font-semibold">{draft.organization.name || 'SAP Lens'}</b>
+              <b className="block break-words text-base font-semibold">{draft.organization.name || 'AuthLens'}</b>
               <p className="text-xs">{draft.organization.platform === 'Other / Custom' ? draft.organization.custom_platform : draft.organization.platform} · {draft.organization.system_id} {draft.organization.client}</p><p className="text-xs">{draft.organization.description}</p>
             </div>
           </div>

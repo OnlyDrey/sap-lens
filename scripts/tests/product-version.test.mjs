@@ -17,9 +17,9 @@ test('mirrors synchronize without changing the canonical resource', () => fixtur
  assert.equal(readFileSync(path.join(root,'backend/product-version.json'),'utf8'),original)
 }))
 test('identity rejects invalid and mismatched commits', () => fixture(root => {
- assert.throws(()=>buildIdentity(root,{SAP_LENS_SOURCE_SHA:'bad'}),/Invalid build/)
- assert.throws(()=>buildIdentity(root,{SAP_LENS_SOURCE_SHA:'a'.repeat(40),GITHUB_ACTIONS:'true',GITHUB_SHA:'b'.repeat(40)}),/another source/)
- assert.equal(buildIdentity(root,{SAP_LENS_SOURCE_SHA:'a'.repeat(40)}).source_sha,'a'.repeat(40))
+ assert.throws(()=>buildIdentity(root,{AUTHLENS_SOURCE_SHA:'bad'}),/Invalid build/)
+ assert.throws(()=>buildIdentity(root,{AUTHLENS_SOURCE_SHA:'a'.repeat(40),GITHUB_ACTIONS:'true',GITHUB_SHA:'b'.repeat(40)}),/another source/)
+ assert.equal(buildIdentity(root,{AUTHLENS_SOURCE_SHA:'a'.repeat(40)}).source_sha,'a'.repeat(40))
 }))
 test('version grammar and Windows numeric bounds fail closed', () => fixture(root => {
  for(const version of ['2.0.0-alpha.0','2.0.0-beta-1','65536.0.0','02.0.0']) {

@@ -453,7 +453,7 @@ export function UserComparison({
         final.as_of !== data.as_of
       )
         throw Error('Source changed; export cancelled.')
-      const filename = `sap-lens-user-comparison-review-${data.as_of}.csv`,
+      const filename = `authlens-user-comparison-review-${data.as_of}.csv`,
         content = chunks.join('')
       if (window.pywebview) {
         if (!window.pywebview.api.save_user_access_csv)

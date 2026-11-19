@@ -35,7 +35,7 @@ public static class StartupProbe
                     var html = await page.Content.ReadAsStringAsync(cancellation);
                     return page.StatusCode == HttpStatusCode.OK && html.Contains(UiAssets.Marker, StringComparison.Ordinal)
                         ? new ProbeResult(true, null)
-                        : new ProbeResult(false, $"The SAP Lens user interface is not served (GET / answered {(int)page.StatusCode}: {html[..Math.Min(html.Length, 160)].ReplaceLineEndings(" ")}).");
+                        : new ProbeResult(false, $"The AuthLens user interface is not served (GET / answered {(int)page.StatusCode}: {html[..Math.Min(html.Length, 160)].ReplaceLineEndings(" ")}).");
                 }
                 last = $"/health/ready answered {(int)ready.StatusCode}";
             }

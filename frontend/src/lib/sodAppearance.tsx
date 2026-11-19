@@ -89,7 +89,7 @@ function Details({ kind, value, entry, compact=false }: { kind: 'risk' | 'activi
   )
 }
 
-/** The resolved description of one risk or activity with the origin of every value (used in Settings so the editor shows what the rest of SAP Lens displays). */
+/** The resolved description of one risk or activity with the origin of every value (used in Settings so the editor shows what the rest of AuthLens displays). */
 export function SodDescriptionDetails({ kind, value }: { kind: 'risk' | 'activity'; value: string }) {
   const metadata = useSodMetadata()
   return <Details kind={kind} value={value} entry={(kind === 'risk' ? metadata.risks : metadata.activities)[value]} />

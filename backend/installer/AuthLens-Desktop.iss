@@ -1,9 +1,9 @@
-; SAP Lens Desktop (.NET) per-user installer. Built by scripts/build-installers.ps1 from a verified release folder (build-release.ps1):
+; AuthLens Desktop (.NET) per-user installer. Built by scripts/build-installers.ps1 from a verified release folder (build-release.ps1):
 ;   ISCC /DFullVersion=2.0.0-alpha.1 /DNumericVersion=2.0.0.1 /DReleaseDir=<release folder> AuthLens-Desktop.iss
-; Its own AppId: it never upgrades, replaces or removes SAP Lens v1 (deploy/windows/desktop-installer.iss, %LOCALAPPDATA%\Programs\SAP Lens and
-; %LOCALAPPDATA%\SAP Lens). Data lives in %LOCALAPPDATA%\SAP Lens Desktop (or a kept %LOCALAPPDATA%\SAP Lens 2 Prototype) and is never deleted:
+; Its own AppId: it never upgrades, replaces or removes SAP Lens v1 (deploy/windows/desktop-installer.iss, %LOCALAPPDATA%\Programs\AuthLens and
+; %LOCALAPPDATA%\AuthLens). Data lives in %LOCALAPPDATA%\AuthLens Desktop (or a kept %LOCALAPPDATA%\SAP Lens 2 Prototype) and is never deleted:
 ; upgrades replace the executable only, the application backs the database up itself before any schema migration, and uninstall removes only the
-; installed files. Silent: SAP-Lens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART [/LOG=<file>]
+; installed files. Silent: AuthLens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART [/LOG=<file>]
 #ifndef FullVersion
   #error FullVersion is required
 #endif
@@ -15,18 +15,18 @@
 #endif
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
 #define ProductIcon RepoRoot + "\assets\sap-lens.ico"
-#define AppIdGuid "869E2A71-839D-4F08-A626-CD87F1021A39"
+#define AppIdGuid "F237DA74-B79E-4C1B-A69C-8BA7BCB9DABF"
 #define V1AppIdGuid "5DB5BC51-A860-44CA-93CA-09AE85812DF0"
-#define VersionKey "Software\SAP Lens\Desktop"
+#define VersionKey "Software\AuthLens\Desktop"
 #define V1UninstallPath "Software\Microsoft\Windows\CurrentVersion\Uninstall\{" + V1AppIdGuid + "}_is1"
 
 [Setup]
 AppId={{{#AppIdGuid}}
-AppName=SAP Lens
+AppName=AuthLens
 AppVersion={#FullVersion}
-AppVerName=SAP Lens Desktop {#FullVersion}
-AppPublisher=SAP Lens
-DefaultDirName={localappdata}\Programs\SAP Lens Desktop
+AppVerName=AuthLens Desktop {#FullVersion}
+AppPublisher=AuthLens
+DefaultDirName={localappdata}\Programs\AuthLens Desktop
 UsePreviousAppDir=yes
 DisableDirPage=auto
 DisableProgramGroupPage=yes
@@ -39,18 +39,18 @@ Compression=lzma2
 SolidCompression=yes
 SetupIconFile={#ProductIcon}
 UninstallDisplayIcon={app}\AuthLens.exe
-UninstallDisplayName=SAP Lens Desktop
+UninstallDisplayName=AuthLens Desktop
 ; The running Desktop (current or earlier prototype folder) must close first; Setup never terminates it.
 AppMutex=Local\AuthLensDotnetDesktop,Local\SapLens2Prototype
 CloseApplications=no
 RestartApplications=no
 VersionInfoVersion={#NumericVersion}
 VersionInfoTextVersion={#FullVersion}
-VersionInfoProductName=SAP Lens
+VersionInfoProductName=AuthLens
 VersionInfoProductVersion={#NumericVersion}
 VersionInfoProductTextVersion={#FullVersion}
-VersionInfoDescription=SAP Lens Desktop Setup
-OutputBaseFilename=SAP-Lens-{#FullVersion}-Setup
+VersionInfoDescription=AuthLens Desktop Setup
+OutputBaseFilename=AuthLens-{#FullVersion}-Setup
 
 [Tasks]
 Name: desktopicon; Description: "Create a desktop shortcut"; Flags: unchecked
@@ -66,11 +66,11 @@ Source: "{#RepoRoot}\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
 Root: HKCU; Subkey: "{#VersionKey}"; ValueType: string; ValueName: "FileVersion"; ValueData: "{#NumericVersion}"; Flags: uninsdeletekey
 
 [Icons]
-Name: "{autoprograms}\SAP Lens"; Filename: "{app}\AuthLens.exe"
-Name: "{autodesktop}\SAP Lens"; Filename: "{app}\AuthLens.exe"; Tasks: desktopicon
+Name: "{autoprograms}\AuthLens"; Filename: "{app}\AuthLens.exe"
+Name: "{autodesktop}\AuthLens"; Filename: "{app}\AuthLens.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\AuthLens.exe"; Description: "Launch SAP Lens"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\AuthLens.exe"; Description: "Launch AuthLens"; Flags: nowait postinstall skipifsilent
 
 ; No [UninstallDelete] and no [InstallDelete]: the data folder, logs, WebView2 profile and backups are never removed by Setup or uninstall.
 
@@ -96,10 +96,10 @@ begin
   end;
   if RegQueryStringValue(HKCU, '{#VersionKey}', 'FileVersion', Installed) and StrToVersion(Installed, InstalledVersion) and
      StrToVersion('{#NumericVersion}', ThisVersion) and (ComparePackedVersion(ThisVersion, InstalledVersion) < 0) then begin
-    SuppressibleMsgBox('A newer SAP Lens Desktop (' + Installed + ') is installed. Downgrades are not supported; nothing was changed.', mbError, MB_OK, IDOK);
+    SuppressibleMsgBox('A newer AuthLens Desktop (' + Installed + ') is installed. Downgrades are not supported; nothing was changed.', mbError, MB_OK, IDOK);
     Result := False;
     Exit;
   end;
   if RegKeyExists(HKCU, V1UninstallKey) then
-    SuppressibleMsgBox('SAP Lens v1 is installed on this account. It stays installed and unchanged, with its own data; this Setup installs SAP Lens Desktop (.NET) beside it.', mbInformation, MB_OK, IDOK);
+    SuppressibleMsgBox('SAP Lens v1 is installed on this account. It stays installed and unchanged, with its own data; this Setup installs AuthLens Desktop (.NET) beside it.', mbInformation, MB_OK, IDOK);
 end;

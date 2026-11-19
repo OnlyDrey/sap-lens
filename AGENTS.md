@@ -151,7 +151,7 @@ planned checkpoints, never after every correction. Commands: [development](docs/
 ## Test execution and output
 
 - Every run shows live progress in the terminal (profile header, stage start/end, each finished browser test or, with
-  `SAP_LENS_TEST_PROGRESS=summary`, only failures, a periodic `completed/total | passed | failed | skipped` summary per process, failures
+  `AUTHLENS_TEST_PROGRESS=summary`, only failures, a periodic `completed/total | passed | failed | skipped` summary per process, failures
   as soon as they happen) and ends with `Summary`, `Result`, duration and exit code. Do not hide output to save it in a file.
 - Keep complete logs and machine-readable results: `--log FILE` (UTF-8 copy of everything printed), `--report FILE` (JSON), per-process
   Playwright logs, JSON reports, traces and error contexts preserved under `build/test-artifacts/` for a failed run.

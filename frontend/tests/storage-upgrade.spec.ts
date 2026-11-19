@@ -25,7 +25,7 @@ test('functional acceptance is explicit and retains the migration backup until s
   await expect(section).toContainText('automatic retention never deletes it')
   const approve = section.getByRole('button', {name: 'Confirm that the upgrade works'})
   await expect(approve).toBeDisabled(); expect(confirmations).toBe(0)
-  await section.getByRole('checkbox', {name: 'I checked that SAP Lens works after the upgrade'}).check()
+  await section.getByRole('checkbox', {name: 'I checked that AuthLens works after the upgrade'}).check()
   await approve.click()
   await expect(section.getByText('Upgrade confirmed. The pre-migration backup is still retained.')).toBeVisible()
   await expect(approve).toHaveCount(0)

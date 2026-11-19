@@ -146,7 +146,7 @@ export function RefreshReportDialog({
           )
         const saved = await window.pywebview.api.save_refresh_changes_csv(
           applicationToken(),
-          `sap-lens-refresh-changes-report-${(data?.timestamp || report.timestamp).slice(0, 10)}.csv`,
+          `authlens-refresh-changes-report-${(data?.timestamp || report.timestamp).slice(0, 10)}.csv`,
           content,
         )
         setExportFeedback(
@@ -158,7 +158,7 @@ export function RefreshReportDialog({
           ),
           link = document.createElement('a')
         link.href = url
-        link.download = 'SAP-Lens-refresh-changes.csv'
+        link.download = 'AuthLens-refresh-changes.csv'
         link.click()
         setTimeout(() => URL.revokeObjectURL(url), 1000)
       }

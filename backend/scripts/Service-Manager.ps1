@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  SAP Lens local administration. Uses the packaged server executable; no SDK, listener or service restart.
+  AuthLens local administration. Uses the packaged server executable; no SDK, listener or service restart.
 .DESCRIPTION
   Key values never appear in output or process arguments. Export writes a new private file only.
   Administrator codes are shown locally once: do not run code actions under a transcript or redirect them to logs.
@@ -70,12 +70,12 @@ function Invoke-AuthLensLocalAdmin([string]$Operation, [string]$File, [string]$U
     $ErrorActionPreference = 'Continue'
     $result = & $Executable @arguments 2>&1
     $code = $LASTEXITCODE
-    if ($code -ne 0) { throw ('SAP Lens refused the local operation: ' + (($result | ForEach-Object { "$_" }) -join ' ')) }
+    if ($code -ne 0) { throw ('AuthLens refused the local operation: ' + (($result | ForEach-Object { "$_" }) -join ' ')) }
     $result | ForEach-Object { Write-Host "$_" }
 }
 
 if ($Action -eq 'Menu') {
-    Write-Host "SAP Lens Service Manager`nData: $DataDirectory`nExecutable: $Executable"
+    Write-Host "AuthLens Service Manager`nData: $DataDirectory`nExecutable: $Executable"
     Write-Host 'This tool never stops, starts or migrates services. Key export is local-only.'
     Write-Host "1  Key status and fingerprint`n2  Create initial host key`n3  Export recovery copy`n4  Verify recovery copy`n5  Initial administrator activation code`n6  Existing administrator recovery code`n0  Exit"
     $choice = Read-Host 'Choose action'

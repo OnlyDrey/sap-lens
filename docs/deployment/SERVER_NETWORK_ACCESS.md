@@ -65,14 +65,14 @@ dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedNa
 dotnet test tests\SapLens.Tests -c Release --no-build
 dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\sap-lens\server
 powershell -NoProfile -Command "New-Item -ItemType Directory -Force C:\sap-lens | Out-Null; $c = New-SelfSignedCertificate -DnsName localhost -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(30); Export-PfxCertificate -Cert $c -FilePath C:\sap-lens\lab.pfx -Password (ConvertTo-SecureString 'lab-only-password' -AsPlainText -Force) | Out-Null; Remove-Item $c.PSPath"
-set "SAP_LENS_CERT_PASSWORD=lab-only-password"
+set "AUTHLENS_CERT_PASSWORD=lab-only-password"
 C:\sap-lens\server\SapLens.Api.exe --data-dir C:\sap-lens\tls-data --port 18792 --cert C:\sap-lens\lab.pfx
 ```
 
 Expected: the first test confirms the premise (the original key is ephemeral, the prepared one is not); all tests pass; the last command logs
 `Listening on 127.0.0.1:18792 (https)` and a `TLS certificate ...` line (the startup self-check has already completed a real SChannel
 handshake; a failure would print `startup refused: The TLS certificate cannot be used by this system's TLS stack (...)` and exit 3). Stop it
-with Ctrl+C, then `set SAP_LENS_CERT_PASSWORD=`. The lab PFX and password are for this check only.
+with Ctrl+C, then `set AUTHLENS_CERT_PASSWORD=`. The lab PFX and password are for this check only.
 
 ## 2. Configuration reference
 
@@ -82,28 +82,28 @@ Both exit 0 without reading any configuration.
 
 | Setting | Option | Environment variable | Default |
 | --- | --- | --- | --- |
-| Data directory (absolute, local) | `--data-dir` | `SAP_LENS_DATA_DIR` | **required**, no default |
-| Listen address (IP literal) | `--listen` | `SAP_LENS_LISTEN` | `127.0.0.1` |
-| Port (HTTPS when a certificate is set) | `--port` | `SAP_LENS_PORT` | `18790` |
-| Network access enabled | `--network` | `SAP_LENS_NETWORK=true` | disabled |
-| Host names / addresses clients use | `--allowed-hosts a,b` | `SAP_LENS_ALLOWED_HOSTS` | none |
-| Certificate (`.pfx`/`.p12`, or PEM) | `--cert` | `SAP_LENS_CERT` | none (HTTP) |
-| PEM private key | `--cert-key` | `SAP_LENS_CERT_KEY` | none |
-| Certificate password file | `--cert-password-file` (preferred) | `SAP_LENS_CERT_PASSWORD_FILE` | none |
-| Certificate password | (never an option) | `SAP_LENS_CERT_PASSWORD`, used only without a password file | none |
-| Access token (API clients, at least 32 characters) | (never an option) | `SAP_LENS_TOKEN` | generated once into `<data-dir>/api-token` |
-| Browser authentication | `--auth accounts\|shared-token` | `SAP_LENS_AUTH` | `accounts` |
-| Name recorded for API clients that use the access token | | `SAP_LENS_PRINCIPAL` | `server-operator` |
+| Data directory (absolute, local) | `--data-dir` | `AUTHLENS_DATA_DIR` | **required**, no default |
+| Listen address (IP literal) | `--listen` | `AUTHLENS_LISTEN` | `127.0.0.1` |
+| Port (HTTPS when a certificate is set) | `--port` | `AUTHLENS_PORT` | `18790` |
+| Network access enabled | `--network` | `AUTHLENS_NETWORK=true` | disabled |
+| Host names / addresses clients use | `--allowed-hosts a,b` | `AUTHLENS_ALLOWED_HOSTS` | none |
+| Certificate (`.pfx`/`.p12`, or PEM) | `--cert` | `AUTHLENS_CERT` | none (HTTP) |
+| PEM private key | `--cert-key` | `AUTHLENS_CERT_KEY` | none |
+| Certificate password file | `--cert-password-file` (preferred) | `AUTHLENS_CERT_PASSWORD_FILE` | none |
+| Certificate password | (never an option) | `AUTHLENS_CERT_PASSWORD`, used only without a password file | none |
+| Access token (API clients, at least 32 characters) | (never an option) | `AUTHLENS_TOKEN` | generated once into `<data-dir>/api-token` |
+| Browser authentication | `--auth accounts\|shared-token` | `AUTHLENS_AUTH` | `accounts` |
+| Name recorded for API clients that use the access token | | `AUTHLENS_PRINCIPAL` | `server-operator` |
 | Background worker off | `--no-worker` | | on |
-| Trusted reverse proxies (IP or CIDR; needs `--network`) | `--trusted-proxies a,b` | `SAP_LENS_TRUSTED_PROXIES` | none: forwarded headers ignored |
-| Trusted proxy hops to walk back through | `--trusted-proxy-hops 1-5` | `SAP_LENS_TRUSTED_PROXY_HOPS` | `1` |
+| Trusted reverse proxies (IP or CIDR; needs `--network`) | `--trusted-proxies a,b` | `AUTHLENS_TRUSTED_PROXIES` | none: forwarded headers ignored |
+| Trusted proxy hops to walk back through | `--trusted-proxy-hops 1-5` | `AUTHLENS_TRUSTED_PROXY_HOPS` | `1` |
 | Help / version | `--help`, `-h` / `--version` | | |
 
 Rules:
 
 - **Precedence:** an option wins over its environment variable; an empty variable counts as unset. `--network` is on when the option is given
-  or `SAP_LENS_NETWORK` is `true` (case-insensitive).
-- **Required:** only the data directory. A bare `SapLens.Api.exe` therefore refuses to start: `--data-dir (or SAP_LENS_DATA_DIR) is
+  or `AUTHLENS_NETWORK` is `true` (case-insensitive).
+- **Required:** only the data directory. A bare `SapLens.Api.exe` therefore refuses to start: `--data-dir (or AUTHLENS_DATA_DIR) is
   required.` This is deliberate: no implicit data location.
 - **Loopback start:** without `--network` the Server listens on `http://127.0.0.1:18790` (or `--port`), reachable only from the same machine.
   A certificate without `--network` gives HTTPS on loopback.
@@ -148,9 +148,9 @@ Examples (replace every address, name and path):
   --allowed-hosts saplens.test.example,192.168.10.20 --cert C:\ProgramData\sap-lens\tls\server.pfx `
   --cert-password-file C:\ProgramData\sap-lens\tls\cert-password
 # Windows: the same through environment variables (current session only)
-$env:SAP_LENS_DATA_DIR = 'C:\sap-lens\runtime-test'; $env:SAP_LENS_NETWORK = 'true'; $env:SAP_LENS_LISTEN = '192.168.10.20'
-$env:SAP_LENS_PORT = '18795'; $env:SAP_LENS_ALLOWED_HOSTS = '192.168.10.20'; $env:SAP_LENS_CERT = 'C:\ProgramData\sap-lens\tls\server.pfx'
-$env:SAP_LENS_CERT_PASSWORD_FILE = 'C:\ProgramData\sap-lens\tls\cert-password'
+$env:AUTHLENS_DATA_DIR = 'C:\sap-lens\runtime-test'; $env:AUTHLENS_NETWORK = 'true'; $env:AUTHLENS_LISTEN = '192.168.10.20'
+$env:AUTHLENS_PORT = '18795'; $env:AUTHLENS_ALLOWED_HOSTS = '192.168.10.20'; $env:AUTHLENS_CERT = 'C:\ProgramData\sap-lens\tls\server.pfx'
+$env:AUTHLENS_CERT_PASSWORD_FILE = 'C:\ProgramData\sap-lens\tls\cert-password'
 & .\SapLens.Api.exe
 ```
 
@@ -185,7 +185,7 @@ The Server uses the SAP Lens v1 account model, ported to .NET on the same SQLite
 | Audit | Account, role, password, session and policy events in the store's `audit` table with the actor's public identity; never verifiers, tokens or codes. Unauthenticated denial events are capped at the newest 10 000 |
 | Transport | Plain HTTP only from a loopback peer; on the network the server is HTTPS-only (`secure_transport_required`) |
 | Attribution | Every write (imports, confirmations, settings, saved filters, review decisions) records the signed-in username |
-| API clients | The protected access token (`X-SAP-Lens-Token`) still authenticates automation as the operator principal (`SAP_LENS_PRINCIPAL`, provenance `access-token`). It cannot administer accounts, because account operations need a real session |
+| API clients | The protected access token (`X-SAP-Lens-Token`) still authenticates automation as the operator principal (`AUTHLENS_PRINCIPAL`, provenance `access-token`). It cannot administer accounts, because account operations need a real session |
 | Backups, storage, retention | On a Server these need a signed-in administrator account (as in v1); the shared token and a token-only API client are refused (403), including `POST /api/v1/admin/backups`. Archives are AES-256-GCM (SLBAK3) with Argon2id passphrases or the host key; the host key file lives outside the data directory with owner-only permissions, its recovery copy is escrowed and verified, and keys and passphrases are never logged or written to reports. Restores apply at the next start with an encrypted recovery backup of the current data and automatic rollback |
 | SAP Lens 1 migration | Local operation of the server binary (`--migrate-v1`); the v1 data is only read, a `.slbak` is authenticated and checked against its manifest before use, the secret is typed without echo or read from the recovery key file, and all intermediate data stays in the private data directory. See [V1_MIGRATION.md](../migration/V1_MIGRATION.md) |
 
@@ -205,7 +205,7 @@ The Server uses the SAP Lens v1 account model, ported to .NET on the same SQLite
 
 ### Limitations of the shared token (why this is a trusted-LAN prototype only)
 
-- One secret for everyone: no individual identity, so every review decision is attributed to `SAP_LENS_PRINCIPAL`. **Not acceptable for
+- One secret for everyone: no individual identity, so every review decision is attributed to `AUTHLENS_PRINCIPAL`. **Not acceptable for
   real audit evidence.**
 - No roles or separation of duties (reviewer, approver, administrator).
 - Rotation means changing the token and restarting; all users sign in again. Sessions are lost on every restart.
@@ -441,7 +441,7 @@ journalctl -u saplens -n 20 --no-pager
 ```
 
 After a restart all browser sessions are gone (sign in again); data and decisions persist in SQLite. Token rotation: stop, replace
-`api-token` (or `SAP_LENS_TOKEN`), start. Certificate renewal: replace the files, restart; the startup log shows the new expiry.
+`api-token` (or `AUTHLENS_TOKEN`), start. Certificate renewal: replace the files, restart; the startup log shows the new expiry.
 
 ## 10. Acceptance checklist (another device required)
 

@@ -20,7 +20,7 @@ const STATUS_HELP: Record<string, string> = {
   Draft: 'Not reviewed or approved.',
   Reviewed: 'A reviewer is named by the preparer. The name is not authenticated, so this is not an approval.',
   Approved: 'The review period has a recorded approval and is frozen. Names remain locally entered and are not authenticated.',
-  'Externally signed': 'The preparer states the document was signed outside SAP Lens. SAP Lens cannot verify the signature.',
+  'Externally signed': 'The preparer states the document was signed outside AuthLens. AuthLens cannot verify the signature.',
 }
 const groups = ['Remove assignment', 'Investigate assignment', 'Apply compensating control', 'Maintain access', 'No action required', 'Awaiting review']
 const FROZEN = ['Approved', 'Closed', 'Approved / closed']
@@ -54,7 +54,7 @@ function useExport() {
   const run = async (path: string, body: unknown, kind: 'csv' | 'document', label: string) => {
     setBusy(true)
     try {
-      const name = await downloadFile(path, { method: 'POST', body, namePattern: kind === 'csv' ? /^sap-lens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/ : REPORT_NAME, kind })
+      const name = await downloadFile(path, { method: 'POST', body, namePattern: kind === 'csv' ? /^authlens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/ : REPORT_NAME, kind })
       announceExport(name ? { kind: 'success', message: `${label} exported as ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (error) {
       announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'Report export failed.' })

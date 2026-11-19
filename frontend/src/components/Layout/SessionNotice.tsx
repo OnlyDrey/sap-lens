@@ -14,10 +14,10 @@ export function hasUnsavedInput(root: ParentNode = document): boolean {
 
 // One line at the 680px cap in the brand font (Montserrat runs ~12% wider than the Arial fallback); the action sits in the header, so the text does not repeat it.
 const COPY = {
-  manual: { title: 'Session disconnected', text: 'SAP Lens restarted, so your previous local session is no longer valid.' },
+  manual: { title: 'Session disconnected', text: 'AuthLens restarted, so your previous local session is no longer valid.' },
   failed: { title: 'Reconnection failed', text: 'The local session could not be re-established. Retry, and use the technical details if it keeps failing.' },
   reconnecting: { title: 'Reconnecting…', text: 'Re-establishing the local session.' },
-  disconnected: { title: 'Connection lost', text: 'SAP Lens cannot reach its local service right now. Data on screen may be out of date until it reconnects.' },
+  disconnected: { title: 'Connection lost', text: 'AuthLens cannot reach its local service right now. Data on screen may be out of date until it reconnects.' },
 } as const
 
 /** The one application-level session notification. Pages show a compact empty state and never repeat this message or its actions. */
@@ -51,7 +51,7 @@ export function SessionNotice({ onRetry, retrying }: { onRetry?: () => void; ret
             {session.phase === 'disconnected' && onRetry && <Button size="compact" onClick={onRetry} disabled={retrying}><RefreshCw size={14} aria-hidden="true" />Retry connection</Button>}
           </div>
         </div>
-        <span>{confirming ? 'Reconnecting reloads SAP Lens: text typed into open forms will be lost. Nothing is saved or resubmitted automatically.' : copy.text}</span>
+        <span>{confirming ? 'Reconnecting reloads AuthLens: text typed into open forms will be lost. Nothing is saved or resubmitted automatically.' : copy.text}</span>
         <details className="session-notice-details">
           <summary>Technical details</summary>
           <dl>
@@ -60,7 +60,7 @@ export function SessionNotice({ onRetry, retrying }: { onRetry?: () => void; ret
             <div><dt>Failed requests</dt><dd>{session.failures}</dd></div>
             <div><dt>Since</dt><dd>{formatTime(session.since, 'unknown', true)}</dd></div>
           </dl>
-          <p>Reconnecting reloads the trusted session through the guarded application document. If this repeats, restart SAP Lens from the tray or Start menu and close other SAP Lens windows. No credentials are shown here.</p>
+          <p>Reconnecting reloads the trusted session through the guarded application document. If this repeats, restart AuthLens from the tray or Start menu and close other AuthLens windows. No credentials are shown here.</p>
         </details>
       </div>
     </div>

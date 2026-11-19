@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Starts a published SAP Lens (.NET) Server in the foreground on an isolated Windows TEST machine (development and acceptance testing only).
+  Starts a published AuthLens (.NET) Server in the foreground on an isolated Windows TEST machine (development and acceptance testing only).
 
 .DESCRIPTION
   Not a production deployment mechanism. The script:
@@ -135,8 +135,9 @@ function Test-PortAvailable([System.Net.IPAddress]$Address, [int]$Port) {
 function Get-ProtectedDataPaths {
     <# Production and Desktop data locations that a test run must never use (v1 and .NET, current and earlier names). #>
     $paths = @()
-    if ($env:ProgramData) { $paths += (Join-Path $env:ProgramData 'sap-lens'), (Join-Path $env:ProgramData 'AuthLens'), (Join-Path $env:ProgramData 'SapLens2'), (Join-Path $env:ProgramData 'SAP Lens Server') }
-    if ($env:LOCALAPPDATA) { $paths += (Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype'), (Join-Path $env:LOCALAPPDATA 'SAP Lens') }
+    # AuthLens and every earlier SAP Lens installation (SAP Lens 1, the .NET SapLens/sap-lens and SapLens2 services, Desktop folders).
+    if ($env:ProgramData) { $paths += @('AuthLens', 'sap-lens', 'SapLens', 'SapLens2', 'SAP Lens Server', 'AuthLens Server') | ForEach-Object { Join-Path $env:ProgramData $_ } }
+    if ($env:LOCALAPPDATA) { $paths += @('AuthLens', 'AuthLens Desktop', 'SAP Lens', 'SAP Lens Desktop', 'SAP Lens 2 Prototype') | ForEach-Object { Join-Path $env:LOCALAPPDATA $_ } }
     if ($env:ProgramFiles) { $paths += $env:ProgramFiles }
     if ($env:SystemRoot) { $paths += $env:SystemRoot }
     $paths
@@ -285,14 +286,14 @@ function Invoke-ServerTestLauncher {
         [Console]::Error.WriteLine("start-server-test: $($_.Exception.Message)")
         return 2
     }
-    Write-Host 'SAP Lens Server test launcher (development and acceptance testing only)'
+    Write-Host 'AuthLens Server test launcher (development and acceptance testing only)'
     Write-Host "  Release:  $($release.Release)$(if (-not $release.Manifest) { ' (no build manifest)' })"
     if ($release.Manifest) {
         $manifest = Get-Content -LiteralPath $release.Manifest -Raw | ConvertFrom-Json
         Write-Host "  Source:   $($manifest.source_sha)$(if ($manifest.source_dirty) { ' (dirty working tree)' })"
     }
     Write-Host "  URL:      https://$($ListenAddress):$Port/"
-    $inherited = @(Get-ChildItem Env: | Where-Object Name -like 'SAP_LENS_*' | ForEach-Object Name)
+    $inherited = @(Get-ChildItem Env: | Where-Object Name -like 'AUTHLENS_*' | ForEach-Object Name)
     if ($inherited.Count -gt 0) { Write-Host "  Inherited environment (names only; options above take precedence): $($inherited -join ', ')" }
     Write-Host "  Command:  $(Format-CommandLine $release.Executable $arguments)"
     if ($DryRun) { Write-Host 'Dry run: configuration valid; nothing was started.'; return 0 }

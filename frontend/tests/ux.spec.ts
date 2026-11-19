@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import path from 'node:path'
 import { headers } from './support'
 test.beforeEach(async({request})=>{expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy()})
-const settings=(page:import('@playwright/test').Page)=>page.getByRole('region',{name:'SAP Lens settings',exact:true})
+const settings=(page:import('@playwright/test').Page)=>page.getByRole('region',{name:'AuthLens settings',exact:true})
 
 test('full-window navigation preserves draft and main analysis state and warns before discard',async({page,request})=>{
  await request.post('/api/settings',{headers,data:{data_csv_path:path.resolve('tests/fixtures/role-catalogue-minimal.csv')}})
@@ -16,10 +16,10 @@ test('full-window navigation preserves draft and main analysis state and warns b
  await page.getByRole('tab',{name:'Organization & SAP System'}).click()
  await expect(page.getByLabel('Organization name',{exact:true})).toHaveValue('Synthetic unsaved organization')
  page.once('dialog',dialog=>void dialog.dismiss())
- await page.getByRole('button',{name:'Back to SAP Lens'}).click()
+ await page.getByRole('button',{name:'Back to AuthLens'}).click()
  await expect(settings(page)).toBeVisible()
  page.once('dialog',dialog=>void dialog.accept())
- await page.getByRole('button',{name:'Back to SAP Lens'}).click()
+ await page.getByRole('button',{name:'Back to AuthLens'}).click()
  await expect(settings(page)).toBeHidden()
  await expect(page.getByRole('button',{name:'Remove from comparison',exact:true})).toHaveCount(1)
  await page.getByRole('button',{name:'Open settings'}).click()
@@ -37,7 +37,7 @@ test('theme preview, accessible validation, custom preset persistence, system ap
  const primary=page.getByLabel('Primary color',{exact:true})
  const original=await page.locator('html').evaluate(el=>getComputedStyle(el).getPropertyValue('--primary'))
  await primary.fill('#123456')
- await expect(page.getByRole('region',{name:'SAP Lens settings'})).toContainText('Unsaved changes')
+ await expect(page.getByRole('region',{name:'AuthLens settings'})).toContainText('Unsaved changes')
  expect(await page.locator('html').evaluate(el=>getComputedStyle(el).getPropertyValue('--primary'))).toBe(original)
  await page.getByLabel('Primary text color',{exact:true}).fill('#111827')
  await expect(page.getByText(/needs at least 4.5:1 contrast/).first()).toBeVisible()
@@ -77,7 +77,7 @@ test('empty organization fallback, icon search and keyboard selection', { tag: '
  await page.getByRole('button',{name:'Apply settings',exact:true}).click()
  // The header stays clickable during saving; wait for the async close before reopening.
  await expect(settings(page)).toBeHidden()
- await expect(page.getByRole('banner').getByText('SAP Lens',{exact:true})).toBeVisible()
+ await expect(page.getByRole('banner').getByText('AuthLens',{exact:true})).toBeVisible()
  await page.getByRole('button',{name:'Open settings'}).click()
  await page.getByRole('tab',{name:'SAP Modules'}).click()
  await page.getByRole('button',{name:'Edit FI — Financial Accounting',exact:true}).click()
@@ -89,7 +89,7 @@ test('empty organization fallback, icon search and keyboard selection', { tag: '
 
 // Isolate each visual case: six viewports/themes shared one 30-second budget before.
 // Keep the same timeout, assertions and screenshots without retries or arbitrary sleeps.
-for (const theme of ['SAP Lens Default', 'Light']) {
+for (const theme of ['AuthLens Default', 'Light']) {
  for (const [width, height] of [[1280,720], [1366,768], [1920,1080]]) {
   test(`responsive settings: ${theme}, ${width}x${height}`, async ({ page }, testInfo) => {
    await page.setViewportSize({ width, height })
@@ -121,7 +121,7 @@ for (const theme of ['SAP Lens Default', 'Light']) {
 test('startup connection failure has actionable recovery and configuration notices dismiss once',async({page})=>{
  await page.route('**/api/configuration',route=>route.fulfill({status:500,json:{detail:'Settings storage could not be opened.'}}))
  await page.goto('/#session=browser-test-session')
- await expect(page.getByRole('heading',{name:'SAP Lens could not load its configuration'})).toBeVisible()
+ await expect(page.getByRole('heading',{name:'AuthLens could not load its configuration'})).toBeVisible()
  await expect(page.getByRole('button',{name:'Retry connection'})).toBeVisible()
  await page.unroute('**/api/configuration')
  await page.getByRole('button',{name:'Retry connection'}).click()

@@ -93,7 +93,7 @@ export function ManageGroupsDialog({ username, data, changeId = '', onClose }: {
       footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={needReviewer || !toAdd.length || run.isPending} onClick={() => run.mutate({ add: toAdd })}>
         <Plus size={16} aria-hidden="true" />{toAdd.length ? `Add ${toAdd.length} ${toAdd.length === 1 ? 'group' : 'groups'}` : 'Add groups'}</Button></>}>
       <div className="grid min-w-0 gap-3">
-        <p className="ui-description">Business classification maintained in SAP Lens. Adding a group keeps the user's other groups and never changes SAP access.</p>
+        <p className="ui-description">Business classification maintained in AuthLens. Adding a group keeps the user's other groups and never changes SAP access.</p>
         {current.memberships.length > 0 ? (
           <ul className="fg-memberships" aria-label="Current Functional Groups">{current.memberships.map(item => (
             <MembershipRow key={item.group_id} item={item} busy={run.isPending || needReviewer} onConfirm={() => run.mutate({ confirm: item.group_id })} onRemove={() => { setRemoving(item); setRemoveRationale('') }} />))}</ul>
@@ -116,7 +116,7 @@ export function ManageGroupsDialog({ username, data, changeId = '', onClose }: {
   )
 }
 
-/** User Details: SAP Lens-maintained classification, separate from the imported Directory fields. A business classification only: SAP access is never changed. */
+/** User Details: AuthLens-maintained classification, separate from the imported Directory fields. A business classification only: SAP access is never changed. */
 export function FunctionalGroupPanel({ username }: { username: string }) {
   const query = useQuery({ queryKey: classificationKey(username), queryFn: () => fetchUserClassification(username) })
   const [editing, setEditing] = useState(false)
@@ -156,8 +156,8 @@ export function FunctionalGroupPanel({ username }: { username: string }) {
           ) : <div className="fg-summary"><strong className="fg-name">Unassigned</strong><ClassificationPill status="Unassigned" /></div>}
           {(data?.suggestion?.groups ?? []).some(group => !group.already_member) && (
             <p className="fg-meta">Suggested (advisory): {data!.suggestion!.groups.filter(group => !group.already_member).map(group => group.group_name).join(', ')}</p>)}
-          <p className="fg-meta">Business classification maintained in SAP Lens. It does not change SAP access.</p>
-          <EvidenceDisclosure title="About Functional Groups"><p className="ui-description">Functional Groups are maintained in SAP Lens. A user can belong to several groups. Directory Department, Job Title and SAP User Group are imported and displayed separately.</p></EvidenceDisclosure>
+          <p className="fg-meta">Business classification maintained in AuthLens. It does not change SAP access.</p>
+          <EvidenceDisclosure title="About Functional Groups"><p className="ui-description">Functional Groups are maintained in AuthLens. A user can belong to several groups. Directory Department, Job Title and SAP User Group are imported and displayed separately.</p></EvidenceDisclosure>
           {editing && data && <ManageGroupsDialog username={username} data={data} onClose={() => setEditing(false)} />}
         </>
       )}

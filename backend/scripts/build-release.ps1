@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-  Repeatable Windows x64 release build of SAP Lens (.NET Server and Desktop) with the production React UI. Windows PowerShell 5.1 and PowerShell 7.
+  Repeatable Windows x64 release build of AuthLens (.NET Server and Desktop) with the production React UI. Windows PowerShell 5.1 and PowerShell 7.
 
 .DESCRIPTION
   1. Builds the .NET solution (Release) with -p:BuildFrontend=true: MSBuild (AuthLens.Api.csproj) runs npm ci and npm run build once, into a
@@ -9,7 +9,7 @@
      deployment's focused validation does).
   3. Publishes both self-contained single-file executables (no trimming, Native AOT or compression) into a new versioned release folder:
 
-       <Output>\SAP-Lens-<version>-<yyyyMMdd-HHmmss>-<commit>-win-x64\
+       <Output>\AuthLens-<version>-<yyyyMMdd-HHmmss>-<commit>-win-x64\
          server\AuthLens.Api.exe          Server (console or Windows service), plus e_sqlite3.dll and libSkiaSharp.dll (SQLite and image/PDF native libraries, loaded from beside the exe)
          desktop\AuthLens.exe            Desktop (WebView2, loopback only)
          symbols\server\, symbols\desktop\   .pdb files for diagnostics (not needed at runtime)
@@ -61,7 +61,7 @@ $channel = if ($Matches[5]) { $Matches[5] } else { 'stable' }
 $fileVersion = @([int]$Matches[1], [int]$Matches[2], [int]$Matches[3], $(if ($Matches[6]) { [int]$Matches[6] } else { 0 }))
 $uiVersion = (Get-Content (Join-Path $root '..\frontend\package.json') -Raw | ConvertFrom-Json).version   # checked by the frontend prebuild contract
 $built = [DateTime]::UtcNow
-$release = Join-Path $Output ('SAP-Lens-{0}-{1}-{2}-{3}' -f $version, $built.ToString('yyyyMMdd-HHmmss'), $sha.Substring(0, 7), $platform)
+$release = Join-Path $Output ('AuthLens-{0}-{1}-{2}-{3}' -f $version, $built.ToString('yyyyMMdd-HHmmss'), $sha.Substring(0, 7), $platform)
 if (Test-Path -LiteralPath $release) { throw "Release folder $release exists; an existing release is never overwritten." }
 $identity = "-p:SourceRevisionId=$sha"
 
@@ -134,7 +134,7 @@ function Get-Artifacts([string]$Folder, [string[]]$Exclude) {
     }
 }
 $manifest = [ordered]@{
-    schema = 1; product = 'SAP Lens'; version = $version; channel = $channel; file_version = $fileVersion; ui_source_version = $uiVersion
+    schema = 1; product = 'AuthLens'; version = $version; channel = $channel; file_version = $fileVersion; ui_source_version = $uiVersion
     source_sha = $sha; source_dirty = $dirty; source_committed_at = $committed
     branch = (& git -C $root rev-parse --abbrev-ref HEAD).Trim(); build_timestamp_utc = $built.ToString('yyyy-MM-ddTHH:mm:ssZ'); target_platform = $platform
     dotnet_sdk = $sdk; node = $nodeVersion

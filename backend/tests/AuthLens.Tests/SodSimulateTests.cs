@@ -16,7 +16,7 @@ public sealed class SodSimulateTests : IAsyncLifetime
     private HttpClient _client = null!;
 
     private static string Fixture(params string[] path) => Path.Combine([AppContext.BaseDirectory, "Fixtures", "sod", .. path]);
-    private static readonly JsonObject Reference = JsonNode.Parse(File.ReadAllText(Fixture("governance", "simulate.python.json")))!.AsObject();
+    private static readonly JsonObject Reference = JsonNode.Parse(ProductRename.Apply(File.ReadAllText(Fixture("governance", "simulate.python.json"))))!.AsObject();
 
     public async Task InitializeAsync()
     {

@@ -36,7 +36,7 @@ test('a session that cannot be restored stops after one attempt and offers one a
   const documents = documentRequests(page)
   await page.route('**/api/configuration', (route) => route.fulfill({ status: 403, json: STALE }))
   await page.goto('/#session=browser-test-session')
-  await expect(card(page).getByRole('heading', { name: 'SAP Lens could not restore your local session' })).toBeVisible()
+  await expect(card(page).getByRole('heading', { name: 'AuthLens could not restore your local session' })).toBeVisible()
   await page.waitForTimeout(1500)                                                            // a loop would reload again within this time
   expect(documents).toHaveLength(2)
   const actions = page.getByRole('group', { name: 'Recovery actions' })
@@ -83,7 +83,7 @@ test('a service that never answers ends in a bounded wait and one Retry action',
   const configuration = configurationRequests(page)
   await page.route('**/api/configuration', (route) => route.abort('connectionrefused'))
   await page.goto('/#session=browser-test-session')
-  await expect(card(page).getByRole('heading', { name: 'SAP Lens cannot reach its local service' })).toBeVisible({ timeout: 30_000 })
+  await expect(card(page).getByRole('heading', { name: 'AuthLens cannot reach its local service' })).toBeVisible({ timeout: 30_000 })
   expect(configuration).toHaveLength(7)                                                      // the first request and six retries, no endless loop
   await expect(page.getByRole('button', { name: 'Open Backup & Restore' })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Reload trusted session' })).toHaveCount(0)
@@ -108,7 +108,7 @@ test('a configuration failure is reported as such, is not retried automatically 
   const configuration = configurationRequests(page)
   await page.route('**/api/configuration', (route) => route.fulfill({ status: 500, json: { detail: 'Settings storage could not be opened.' } }))
   await page.goto('/#session=browser-test-session')
-  await expect(card(page).getByRole('heading', { name: 'SAP Lens could not load its configuration' })).toBeVisible()
+  await expect(card(page).getByRole('heading', { name: 'AuthLens could not load its configuration' })).toBeVisible()
   await page.waitForTimeout(1000)
   expect(configuration).toHaveLength(1)
   await expect(card(page)).not.toContainText('local session')                                // not presented as a session problem

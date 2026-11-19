@@ -38,7 +38,7 @@ test('missing close is bounded and cannot be mistaken for successful shutdown', 
   child.emit('close', 0)
 })
 test('directory removal completes and permanent filesystem failures propagate', async () => {
-  const root = await mkdtemp(path.join(tmpdir(), 'sap-lens-cleanup-unit-'))
+  const root = await mkdtemp(path.join(tmpdir(), 'authlens-cleanup-unit-'))
   await writeFile(path.join(root, 'synthetic.txt'), 'synthetic')
   await removeTestServerDirectory(root, 'win32')
   await assert.rejects(access(root))

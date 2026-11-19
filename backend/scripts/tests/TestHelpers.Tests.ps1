@@ -4,25 +4,25 @@ BeforeAll {
 
 Describe 'PowerShell test infrastructure' {
     It 'uses the current edition without relying on PATH' {
-        $previous = $env:SAP_LENS_TEST_POWERSHELL
+        $previous = $env:AUTHLENS_TEST_POWERSHELL
         try {
-            $env:SAP_LENS_TEST_POWERSHELL = ''
+            $env:AUTHLENS_TEST_POWERSHELL = ''
             $executable = Get-TestPowerShellExecutable
             Split-Path $executable | Should -Be $PSHOME
             $run = Invoke-TestPowerShell @('-Command', '$PSVersionTable.PSEdition; exit 0')
             $run.Code | Should -Be 0
             $run.Output.Trim() | Should -Be $PSVersionTable.PSEdition
-        } finally { $env:SAP_LENS_TEST_POWERSHELL = $previous }
+        } finally { $env:AUTHLENS_TEST_POWERSHELL = $previous }
     }
 
     It 'refuses an invalid explicit executable rather than skipping or falling back' {
-        $previous = $env:SAP_LENS_TEST_POWERSHELL
+        $previous = $env:AUTHLENS_TEST_POWERSHELL
         try {
-            $env:SAP_LENS_TEST_POWERSHELL = Join-Path $TestDrive 'missing-shell.exe'
+            $env:AUTHLENS_TEST_POWERSHELL = Join-Path $TestDrive 'missing-shell.exe'
             { Get-TestPowerShellExecutable } | Should -Throw '*existing absolute path*'
-            $env:SAP_LENS_TEST_POWERSHELL = 'powershell.exe'
+            $env:AUTHLENS_TEST_POWERSHELL = 'powershell.exe'
             { Get-TestPowerShellExecutable } | Should -Throw '*existing absolute path*'
-        } finally { $env:SAP_LENS_TEST_POWERSHELL = $previous }
+        } finally { $env:AUTHLENS_TEST_POWERSHELL = $previous }
     }
 
     It 'preserves refusal exit codes and raw stderr under ErrorActionPreference Stop' {

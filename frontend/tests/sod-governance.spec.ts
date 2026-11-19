@@ -210,7 +210,7 @@ test('work queue has one row per user, batch review lives in the workspace and t
   await expect(rowA).toContainText('2/3')
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
-  expect((await download).suggestedFilename()).toMatch(/^sap-lens-sod-review-queue-\d{4}-\d{2}-\d{2}\.csv$/)
+  expect((await download).suggestedFilename()).toMatch(/^authlens-sod-review-queue-\d{4}-\d{2}-\d{2}\.csv$/)
 })
 
 test('remediation separates proposals from verification and keeps tracked actions', async ({ page, request }) => {
@@ -248,7 +248,7 @@ test('remediation separates proposals from verification and keeps tracked action
   const download = page.waitForEvent('download')
   await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
   await page.getByRole('button', { name: /^Detailed Remediation/ }).click() // the original detailed export, now one of two formats
-  expect((await download).suggestedFilename()).toMatch(/^sap-lens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/)
+  expect((await download).suggestedFilename()).toMatch(/^authlens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/)
 })
 
 test('access explorer traces user to role and back through the lookup', async ({ page }) => {

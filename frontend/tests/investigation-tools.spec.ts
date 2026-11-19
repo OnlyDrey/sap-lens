@@ -40,7 +40,7 @@ async function expectIntervals(page:Page,scope:Locator,expected:string[]){
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  root = mkdtempSync(path.join(tmpdir(), 'sap-lens-tools-'))
+  root = mkdtempSync(path.join(tmpdir(), 'authlens-tools-'))
   const roles = path.join(root, 'catalogue.csv'),
     users = path.join(root, 'users.csv')
   writeFileSync(
@@ -587,7 +587,7 @@ test('comparison export uses guarded native bridge and retains distinct assignme
   const exported = await page.evaluate(() => (window as any).comparisonExport)
   expect(exported.token).toBe('browser-test-session')
   expect(exported.filename).toMatch(
-    /^sap-lens-user-comparison-review-\d{4}-\d{2}-\d{2}\.csv$/,
+    /^authlens-user-comparison-review-\d{4}-\d{2}-\d{2}\.csv$/,
   )
   expect(exported.content).toContain('"2000-01-01"')
   expect(exported.content).toContain('"2001-01-01"')

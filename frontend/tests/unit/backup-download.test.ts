@@ -3,12 +3,12 @@ import assert from 'node:assert/strict'
 import {backupDownloadFilename} from '../../src/lib/backupDownload.ts'
 
 const id = 'a'.repeat(32)
-const name = `SAP-Lens-backup-${id}.slbak`
+const name = `AuthLens-backup-${id}.slbak`
 test('backup downloads accept ASP.NET unquoted, quoted and UTF-8 disposition filenames', () => {
   for (const header of [`attachment; filename=${name}; filename*=UTF-8''${name}`, `attachment; filename="${name}"`, `attachment; filename=${name}`, `attachment; filename*=UTF-8''${encodeURIComponent(name)}`]) {
     assert.equal(backupDownloadFilename(header, 'backup', id), name)
   }
-  assert.equal(backupDownloadFilename(`attachment; filename=SAP-Lens-destination-before-restore-${id}.slbak`, 'destination-before-restore', id), `SAP-Lens-destination-before-restore-${id}.slbak`)
+  assert.equal(backupDownloadFilename(`attachment; filename=AuthLens-destination-before-restore-${id}.slbak`, 'destination-before-restore', id), `AuthLens-destination-before-restore-${id}.slbak`)
 })
 test('backup downloads refuse missing, malformed, mismatched and traversal filenames', () => {
   for (const header of [null, '', 'attachment; filename=../../host.key', `attachment; filename="../${name}"`, `attachment; filename=${name.replace(id, 'b'.repeat(32))}`, `attachment; filename*=UTF-8''%zz`]) {

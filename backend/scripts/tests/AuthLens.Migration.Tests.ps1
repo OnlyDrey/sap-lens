@@ -118,7 +118,7 @@ Describe 'Migration preflight: active SQLite discovery' {
         }
         $result = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
         $result.details.source_data.database_exists | Should -BeFalse
-        ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -BeLike "*active SAP Lens database is missing: $database*"
+        ($result.checks | Where-Object name -eq 'sqlite_consistency').message | Should -BeLike "*active AuthLens database is missing: $database*"
         Test-Path $database | Should -BeFalse
         Get-Content (Join-Path $script:Source.DataDirectory 'migration/previous/sap-lens-v2.sqlite3') | Should -Be 'retained synthetic history'
         Should -Invoke -ModuleName $M Invoke-SL2Maintenance -Times 0 -ParameterFilter { $Arguments[0] -eq '--inspect-data' }

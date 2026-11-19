@@ -1,7 +1,7 @@
 """Python v1 reference for POST /api/configuration/export and /reset: the portable package of a settings document with a private organization
 name and a dark theme, redacted and private. Usage: python -I tools/configuration_reference.py BACKEND_DIR OUT.json"""
 import json, os, sys, tempfile
-os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, out = sys.argv[1:3]
 sys.path.insert(0, backend)
 from config_models import AppConfig

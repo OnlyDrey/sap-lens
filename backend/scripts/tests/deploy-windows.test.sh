@@ -77,7 +77,7 @@ check 'dry-run locks the branch tip and changes nothing' \
 code=$(run "${base[@]}" --mode dry-run --commit 0000000000000000000000000000000000000000)
 check 'a commit that is not on the branch is refused remotely' '[ "$code" != 0 ]'
 
-# A commit from before the rename to SAP Lens carries Deploy-SapLens2.ps1 and its SAPLENS2-RESULT line; it still runs.
+# A commit from before the rename to AuthLens carries Deploy-SapLens2.ps1 and its SAPLENS2-RESULT line; it still runs.
 legacy=$(git -C "$repo_root" log -1 --format=%H "$tip" -- experiments/dotnet-backend/scripts/deploy/Deploy-SapLens2.ps1)
 git -C "$repo_root" cat-file -e "$legacy:experiments/dotnet-backend/scripts/deploy/Deploy-SapLens2.ps1" 2>/dev/null || legacy=$(git -C "$repo_root" rev-parse "$legacy^")
 legacy_config="$work/deploy-legacy.json"

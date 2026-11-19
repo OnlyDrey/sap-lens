@@ -27,14 +27,14 @@ if (Test-Path $Root) { throw "Use a new, empty -Root folder ($Root exists)." }
 $DataDir  = Join-Path $Root 'data'
 $Work     = Join-Path $Root 'migration'
 $Escrow   = Join-Path $Root 'escrow'
-$V1Backup = Join-Path $Work 'SAP-Lens-backup-synthetic.slbak'
+$V1Backup = Join-Path $Work 'AuthLens-backup-synthetic.slbak'
 New-Item -ItemType Directory -Force $Work, $Escrow, (Join-Path $Root 'keys') | Out-Null
 Copy-Item (Join-Path $Fixture 'v1-host.slbak') $V1Backup
 $Expected = Get-Content (Join-Path $Fixture 'expected.json') -Raw | ConvertFrom-Json
 Set-Content -NoNewline -Path (Join-Path $Escrow 'saplens1-recovery.key') -Value $Expected.recovery_key
 
 & $Exe --backup-key create (Join-Path $Root 'keys/backup.key') --data-dir $DataDir | Out-Null
-Check ($LASTEXITCODE -eq 0) 'SAP Lens host backup key created'
+Check ($LASTEXITCODE -eq 0) 'AuthLens host backup key created'
 & $Exe --backup-key export (Join-Path $Escrow 'sap-lens-recovery.key') --data-dir $DataDir | Out-Null
 Check ($LASTEXITCODE -eq 0) 'recovery copy exported'
 

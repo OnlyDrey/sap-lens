@@ -33,7 +33,7 @@ public static class MaintenanceCommands
         try
         {
             string? Value(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null; }
-            var data = Value("--data-dir") ?? Environment.GetEnvironmentVariable("SAP_LENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_DATA_DIR) is required.");
+            var data = Value("--data-dir") ?? Environment.GetEnvironmentVariable("AUTHLENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or AUTHLENS_DATA_DIR) is required.");
             if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
             data = Path.GetFullPath(data);
             JsonObject result;
@@ -200,7 +200,7 @@ public static class MaintenanceCommands
         var application = new DatabaseOptions { DataDirectory = data }.DatabasePath;
         var accounts = AuthLens.Application.Accounts.AccountStore.For(data);
         if (!File.Exists(application))
-            throw new InvalidOperationException($"The active SAP Lens database is missing: {application}. Historical and security databases are not substitutes.");
+            throw new InvalidOperationException($"The active AuthLens database is missing: {application}. Historical and security databases are not substitutes.");
         // Explicit authoritative stores only. Completed v1 migrations/backups stay untouched, not opened as active databases.
         var databases = new[] { application, accounts }.Where(File.Exists).ToArray();
         var scratch = Directory.CreateTempSubdirectory("saplens-inspect-").FullName;

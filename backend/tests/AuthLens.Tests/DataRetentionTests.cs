@@ -6,7 +6,7 @@ using AuthLens.Persistence;
 
 namespace AuthLens.Tests;
 
-/// <summary>Data retention on the SAP Lens database: superseded source revisions are removed only after a preview, a matching approval and the period;
+/// <summary>Data retention on the AuthLens database: superseded source revisions are removed only after a preview, a matching approval and the period;
 /// references from audit history and review decisions, the newest previous revisions, recent revisions and the active revision are protected; review
 /// periods are never removed; approvals are bound to the installation and voided by a restore.</summary>
 public sealed class DataRetentionTests

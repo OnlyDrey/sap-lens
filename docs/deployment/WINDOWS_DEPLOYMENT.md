@@ -471,7 +471,7 @@ These commands do not remediate findings or verify a complete restore. Do not we
 
 Use Pester 5 in a fresh PowerShell process. Windows PowerShell 5.1 is supported for these deployment tests; PowerShell 7 is not required merely
 to launch child scripts. `scripts/tests/TestHelpers.ps1` resolves the current edition's executable under `$PSHOME` by absolute path. To explicitly
-test another installed edition, set `SAP_LENS_TEST_POWERSHELL` to its absolute executable path. An invalid override fails instead of falling back
+test another installed edition, set `AUTHLENS_TEST_POWERSHELL` to its absolute executable path. An invalid override fails instead of falling back
 or skipping. Run the suite from each installed edition to exercise that edition's parser and module behavior too.
 
 ```powershell

@@ -10,7 +10,7 @@ const role = (n: number) => `ZO:MM:M:PR_REL_ST_G${String(n).padStart(3, '0')}_N6
 const destination = async(page: Page, name: string) => {await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact: true }).click();if(name==='Release Roles')await page.getByRole('button',{name:'Table',exact:true}).click()}
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-global-nav-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-global-nav-'))
   source = path.join(directory, 'synthetic-users.csv')
   rows = Array.from({ length: 125 }, (_, i) => [
     `${user(i)},${role(i)},GROUP_KEEP,Tied,20000101,99991231`,

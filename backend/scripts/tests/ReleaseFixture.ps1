@@ -4,7 +4,7 @@
 $script:Verify = (Resolve-Path (Join-Path $PSScriptRoot '..\verify-release.ps1')).Path
 
 # A complete schema-1 release as build-release.ps1 (win-x64) or build-release.sh (linux-x64) writes it; -Historical is a release built before
-# the rename to SAP Lens (product "SAP Lens 2", desktop/SapLens2Prototype.exe, a SAP Lens 1 ui_source_version).
+# the rename to AuthLens (product "SAP Lens 2", desktop/SapLens2Prototype.exe, a SAP Lens 1 ui_source_version).
 function New-VerifiableRelease([string]$Path, [string]$Platform = 'win-x64', [switch]$Historical) {
     $desktopExe = if ($Historical) { 'desktop/SapLens2Prototype.exe' } else { 'desktop/AuthLens.exe' }
     $files = if ($Platform -eq 'win-x64') { @('README.txt', $desktopExe, 'server/AuthLens.Api.exe', 'server/e_sqlite3.dll', 'symbols/server/AuthLens.Api.pdb') } else { @('server/AuthLens.Api', 'server/libe_sqlite3.so') }
@@ -16,7 +16,7 @@ function New-VerifiableRelease([string]$Path, [string]$Platform = 'win-x64', [sw
     $publish = [ordered]@{ self_contained = $true; single_file = $true; trimmed = $false; native_aot = $false; compressed = $false; server_native_libraries = 'beside the executable' }
     $executables = [ordered]@{ server = $(if ($Platform -eq 'win-x64') { 'server/AuthLens.Api.exe' } else { 'server/AuthLens.Api' }) }
     if ($Platform -eq 'win-x64') { $publish.desktop_native_libraries = 'bundled, extracted to a temporary folder at start'; $executables.desktop = $desktopExe }
-    $manifest = [ordered]@{ schema = 1; product = $(if ($Historical) { 'SAP Lens 2' } else { 'SAP Lens' }); version = '2.0.0-alpha.1'; channel = 'alpha'; file_version = @(2, 0, 0, 1)
+    $manifest = [ordered]@{ schema = 1; product = $(if ($Historical) { 'SAP Lens 2' } else { 'AuthLens' }); version = '2.0.0-alpha.1'; channel = 'alpha'; file_version = @(2, 0, 0, 1)
         ui_source_version = $(if ($Historical) { '1.4.0' } else { '2.0.0-alpha.1' }); source_sha = ('a' * 40); source_dirty = $false; source_committed_at = '2026-11-16T09:00:00+00:00'
         branch = 'experiment/dotnet-backend'; build_timestamp_utc = '2026-11-16T10:00:00Z'; target_platform = $Platform; dotnet_sdk = '10.0.100'; node = 'v24.0.0'
         publish = $publish; executables = $executables; artifacts = @($artifacts) }

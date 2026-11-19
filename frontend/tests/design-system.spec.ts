@@ -15,7 +15,7 @@ async function library(page: Page) {
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-design-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-design-'))
   const users = path.join(directory, 'users.csv')
   writeFileSync(
     users,
@@ -375,7 +375,7 @@ for (const theme of ['light', 'dark'])
         .scrollIntoViewIfNeeded()
       await page.screenshot({ path: info.outputPath('component-controls.png') })
       await page
-        .getByRole('button', { name: 'Back to SAP Lens', exact: true })
+        .getByRole('button', { name: 'Back to AuthLens', exact: true })
         .click()
       await goTo(page, 'User Access')
       await page
@@ -457,10 +457,10 @@ for(const theme of ['light','dark']) for(const width of [375,800,1280])
   await page.goto('/#session=browser-test-session')
   await page.getByRole('button',{name:'Open settings',exact:true}).click()
   const tabs=page.getByRole('tab')
-  await expect(tabs.filter({hasText:'About SAP Lens'})).toBeVisible() // the tab list renders after the dialog opens; read it once it is there
+  await expect(tabs.filter({hasText:'About AuthLens'})).toBeVisible() // the tab list renders after the dialog opens; read it once it is there
   const names=await tabs.allTextContents()
   expect(names).toContain('Component Library')
-  expect(names.indexOf('Component Library')).toBeLessThan(names.indexOf('About SAP Lens'))
+  expect(names.indexOf('Component Library')).toBeLessThan(names.indexOf('About AuthLens'))
   await page.getByRole('tab',{name:'Data Sources',exact:true}).click()
   for(const source of ['Role Catalogue','User Access','Employee Directory']){
    await page.getByRole('tab',{name:source,exact:true}).click()

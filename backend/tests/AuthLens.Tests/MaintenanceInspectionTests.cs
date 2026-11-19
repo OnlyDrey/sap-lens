@@ -95,7 +95,7 @@ public sealed class MaintenanceInspectionTests : IDisposable
         File.WriteAllText(Path.Combine(history, ApplicationBackups.DatabaseEntry), "retained history");
         var files = Directory.GetFiles(Data, "*", SearchOption.AllDirectories);
         var error = Assert.Throws<InvalidOperationException>(() => MaintenanceCommands.InspectData(Data));
-        Assert.Contains("active SAP Lens database is missing", error.Message);
+        Assert.Contains("active AuthLens database is missing", error.Message);
         Assert.False(File.Exists(new DatabaseOptions { DataDirectory = Data }.DatabasePath));
         Assert.Equal(files.Order(), Directory.GetFiles(Data, "*", SearchOption.AllDirectories).Order());
     }

@@ -20,7 +20,7 @@ async function importDirectory(request: APIRequestContext) {
 }
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-position-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-position-'))
   csv = path.join(directory, 'employees.csv')
   const users = path.join(directory, 'users.csv')
   writeFileSync(users, 'USERNAME,ROLE_NAME,EMAIL,USER_GROUP,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\n' +

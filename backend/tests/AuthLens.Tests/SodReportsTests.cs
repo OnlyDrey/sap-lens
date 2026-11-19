@@ -10,7 +10,10 @@ namespace AuthLens.Tests;
 /// The .NET builders read the same frozen snapshot and must reproduce every section, table and the sealed model checksum.</summary>
 public sealed class SodReportsTests
 {
-    private static readonly JsonObject Fixture = JsonNode.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sod", "reports", "expected.python.json")))!.AsObject();
+    private static readonly string FixtureText = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Fixtures", "sod", "reports", "expected.python.json"));
+    private static readonly JsonObject V1Fixture = JsonNode.Parse(FixtureText)!.AsObject();
+    /// <summary>The v1 reference with the product named AuthLens (ProductRename); report checksums are resealed below, after the v1 algorithm is proven.</summary>
+    private static readonly JsonObject Fixture = JsonNode.Parse(ProductRename.Apply(FixtureText))!.AsObject();
 
     private static (Dictionary<string, SodUserEntry> View, SodStates State, List<JsonObject> Actions, Func<string, string, string> Verify) Frozen()
     {
@@ -51,7 +54,15 @@ public sealed class SodReportsTests
             Assert.True(options is not null, string.Join("; ", errors));
             var inputs = new SodReports.ModelInputs(Fixture["period"]!.AsObject(), Fixture["saved"]!.AsObject(), (string)Fixture["checksum"]!, true, view, state, actions, verify, null, null);
             var model = SodReports.Model(inputs, options!);
-            var want = Fixture["models"]![name]!;
+            // The sealing algorithm equals v1: v1's own model, resealed, gives v1's checksum.
+            var v1Model = V1Fixture["models"]![name]!.DeepClone().AsObject();
+            var v1Checksum = (string)v1Model["model_checksum"]!;
+            v1Model.Remove("model_checksum");
+            Assert.Equal(v1Checksum, (string)SodReports.Seal(v1Model)["model_checksum"]!);
+            // The model equals v1's with the product named AuthLens, sealed by that algorithm.
+            var want = Fixture["models"]![name]!.DeepClone().AsObject();
+            want.Remove("model_checksum");
+            SodReports.Seal(want);
             if (!JsonNode.DeepEquals(want, model)) failures.Add($"{name}:\n{Differences(want, model)}");
         }
         Assert.True(failures.Count == 0, string.Join("\n", failures));

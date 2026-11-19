@@ -133,7 +133,7 @@ public sealed class AccessPackageTests : IAsyncLifetime
         var body = new { default_suffix = "ENS", items = new[] { "ZC:MM:BUY:ENP", "ZC:FI:VIEW:ENP", "ZC:MM:BUY:*", "ZC:HR:MISC:XYZ", "ZC:NOT:THERE" }.Select(r => new { role = r }) };
         var response = await _client.PostAsJsonAsync("/api/roles/package/export", body);
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Matches(@"sap-lens-access-package-\d{4}-\d{2}-\d{2}\.csv", response.Content.Headers.ContentDisposition!.ToString());
+        Assert.Matches(@"authlens-access-package-\d{4}-\d{2}-\d{2}\.csv", response.Content.Headers.ContentDisposition!.ToString());
         Assert.Equal("no-store", response.Headers.CacheControl!.ToString());
         var text = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync());
         Assert.StartsWith("﻿\"Generated SAP Role Name\";\"Role Description\";\"Suffix\";\"Validation\"\r\n", text);

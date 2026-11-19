@@ -16,7 +16,7 @@ test.beforeEach(async ({ request, context }) => {
   // New tabs do not inherit sessionStorage in the test browser, so give them the same test session.
   await context.addInitScript(() => { try { sessionStorage.setItem('sap-lens-session', 'browser-test-session') } catch { /* optional */ } })
   await request.post('/api/configuration/reset', { headers })
-  directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-nav-'))
+  directory = mkdtempSync(path.join(tmpdir(), 'authlens-nav-'))
   const roleFile = path.join(directory, 'roles.csv'), userFile = path.join(directory, 'users.csv')
   writeFileSync(roleFile, roles); writeFileSync(userFile, users)
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
@@ -29,7 +29,7 @@ test.afterEach(async ({ request }) => {
 })
 
 const main = (page: Page) => page.getByRole('navigation', { name: 'Main navigation', exact: true })
-const settings = (page: Page) => page.getByRole('region', { name: 'SAP Lens settings', exact: true })
+const settings = (page: Page) => page.getByRole('region', { name: 'AuthLens settings', exact: true })
 async function openSettings(page: Page) {
   await page.goto('/#session=browser-test-session')
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()

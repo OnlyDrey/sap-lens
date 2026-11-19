@@ -88,7 +88,7 @@ public sealed class RefreshReportTests : IAsyncLifetime
                 var query = run!["query"]!.AsObject();
                 var response = await _client.GetAsync($"/api/data-sources/reports/{id}/export?{Query(query)}");
                 Assert.Equal("text/csv; charset=utf-8", response.Content.Headers.ContentType!.ToString());
-                Assert.Equal("attachment; filename=\"SAP-Lens-refresh-changes.csv\"", response.Content.Headers.ContentDisposition!.ToString());
+                Assert.Equal("attachment; filename=\"AuthLens-refresh-changes.csv\"", response.Content.Headers.ContentDisposition!.ToString());
                 var csv = Encoding.UTF8.GetString(await response.Content.ReadAsByteArrayAsync());
                 Assert.Equal((string)run["csv"]!, csv.Replace($"\"{(string)refresh["timestamp"]!}\"", "\"T\"", StringComparison.Ordinal));
                 compared++;

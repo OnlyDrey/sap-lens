@@ -1,4 +1,4 @@
-# NTFS policy for SAP Lens private state (AuthLens.Acl.ps1): the pure rule evaluation by well-known SID, the audit plan, preflight refusals, and the
+# NTFS policy for AuthLens private state (AuthLens.Acl.ps1): the pure rule evaluation by well-known SID, the audit plan, preflight refusals, and the
 # explicit ProtectAcl/RestoreAcl remediation with synthetic folders. ACL reads and icacls are replaced; no real ACL or service is touched.
 BeforeAll {
     . (Join-Path $PSScriptRoot 'TestHelpers.ps1')

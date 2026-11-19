@@ -8,7 +8,7 @@ const settings=async(request:APIRequestContext)=>(await(await request.get('/api/
 const directoryColumns='Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 test.beforeEach(async({request,page})=>{
  expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy()
- root=mkdtempSync(path.join(tmpdir(),'sap-lens-auto-import-'));roles=path.join(root,'roles.csv');users=path.join(root,'users.csv');employees=path.join(root,'employees.csv')
+ root=mkdtempSync(path.join(tmpdir(),'authlens-auto-import-'));roles=path.join(root,'roles.csv');users=path.join(root,'users.csv');employees=path.join(root,'employees.csv')
  writeFileSync(roles,'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nFI,ZC:SYN:A,Synthetic Alpha,ZS:SYN:A,FB03\n')
  writeFileSync(users,'USERNAME,ROLE_NAME,FIRST_NAME,LAST_NAME,EMAIL,ROLE_VALID_FROM,ROLE_VALID_TO\nSYN_A,ZC:SYN:A,Åse,Synthetic,synthetic@example.test,20000101,99991231\n')
  writeFileSync(employees,directoryColumns+'\n;Synthetic Identity;synthetic_ad;;synthetic@example.test;Synthetic Department;Analyst;True;CN=Synthetic,DC=example,DC=test;;;;;;;Missing\n')

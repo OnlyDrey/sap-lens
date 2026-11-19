@@ -3,7 +3,7 @@ Usage: python -I tools/sod_analysis_reference.py BACKEND_DIR DATA_DIR(with roles
 Each query: {name, kind, validity, as_of, ...filters}; output per name: {total, subjects, summary, coverage, items(first 25, evidence truncated as the route)}."""
 import json, os, sys, tempfile
 from datetime import date
-os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, data, queries_path, out = sys.argv[1:5]
 sys.path.insert(0, backend)
 import cache

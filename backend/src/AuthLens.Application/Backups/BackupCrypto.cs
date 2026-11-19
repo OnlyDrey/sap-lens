@@ -14,11 +14,11 @@ public sealed class BackupException(string message, int status = 409) : Exceptio
 }
 
 /// <summary>The protected host backup key (v1 backup_crypto key handling): 32 random bytes, base64 in a private file OUTSIDE the data directory, located by
-/// SAP_LENS_BACKUP_KEY_FILE or by &lt;data&gt;/backup-key-location.json. Created, selected and exported only by local commands; the API can only verify that
+/// AUTHLENS_BACKUP_KEY_FILE or by &lt;data&gt;/backup-key-location.json. Created, selected and exported only by local commands; the API can only verify that
 /// a separately stored recovery copy matches (escrow), which is recorded by fingerprint.</summary>
 public static class BackupKeys
 {
-    public const string EnvironmentVariable = "SAP_LENS_BACKUP_KEY_FILE";
+    public const string EnvironmentVariable = "AUTHLENS_BACKUP_KEY_FILE";
     private const string Pointer = "backup-key-location.json", Confirmation = ".backup-key-confirmation.json";
 
     public static string Fingerprint(byte[] key) => Convert.ToHexStringLower(SHA256.HashData(key))[..16];
@@ -304,7 +304,7 @@ public static class BackupArchive
     public static (JsonObject Header, byte[] Raw) Envelope(Stream source, byte[] expectedMagic)
     {
         var magic = new byte[expectedMagic.Length];
-        if (ReadFull(source, magic) != magic.Length || !magic.AsSpan().SequenceEqual(expectedMagic)) throw new BackupException("Select an encrypted SAP Lens backup.", 422);
+        if (ReadFull(source, magic) != magic.Length || !magic.AsSpan().SequenceEqual(expectedMagic)) throw new BackupException("Select an encrypted AuthLens backup.", 422);
         var length = new byte[4];
         if (ReadFull(source, length) != 4) throw new BackupException("Truncated encrypted backup.", 422);
         var size = BinaryPrimitives.ReadUInt32BigEndian(length);

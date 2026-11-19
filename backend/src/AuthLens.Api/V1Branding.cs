@@ -83,7 +83,7 @@ public static class V1Branding
         api.MapGet("/branding/logo", async (V1Settings settings, LogoStore logos, CancellationToken ct) =>
         {
             var data = logos.Read((string?)(await settings.GetAsync(ct))["logo_id"]);
-            return data is null ? Detail(404, "No valid custom logo; use the SAP Lens default.") : Results.Json(new { data_url = "data:image/png;base64," + Convert.ToBase64String(data) });
+            return data is null ? Detail(404, "No valid custom logo; use the AuthLens default.") : Results.Json(new { data_url = "data:image/png;base64," + Convert.ToBase64String(data) });
         });
 
         // Report-only logo (PNG or JPEG, 32-4096 px, 1 MB), used by SoD reports.

@@ -1,4 +1,4 @@
-name: SAP Lens Validation
+name: AuthLens Validation
 on:
   push:
     branches: [main]

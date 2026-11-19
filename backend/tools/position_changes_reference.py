@@ -2,7 +2,7 @@
 Writes synthetic Employee Directory pairs (before/after) to FIXTURE_DIR and records v1's events and notices for each pair (fixed detected_at).
 Usage: python -I tools/position_changes_reference.py BACKEND_DIR FIXTURE_DIR"""
 import json, os, sys, tempfile
-os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, fixtures = sys.argv[1:3]
 sys.path.insert(0, backend)
 from pathlib import Path

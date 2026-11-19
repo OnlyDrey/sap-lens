@@ -5,7 +5,7 @@ import path from 'node:path'
 import { headers } from './support'
 let root:string
 test.beforeEach(async({request})=>{
- await request.post('/api/configuration/reset',{headers});root=mkdtempSync(path.join(tmpdir(),'sap-lens-search-ui-'))
+ await request.post('/api/configuration/reset',{headers});root=mkdtempSync(path.join(tmpdir(),'authlens-search-ui-'))
  const roles=path.join(root,'roles.csv'),users=path.join(root,'users.csv')
  writeFileSync(roles,'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:SYN:BUY,Purchasing,ZS:SYN:BUY,ME23N\nMM,ZC:SYN:BUY,Purchasing,ZS:SYN:BUY,MIGO\nFI,ZC:SYN:FI,Finance,ZS:SYN:FI,FB03\n')
  writeFileSync(users,'USERNAME,ROLE_NAME,EMAIL,ROLE_VALID_FROM,ROLE_VALID_TO\nSYN_BUY,ZC:SYN:BUY,synthetic@example.test,20000101,99991231\nSYN_FI,ZC:SYN:FI,other@example.test,20000101,99991231\n')

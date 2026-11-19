@@ -56,7 +56,7 @@ test('Role Assignments exports one unique row per user and role while Detailed k
   const simple = page.waitForEvent('download')
   await page.getByRole('button', { name: /^Role Assignments/ }).click()
   const simpleDownload = await simple
-  expect(simpleDownload.suggestedFilename()).toMatch(/^sap-lens-sod-role-assignments-\d{4}-\d{2}-\d{2}\.csv$/)
+  expect(simpleDownload.suggestedFilename()).toMatch(/^authlens-sod-role-assignments-\d{4}-\d{2}-\d{2}\.csv$/)
   const rows = parse((await simpleDownload.path())!)
   expect(rows[0]).toEqual(['USERNAME', 'ROLE', 'SAP User Group', 'Decision Status'])
   const pairs = rows.slice(1).map((row) => `${row[0]}\u0000${row[1]}`)
@@ -66,7 +66,7 @@ test('Role Assignments exports one unique row per user and role while Detailed k
   const full = page.waitForEvent('download')
   await page.getByRole('button', { name: /^Detailed Remediation/ }).click()
   const fullDownload = await full
-  expect(fullDownload.suggestedFilename()).toMatch(/^sap-lens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/)
+  expect(fullDownload.suggestedFilename()).toMatch(/^authlens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/)
   const detailed = parse((await fullDownload.path())!)
   expect(detailed[0].slice(0, 5)).toEqual(['USERNAME', 'USER_GROUP', 'ACTIVITY', 'RISKS', 'ROLE'])
   expect(detailed.slice(1).filter((row) => row[0] === names.b && row[4] === 'ROLE_AB').length).toBeGreaterThan(1) // evidence export keeps activity rows

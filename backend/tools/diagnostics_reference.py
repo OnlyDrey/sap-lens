@@ -1,7 +1,7 @@
 """Python v1 reference for GET /api/diagnostics and /export: the allowlisted key sets (top level, per source, refresh history item) of a private
 (Desktop) and an exported report on an empty installation. Usage: python -I tools/diagnostics_reference.py BACKEND_DIR OUT.json"""
 import json, os, sys, tempfile
-os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, out = sys.argv[1:3]
 sys.path.insert(0, backend)
 from diagnostics import diagnostics_snapshot

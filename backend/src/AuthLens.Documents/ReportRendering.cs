@@ -149,9 +149,9 @@ public sealed class DocxReportRenderer : IReportRenderer
                 { Type = StyleValues.Table, StyleId = "TableGrid" });
 
             var header = main.AddNewPart<HeaderPart>("rIdHeader");
-            header.Header = new Header(Para(ReportText.Clean(data["organization"]!["name"]) + " · SAP Lens"));
+            header.Header = new Header(Para(ReportText.Clean(data["organization"]!["name"]) + " · AuthLens"));
             var footer = main.AddNewPart<FooterPart>("rIdFooter");
-            footer.Footer = new Footer(new W.Paragraph(new W.Run(new W.Text("SAP Lens · ") { Space = SpaceProcessingModeValues.Preserve }), new SimpleField { Instruction = "PAGE" }));
+            footer.Footer = new Footer(new W.Paragraph(new W.Run(new W.Text("AuthLens · ") { Space = SpaceProcessingModeValues.Preserve }), new SimpleField { Instruction = "PAGE" }));
 
             var body = new Body();
             if (logo is not null)

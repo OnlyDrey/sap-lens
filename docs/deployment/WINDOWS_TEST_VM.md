@@ -111,8 +111,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-server-test.
 The Server receives `--data-dir --network --listen --port --allowed-hosts --cert --cert-password-file`. Exit codes: `0` normal stop,
 `2` the launcher refused the configuration (reason on stderr), `3` the Server refused it (`startup refused: <reason>`), anything else is the
 Server's own exit code. The launcher never installs services, never changes firewall rules and never prints the certificate password. It
-lists the names (not values) of inherited `SAP_LENS_*` environment variables, because those still apply where no option is given (for
-example `SAP_LENS_AUTH` or `SAP_LENS_TOKEN`).
+lists the names (not values) of inherited `AUTHLENS_*` environment variables, because those still apply where no option is given (for
+example `AUTHLENS_AUTH` or `AUTHLENS_TOKEN`).
 
 Launcher tests (Pester 5; Windows ships Pester 3, so install 5 for the current user once):
 

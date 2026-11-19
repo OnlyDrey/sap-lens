@@ -18,6 +18,6 @@ Describe 'Packaged local Service Manager' {
     }
     It 'ships with release checksums and the server installer' {
         foreach ($name in 'build-release.ps1','build-release.sh') { Get-Content (Join-Path $PSScriptRoot "../$name") -Raw | Should -Match 'Service-Manager.ps1' }
-        Get-Content (Join-Path $PSScriptRoot '../../installer/AuthLens-Server.iss') -Raw | Should -Match 'SAP Lens Service Manager'
+        Get-Content (Join-Path $PSScriptRoot '../../installer/AuthLens-Server.iss') -Raw | Should -Match 'AuthLens Service Manager'
     }
 }

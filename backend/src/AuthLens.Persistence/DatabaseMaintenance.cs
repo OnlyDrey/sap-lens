@@ -26,7 +26,7 @@ public sealed class DatabaseMaintenance(DatabaseOptions options, IDbContextFacto
             var unknown = applied.Where(m => !known.Contains(m)).ToList();
             if (unknown.Count > 0)
             {
-                // A database written by a newer SAP Lens is never downgraded or modified.
+                // A database written by a newer AuthLens is never downgraded or modified.
                 (Ready, NotReadyReason) = (false, "The database was written by a newer version and was left unchanged.");
                 logger.LogError("Database has unknown migrations {Migrations}; left unchanged", unknown);
                 return;

@@ -139,7 +139,7 @@ public static class V1Backups
                 http.Response.Headers.CacheControl = "no-store";
                 // Open before returning the result: a concurrent deletion is a meaningful refusal,
                 // and a successful response retains one stable stream until the download completes.
-                return Results.File(File.OpenRead(path), "application/octet-stream", $"SAP-Lens-{kind}-{identity}.slbak");
+                return Results.File(File.OpenRead(path), "application/octet-stream", $"AuthLens-{kind}-{identity}.slbak");
             }
             catch (BackupException error) { return Results.Json(new { detail = error.Message }, statusCode: error.Status); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException) { return Results.Json(new { detail = "The archive is unavailable or in use. Retry after the active archive operation finishes." }, statusCode: 409); }

@@ -9,7 +9,7 @@ using AuthLens.Persistence;
 
 namespace AuthLens.Application.Backups;
 
-/// <summary>Application backups and restore (v1 application_backups.py on the SAP Lens storage). An archive holds consistent online copies of the SQLite
+/// <summary>Application backups and restore (v1 application_backups.py on the AuthLens storage). An archive holds consistent online copies of the SQLite
 /// database and the account store (active sessions removed), the branding images and a manifest with SHA-256 per file, encrypted as SLBAK3. Restore is a
 /// restart handoff: an upload is decrypted, checked and previewed without touching active data; a confirmed restore is applied at the next start, before
 /// the database opens, after an encrypted destination recovery backup of the current data, and is rolled back if anything fails.</summary>
@@ -22,9 +22,9 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
     public const string DatabaseEntry = "sap-lens-v2.sqlite3", AccountsEntry = "security/accounts.sqlite3", ManifestEntry = "manifest.json";
 
     /// <summary>The archive manifest's "product" is a format identifier, not the display name: it stays "SAP Lens 2" so that every earlier .NET
-    /// build can still restore an archive written by a later one. "SAP Lens" is also accepted on restore for archives written under the new name.</summary>
+    /// build can still restore an archive written by a later one. "AuthLens" is also accepted on restore for archives written under the new name.</summary>
     public const string ManifestProduct = "SAP Lens 2";
-    private static readonly string[] AcceptedManifestProducts = [ManifestProduct, "SAP Lens"];
+    private static readonly string[] AcceptedManifestProducts = [ManifestProduct, "SAP Lens", "AuthLens"];
     [GeneratedRegex("\\A[a-f0-9]{32}\\z")] public static partial Regex Identity();
     [GeneratedRegex("^branding/[a-f0-9]{64}\\.png$")] private static partial Regex BrandingEntry();
     private static readonly SemaphoreSlim Gate = new(1, 1);
@@ -382,7 +382,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
             await using (var probe = File.OpenRead(archive)) _ = await probe.ReadAsync(head, ct);
             if (BackupArchive.IsV1(head) || head[0] == 0x1f)
                 throw new BackupException("This is a SAP Lens 1 backup. Import it through the separate v1 data migration (AuthLens.Api --migrate-v1 preview), never by replacing data here.", 422);
-            if (!BackupArchive.IsV2(head)) throw new BackupException("Select an encrypted SAP Lens .slbak backup.", 422);
+            if (!BackupArchive.IsV2(head)) throw new BackupException("Select an encrypted AuthLens .slbak backup.", 422);
             var host = BackupKeys.Host(Data);
             var payload = Path.Combine(folder, "payload.zip");
             await Task.Run(() =>
@@ -401,7 +401,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
                 ["id"] = id, ["kind"] = "restore", ["status"] = "ready", ["archive_sha256"] = Sha(archive),
                 ["preview"] = new JsonObject
                 {
-                    ["source_mode"] = "SAP Lens", ["source_version"] = manifest["version"]?.DeepClone(), ["created_at"] = manifest["created"]?.DeepClone(),
+                    ["source_mode"] = "AuthLens", ["source_version"] = manifest["version"]?.DeepClone(), ["created_at"] = manifest["created"]?.DeepClone(),
                     ["files"] = manifest["files"]!.AsArray().Count, ["snapshots"] = 0,
                     ["categories"] = new JsonArray([.. new[] { "application database", manifest["accounts"] is JsonObject ? "accounts" : null, manifest["files"]!.AsArray().Any(f => ((string)f!["path"]!).StartsWith("branding/", StringComparison.Ordinal)) ? "branding" : null }
                         .Where(c => c is not null).Select(c => (JsonNode?)c)]),
@@ -450,7 +450,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         Integrity(Path.Combine(target, DatabaseEntry));
         var known = knownMigrations.ToHashSet(StringComparer.Ordinal);
         if (Migrations(Path.Combine(target, DatabaseEntry)).Any(m => !known.Contains(m)))
-            throw new BackupException("The archive was written by a newer SAP Lens version and cannot be restored here.", 422);
+            throw new BackupException("The archive was written by a newer AuthLens version and cannot be restored here.", 422);
         if (listed.Contains(AccountsEntry))
         {
             var accounts = Path.Combine(target, AccountsEntry);

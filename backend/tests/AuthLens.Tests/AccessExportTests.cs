@@ -142,7 +142,7 @@ public sealed class AccessExportTests : IAsyncLifetime
         var response = await _client.GetAsync("/api/access/exports/users?show_expired=true");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.StartsWith("text/csv", response.Content.Headers.ContentType!.ToString());
-        Assert.Matches("attachment; filename=\"sap-lens-user-directory-review-\\d{4}-\\d{2}-\\d{2}\\.csv\"", response.Content.Headers.ContentDisposition?.ToString() ?? string.Join("", response.Headers.GetValues("Content-Disposition")));
+        Assert.Matches("attachment; filename=\"authlens-user-directory-review-\\d{4}-\\d{2}-\\d{2}\\.csv\"", response.Content.Headers.ContentDisposition?.ToString() ?? string.Join("", response.Headers.GetValues("Content-Disposition")));
         Assert.Equal("no-store", response.Headers.CacheControl!.ToString());
         var tooMany = Uri.EscapeDataString(string.Join(',', Enumerable.Range(0, 501).Select(i => $"U{i:000}")));
         Assert.Equal((HttpStatusCode)422, (await _client.GetAsync("/api/access/exports/users?usernames=" + tooMany)).StatusCode);   // v1: at most 500 names

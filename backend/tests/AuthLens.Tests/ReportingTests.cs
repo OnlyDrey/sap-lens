@@ -14,7 +14,7 @@ namespace AuthLens.Tests;
 public sealed class ReportingTests
 {
     private static readonly string Fixtures = Path.Combine(AppContext.BaseDirectory, "Fixtures", "reporting");
-    private static readonly JsonObject Reference = JsonNode.Parse(File.ReadAllText(Path.Combine(Fixtures, "reporting.python.json")))!.AsObject();
+    private static readonly JsonObject Reference = JsonNode.Parse(ProductRename.Apply(File.ReadAllText(Path.Combine(Fixtures, "reporting.python.json"))))!.AsObject();
     private static readonly byte[] Logo = File.ReadAllBytes(Path.Combine(Fixtures, "logo.png"));
 
     private static void Keep(string name, byte[] payload)
@@ -116,10 +116,11 @@ public sealed class ReportingTests
             Assert.InRange(pages, Math.Max(1, (int)(v1Pages * 0.7)), (int)Math.Ceiling(v1Pages * 1.3) + 1);
             // The same words in the same numbers; footer words and page numbers depend on the page count and are left out.
             static Dictionary<string, int> Words(IEnumerable<string> words, int pageCount) => words
-                .Where(w => w is not ("SAP" or "Lens" or "·" or "v1.2") && !(int.TryParse(w, out var n) && n >= 1 && n <= pageCount))
+                .Where(w => w is not ("AuthLens" or "·" or "v1.2") && !(int.TryParse(w, out var n) && n >= 1 && n <= pageCount))
                 .GroupBy(w => w).ToDictionary(g => g.Key, g => g.Count());
             var actual = Words(Tool("pdftotext", pdf, "-enc", "UTF-8", "-", "-")!.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries), pages);
-            var wanted = Words(expected["words"]!.AsArray().Select(w => (string)w!), v1Pages);
+            // v1's words are split; the rename applies to the joined text ("SAP Lens" in the footer becomes the single word "AuthLens").
+            var wanted = Words(ProductRename.Apply(string.Join(' ', expected["words"]!.AsArray().Select(w => (string)w!))).Split(' ', StringSplitOptions.RemoveEmptyEntries), v1Pages);
             var missing = wanted.Where(p => actual.GetValueOrDefault(p.Key) != p.Value).Select(p => $"{p.Key}:{p.Value}/{actual.GetValueOrDefault(p.Key)}").ToList();
             var extra = actual.Where(p => !wanted.ContainsKey(p.Key)).Select(p => p.Key).ToList();
             Assert.True(missing.Count == 0 && extra.Count == 0, $"{name}: differs {string.Join(' ', missing.Take(20))} extra {string.Join(' ', extra.Take(20))}");

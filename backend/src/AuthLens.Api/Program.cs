@@ -7,20 +7,17 @@ if (ServerConfiguration.Informational(args) is { } information)
     Console.Out.WriteLine(information);
     return 0;
 }
-if (ServerConfiguration.RenamedEnvironment(Environment.GetEnvironmentVariables()) is { } renamed)
-{
-    Console.Error.WriteLine($"startup refused: {renamed}");
-    return 3;
-}
+// Earlier product names' variables are never read; report them so a setting is never lost silently (AuthLens can run beside SAP Lens).
+if (ServerConfiguration.RenamedEnvironment(Environment.GetEnvironmentVariables()) is { } renamed) Console.Error.WriteLine($"warning: {renamed}");
 if (MaintenanceCommands.Handles(args)) return MaintenanceCommands.Run(args);
 if (args.Contains("--migrate-v1"))
 {
-    // SAP Lens 1 to SAP Lens data migration, step by step; local, the server must not be running for activate/rollback to take effect at its next start.
+    // SAP Lens 1 to AuthLens data migration, step by step; local, the server must not be running for activate/rollback to take effect at its next start.
     try
     {
         string? Value(string name) { var i = Array.IndexOf(args, name); return i >= 0 && i + 1 < args.Length && !args[i + 1].StartsWith("--", StringComparison.Ordinal) ? args[i + 1] : null; }
         var step = Value("--migrate-v1") ?? throw new InvalidOperationException("--migrate-v1 needs preview, run, activate, rollback or status.");
-        var data = Value("--data-dir") ?? Environment.GetEnvironmentVariable("SAP_LENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or SAP_LENS_DATA_DIR) is required.");
+        var data = Value("--data-dir") ?? Environment.GetEnvironmentVariable("AUTHLENS_DATA_DIR") ?? throw new InvalidOperationException("--data-dir (or AUTHLENS_DATA_DIR) is required.");
         if (!Path.IsPathFullyQualified(data)) throw new InvalidOperationException("--data-dir must be an absolute path.");
         var actor = Environment.UserName;
         var now = DateTimeOffset.UtcNow;

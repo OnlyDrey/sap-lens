@@ -156,7 +156,7 @@ public static class V1ReleaseRoles
     private static void CsvHeaders(HttpContext http, Snapshot snapshot, string fileKind, DateOnly day, string countHeader, int count)
     {
         var iso = day.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-        http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"sap-lens-{fileKind}-review-{iso}.csv\"";
+        http.Response.Headers["Content-Disposition"] = $"attachment; filename=\"authlens-{fileKind}-review-{iso}.csv\"";
         http.Response.Headers["X-SAP-Lens-Data-Revision"] = V1Access.Revision(snapshot);
         http.Response.Headers["X-SAP-Lens-As-Of"] = iso;
         http.Response.Headers[countHeader] = count.ToString(CultureInfo.InvariantCulture);

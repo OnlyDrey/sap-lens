@@ -18,7 +18,7 @@ public static class V1Compatibility
     public static readonly string Boot = Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8));
     private static readonly Lazy<JsonObject> Registry = new(() => Load("registry.json"));
     private static readonly Lazy<JsonObject> DefaultSettings = new(() => Load("default-settings.json"));
-    /// <summary>The SAP Lens product version (see ProductIdentity; never v1's).</summary>
+    /// <summary>The AuthLens product version (see ProductIdentity; never v1's).</summary>
     public static readonly string Version = ProductIdentity.Version;
     /// <summary>The commit the build was made from (release scripts pass -p:SourceRevisionId); null for builds without it.</summary>
     public static readonly string? SourceSha = ProductIdentity.Commit;
@@ -104,7 +104,7 @@ public static class V1Compatibility
             registry["modules"] = new JsonArray([.. registry["modules"]!.AsArray().Select(m => (JsonNode)Effective(m!.AsObject(), overrides))]);
             return Results.Content(registry.ToJsonString(), "application/json");
         });
-        api.MapGet("/version", () => new { app = "SAP Lens", version = Version, mode = "dotnet" });
+        api.MapGet("/version", () => new { app = "AuthLens", version = Version, mode = "dotnet" });
         api.MapGet("/application-info", () => new
         {
             version = Version, mode = "dotnet", source_sha = SourceSha, file_version = ProductIdentity.FileVersion, python = (string?)null,
@@ -190,7 +190,7 @@ public static class V1Compatibility
 
     public static IResult NotMigrated(HttpContext? http, string rest) => Results.Json(new
     {
-        detail = $"This SAP Lens function is not available in the .NET server yet ({http?.Request.Method ?? "GET"} /api/{rest}). No data was changed.",
+        detail = $"This AuthLens function is not available in the .NET server yet ({http?.Request.Method ?? "GET"} /api/{rest}). No data was changed.",
         code = "not_migrated", status = 501,
     }, statusCode: 501);
 

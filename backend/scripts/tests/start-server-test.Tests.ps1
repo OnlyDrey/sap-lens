@@ -122,7 +122,7 @@ Describe 'Configuration validation' {
         $saved = $env:LOCALAPPDATA, $env:ProgramData
         try {
             $env:LOCALAPPDATA = Join-Path $TestDrive 'local'; $env:ProgramData = Join-Path $TestDrive 'programdata'
-            foreach ($path in (Join-Path $env:ProgramData 'sap-lens/data'), (Join-Path $env:ProgramData 'SapLens2/data'), (Join-Path $env:ProgramData 'AuthLens/data'), (Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop/data'), (Join-Path $env:ProgramData 'SAP Lens Server'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype/data'), (Join-Path $env:LOCALAPPDATA 'SAP LENS/x')) {
+            foreach ($path in (Join-Path $env:ProgramData 'sap-lens/data'), (Join-Path $env:ProgramData 'SapLens2/data'), (Join-Path $env:ProgramData 'AuthLens/data'), (Join-Path $env:LOCALAPPDATA 'AuthLens Desktop/data'), (Join-Path $env:ProgramData 'AuthLens Server'), (Join-Path $env:LOCALAPPDATA 'SAP Lens 2 Prototype/data'), (Join-Path $env:LOCALAPPDATA 'SAP LENS/x')) {
                 $config = $valid.Clone(); $config.DataDirectory = $path
                 { Assert-TestConfiguration @config } | Should -Throw '*production or Desktop location*'
             }

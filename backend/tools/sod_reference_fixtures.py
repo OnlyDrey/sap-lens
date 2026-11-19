@@ -2,7 +2,7 @@
 Usage: python -I tools/sod_reference_fixtures.py BACKEND_DIR OUT_DIR
 Writes OUT_DIR/<case>.xlsx (or .bin) and OUT_DIR/expected.python.json: {case: {ok, library | error, pydantic}}."""
 import io, json, os, sys, tempfile, zipfile
-os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
 sys.path.insert(0, sys.argv[1])
 from pydantic import ValidationError
 import sod_reference as reference

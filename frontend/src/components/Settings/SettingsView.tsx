@@ -74,7 +74,7 @@ const sections = [
   'Appearance & Branding',
   'Health & Diagnostics',
   'Features',
-  'About SAP Lens',
+  'About AuthLens',
   'Component Library',
   'SoD Risk Configuration',
   'Runtime & Scheduling',
@@ -82,7 +82,7 @@ const sections = [
   'Functional Groups',
   'User Management'
 ]
-/** Sidebar groups (section indexes into `sections`). About SAP Lens (6) is the sidebar footer. The order of this list is the visual, DOM and
+/** Sidebar groups (section indexes into `sections`). About AuthLens (6) is the sidebar footer. The order of this list is the visual, DOM and
  *  arrow-key order; User Management (12) is listed only for administrators of a sign-in server. */
 const navigationGroups:{label:string;sections:number[]}[]=[
   {label:'General',sections:[0,3]},
@@ -478,7 +478,7 @@ export function SettingsView({
         )
         const link = document.createElement('a')
         link.href = url
-        link.download = 'SAP-Lens.sap-lens.json'
+        link.download = 'AuthLens.authlens.json'
         link.click()
         URL.revokeObjectURL(url)
         setMessage('Configuration exported; keep private packages secure.')
@@ -515,7 +515,7 @@ export function SettingsView({
 
   return (
     <section
-      aria-label="SAP Lens settings"
+      aria-label="AuthLens settings"
       className={open ? 'settings-workspace' : 'hidden'}
     >
       <aside className="settings-sidebar">
@@ -523,9 +523,9 @@ export function SettingsView({
           className={`${buttonClass} settings-back`}
           onClick={() => show(false)}
           disabled={busy}
-          aria-label="Back to SAP Lens"
+          aria-label="Back to AuthLens"
         >
-          <ArrowLeft size={16} /> Back to SAP Lens
+          <ArrowLeft size={16} /> Back to AuthLens
         </button>
         {/* One tablist: the scrollable groups and the About footer share arrow-key navigation (navigationOrder). */}
         <nav role="tablist" aria-label="Settings sections" aria-orientation="vertical" className="settings-nav">
@@ -609,7 +609,7 @@ export function SettingsView({
                       })
                       .catch(() =>
                         setError(
-                          'Could not cancel the read. Close and reopen SAP Lens.'
+                          'Could not cancel the read. Close and reopen AuthLens.'
                         )
                       )
                   }
@@ -915,7 +915,7 @@ export function SettingsView({
                         Currently active:{' '}
                         {config.data?.settings.logo_id
                           ? 'Custom organization logo'
-                          : 'SAP Lens default logo'}
+                          : 'AuthLens default logo'}
                         .{' '}
                         {draft.logo_id !== config.data?.settings.logo_id
                           ? 'A pending change will be applied when you save.'
@@ -934,7 +934,7 @@ export function SettingsView({
                           role="status"
                           className="text-[var(--warning)] text-sm"
                         >
-                          The saved custom logo is unavailable; SAP Lens uses
+                          The saved custom logo is unavailable; AuthLens uses
                           its default logo.
                         </p>
                       )}
@@ -981,8 +981,8 @@ export function SettingsView({
                       </button>
                       <button
                         className={buttonClass}
-                        aria-label="Remove custom logo / restore SAP Lens default"
-                        title="Remove custom logo and restore the SAP Lens default"
+                        aria-label="Remove custom logo / restore AuthLens default"
+                        title="Remove custom logo and restore the AuthLens default"
                         onClick={() => {
                           update('logo_id', null)
                           setLogoPreview(null)

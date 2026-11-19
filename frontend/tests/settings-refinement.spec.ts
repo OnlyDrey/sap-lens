@@ -11,7 +11,7 @@ test.beforeEach(async ({ request }) => {
   ).toBeTruthy()
 })
 const workspace = (page: import('@playwright/test').Page) =>
-  page.getByRole('region', { name: 'SAP Lens settings', exact: true })
+  page.getByRole('region', { name: 'AuthLens settings', exact: true })
 
 test('shared navigation and dropdown geometry retain keyboard access', { tag: '@a11y' }, async ({
   page
@@ -157,7 +157,7 @@ test('automatic selection and optional mapping preview preserve manual overrides
   page,
   request
 }) => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'sap-lens-auto-columns-'))
+  const dir = mkdtempSync(path.join(tmpdir(), 'authlens-auto-columns-'))
   const first = path.join(dir, 'first.csv'),
     second = path.join(dir, 'second.csv')
   writeFileSync(first, 'AGR_NAME,Role,TCODE\nDEMO_AUTO,DEMO_MANUAL,DEMO_T\n')
@@ -176,7 +176,7 @@ test('automatic selection and optional mapping preview preserve manual overrides
       .click()
     await page.getByRole('button',{name:'Refresh source',exact:true}).click()
     await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
-    await page.getByRole('button',{name:'Back to SAP Lens',exact:true}).click()
+    await page.getByRole('button',{name:'Back to AuthLens',exact:true}).click()
     await expect(workspace(page)).toBeHidden()
     expect(
       (await request.get('/api/roles/DEMO_MANUAL', { headers })).ok()
@@ -201,7 +201,7 @@ test('automatic selection and optional mapping preview preserve manual overrides
     expect(
       (await request.get('/api/roles/DEMO_MANUAL', { headers })).ok()
     ).toBeTruthy()
-    await page.getByRole('button', { name: 'Back to SAP Lens', exact: true }).click()
+    await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
     await expect(workspace(page)).toBeHidden()
     const saved = await (
       await request.get('/api/configuration', { headers })

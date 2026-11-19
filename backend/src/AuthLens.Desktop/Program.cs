@@ -11,7 +11,7 @@ namespace AuthLens.Desktop;
 /// (exit code 0 ready, 2 start or readiness failure, 1 already running): the SSH-verifiable part of the Desktop.</summary>
 internal static class Program
 {
-    private const string Title = "SAP Lens";
+    private const string Title = "AuthLens";
     private static readonly TimeSpan StartupTimeout = TimeSpan.FromSeconds(30);
 
     [STAThread]
@@ -33,7 +33,7 @@ internal static class Program
         if (!first)
         {
             log.LogWarning("Another instance is already running");
-            if (!selfCheck) MessageBox.Show("SAP Lens is already running.", Title);
+            if (!selfCheck) MessageBox.Show("AuthLens is already running.", Title);
             return 1;
         }
         if (!selfCheck)
@@ -53,7 +53,7 @@ internal static class Program
         if (!outcome.Ok)
         {
             if (!selfCheck)
-                MessageBox.Show($"{outcome.Error}\n\nDetails are in the log file:\n{logs.FilePath}\n\nClose other SAP Lens windows, check that the data folder is on a local disk and writable, then start again.",
+                MessageBox.Show($"{outcome.Error}\n\nDetails are in the log file:\n{logs.FilePath}\n\nClose other AuthLens windows, check that the data folder is on a local disk and writable, then start again.",
                     Title, MessageBoxButtons.OK, MessageBoxIcon.Error);
             return 2;
         }

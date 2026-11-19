@@ -68,12 +68,12 @@ export function ScheduledRefresh({ draft, onChange }: { draft: Configuration; on
       <details>
         <summary>Where it runs</summary>
         <ul className="ui-description">
-          <li><strong>Windows Desktop:</strong> only while SAP Lens is running, in its window or in the system tray. A run missed while it was closed is skipped, not replayed.</li>
+          <li><strong>Windows Desktop:</strong> only while AuthLens is running, in its window or in the system tray. A run missed while it was closed is skipped, not replayed.</li>
           <li><strong>Windows service, Linux server or systemd:</strong> runs continuously while the server is up, with no desktop session or browser open.</li>
           <li>IANA time zones use the system database or the bundled time zone data, including on Windows. Daylight-saving changes follow the selected zone.</li>
         </ul>
       </details>
-      {runtime?.requires_running_application && value.enabled && <p className="ui-description">This installation is the desktop application: keep SAP Lens running (the tray option below keeps it running when the window is closed).</p>}
+      {runtime?.requires_running_application && value.enabled && <p className="ui-description">This installation is the desktop application: keep AuthLens running (the tray option below keeps it running when the window is closed).</p>}
     </section>
   )
 }
