@@ -1,3 +1,4 @@
+. (Join-Path $PSScriptRoot 'TestHelpers.ps1')
 # Shared release fixtures for the verifier and publication tests: synthetic schema-1 release folders, manifest editing that keeps SHA256SUMS
 # consistent, and a verifier runner that keeps the exit code and raw output (Windows PowerShell turns redirected native stderr into ErrorRecords).
 $script:Verify = (Resolve-Path (Join-Path $PSScriptRoot '..\verify-release.ps1')).Path
@@ -35,12 +36,7 @@ function Edit-Manifest([string]$Path, [scriptblock]$Change) {
 }
 
 function Invoke-Verify([string]$Path, [string]$Scope = 'Full') {
-    $previousPreference = $ErrorActionPreference
-    try {
-        $ErrorActionPreference = 'Continue'
-        $output = & pwsh -NoProfile -NonInteractive -File $script:Verify -ReleasePath $Path -Scope $Scope 2>&1
-        @{ Code = $LASTEXITCODE; Output = (($output | ForEach-Object { $_.ToString() }) -join "`n") }
-    } finally { $ErrorActionPreference = $previousPreference }
+    Invoke-TestPowerShell @('-File', $script:Verify, '-ReleasePath', $Path, '-Scope', $Scope)
 }
 
 # The folder Publish-SL2Release wrote before deployment-package.json existed: server/, README.txt and the unchanged full-build manifest and sums.

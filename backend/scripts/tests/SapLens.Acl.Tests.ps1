@@ -1,7 +1,8 @@
 # NTFS policy for SAP Lens private state (SapLens.Acl.ps1): the pure rule evaluation by well-known SID, the audit plan, preflight refusals, and the
 # explicit ProtectAcl/RestoreAcl remediation with synthetic folders. ACL reads and icacls are replaced; no real ACL or service is touched.
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '../deploy/SapLens.Deploy.psm1') -Force
+    . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
+    Import-TestDeploymentModule
     $script:M = 'SapLens.Deploy'
     # FileSystemRights as Windows reports them: Modify, ReadAndExecute, FullControl, and the ProgramData "Users may create" pattern (WD, AD, WEA, WA).
     $script:Modify = 0x301BF; $script:ReadExecute = 0x1200A9; $script:Full = 0x1F01FF; $script:CreateOnly = 278
@@ -109,6 +110,16 @@ Describe 'ACL audit plan and preflight refusals' {
 }
 
 Describe 'Explicit ACL remediation (ProtectAcl and RestoreAcl)' {
+    It 'removes explicit Domain Users and Domain Guests grants identified by SID pattern' {
+        New-AclFixture
+        $script:Broad[$script:Source.DataDirectory] = @((Rule 'S-1-5-21-1-2-3-513' $script:Modify), (Rule 'S-1-5-21-1-2-3-514' $script:ReadExecute))
+        $null = Invoke-SL2ProtectAcl $script:Source $null (Join-Path $script:Source.WorkRoot 'acl-backups')
+        $remove = @($script:Icacls | Where-Object { $_ -like "$($script:Source.DataDirectory) /remove:g *" })
+        $remove.Count | Should -Be 1
+        $remove[0] | Should -Match '\*S-1-5-21-1-2-3-513'
+        $remove[0] | Should -Match '\*S-1-5-21-1-2-3-514'
+    }
+
     It 'saves every ACL before changing it, protects source and target, creates the missing target parent and passes the audit afterwards' {
         New-AclFixture 'NT SERVICE\SapLens2'
         $backupRoot = Join-Path $script:Source.WorkRoot 'acl-backups'

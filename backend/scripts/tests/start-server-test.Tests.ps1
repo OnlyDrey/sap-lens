@@ -1,6 +1,7 @@
 # Pester 5 tests for scripts/start-server-test.ps1. Run: Invoke-Pester backend/scripts/tests
 # Synthetic files only: fake releases, certificates and password files live in TestDrive; nothing is installed or started for real.
 BeforeAll {
+    . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
     $script:Launcher = (Resolve-Path (Join-Path $PSScriptRoot '..\start-server-test.ps1')).Path
     . $script:Launcher
 
@@ -163,7 +164,7 @@ Describe 'End to end with a fake Server executable' -Skip:([System.IO.Path]::Dir
         $passwordFile = Join-Path $tls 'cert-password'; Set-Content $passwordFile 'synthetic-password-value' -NoNewline
         $record = Join-Path $TestDrive 'arguments.txt'
         function Invoke-Launcher([string]$Builds, [string[]]$Extra) {
-            $output = & pwsh -NoProfile -NonInteractive -File $script:Launcher -BuildsRoot $Builds -ListenAddress $address.ToString() -Port (Get-FreePort) `
+            $output = & (Get-TestPowerShellExecutable) -NoProfile -NonInteractive -File $script:Launcher -BuildsRoot $Builds -ListenAddress $address.ToString() -Port (Get-FreePort) `
                 -DataDirectory (Join-Path $TestDrive 'runtime-test') -CertificatePath $cert -CertificatePasswordFile $passwordFile @Extra 2>&1
             @{ Code = $LASTEXITCODE; Output = ($output | Out-String) }
         }
@@ -219,7 +220,7 @@ Describe 'Background mode with a fake Server executable' -Skip:([System.IO.Path]
         # Listens on --listen/--port like the Server, prints a startup line, then waits to be stopped.
         $listener = "#!/bin/sh`nexec python3 -c 'import socket,sys,time`na=sys.argv[1:]`ns=socket.socket();s.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR,1)`ns.bind((a[a.index(""--listen"")+1],int(a[a.index(""--port"")+1])));s.listen()`nprint(""Listening (fake)"",flush=True)`ntime.sleep(120)' `"`$@`"`n"
         function Invoke-Background([string]$Builds, [string]$Logs, [int]$Port, [string[]]$Extra = @()) {
-            $output = & pwsh -NoProfile -NonInteractive -File $script:Launcher -BuildsRoot $Builds -ListenAddress $address.ToString() -Port $Port `
+            $output = & (Get-TestPowerShellExecutable) -NoProfile -NonInteractive -File $script:Launcher -BuildsRoot $Builds -ListenAddress $address.ToString() -Port $Port `
                 -DataDirectory (Join-Path $TestDrive 'bg-runtime') -CertificatePath $cert -CertificatePasswordFile $passwordFile -LogDirectory $Logs -ReadyTimeoutSeconds 20 @Extra 2>&1
             @{ Code = $LASTEXITCODE; Output = ($output | Out-String) }
         }
@@ -283,7 +284,7 @@ Describe 'Local configuration file' -Skip:([System.IO.Path]::DirectorySeparatorC
             $path = Join-Path $TestDrive ([guid]::NewGuid().ToString('n') + '.local.json'); [System.IO.File]::WriteAllText($path, ($Values | ConvertTo-Json)); $path
         }
         function Invoke-WithConfig([string]$Config, [string[]]$Extra = @()) {
-            $output = & pwsh -NoProfile -NonInteractive -File $script:Launcher -ConfigFile $Config -DryRun @Extra 2>&1
+            $output = & (Get-TestPowerShellExecutable) -NoProfile -NonInteractive -File $script:Launcher -ConfigFile $Config -DryRun @Extra 2>&1
             @{ Code = $LASTEXITCODE; Output = ($output | Out-String) }
         }
     }

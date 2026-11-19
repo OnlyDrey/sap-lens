@@ -1,9 +1,10 @@
 # Pester 5 tests of the SAP Lens Windows deployment state machine (scripts/deploy/SapLens.Deploy.psm1). Every operating-system action (service
 # control, the release link, HTTP, git, the server's maintenance commands) is mocked; folders live in TestDrive. Nothing is installed or started.
 BeforeAll {
+    . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
     $script:ModulePath = (Resolve-Path (Join-Path $PSScriptRoot '..\deploy\SapLens.Deploy.psm1')).Path
     $script:EntryPath = (Resolve-Path (Join-Path $PSScriptRoot '..\deploy\Deploy-SapLens.ps1')).Path
-    Import-Module $script:ModulePath -Force
+    Import-TestDeploymentModule
     $script:M = 'SapLens.Deploy'
     $script:Original = ''
     # Windows-only cmdlets the module calls; stubs let Pester mock them on Linux (on Windows the real commands exist and are mocked directly).
@@ -367,13 +368,13 @@ Describe 'Service installation and host safety' {
         $config = New-TestConfig
         $file = Join-Path $TestDrive 'entry.json'
         $config | Select-Object * -ExcludeProperty ConfigFile, ServiceNameConfigured, ServiceName, ServiceAccount | ConvertTo-Json | Set-Content $file
-        $output = & pwsh -NoProfile -File $script:EntryPath -Action Deploy -ConfigFile $file 2>&1
-        $LASTEXITCODE | Should -Be 2
-        ($output -join "`n") | Should -Match 'repeat with -Yes'
+        $run = Invoke-TestPowerShell @('-File', $script:EntryPath, '-Action', 'Deploy', '-ConfigFile', $file)
+        $run.Code | Should -Be 2
+        $run.Output | Should -Match 'repeat with -Yes'
         # Authorization is refused before config lookup or implicit host-service detection.
-        $output = & pwsh -NoProfile -File $script:EntryPath -Action MigrateService -ConfigFile (Join-Path $TestDrive 'missing.json') 2>&1
-        $LASTEXITCODE | Should -Be 2
-        ($output -join "`n") | Should -Match 'repeat with -Yes'
+        $run = Invoke-TestPowerShell @('-File', $script:EntryPath, '-Action', 'MigrateService', '-ConfigFile', (Join-Path $TestDrive 'missing.json'))
+        $run.Code | Should -Be 2
+        $run.Output | Should -Match 'repeat with -Yes'
     }
 }
 

@@ -1,6 +1,7 @@
 # Isolated synthetic files and mocked SCM/network/ACL operations only. Never queries a host service.
 BeforeAll {
-    Import-Module (Join-Path $PSScriptRoot '../deploy/SapLens.Deploy.psm1') -Force
+    . (Join-Path $PSScriptRoot 'TestHelpers.ps1')
+    Import-TestDeploymentModule
     $script:M = 'SapLens.Deploy'
     function New-MigrationFixture {
         $root = Join-Path $TestDrive ([guid]::NewGuid().ToString('N'))

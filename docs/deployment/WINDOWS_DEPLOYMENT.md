@@ -4,8 +4,9 @@ How the SAP Lens .NET server is built, validated and deployed on a Windows test 
 migrated to `SapLens`, and how the Desktop and Server installers are built. Every value below is an example (`192.0.2.0/24`, `lens.example.com`,
 `deployer`, `C:\Users\example`); real host names, addresses, paths and credentials stay in the host's own configuration file and are never committed.
 
-Status: deployment state-machine tests use mocked SCM/network operations (Pester); SSH tests use a fake SSH (Bash). **Native Windows acceptance is pending**; see
-[Acceptance checklist](#acceptance-checklist-windows-pending). Nothing here claims that a Windows run passed.
+Status: deployment state-machine tests use mocked SCM/network operations (Pester); SSH tests use a fake SSH (Bash). Windows PowerShell 5.1
+script tests and disposable NTFS audit/ACL-save fixtures are separate from **native service/cutover acceptance, which remains pending**; see
+[Acceptance checklist](#acceptance-checklist-windows-pending). Passing mocked tests never establishes production migration readiness.
 
 ## Components
 
@@ -262,6 +263,10 @@ WriteAttributes, DeleteSubdirectoriesAndFiles, Delete, ChangePermissions, TakeOw
 `C:\ProgramData\SapLens` with a protected DACL instead. The preflight reports every finding with path, role, principal, access, rights mask,
 inherited or explicit, and what it applies to.
 
+This is a conservative allow-rule policy audit, not a Windows Authz effective-access calculation for every possible token. A broad allow remains
+a finding even when a deny might cancel it for a particular user; individual account membership is not expanded. Native fixtures verify the SID
+and inheritance representation Windows returns. Do not weaken these findings because an interactive administrator happens to have access.
+
 ### Audit and remediation
 
 ```powershell
@@ -279,7 +284,7 @@ $entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
 1. Creates `WorkRoot\acl-backups\<UTC time>` with a protected DACL (SYSTEM, Administrators) and saves every affected ACL with its
    descendants (`icacls <path> /save <file> /T /C`), plus `acl-backup.json` listing what was saved and what will be created.
 2. For each path: `icacls /inheritance:r` with SYSTEM and Administrators full control (and the service's virtual account where the table says
-   so), removes explicit grants to the broad SIDs, grants authenticated users read and execute again on release folders only, and resets the
+   so), removes explicit grants to the broad SIDs (including the actual Domain Users/Guests SIDs found by the audit), grants authenticated users read and execute again on release folders only, and resets the
    descendants of private folders to inherit (their earlier explicit entries are in the backup).
 3. Creates missing target parents with the same protected DACL. Target roots themselves are never created (the migration requires them new).
 4. Audits again and returns the result; exit 2 when anything is still unsafe.
@@ -288,6 +293,32 @@ It refuses drive roots, `%ProgramData%`, `%ProgramFiles%`, the Windows folder, `
 keeps its access (SYSTEM for `LocalSystem`, its own grant otherwise), so it is not stopped. Before running it on the production host: take a
 verified application backup, run `AuditAcl` and review each listed path, run in a quiet window, and keep the printed backup folder.
 `RestoreAcl` replays the saved ACLs newest first (`icacls <parent> /restore <file>`) and keeps folders `ProtectAcl` created (empty and protected).
+An elevated Windows token is required for native remediation/restore acceptance. An unprivileged `icacls /restore` can fail with exit 1300
+(missing privilege); that is an infrastructure limitation, not evidence that restoration passed. Keep the original ACL backup and investigate.
+
+### Windows script validation
+
+Use Pester 5 in a fresh PowerShell process. Windows PowerShell 5.1 is supported for these deployment tests; PowerShell 7 is not required merely
+to launch child scripts. `scripts/tests/TestHelpers.ps1` resolves the current edition's executable under `$PSHOME` by absolute path. To explicitly
+test another installed edition, set `SAP_LENS_TEST_POWERSHELL` to its absolute executable path. An invalid override fails instead of falling back
+or skipping. Run the suite from each installed edition to exercise that edition's parser and module behavior too.
+
+```powershell
+powershell.exe -NoProfile -File .\backend\scripts\check-powershell.ps1
+# In a fresh Windows PowerShell 5.1 session with Pester 5 installed/importable:
+Import-Module Pester -MinimumVersion 5.0
+Invoke-Pester -Path .\backend\scripts\tests\TestHelpers.Tests.ps1 -Output Detailed
+Invoke-Pester -Path .\backend\scripts\tests\SapLens.Acl.Tests.ps1,.\backend\scripts\tests\SapLens.Acl.Native.Tests.ps1 -Output Detailed
+# Phase checkpoint, after affected groups pass (not after every edit):
+Invoke-Pester -Path .\backend\scripts\tests -Output Detailed
+```
+
+`Import-Module -Force` reloads one path but leaves same-name copies from other checkouts loaded. Pester's name-based mocks then fail with
+"Multiple script or manifest modules named 'SapLens.Deploy' are currently loaded." Repeated canonical imports alone do not imply that defect.
+The shared test helper removes loaded copies and imports the resolved canonical module globally at each container's setup. Tests run serially;
+do not share that process with operator actions. The regression creates a synthetic second module and proves the mock becomes unambiguous.
+The real NTFS fixtures touch only TestDrive. Their restore test explicitly reports a skip without elevation; mocked remediation is reported
+separately. Linux shell-server fixtures remain Windows skips. Missing `pwsh` never skips deployment or release-contract tests.
 
 ## Service model and permissions
 

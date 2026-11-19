@@ -182,7 +182,7 @@ function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot) {
         if ($row.findings.Count -eq 0 -and -not $missingParent) { continue }
         if (Test-SL2AclForbidden $entry.Path) { Stop-SL2 "Refusing to change the ACL of $($entry.Path): it is a system location. Choose a dedicated folder below it." }
         if ($entry.Role -eq 'target parent' -and $row.audited -ne $entry.Path -and -not $missingParent) { continue }
-        [pscustomobject]@{ Entry = $entry; Create = $missingParent }
+        [pscustomobject]@{ Entry = $entry; Create = $missingParent; BroadSids = @($row.findings | ForEach-Object sid | Sort-Object -Unique) }
     }
     $changes = @($changes)
     if ($changes.Count -eq 0) { return [pscustomobject]@{ changed = @(); backup = $null; after = $report } }
@@ -203,12 +203,13 @@ function Invoke-SL2ProtectAcl($Source, $Target, [string]$BackupRoot) {
         $records.Add([pscustomobject]@{ path = $path; created = $false; file = $file; parent = (Split-Path $path) })
     }
     [IO.File]::WriteAllText((Join-SL2 $backup 'acl-backup.json'), ([pscustomobject]@{ schema = 1; created_utc = $stamp; entries = $records.ToArray() } | ConvertTo-Json -Depth 5))
-    $broad = @($script:BroadSids.Keys | ForEach-Object { "*$_" })
     foreach ($change in $changes) {
         $path = $change.Entry.Path
         if ($change.Create) { New-Item -ItemType Directory -Path $path | Out-Null }
         $isContainer = (Get-Item -LiteralPath $path -Force).PSIsContainer
         Invoke-SL2Icacls (@($path, '/inheritance:r', '/grant:r') + @(Get-SL2AclGrants $change.Entry $serviceAccount $isContainer))
+        # Domain Users/Guests are recognized by domain SID pattern, so include the actual audited SIDs too.
+        $broad = @(@($script:BroadSids.Keys) + @($change.BroadSids) | Sort-Object -Unique | ForEach-Object { "*$_" })
         Invoke-SL2Icacls (@($path, '/remove:g') + $broad)
         if ($change.Entry.Class -eq 'binaries' -and $change.Entry.Role -ne 'source configuration' -and $change.Entry.Role -ne 'target configuration') {
             Invoke-SL2Icacls @($path, '/grant:r', "*S-1-5-11:$(if ($isContainer) { '(OI)(CI)' })RX")

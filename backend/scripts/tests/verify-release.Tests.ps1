@@ -128,7 +128,7 @@ Describe 'Server deployment packages (verify-release.ps1 -Scope Server)' {
     }
 
     Context 'packages published by Publish-SL2Release' {
-        BeforeAll { Import-Module (Join-Path $PSScriptRoot '..\deploy\SapLens.Deploy.psm1') -Force }
+        BeforeAll { Import-TestDeploymentModule }
         AfterAll { Remove-Module SapLens.Deploy -ErrorAction SilentlyContinue }
 
         It 'publishes the server package with its declaration, verifies it before it appears, and reuses it' {
