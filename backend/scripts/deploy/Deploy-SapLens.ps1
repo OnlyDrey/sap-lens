@@ -107,6 +107,8 @@ try {
             if ($Tests -eq 'none' -and -not $Release) { Stop-SL2 'A deployment runs tests: use -Tests focused or full (or deploy a release built and tested earlier with -Release).' }
             if ($Release) {
                 if (-not (Test-Path -LiteralPath (Join-Path $Release 'build-manifest.json'))) { Stop-SL2 "$Release is not a published release folder." }
+                $check = Test-SL2PublishedRelease $Release
+                if (-not $check.Verified) { Stop-SL2 "$Release does not verify as a server package (verify-release.ps1 -Scope Server); nothing was deployed." }
                 $published = $Release
                 $sha = (Get-Content -LiteralPath (Join-Path $Release 'build-manifest.json') -Raw | ConvertFrom-Json).source_sha
             } else {

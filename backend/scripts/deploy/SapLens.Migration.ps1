@@ -415,8 +415,11 @@ function Get-SL2MigrationPreflight($Source, $Target, [string]$InspectorExecutabl
         Test-SL2PathTree $release
         $manifest = Get-Content -LiteralPath (Join-SL2 $release 'build-manifest.json') -Raw | ConvertFrom-Json
         if ($manifest.source_sha -notmatch '^[a-f0-9]{40}$' -or $manifest.version -ne '2.0.0-alpha.1' -or $manifest.source_dirty) { Stop-SL2 'A clean release manifest for version 2.0.0-alpha.1 is required.' }
-        $verification = Invoke-SL2Process (Get-SL2Shell) @('-NoProfile', '-File', (Join-SL2 $PSScriptRoot '..\verify-release.ps1'), '-ReleasePath', $release) ''
-        if ($verification.ExitCode -ne 0) { Stop-SL2 'Source release checksum verification failed.' }
+        # The running release is a server deployment package: verify every artifact it holds against its manifest and SHA256SUMS. Only the Desktop and
+        # symbol files may be absent, and each absence is recorded; a package published before deployment-package.json existed is reported as undeclared.
+        $verification = Test-SL2PublishedRelease $release
+        $details.release_verification = $verification.Output
+        if (-not $verification.Verified) { Stop-SL2 "Source release verification failed (verify-release.ps1 -Scope Server): $(($verification.Output | Where-Object { $_ -like 'verify-release:*' } | Select-Object -First 3) -join ' ')" }
         $details.release = $release; $details.manifest = $manifest
         $ready = Invoke-SL2ConfiguredHttp $Source '/health/ready'
         $identityResponse = Invoke-SL2ConfiguredHttp $Source '/product-version.json'

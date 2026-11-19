@@ -437,18 +437,49 @@ function Test-SL2Release([string]$Release, [string]$Commit, [string]$Worktree) {
     $manifest
 }
 
-# The versioned deployment folder: <ReleasesRoot>\<release name> with server\, build-manifest.json and SHA256SUMS. An existing folder is reused only
-# when its manifest names the same commit; it is never overwritten.
+# A published release is a server deployment package: every artifact of the verified full build except desktop/ and symbols/, the unchanged
+# build-manifest.json and SHA256SUMS (they keep describing the full build), and deployment-package.json, which declares the package and the exact
+# omitted paths. verify-release.ps1 -Scope Server checks it. Packages published before the declaration existed verify as undeclared.
+function Test-SL2PublishedRelease([string]$Folder) {
+    $verifier = Join-SL2 (Split-Path $PSScriptRoot) 'verify-release.ps1'
+    $result = Invoke-SL2Process (Get-SL2Shell) @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', $verifier, '-ReleasePath', $Folder, '-Scope', 'Server') ''
+    [pscustomobject]@{ Verified = ($result.ExitCode -eq 0); Output = @($result.Output | ForEach-Object { "$_" }) }
+}
+
+# The versioned deployment folder <ReleasesRoot>\<release name>. It is assembled in <ReleasesRoot>\.staging\<release name>, verified there and only
+# then moved into place, so an interrupted or incomplete copy is never visible as a release. An existing folder is reused only when its manifest
+# names the same commit and it verifies as a server package; it is never overwritten or repaired.
 function Publish-SL2Release($Config, [string]$Release, $Manifest) {
-    $target = Join-SL2 $Config.ReleasesRoot (Split-Path $Release -Leaf)
+    $name = Split-Path $Release -Leaf
+    $target = Join-SL2 $Config.ReleasesRoot $name
     if (Test-Path -LiteralPath $target) {
         $existing = Get-Content -LiteralPath (Join-SL2 $target 'build-manifest.json') -Raw | ConvertFrom-Json
         if ($existing.source_sha -ne $Manifest.source_sha) { Stop-SL2 "$target exists for another commit." 1 }
+        if (-not (Test-SL2PublishedRelease $target).Verified) { Stop-SL2 "$target exists but does not verify as a server package; it was kept as it is. Inspect it with verify-release.ps1 -Scope Server." 1 }
         return $target
     }
-    New-Item -ItemType Directory -Force $target | Out-Null
-    Copy-Item -LiteralPath (Join-SL2 $Release 'server') -Destination $target -Recurse
-    foreach ($file in 'build-manifest.json', 'SHA256SUMS', 'README.txt') { Copy-Item -LiteralPath (Join-SL2 $Release $file) -Destination $target }
+    $staging = Join-SL2 (Join-SL2 $Config.ReleasesRoot '.staging') $name
+    if (Test-Path -LiteralPath $staging) { Stop-SL2 "$staging remains from an interrupted publication; inspect and remove it, nothing was overwritten." 1 }
+    New-Item -ItemType Directory -Force $staging | Out-Null
+    $omitted = [System.Collections.Generic.List[string]]::new()
+    foreach ($artifact in @($Manifest.artifacts)) {
+        $relative = "$($artifact.path)"
+        if ($relative -like 'desktop/*' -or $relative -like 'symbols/*') { $omitted.Add($relative); continue }
+        $native = $relative -replace '/', [System.IO.Path]::DirectorySeparatorChar
+        $destination = Join-SL2 $staging $native
+        New-Item -ItemType Directory -Force (Split-Path $destination) | Out-Null
+        Copy-Item -LiteralPath (Join-SL2 $Release $native) -Destination $destination
+    }
+    foreach ($file in 'build-manifest.json', 'SHA256SUMS') { Copy-Item -LiteralPath (Join-SL2 $Release $file) -Destination $staging }
+    $declaration = [ordered]@{ schema = 1; kind = 'server'; source_release = $name
+        build_manifest_sha256 = (Get-FileHash -LiteralPath (Join-SL2 $staging 'build-manifest.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+        omitted = @($omitted | Sort-Object); created_utc = [DateTime]::UtcNow.ToString('yyyy-MM-ddTHH:mm:ssZ') }
+    [System.IO.File]::WriteAllText((Join-SL2 $staging 'deployment-package.json'), ($declaration | ConvertTo-Json -Depth 4))
+    $check = Test-SL2PublishedRelease $staging
+    if (-not $check.Verified) { Stop-SL2 "The server package in $staging failed verification and was not published: $(($check.Output | Select-Object -Last 3) -join ' ')" 1 }
+    Move-Item -LiteralPath $staging -Destination $target
+    $stagingRoot = Split-Path $staging
+    if (-not @(Get-ChildItem -LiteralPath $stagingRoot -Force).Count) { Remove-Item -LiteralPath $stagingRoot -Force }
     $target
 }
 

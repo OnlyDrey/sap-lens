@@ -47,6 +47,27 @@ BeforeAll {
     }
 }
 
+Describe 'Migration preflight: source release integrity' {
+    BeforeEach { New-MigrationFixture }
+    It 'verifies the running release as a server package and records the result, including omitted Desktop and symbol files' {
+        Mock -ModuleName $M Test-SL2PublishedRelease { [pscustomobject]@{ Verified = $true; Output = @('Release verified as a server package (undeclared: published before deployment-package.json existed): 3 of 5 artifacts present and matching, 2 omitted', '  omitted (not part of a server package): desktop/SapLens.exe') } }
+        $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        ($preflight.checks | Where-Object name -eq 'source_release').passed | Should -BeTrue
+        $preflight.details.release_verification | Should -Contain '  omitted (not part of a server package): desktop/SapLens.exe'
+        Should -Invoke -ModuleName $M Test-SL2PublishedRelease -Times 1 -ParameterFilter { $Folder -eq (Split-Path (Split-Path $script:Inspector)) }
+    }
+    It 'blocks migration when the running release does not verify, naming the defect and changing nothing' {
+        Mock -ModuleName $M Test-SL2PublishedRelease { [pscustomobject]@{ Verified = $false; Output = @('verify-release: missing: server/e_sqlite3.dll', 'verify-release: SHA256SUMS lists a missing file: server/e_sqlite3.dll') } }
+        $preflight = Get-SL2MigrationPreflight $script:Source $script:Target $script:Inspector
+        $preflight.safe | Should -BeFalse
+        $check = $preflight.checks | Where-Object name -eq 'source_release'
+        $check.passed | Should -BeFalse
+        $check.message | Should -Match 'Source release verification failed \(verify-release.ps1 -Scope Server\): verify-release: missing: server/e_sqlite3.dll'
+        Should -Invoke -ModuleName $M Stop-SL2Service -Times 0
+        Should -Invoke -ModuleName $M Set-SL2ServiceEntry -Times 0
+    }
+}
+
 Describe 'Migration backup, journal and staging contracts' {
     BeforeEach { New-MigrationFixture }
     It 'durably records intent on the source and mirrors it once the target work directory exists' -Skip:([System.IO.Path]::DirectorySeparatorChar -eq '/') {

@@ -97,6 +97,31 @@ exclusive lock:
    during the run for older builds). Otherwise stop, keep the service stopped and write exact choices to `RECOVERY-REQUIRED.txt` (exit 4). An older
    database is never restored automatically.
 
+### Release packages and integrity
+
+Implemented and tested on Linux (Pester `verify-release.Tests.ps1`, `SapLens.Migration.Tests.ps1`); awaiting Windows acceptance.
+
+| Kind | Where | Contents | Verify with |
+| --- | --- | --- | --- |
+| Full release | Builder output (`WorkRoot\builds\<sha12>\SAP-Lens-…-win-x64`, or `build-release.ps1 -Output`) | Every artifact in `build-manifest.json`: `server\`, `desktop\`, `symbols\`, `README.txt`, `Service-Manager.ps1` | `verify-release.ps1 -ReleasePath <folder>` |
+| Server deployment package | `ReleasesRoot\SAP-Lens-…-win-x64` (what the service runs) | Every artifact except `desktop\**` and `symbols\**`, the unchanged `build-manifest.json` and `SHA256SUMS`, and `deployment-package.json` | `verify-release.ps1 -ReleasePath <folder> -Scope Server` |
+
+- `build-manifest.json` and `SHA256SUMS` always describe the full build and are **never rewritten** in a package. `deployment-package.json`
+  declares the package: kind `server`, the release name, the SHA-256 of `build-manifest.json`, and the exact omitted paths.
+- `-Scope Server` allows only `desktop\**` and `symbols\**` to be absent and names every omitted file. Any other missing, changed or added file,
+  a changed manifest, or a declaration that disagrees with the folder fails. The default full scope refuses a package outright.
+- Publication (`Build` and `Deploy`) assembles the package in `ReleasesRoot\.staging\<name>`, verifies it there and only then moves it into
+  place. A package that fails verification is never published; its staging copy is kept for inspection and blocks the next attempt until an
+  operator removes it. An existing folder of the same commit is reused only if it verifies; it is never overwritten or repaired.
+- `Deploy -Release <folder>` and the migration preflight (`source_release`) verify with `-Scope Server` before anything else.
+- **Packages published before this contract** (for example the `SapLens2` release of commit `5096382`) contain `server\`, `README.txt`,
+  `build-manifest.json` and `SHA256SUMS` only. They verify with `-Scope Server` as *undeclared*: every server artifact and the manifest still
+  have to match the recorded checksums, and the absent Desktop and symbol files are listed by name. The default full scope correctly reports them
+  missing. Do not add, edit or regenerate files in such a folder. If the full build is needed (Desktop, symbols), use the builder output under
+  `WorkRoot\builds\<sha12>` when it still exists (verify it with the full scope), or rebuild that commit into a new folder.
+- A package published by an older script from a build that contained `Service-Manager.ps1` lacks that file and fails `-Scope Server`: republish
+  it from its verified full build with the current scripts.
+
 ## First deployment
 
 **Host with a hand-installed server** (for example an earlier `SapLens2` service started from a build folder):
@@ -214,7 +239,8 @@ Legacy cleanup needs separate authorization after acceptance and backup verifica
 | `WorkRoot\runs\<run id>\` | `deploy.log`, `build.log`, `RECOVERY-REQUIRED.txt` when needed |
 | `WorkRoot\deployment-journal.json`, `WorkRoot\deployment.lock` | Phase history of the last run; one operation at a time |
 | `WorkRoot\worktrees\<sha12>`, `WorkRoot\builds\<sha12>` | Isolated build checkouts and builder output |
-| `ReleasesRoot\SAP-Lens-<version>-<UTC>-<sha7>-win-x64`, `ReleasesRoot\current` | Verified server releases (manifest, SHA-256) and the junction the service runs |
+| `ReleasesRoot\SAP-Lens-<version>-<UTC>-<sha7>-win-x64`, `ReleasesRoot\current` | Verified server deployment packages ([release packages](#release-packages-and-integrity)) and the junction the service runs |
+| `ReleasesRoot\.staging\<release>` | Only after a failed publication: the unverified copy, kept for inspection |
 | `BackupRoot` | Encrypted, verified pre-deployment backups (`.slbak`) |
 | `<DataDirectory>\logs\server-*.log` | The server's own log when it runs as a service |
 
