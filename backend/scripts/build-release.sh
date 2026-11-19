@@ -96,4 +96,7 @@ for release, platform in ((win, 'win-x64'), (linux, 'linux-x64')):
     print(f'{release.name}: ' + ', '.join(f"{a['path']} {a['bytes'] / 1048576:.1f} MB" for a in artifacts if a['path'] in executables.values()))
 PY
 for release in "$win" "$linux"; do (cd "$release" && sha256sum --quiet -c SHA256SUMS); python3 "$root/../scripts/check-secrets.py" --path "$release"; done
+# Independent verification with the same verifier and manifest contract as Windows (verify-release.ps1). Needs PowerShell 7 (pwsh).
+if command -v pwsh >/dev/null; then for release in "$win" "$linux"; do pwsh -NoProfile -NonInteractive -File "$root/scripts/verify-release.ps1" -ReleasePath "$release"; done
+else echo "warning: pwsh not found: verify-release.ps1 (manifest contract) was NOT run; run it before using these releases" >&2; fi
 echo "Release build complete: $win and $linux. Nothing was installed or started."

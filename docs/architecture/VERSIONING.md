@@ -35,6 +35,7 @@ Identifiers that keep a `2` or `V2`, each with its reason and the condition for 
 | `Deploy-SapLens2.ps1`, `SAPLENS2-RESULT`, `experiments/dotnet-backend` project lookup | `deploy-windows.sh` | Historical | Deploying or rolling back to a commit from before the rename runs that commit's own script | When rollback to pre-rename commits is no longer supported |
 | `SAP Lens 2 Prototype` folder, `Local\SapLens2Prototype` mutex | `DesktopLocation`, Desktop installer | Migration-only | Existing Desktop data from prototype builds is kept and used in place | When no prototype data folder remains in use |
 | `%ProgramData%\SapLens2`, `SAP Lens 2 Prototype` in the test launcher's protected paths | `start-server-test.ps1` | Safety guard | A test run must never write into an earlier production or Desktop location | With the service and Desktop entries above |
+| Manifest product `SAP Lens 2`, `desktop/SapLens2Prototype.exe` (accepted, never written) | `verify-release.ps1` | Historical | The migration preflight verifies the release an existing service runs; releases built before the rename carry these values | When no supported host runs a release built before the rename |
 | `SAP_LENS_V2_BACKUP_KEY_FILE` (detection only) | `SapLens.Migration.ps1` | Migration-only | Finds the backup key of a host configured before the rename | With the service |
 
 Product-facing text, code comments, test names and documentation examples use only the canonical names; `scripts/check-structure.py` and the
