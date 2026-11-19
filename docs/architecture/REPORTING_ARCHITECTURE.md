@@ -85,7 +85,7 @@ equivalent table style with header shading and rules).
 ## Python.NET (pythonnet) evaluated, not adopted
 
 pythonnet 3.2.1 (MIT, netstandard2.0) embeds CPython in a .NET process and can call v1's `sod_reports` and `branding` modules unchanged.
-Evaluated in two forms against native .NET and a conventional Python subprocess worker. Evidence: `tools/pythonnet-poc` (not part of the solution,
+Evaluated in two forms against native .NET and a conventional Python subprocess worker. Evidence: `backend/tools/pythonnet-poc` at commit `4e0468c` (removed afterwards; not part of the solution,
 never shipped; v1 paths come from environment variables), run on Linux x64 with CPython 3.12 and the v1 venv on the `Fixtures/reporting` inputs.
 
 | Measurement (Linux x64) | Native .NET | Python.NET in-process | Python.NET isolated worker | Python subprocess worker |

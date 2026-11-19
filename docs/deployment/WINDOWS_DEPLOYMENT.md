@@ -15,7 +15,6 @@ Status: deployment state-machine tests use mocked SCM/network operations (Pester
 | `scripts/deploy/Deploy-SapLens.ps1` | Windows entry point (Windows PowerShell 5.1 and PowerShell 7): actions, elevation and `-Yes` checks, result line `SAPLENS-RESULT: <json>` |
 | `scripts/deploy/SapLens.Deploy.psm1` | Deployment state machine: commit lock, isolated worktree build, release verification, backup, service control, rollback, recovery, service migration |
 | `scripts/deploy/deploy.example.json` | Configuration template (copy it outside the repository) |
-| `experiments/dotnet-backend/scripts/deploy/Deploy-SapLens.ps1` (repository root) | **Temporary** forwarding wrapper for the path used before the promotion; it only passes every argument to `backend/scripts/deploy/Deploy-SapLens.ps1`. Remove it once no operator procedure uses the old path |
 | `installer/SapLens-Desktop.iss`, `installer/SapLens-Server.iss`, `scripts/build-installers.ps1` | Inno Setup installers and their build script |
 | `scripts/tests/SapLens.Deploy.Tests.ps1`, `scripts/tests/deploy-windows.test.sh` | Pester (mocked operating system) and Bash (fake SSH, real PowerShell) tests |
 

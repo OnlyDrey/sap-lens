@@ -2,7 +2,7 @@
 # conditionals), so no formatting, style or line-length rule is selected and nothing is reformatted.
 # Run from the repository root: `ruff check scripts backend/tools`.
 target-version = "py312"
-extend-exclude = ["frontend", "build", "dist", "docs", "deploy", "node_modules"]
+extend-exclude = ["frontend", "build", "dist", "docs", "node_modules"]
 
 [lint]
 select = [
