@@ -201,7 +201,7 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
     }
 
     [Fact]
-    public async Task The_manifest_product_stays_a_stable_format_identifier_and_both_product_names_restore()
+    public async Task AuthLens_writes_its_own_product_and_database_entry_and_accepts_only_known_products()
     {
         ConfigureKey();
         var (_, created) = await Post("/api/backups/create");
@@ -215,7 +215,8 @@ public sealed class ApplicationBackupTests : IAsyncLifetime
                 var entry = zip.GetEntry(ApplicationBackups.ManifestEntry)!;
                 JsonObject manifest;
                 using (var reader = new StreamReader(entry.Open())) manifest = JsonNode.Parse(reader.ReadToEnd())!.AsObject();
-                Assert.Equal(ApplicationBackups.ManifestProduct, (string)manifest["product"]!);   // earlier .NET builds can restore it
+                Assert.Equal("AuthLens", (string)manifest["product"]!);
+                Assert.Contains(manifest["files"]!.AsArray(), f => (string)f!["path"]! == "authlens.sqlite3");
                 manifest["product"] = product;
                 entry.Delete();
                 using var writer = new StreamWriter(zip.CreateEntry(ApplicationBackups.ManifestEntry).Open());

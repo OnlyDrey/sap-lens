@@ -21,10 +21,15 @@ namespace AuthLens.Api;
 /// service keeps serving), written to DIR. Needs the configured host backup key.</item>
 /// <item><c>--backup-verify FILE --data-dir D</c>: decrypts an archive with the host key and runs the full restore validation (manifest hashes,
 /// SQLite integrity, known migrations, an enabled administrator if accounts are included) in a temporary folder that is removed afterwards.</item>
+/// <item><c>--restore FILE --replace-all-data --data-dir D</c>: stages and confirms an AuthLens or SAP Lens .slbak backup for this data directory
+/// with the same validation as Settings > Backup & Restore (host key from <c>--backup-key use</c>, or AUTHLENS_BACKUP_PASSPHRASE). It is applied at
+/// the next start, before the database opens, and rolled back by itself on failure. A new installation needs no recovery backup.</item>
+/// <item><c>--adopt-legacy-database --data-dir D</c>: converts an unused SAP Lens database (sap-lens-v2.sqlite3) of D into authlens.sqlite3 with
+/// SQLite's backup API, verifies integrity, migration history and row counts, and only then gives the copy its name. The SAP Lens file is kept.</item>
 /// </list></summary>
 public static class MaintenanceCommands
 {
-    public static readonly string[] Names = ["--schema-info", "--inspect-data", "--backup-local", "--backup-verify", "--accounts-code", "--rebase-upload-paths"];
+    public static readonly string[] Names = ["--schema-info", "--inspect-data", "--backup-local", "--backup-verify", "--accounts-code", "--rebase-upload-paths", "--restore", "--adopt-legacy-database"];
 
     public static bool Handles(string[] args) => Names.Any(args.Contains);
 
@@ -48,6 +53,10 @@ public static class MaintenanceCommands
             {
                 result = AdministratorCode(data, Value("--recover-administrator"));
             }
+            else if (args.Contains("--adopt-legacy-database")) result = AdoptLegacyDatabase(data);
+            else if (args.Contains("--restore"))
+                result = RestoreArchive(data, Value("--restore") ?? throw new InvalidOperationException("--restore needs the archive path."), args.Contains("--replace-all-data"),
+                    Environment.GetEnvironmentVariable("AUTHLENS_BACKUP_PASSPHRASE") ?? "");
             else if (args.Contains("--inspect-data")) result = InspectData(data);
             else if (args.Contains("--schema-info")) result = SchemaInfo(data);
             else if (Value("--backup-local") is { } folder) result = BackupLocal(data, folder, DateTimeOffset.UtcNow);
@@ -278,12 +287,94 @@ public static class MaintenanceCommands
         }
     }
 
+    /// <summary>Stages and confirms a backup for this data directory without starting the server (fresh installation or offline restore).</summary>
+    public static JsonObject RestoreArchive(string data, string archive, bool replaceAll, string passphrase)
+    {
+        if (!replaceAll) throw new InvalidOperationException("--restore replaces all application data, review history, settings and accounts of this data directory at its next start; repeat with --replace-all-data.");
+        if (!Path.IsPathFullyQualified(archive) || !File.Exists(archive)) throw new InvalidOperationException("--restore needs an existing archive path.");
+        DatabaseOptions.ValidateLocal(data);
+        Directory.CreateDirectory(data);
+        var options = new DatabaseOptions { DataDirectory = data };
+        var builder = new DbContextOptionsBuilder<AuthLensDb>();
+        options.Configure(builder);
+        var backups = new ApplicationBackups(options, new Microsoft.EntityFrameworkCore.Infrastructure.PooledDbContextFactory<AuthLensDb>(builder.Options), TimeProvider.System);
+        JsonObject preview;
+        using (var stream = File.OpenRead(archive)) preview = backups.StageAsync(stream, passphrase, CancellationToken.None).GetAwaiter().GetResult();
+        var status = backups.Confirm((string)preview["id"]!, (string)preview["archive_sha256"]!, true, true, "local restore");
+        return new JsonObject
+        {
+            ["staged"] = preview, ["status"] = status,
+            ["next"] = "Start AuthLens (the service, or AuthLens.Api with this --data-dir): the restore is applied before the database opens and rolled back on failure.",
+        };
+    }
+
+    /// <summary>Converts an unused SAP Lens database into the AuthLens database of the same data directory. Refused while anything uses the SAP Lens
+    /// file, when authlens.sqlite3 exists, or when the verified copy differs (integrity, migration history, row counts); the copy is then removed and
+    /// nothing is renamed. The SAP Lens file stays where it is (its write-ahead log is checkpointed into it first).</summary>
+    public static JsonObject AdoptLegacyDatabase(string data)
+    {
+        var legacy = Path.Combine(data, DatabaseOptions.LegacyDatabaseFileName);
+        var target = Path.Combine(data, DatabaseOptions.DatabaseFileName);
+        var temporary = target + ".adopting";
+        if (!File.Exists(legacy)) throw new InvalidOperationException($"There is no SAP Lens database ({DatabaseOptions.LegacyDatabaseFileName}) in {data}.");
+        if (File.Exists(target)) throw new InvalidOperationException($"{DatabaseOptions.DatabaseFileName} already exists in {data}; nothing was changed.");
+        if (File.Exists(temporary)) throw new InvalidOperationException($"{temporary} remains from an interrupted conversion; inspect and remove it, nothing was changed.");
+        static long Scalar(SqliteConnection c, string sql) { using var command = c.CreateCommand(); command.CommandText = sql; return Convert.ToInt64(command.ExecuteScalar(), System.Globalization.CultureInfo.InvariantCulture); }
+        static List<string> Strings(SqliteConnection c, string sql) { using var command = c.CreateCommand(); command.CommandText = sql; using var r = command.ExecuteReader(); var list = new List<string>(); while (r.Read()) list.Add(r.GetString(0)); return list; }
+        static JsonObject Shape(SqliteConnection c)
+        {
+            var tables = new JsonObject();
+            foreach (var table in Strings(c, "SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name"))
+                tables[table] = Scalar(c, $"SELECT COUNT(*) FROM \"{table.Replace("\"", "\"\"", StringComparison.Ordinal)}\"");
+            return new JsonObject { ["migrations"] = new JsonArray([.. Strings(c, "SELECT MigrationId FROM __EFMigrationsHistory ORDER BY MigrationId").Select(m => (JsonNode)m)]), ["tables"] = tables };
+        }
+        JsonObject before;
+        try
+        {
+            using (var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = legacy, Mode = SqliteOpenMode.ReadWrite, Pooling = false, DefaultTimeout = 1 }.ToString()))
+            {
+                source.Open();
+                // Exclusive locking mode: BEGIN EXCLUSIVE succeeds only when no other connection has the file open, and the lock is then kept until this
+                // connection closes, so nothing can read or write it during the checks and the copy. The log is checkpointed into the file first.
+                using (var exclusive = source.CreateCommand())
+                {
+                    exclusive.CommandText = "PRAGMA busy_timeout = 0; PRAGMA locking_mode = EXCLUSIVE; BEGIN EXCLUSIVE; COMMIT; PRAGMA wal_checkpoint(TRUNCATE);";
+                    exclusive.ExecuteNonQuery();
+                }
+                if (Scalar(source, "SELECT COUNT(*) FROM pragma_integrity_check WHERE integrity_check <> 'ok'") != 0) throw new InvalidOperationException("The SAP Lens database fails its integrity check; nothing was changed.");
+                before = Shape(source);
+                using var destination = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = temporary, Mode = SqliteOpenMode.ReadWriteCreate, Pooling = false }.ToString());
+                destination.Open();
+                source.BackupDatabase(destination);
+            }
+            using (var copy = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = temporary, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))
+            {
+                copy.Open();
+                if (Scalar(copy, "SELECT COUNT(*) FROM pragma_integrity_check WHERE integrity_check <> 'ok'") != 0 || !JsonNode.DeepEquals(before, Shape(copy)))
+                    throw new InvalidOperationException("The converted copy differs from the SAP Lens database; nothing was renamed.");
+            }
+        }
+        catch (Exception error) when (error is SqliteException or InvalidOperationException or IOException)
+        {
+            SqliteConnection.ClearAllPools();
+            try { if (File.Exists(temporary)) File.Delete(temporary); } catch (IOException) { }
+            if (error is SqliteException sqlite && sqlite.SqliteErrorCode is 5 or 6) throw new InvalidOperationException("The SAP Lens database is in use. Stop the SAP Lens service or application first; nothing was changed.");
+            throw;
+        }
+        File.Move(temporary, target, overwrite: false);
+        return new JsonObject
+        {
+            ["adopted"] = true, ["database"] = target, ["kept"] = legacy, ["sha256"] = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(target))),
+            ["migrations"] = before["migrations"]!.DeepClone(), ["tables"] = before["tables"]!.DeepClone(),
+        };
+    }
+
     public static JsonObject BackupLocal(string data, string folder, DateTimeOffset now)
     {
         if (!Path.IsPathFullyQualified(folder)) throw new InvalidOperationException("--backup-local needs an absolute folder.");
         var host = BackupKeys.Host(data) ?? throw new BackupException("Configure the host backup key first (--backup-key create|use); pre-deployment backups are always encrypted.");
         Directory.CreateDirectory(folder);
-        var target = Path.Combine(folder, $"sap-lens-2-{now.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}-{Guid.NewGuid().ToString("N")[..8]}.slbak");
+        var target = Path.Combine(folder, $"authlens-{now.UtcDateTime:yyyyMMdd'T'HHmmss'Z'}-{Guid.NewGuid().ToString("N")[..8]}.slbak");
         var (sha, size, manifest) = ApplicationBackups.WriteArchive(data, target, "", host, "pre-deployment", now);   // verified by decryption before it is kept
         return new JsonObject
         {
@@ -296,7 +387,7 @@ public static class MaintenanceCommands
     {
         if (!Path.IsPathFullyQualified(file) || !File.Exists(file)) throw new InvalidOperationException("--backup-verify needs an existing archive path.");
         var host = BackupKeys.Host(data) ?? throw new BackupException("The host backup key is not configured for this data directory.");
-        var work = Path.Combine(Path.GetTempPath(), "sap-lens-verify-" + Guid.NewGuid().ToString("N"));
+        var work = Path.Combine(Path.GetTempPath(), "authlens-verify-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(work);
         try
         {

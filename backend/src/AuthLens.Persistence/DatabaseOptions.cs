@@ -9,7 +9,22 @@ public sealed class DatabaseOptions
 {
     public required string DataDirectory { get; init; }
     public int BusyTimeoutMs { get; init; } = 15000;
-    public string DatabasePath => Path.Combine(DataDirectory, "sap-lens-v2.sqlite3");
+    /// <summary>The one AuthLens database file. The database of SAP Lens (the same schema and migration history) was named
+    /// <see cref="LegacyDatabaseFileName"/>; AuthLens never opens, converts or replaces it implicitly (see <see cref="RefuseUnadoptedLegacy"/>).</summary>
+    public const string DatabaseFileName = "authlens.sqlite3", LegacyDatabaseFileName = "sap-lens-v2.sqlite3";
+    public string DatabasePath => Path.Combine(DataDirectory, DatabaseFileName);
+    public string LegacyDatabasePath => Path.Combine(DataDirectory, LegacyDatabaseFileName);
+
+    /// <summary>A data directory with a SAP Lens database and no AuthLens database is refused before anything opens SQLite: starting would otherwise
+    /// create an empty authlens.sqlite3 beside the real data. Restore a backup into a new data directory, or convert the copy explicitly with
+    /// AuthLens.Api --adopt-legacy-database (verified SQLite backup; the SAP Lens file is kept unchanged).</summary>
+    public static void RefuseUnadoptedLegacy(string directory)
+    {
+        if (File.Exists(Path.Combine(directory, DatabaseFileName)) || !File.Exists(Path.Combine(directory, LegacyDatabaseFileName))) return;
+        throw new InvalidOperationException($"{directory} holds a SAP Lens database ({LegacyDatabaseFileName}) and no AuthLens database ({DatabaseFileName}). " +
+            "AuthLens does not convert or replace it implicitly. Restore a SAP Lens backup into a new AuthLens data directory, or convert this copy " +
+            "explicitly with: AuthLens.Api --adopt-legacy-database --data-dir <this directory> (the SAP Lens file is kept unchanged).");
+    }
     public string BackupDirectory => Path.Combine(DataDirectory, "backups");
 
     /// <summary>The database must be on local, persistent storage: UNC paths, URLs and network drives are refused (SQLite locking is unreliable there).</summary>

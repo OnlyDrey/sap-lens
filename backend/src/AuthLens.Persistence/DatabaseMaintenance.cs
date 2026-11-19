@@ -16,6 +16,7 @@ public sealed class DatabaseMaintenance(DatabaseOptions options, IDbContextFacto
     public async Task InitializeAsync(CancellationToken cancellation = default)
     {
         DatabaseOptions.ValidateLocal(options.DataDirectory);
+        DatabaseOptions.RefuseUnadoptedLegacy(options.DataDirectory);
         Directory.CreateDirectory(options.DataDirectory);
         var existed = File.Exists(options.DatabasePath);
         await using var db = await factory.CreateDbContextAsync(cancellation);
@@ -76,7 +77,7 @@ public sealed class DatabaseMaintenance(DatabaseOptions options, IDbContextFacto
     public async Task<BackupRecord> BackupAsync(string kind, string? reason, bool recordInDatabase = true, CancellationToken cancellation = default)
     {
         Directory.CreateDirectory(options.BackupDirectory);
-        var name = $"sap-lens-v2-{kind}-{DateTime.UtcNow:yyyyMMddTHHmmssfffZ}.sqlite3";
+        var name = $"authlens-{kind}-{DateTime.UtcNow:yyyyMMddTHHmmssfffZ}.sqlite3";
         var target = Path.Combine(options.BackupDirectory, name);
         var temporary = target + ".partial";
         await using (var source = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = options.DatabasePath, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString()))

@@ -62,7 +62,7 @@ public sealed class StartupTests : IDisposable
         Assert.True(first.Ok, first.Error);
         await LocalStartup.StopQuietlyAsync(first.App);
         SqliteConnection.ClearAllPools();
-        await using (var c = new SqliteConnection($"Data Source={Path.Combine(data, "sap-lens-v2.sqlite3")};Pooling=False"))
+        await using (var c = new SqliteConnection($"Data Source={Path.Combine(data, "authlens.sqlite3")};Pooling=False"))
         {
             await c.OpenAsync();
             await using var cmd = c.CreateCommand();

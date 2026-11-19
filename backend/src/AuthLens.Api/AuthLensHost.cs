@@ -19,6 +19,7 @@ public static class AuthLensHost
         ApplicationBackups.ProductVersion = V1Compatibility.Version;
         var migrated = V1DataMigration.ApplyPending(settings.DataDirectory, DateTimeOffset.UtcNow);
         var restored = ApplicationBackups.ApplyPending(settings.DataDirectory, DateTimeOffset.UtcNow);
+        DatabaseOptions.RefuseUnadoptedLegacy(settings.DataDirectory);   // never start beside an unconverted SAP Lens database
         var ui = UiAssets.Create();
         var tls = PrepareCertificate(settings);
         // Content root is the application directory (never the current working directory); no file is read from it at runtime.

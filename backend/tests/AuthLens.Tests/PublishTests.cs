@@ -130,7 +130,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
             using var authorized = new HttpRequestMessage(HttpMethod.Get, "/api/v1/roles");
             authorized.Headers.Add(RequestBoundary.TokenHeader, token);
             Assert.Equal(HttpStatusCode.OK, (await http.SendAsync(authorized)).StatusCode);
-            Assert.True(File.Exists(Path.Combine(_root, "data", "sap-lens-v2.sqlite3")));
+            Assert.True(File.Exists(Path.Combine(_root, "data", "authlens.sqlite3")));
             Assert.Empty(Directory.GetFiles(elsewhere, "*", SearchOption.AllDirectories)); // nothing written to the working directory
         }
         finally
@@ -213,7 +213,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
             using var authorized = new HttpRequestMessage(HttpMethod.Get, "/api/v1/roles");
             authorized.Headers.Add(RequestBoundary.TokenHeader, token);
             Assert.Equal(HttpStatusCode.OK, (await http.SendAsync(authorized)).StatusCode);       // SQLite through the native library beside the exe
-            Assert.True(File.Exists(Path.Combine(_root, "single-file-data", "sap-lens-v2.sqlite3")));
+            Assert.True(File.Exists(Path.Combine(_root, "single-file-data", "authlens.sqlite3")));
             Assert.Empty(Directory.GetFileSystemEntries(extract));                                // nothing extracted
             Assert.Equal(["AuthLens.Api", "libSkiaSharp.so", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // nothing written next to the exe
         }

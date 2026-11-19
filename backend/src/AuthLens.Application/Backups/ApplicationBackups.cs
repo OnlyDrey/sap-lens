@@ -19,12 +19,19 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
     private readonly WriteCoordinator _writer = writer ?? new WriteCoordinator(factory);
 
     public const long MaxUpload = 256L * 1024 * 1024;
-    public const string DatabaseEntry = "sap-lens-v2.sqlite3", AccountsEntry = "security/accounts.sqlite3", ManifestEntry = "manifest.json";
+    /// <summary>Archive entries. The database is written as <see cref="DatabaseEntry"/>; archives written by SAP Lens carry it as
+    /// <see cref="LegacyDatabaseEntry"/> and are restored to the AuthLens file name (the entry is verified under its own name first).</summary>
+    public const string DatabaseEntry = DatabaseOptions.DatabaseFileName, LegacyDatabaseEntry = DatabaseOptions.LegacyDatabaseFileName,
+        AccountsEntry = "security/accounts.sqlite3", ManifestEntry = "manifest.json";
 
-    /// <summary>The archive manifest's "product" is a format identifier, not the display name: it stays "SAP Lens 2" so that every earlier .NET
-    /// build can still restore an archive written by a later one. "AuthLens" is also accepted on restore for archives written under the new name.</summary>
-    public const string ManifestProduct = "SAP Lens 2";
-    private static readonly string[] AcceptedManifestProducts = [ManifestProduct, "SAP Lens", "AuthLens"];
+    /// <summary>The archive manifest's "product" names the writing product. AuthLens writes "AuthLens"; archives written by SAP Lens
+    /// ("SAP Lens 2", later "SAP Lens") are accepted. SAP Lens builds do not accept AuthLens archives (restore is forward only).</summary>
+    public const string ManifestProduct = "AuthLens";
+    public static readonly string[] LegacyManifestProducts = ["SAP Lens 2", "SAP Lens"];
+    private static readonly string[] AcceptedManifestProducts = [ManifestProduct, .. LegacyManifestProducts];
+
+    /// <summary>Where an archive entry is staged: a SAP Lens database entry under the AuthLens database name, every other entry under its own name.</summary>
+    private static string StagedPath(string root, string entry) => Path.Combine(root, entry == LegacyDatabaseEntry ? DatabaseEntry : entry);
     [GeneratedRegex("\\A[a-f0-9]{32}\\z")] public static partial Regex Identity();
     [GeneratedRegex("^branding/[a-f0-9]{64}\\.png$")] private static partial Regex BrandingEntry();
     private static readonly SemaphoreSlim Gate = new(1, 1);
@@ -401,7 +408,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
                 ["id"] = id, ["kind"] = "restore", ["status"] = "ready", ["archive_sha256"] = Sha(archive),
                 ["preview"] = new JsonObject
                 {
-                    ["source_mode"] = "AuthLens", ["source_version"] = manifest["version"]?.DeepClone(), ["created_at"] = manifest["created"]?.DeepClone(),
+                    ["source_mode"] = LegacyManifestProducts.Contains((string?)manifest["product"]) ? "SAP Lens" : "AuthLens", ["source_product"] = manifest["product"]?.DeepClone(), ["source_version"] = manifest["version"]?.DeepClone(), ["created_at"] = manifest["created"]?.DeepClone(),
                     ["files"] = manifest["files"]!.AsArray().Count, ["snapshots"] = 0,
                     ["categories"] = new JsonArray([.. new[] { "application database", manifest["accounts"] is JsonObject ? "accounts" : null, manifest["files"]!.AsArray().Any(f => ((string)f!["path"]!).StartsWith("branding/", StringComparison.Ordinal)) ? "branding" : null }
                         .Where(c => c is not null).Select(c => (JsonNode?)c)]),
@@ -430,10 +437,10 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         foreach (var entry in archive.Entries)
         {
             var name = entry.FullName;
-            if (name != DatabaseEntry && name != AccountsEntry && name != ManifestEntry && !BrandingEntry().IsMatch(name)) throw new BackupException("The archive contains unexpected files.", 422);
+            if (name != DatabaseEntry && name != LegacyDatabaseEntry && name != AccountsEntry && name != ManifestEntry && !BrandingEntry().IsMatch(name)) throw new BackupException("The archive contains unexpected files.", 422);
             total += entry.Length;
             if (entry.Length > BackupArchive.MaxArchive || total > BackupArchive.MaxArchive) throw new BackupException("The archive content is too large.", 422);
-            var path = Path.GetFullPath(Path.Combine(target, name));
+            var path = Path.GetFullPath(StagedPath(target, name));
             if (!path.StartsWith(Path.GetFullPath(target) + Path.DirectorySeparatorChar, StringComparison.Ordinal)) throw new BackupException("The archive contains unexpected files.", 422);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             entry.ExtractToFile(path, overwrite: false);
@@ -444,9 +451,11 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         if ((int?)manifest["format"] != 1 || !AcceptedManifestProducts.Contains((string?)manifest["product"] ?? "") || manifest["files"] is not JsonArray files) throw new BackupException("Unsupported archive manifest.", 422);
         var listed = files.Select(f => (string)f!["path"]!).ToHashSet(StringComparer.Ordinal);
         var present = archive.Entries.Select(e => e.FullName).Where(n => n != ManifestEntry).ToHashSet(StringComparer.Ordinal);
-        if (!listed.SetEquals(present) || !listed.Contains(DatabaseEntry)) throw new BackupException("The archive does not match its manifest.", 422);
+        // Exactly one database: the AuthLens entry, or (only in a SAP Lens archive) the SAP Lens entry.
+        if (!listed.SetEquals(present) || listed.Contains(DatabaseEntry) == listed.Contains(LegacyDatabaseEntry)) throw new BackupException("The archive does not match its manifest.", 422);
+        if (listed.Contains(LegacyDatabaseEntry) && !LegacyManifestProducts.Contains((string?)manifest["product"])) throw new BackupException("The archive does not match its manifest.", 422);
         foreach (var file in files)
-            if (Sha(Path.Combine(target, (string)file!["path"]!)) != (string?)file["sha256"]) throw new BackupException("A file in the archive does not match its checksum.", 422);
+            if (Sha(StagedPath(target, (string)file!["path"]!)) != (string?)file["sha256"]) throw new BackupException("A file in the archive does not match its checksum.", 422);
         Integrity(Path.Combine(target, DatabaseEntry));
         var known = knownMigrations.ToHashSet(StringComparer.Ordinal);
         if (Migrations(Path.Combine(target, DatabaseEntry)).Any(m => !known.Contains(m)))
@@ -524,10 +533,15 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
             if (!File.Exists(Path.Combine(folder, "upload.slbak")) || Sha(Path.Combine(folder, "upload.slbak")) != (string?)pending["sha256"]) throw new BackupException("The staged archive changed after confirmation.");
             var manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(staged, ManifestEntry)))!.AsObject();
             foreach (var file in manifest["files"]!.AsArray())
-                if (Sha(Path.Combine(staged, (string)file!["path"]!)) != (string?)file["sha256"]) throw new BackupException("A staged file changed after confirmation.");
-            var host = BackupKeys.Host(data) ?? throw new BackupException("The host backup key is not available, so no recovery backup can be written.");
-            var destination = Path.Combine(data, "backups", DestinationName(id));
-            var (destinationSha, _, _) = WriteArchive(data, destination, "", host, "destination-before-restore", now);
+                if (Sha(StagedPath(staged, (string)file!["path"]!)) != (string?)file["sha256"]) throw new BackupException("A staged file changed after confirmation.");
+            // A fresh installation has no data to protect; otherwise the current data is first saved as an encrypted recovery backup.
+            var fresh = !File.Exists(Path.Combine(data, DatabaseEntry)) && !File.Exists(Path.Combine(data, LegacyDatabaseEntry)) && !File.Exists(Path.Combine(data, AccountsEntry));
+            string? destinationSha = null;
+            if (!fresh)
+            {
+                var host = BackupKeys.Host(data) ?? throw new BackupException("The host backup key is not available, so no recovery backup can be written.");
+                (destinationSha, _, _) = WriteArchive(data, Path.Combine(data, "backups", DestinationName(id)), "", host, "destination-before-restore", now);
+            }
             Directory.CreateDirectory(previous);
             void Move(string from, string to) { Directory.CreateDirectory(Path.GetDirectoryName(to)!); if (Directory.Exists(from)) Directory.Move(from, to); else File.Move(from, to); moved.Add((from, to)); }
             foreach (var suffix in Sidecars)
@@ -544,10 +558,10 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
             WriteOperation(data, new JsonObject
             {
                 ["id"] = id, ["kind"] = "restore", ["status"] = "completed", ["completed_at"] = Stamp(now), ["destination_sha256"] = destinationSha, ["archive_sha256"] = pending["sha256"]?.DeepClone(),
-                ["message"] = "Restore completed. All sessions were signed out. The previous data is kept as an encrypted destination recovery backup.",
+                ["message"] = fresh ? "Restore completed into a new installation. All sessions were signed out." : "Restore completed. All sessions were signed out. The previous data is kept as an encrypted destination recovery backup.",
             });
             Retention.DataRetention.AfterRestore(data, now);
-            return $"Restore {id} applied; destination recovery backup {DestinationName(id)}";
+            return fresh ? $"Restore {id} applied to a new installation" : $"Restore {id} applied; destination recovery backup {DestinationName(id)}";
         }
         catch (Exception error) when (error is BackupException or IOException or UnauthorizedAccessException or SqliteException or System.Text.Json.JsonException or InvalidOperationException)
         {
