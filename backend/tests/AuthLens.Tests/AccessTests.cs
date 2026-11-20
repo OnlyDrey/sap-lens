@@ -43,6 +43,24 @@ public sealed class AccessTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Disabling_user_role_mapping_answers_409_on_every_access_endpoint_and_keeps_the_data()
+    {
+        async Task SetMapping(bool enabled)
+        {
+            var settings = JsonNode.Parse(await _client.GetStringAsync("/api/configuration"))!["settings"]!.AsObject();
+            settings["features"]!["user_role_mapping"] = enabled;
+            var saved = await _client.PostAsync("/api/configuration", new StringContent(settings.ToJsonString(), Encoding.UTF8, "application/json"));
+            Assert.True(saved.IsSuccessStatusCode, await saved.Content.ReadAsStringAsync());
+        }
+        await SetMapping(false);
+        foreach (var path in new[] { "/api/access/users", "/api/access/users/user0001", "/api/access/exports/users", "/api/access/release-roles", "/api/access/users-selection" })
+            Assert.Equal(HttpStatusCode.Conflict, (await Get(path)).Status);
+        Assert.Equal(HttpStatusCode.OK, (await Get("/api/roles")).Status);                                  // Role Lookup stays independent
+        await SetMapping(true);
+        Assert.Equal(HttpStatusCode.OK, (await Get("/api/access/users?show_expired=true")).Status);        // retained data serves again, no reimport
+    }
+
+    [Fact]
     public async Task User_list_follows_the_v1_page_shape_filters_and_navigation()
     {
         var (status, page) = await Get("/api/access/users?limit=10&show_expired=true");

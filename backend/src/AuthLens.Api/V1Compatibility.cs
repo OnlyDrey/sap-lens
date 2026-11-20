@@ -85,6 +85,13 @@ public static class V1Compatibility
                 context.HttpContext.Response.Headers["X-Data-Revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.{(ids.Employees ?? 0)}";
             }
             return await next(context);
+        }).AddEndpointFilter(async (context, next) =>
+        {
+            // User–Role Mapping guards every /api/access/* endpoint, exports included (v1 contract): disabled answers 409, retained data untouched.
+            if (!context.HttpContext.Request.Path.StartsWithSegments("/api/access")) return await next(context);
+            var settings = await context.HttpContext.RequestServices.GetRequiredService<V1Settings>().GetAsync(context.HttpContext.RequestAborted);
+            return ((bool?)settings["features"]?["user_role_mapping"] ?? true) ? await next(context)
+                : Results.Json(new { detail = "User–Role Mapping is disabled. Enable it in Settings → Features; imported data is retained." }, statusCode: 409);
         });
 
         api.MapGet("/auth/state", async (HttpContext http, HostSettings settings) => settings.Authentication == AuthenticationMode.Accounts
