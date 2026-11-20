@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, backendFixture, recordClipboard, copiedText } from './support'
+import { headers, backendFixture, recordClipboard, copiedText, postConfiguration } from './support'
 let directory = '', userSource = ''
 const navigate = (page: Page, name: string) => page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name, exact:true }).click()
 test.beforeEach(async ({ request }) => {
@@ -14,7 +14,7 @@ test.beforeEach(async ({ request }) => {
   writeFileSync(settings.data_csv_path, 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:BUY,ME23N\n')
   userSource = backendFixture('user-access.csv')
   settings.user_csv_path = userSource
-  expect((await request.post('/api/configuration', { headers, data:settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive:true, force:true }) })
 
@@ -73,7 +73,7 @@ test('release facets are data-driven, bounded, retain invalid choices and refres
   const settings = (await (await request.get('/api/configuration',{headers})).json()).settings
   settings.user_csv_path = path.join(directory,'many-users.csv')
   writeFileSync(settings.user_csv_path, 'USERNAME,ROLE_NAME,USER_GROUP,ROLE_VALID_FROM,ROLE_VALID_TO\n' + Array.from({length:150},(_,i)=>`DEMO_${String(i).padStart(3,'0')},ZO:MM:M:PR_REL_ST_G${String(i).padStart(3,'0')}_N6:ALL,GROUP_TEST,20000101,99991231`).join('\n'))
-  expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
   await page.getByRole('button',{name:'Refresh role data from CSV',exact:true}).click()
   await page.getByRole('combobox',{name:'Release username',exact:true}).click()
   const options = page.getByRole('listbox',{name:'Release username options',exact:true})
@@ -118,7 +118,7 @@ test('loading and reconnect stay contextual during Back and Forward', async ({ p
 
 for (const theme of ['dark','light']) for (const width of [1280,800]) test(`data-aware visual QA ${theme} ${width}`, { tag: '@visual' }, async ({page,request}, info) => {
   const settings = (await (await request.get('/api/configuration',{headers})).json()).settings
-  settings.theme = theme; await request.post('/api/configuration',{headers,data:settings})
+  settings.theme = theme; await postConfiguration(request, settings)
   await page.setViewportSize({width,height:900})
   await page.goto('/#session=browser-test-session')
   // The overflow check polls (layout settles after route and panel changes) and, when it still fails, attaches the offending elements and a screenshot so a rare failure is diagnosable from the report.

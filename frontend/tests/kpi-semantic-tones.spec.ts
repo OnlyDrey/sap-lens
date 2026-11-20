@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, openSod, seedGovernance } from './sod-fixture'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -56,7 +56,7 @@ test('every zero value is neutral, whatever the metric', async ({ page }) => {
 
 test('Dashboard and Account Review use the same mapping', async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
-  await request.post('/api/configuration', { headers, data: settings })
+  await postConfiguration(request, settings)
   await overview(page, { ...POPULATED, acceptance: {} })
   await page.goto('/#session=browser-test-session')
   const sodCard = page.getByRole('region', { name: 'Segregation of Duties', exact: true })
@@ -67,7 +67,7 @@ test('Dashboard and Account Review use the same mapping', async ({ page, request
 
 for (const theme of ['light', 'dark']) test(`warning, danger and success values keep readable contrast in ${theme}`, { tag: ['@visual', '@a11y'] }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
-  await request.post('/api/configuration', { headers, data: settings })
+  await postConfiguration(request, settings)
   await overview(page, POPULATED, { enabled: 5 })
   await openSod(page)
   await expect(page.locator('.info-row[data-tone="warning"]').first()).toBeVisible() // wait for the overview rows instead of sampling an empty page

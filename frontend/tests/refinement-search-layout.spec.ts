@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test'
 import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 let root:string
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers});root=mkdtempSync(path.join(tmpdir(),'authlens-search-ui-'))
@@ -10,11 +10,11 @@ test.beforeEach(async({request})=>{
  writeFileSync(roles,'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:SYN:BUY,Purchasing,ZS:SYN:BUY,ME23N\nMM,ZC:SYN:BUY,Purchasing,ZS:SYN:BUY,MIGO\nFI,ZC:SYN:FI,Finance,ZS:SYN:FI,FB03\n')
  writeFileSync(users,'USERNAME,ROLE_NAME,EMAIL,ROLE_VALID_FROM,ROLE_VALID_TO\nSYN_BUY,ZC:SYN:BUY,synthetic@example.test,20000101,99991231\nSYN_FI,ZC:SYN:FI,other@example.test,20000101,99991231\n')
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.data_csv_path=roles;settings.user_csv_path=users
- expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
+ expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(root,{recursive:true,force:true})})
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`dashboard settings navigation and source layout ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
- const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;await request.post('/api/configuration',{headers,data:settings})
+ const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;await postConfiguration(request, settings)
  await page.setViewportSize({width,height:900});await page.goto('/#session=browser-test-session')
  await expect(page.getByRole('region',{name:'Assignment Distribution',exact:true})).toBeVisible()
  await expect(page.getByRole('region',{name:'Review Progress',exact:true}).locator('.chart-stack-bar')).toHaveCSS('height','14px')

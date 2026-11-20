@@ -2,7 +2,7 @@ import {test,expect,type Page,type APIRequestContext} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, postConfiguration } from './support'
 let directory:string,userPath:string
 const config=async(request:APIRequestContext)=>(await(await request.get('/api/configuration',{headers})).json()).settings
 const settings=async(page:Page,tab:string)=>{await page.getByRole('button',{name:'Open settings',exact:true}).click();await page.getByRole('tab',{name:tab,exact:true}).click()}
@@ -10,7 +10,7 @@ test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'authlens-refine-'));userPath=path.join(directory,'users.csv');const rolePath=path.join(directory,'roles.csv')
  writeFileSync(rolePath,'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:SYN:A,Synthetic Alpha,ZS:SYN:ONE,MIGO\nMM,ZC:SYN:B,Synthetic Beta,ZS:SYN:ONE,MIGO\nMM,ZC:SYN:B,Synthetic Beta,ZS:SYN:TWO,ME23N\nBC,ZC:SYN:'+ 'LONG_'.repeat(25)+',Synthetic Long,ZS:SYN:THREE,VA03\n')
  writeFileSync(userPath,'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,LAST_NAME,EMAIL,USER_VALID_FROM,USER_VALID_TO,USER_LOCKED,ROLE_VALID_FROM,ROLE_VALID_TO\nSYN_REVIEW,ZC:SYN:A,SYN,Demo,Synthetic,demo@example.test,20000101,99991231,0,20000101,99991231\n')
- const value=await config(request);value.data_csv_path=rolePath;value.user_csv_path=userPath;expect((await request.post('/api/configuration',{headers,data:value})).ok()).toBeTruthy()
+ const value=await config(request);value.data_csv_path=rolePath;value.user_csv_path=userPath;expect((await postConfiguration(request, value)).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
 test('catalogue search visual order matches keyboard order and cards contain long identifiers',{ tag: '@a11y' }, async({page})=>{
@@ -25,7 +25,7 @@ test('catalogue search visual order matches keyboard order and cards contain lon
 test('role comparison keeps one aligned non-wrapping row for 5, 3 and 2 roles and removes roles in place', async({page,request})=>{
  const rolePath=path.join(directory,'many.csv'),count=5                       // five roles is the product's comparison limit
  writeFileSync(rolePath,'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\n'+Array.from({length:count},(_,index)=>{const id=String(index+1).padStart(2,'0');return `MM,ZC:MANY:${id},Many ${id},ZS:MANY:SHARED,MIGO\nMM,ZC:MANY:${id},Many ${id},ZS:MANY:OWN${id},ME${id}N`}).join('\n')+'\n')
- const value=await config(request);value.data_csv_path=rolePath;expect((await request.post('/api/configuration',{headers,data:value})).ok()).toBeTruthy()
+ const value=await config(request);value.data_csv_path=rolePath;expect((await postConfiguration(request, value)).ok()).toBeTruthy()
  await page.goto('/#session=browser-test-session');await goTo(page,'Role Lookup')
  for(let index=1;index<=count;index++)await page.getByRole('article',{name:`Many ${String(index).padStart(2,'0')}`,exact:true}).getByRole('button',{name:'Add to comparison',exact:true}).click()
  await page.getByRole('button',{name:'Compare now',exact:true}).click()
@@ -83,7 +83,7 @@ test('library categories remain isolated and anchored controls are measured befo
  await page.keyboard.press('Escape');await expect(trigger).toBeFocused();expect((await config(request)).revision).toBe(before.revision)
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`refinement visual ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
- const value=await config(request);value.theme=theme;await request.post('/api/configuration',{headers,data:value});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session')
+ const value=await config(request);value.theme=theme;await postConfiguration(request, value);await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session')
  const capture=async(name:string)=>{expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(name+'.png'),fullPage:true})}
  const distribution=(await page.getByRole('region',{name:'Role Distribution',exact:true}).boundingBox())!,sources=(await page.getByRole('region',{name:'Data Sources & Configuration',exact:true}).boundingBox())!;expect(sources.y).toBeGreaterThan(distribution.y)
  await capture('dashboard');await goTo(page,'Role Lookup');await capture('role-cards');await page.getByRole('button',{name:'View details for Synthetic Long',exact:true}).click();await capture('role-details');await page.getByRole('button',{name:'Close role details',exact:true}).click();await settings(page,'Appearance & Branding');await capture('appearance');await page.getByLabel('Logo file location',{exact:true}).scrollIntoViewIfNeeded();await capture('logo-controls');await page.getByRole('tab',{name:'SAP Modules',exact:true}).click();await page.getByRole('button',{name:/Edit MM —/}).click();await capture('module-dialog');await page.keyboard.press('Escape');await page.getByRole('tab',{name:'Component Library',exact:true}).click();await page.getByRole('tab',{name:'Status & Feedback',exact:true}).click();await page.emulateMedia({reducedMotion:'reduce'});await expect(page.locator('.animate-spin').first()).toHaveCSS('animation-name','none');await capture('component-library');await page.getByRole('tab',{name:'Runtime & Scheduling',exact:true}).click();await expect(page.getByRole('region',{name:'Windows Desktop background operation',exact:true})).toBeVisible();await page.getByRole('region',{name:'Windows Desktop background operation',exact:true}).screenshot({path:info.outputPath('desktop-options.png')})

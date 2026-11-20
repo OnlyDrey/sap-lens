@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, postConfiguration } from './support'
 
 let directory: string, usersPath: string
 const roles = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:A,Demo purchasing,ZS:A,MIGO\n'
@@ -18,7 +18,7 @@ test.beforeEach(async ({ request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = rolePath
   settings.user_csv_path = usersPath
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })

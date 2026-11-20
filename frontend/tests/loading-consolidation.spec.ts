@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo, setDescending, sortDirection, openFilters } from './support'
+import { headers, goTo, setDescending, sortDirection, openFilters, postConfiguration } from './support'
 import { layoutMatrix } from './matrix'
 let directory: string, roles: string, users: string
 const roleCSV =
@@ -23,7 +23,7 @@ test.beforeEach(async ({ request }) => {
   settings.user_csv_path = users
   expect(
     (
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
     ).ok(),
   ).toBeTruthy()
 })
@@ -234,7 +234,7 @@ for (const { theme, width } of layoutMatrix([375, 800, 1280]))
         await (await request.get('/api/configuration', { headers })).json()
       ).settings
       settings.theme = theme
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
       await page.setViewportSize({ width, height: 1000 })
       await page.goto('/#session=browser-test-session')
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)

@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test'
 import {mkdtempSync,writeFileSync,appendFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 let directory:string
 const csv='FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n'+[
 'BC,ZC:SYN:A,Synthetic Alpha,ZS:SYN:SHARED,BC - Batch Input Management,SOST,Mail',
@@ -17,7 +17,7 @@ const csv='FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n'+[
 test.beforeEach(async({request})=>{
  await request.post('/api/configuration/reset',{headers});directory=mkdtempSync(path.join(tmpdir(),'authlens-stabilization-'))
  const roles=path.join(directory,'roles.csv'),users=path.join(directory,'users.csv');writeFileSync(roles,csv);writeFileSync(users,'USERNAME,ROLE_NAME,EMAIL,USER_VALID_FROM,USER_VALID_TO,ROLE_VALID_FROM,ROLE_VALID_TO\nSYN_VIEW,ZC:SYN:A,synthetic@example.test,20000101,99991231,20000101,99991231\n')
- const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.data_csv_path=roles;settings.user_csv_path=users;expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
+ const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.data_csv_path=roles;settings.user_csv_path=users;expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
 test('sidebar wildcard filters rows as well as roles and restores the original collapsed state', { tag: '@smoke' },async({page,request})=>{

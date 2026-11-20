@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, openSettings } from './support'
+import { headers, openSettings, postConfiguration } from './support'
 
 const HEAD = 'RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT'
 const GOOD = `${HEAD}\nSYN01,H,S,Synthetic incompatible activities,CREATE,APPROVE,ACTVT1,CREATE,X001,Synthetic creation\nSYN01,H,S,Synthetic incompatible activities,CREATE,APPROVE,ACTVT2,APPROVE,X002,Synthetic approval\nSYN02,M,X,Not evaluated type,CREATE,APPROVE,ACTVT1,CREATE,X003,\nSYN02,M,X,Not evaluated type,CREATE,APPROVE,ACTVT2,APPROVE,X004,\n`
@@ -89,7 +89,7 @@ test('the existing source actions stay available next to the new section', async
 
 for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`the SoD import section keeps the page free of horizontal scrolling in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
-  await request.post('/api/configuration', { headers, data: settings })
+  await postConfiguration(request, settings)
   await page.setViewportSize({ width, height: 900 })
   const editor = await open(page)
   const preview = editor.getByRole('region', { name: 'Import preview' })

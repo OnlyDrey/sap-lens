@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 let directory: string
 const business = 'ZC:MM:BUY:ENP', release = 'ZO:MM:M:PR_REL_ST_SH_N6:ALL'
 test.beforeEach(async ({ request }) => {
@@ -22,7 +22,7 @@ test.beforeEach(async ({ request }) => {
     row('DEMO_UNKNOWN', business).replace(',20000101,99991231\n', ',,\n'))
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = catalogue; settings.user_csv_path = users
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 async function openUser(page: import('@playwright/test').Page) {
@@ -84,7 +84,7 @@ test('CSV includes every filtered page, exact identifiers, dates, UTF-8 and safe
 })
 for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`separate validity and lock indicators ${theme} ${width}`, { tag: '@visual' }, async ({ page, request }, info) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
-  settings.theme = theme; await request.post('/api/configuration', { headers, data: settings })
+  settings.theme = theme; await postConfiguration(request, settings)
   await page.setViewportSize({ width, height: 900 })
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('link', { name: 'User Access', exact: true }).click()

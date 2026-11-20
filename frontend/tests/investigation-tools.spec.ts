@@ -2,7 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo, setDescending, sortDirection } from './support'
+import { headers, goTo, setDescending, sortDirection, postConfiguration } from './support'
 import { layoutMatrix } from './matrix'
 let root: string
 const mode = async (page: Page, name: string) =>
@@ -58,7 +58,7 @@ test.beforeEach(async ({ request }) => {
   settings.user_csv_path = users
   expect(
     (
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
     ).ok(),
   ).toBeTruthy()
   expect((await request.post('/api/refresh', { headers })).ok()).toBeTruthy()
@@ -114,7 +114,7 @@ test('comparison entry from details retains User A and original comparison on Ba
   ).toHaveValue(/DEMO_B/)
 })
 test('comparison difference and evidence indicators start at the same vertical position in every row', async ({ page, request }) => {
-  if (process.env.THEME) { const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = process.env.THEME; await request.post('/api/configuration', { headers, data: settings }) }
+  if (process.env.THEME) { const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = process.env.THEME; await postConfiguration(request, settings) }
   await page.goto('/#session=browser-test-session')
   await goTo(page, 'User Access')
   await page.getByRole('link', { name: 'DEMO_A', exact: true }).click()
@@ -655,7 +655,7 @@ for (const { theme, width } of layoutMatrix([375, 800, 1280]))
       settings.theme = theme
       expect(
         (
-          await request.post('/api/configuration', { headers, data: settings })
+          await postConfiguration(request, settings)
         ).ok(),
       ).toBeTruthy()
       await page.goto('/#session=browser-test-session')

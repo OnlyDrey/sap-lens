@@ -2,7 +2,7 @@ import {test,expect,type Page,type TestInfo} from '@playwright/test'
 import {mkdtempSync,writeFileSync,rmSync} from 'node:fs'
 import {tmpdir} from 'node:os'
 import path from 'node:path'
-import { headers, goTo, openFilters, closeFilters } from './support'
+import { headers, goTo, openFilters, closeFilters, postConfiguration } from './support'
 test.setTimeout(30_000)
 let directory:string
 const prefix='ZC:SYN:'+ 'LONG_INVESTIGATION_IDENTIFIER_'.repeat(6)
@@ -20,11 +20,11 @@ test.beforeEach(async({request})=>{
  writeFileSync(users,'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,LAST_NAME,EMAIL,USER_VALID_FROM,USER_VALID_TO,USER_LOCKED,ROLE_VALID_FROM,ROLE_VALID_TO\n'+[[actual,'20000101','99991231'],[actual,'20010101','20020101'],[actual,'99980101','99991231'],[actual,'',''],[release,'20000101','99991231']].map(([r,a,b])=>`SYN_A,${r},SYN_GROUP,Alpha,Synthetic,alpha@example.test,20000101,99991231,0,${a},${b}\n`).join('')+`SYN_B,${actual},SYN_GROUP,Beta,Synthetic,beta@example.test,20000101,99991231,X,20000101,99991231\nSYN_B,${release},SYN_GROUP,Beta,Synthetic,beta@example.test,20000101,99991231,X,20000101,99991231\n`)
  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings
  settings.data_csv_path=roles;settings.user_csv_path=users
- expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
+ expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(directory,{recursive:true,force:true})})
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`shared layouts ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
- const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
+ const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
  await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session');await expect(page.locator('html')).toHaveAttribute('data-theme',theme)
  const dashboard=page.getByRole('region',{name:'Dashboard',exact:true})
  await expect(dashboard.locator('.ui-page-title>svg')).toBeVisible()
@@ -103,7 +103,7 @@ test('large matrix contains scrolling, empty cells and high counts in both theme
  const cells=Array.from({length:200},(_,i)=>({document_type:'PR',user_group:'SYN_GROUP',release_group:`G${Math.floor(i/20)}`,release_strategy:String(i%20).padStart(2,'0'),user_count:i===0?99999:i+1})).filter((_,i)=>i!==1)
  await page.route(url=>url.pathname==='/api/access/releases',route=>route.fulfill({json:{items:[],total:0,offset:0,limit:50,loaded:true,groups:['SYN_GROUP'],matrix_total:cells.length,matrix_offset:0,matrix:cells}}))
  for(const theme of ['light','dark']){
-  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;await request.post('/api/configuration',{headers,data:settings})
+  const settings=(await(await request.get('/api/configuration',{headers})).json()).settings;settings.theme=theme;await postConfiguration(request, settings)
   await page.setViewportSize({width:375,height:1000});await page.goto('/#session=browser-test-session');await goTo(page,'Release Roles');await page.getByRole('button',{name:'Matrix',exact:true}).click()
   const matrix=page.getByRole('region',{name:'PR release matrix scroll area',exact:true});await expect(matrix.getByRole('button')).toHaveCount(199)
   await expect(matrix.getByRole('button',{name:'Investigate PR G0 00: 99999 users',exact:true})).toBeVisible();await expect(matrix.locator('td[data-intensity="3"]')).toHaveCount(1)

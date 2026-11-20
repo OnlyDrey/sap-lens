@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 
 const testOrigin = `http://127.0.0.1:${process.env.AUTHLENS_BROWSER_TEST_PORT || 18745}`
 
@@ -54,7 +54,7 @@ test('application information displays the resolved API identity for beta stable
   expect((await request.post('/api/configuration/reset', {headers})).ok()).toBeTruthy()
   const settings = (await (await request.get('/api/configuration', {headers})).json()).settings
   settings.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
-  expect((await request.post('/api/configuration', {headers, data:settings})).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
   const actual = await (await request.get('/api/version', {headers})).json()
   const health = await (await request.get('/health')).json()
   expect(actual.version).toBe(health.version)

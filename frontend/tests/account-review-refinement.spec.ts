@@ -9,7 +9,7 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo, openFilters, closeFilters, setDescending, sortDirection, pickMulti } from './support'
+import { headers, goTo, openFilters, closeFilters, setDescending, sortDirection, pickMulti, postConfiguration } from './support'
 import { DEFAULT_THEME_ONLY } from './matrix'
 const fields =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'.split(
@@ -67,7 +67,7 @@ test.beforeEach(async ({ request }) => {
   settings.features.employee_directory = true
   expect(
     (
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
     ).ok(),
   ).toBeTruthy()
   const revision = (await current(request)).revision,
@@ -362,7 +362,7 @@ test('source snapshot recovery persists records after removal and reload with co
   settings.employee_snapshot_id = null
   expect(
     (
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
     ).ok(),
   ).toBeTruthy()
   await request.get('/api/employees/status', { headers })
@@ -419,7 +419,7 @@ for (const theme of ['light', 'dark'])
     }, info) => {
       const settings = await current(request)
       settings.theme = theme
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
       await page.setViewportSize({ width, height: 1000 })
       await page.goto('/#session=browser-test-session')
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
@@ -598,7 +598,7 @@ test('calendar reopening restores the selected day and Back dismisses its portal
 
 for (const theme of DEFAULT_THEME_ONLY) test(`directory conflict evidence identifies source records without selecting an identity ${theme}`,async({page,request},info)=>{
   const settings=await current(request);settings.theme=theme
-  await request.post('/api/configuration',{headers,data:settings})
+  await postConfiguration(request, settings)
   const rows=[{Name:'Demo Conflict A',Mail:'open@example.test',SamAccountName:'DEMO_AD_A',Enabled:''},{Name:'Demo Conflict B',Mail:'open@example.test',SamAccountName:'DEMO_AD_B',Enabled:'false'}]
   writeFileSync(source,fields.join(';')+'\n'+rows.map(row=>fields.map(field=>(row as Record<string,string>)[field]||'').join(';')).join('\n'))
   const revision=(await current(request)).revision
@@ -712,7 +712,7 @@ test('Account Review shows review progress beside a compact review attention lis
 
 for (const theme of ['light', 'dark']) test(`Review progress takes a third and review attention two thirds of one row in ${theme}, and stack on narrow screens`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = await current(request); settings.theme = theme
-  await request.post('/api/configuration', { headers, data: settings })
+  await postConfiguration(request, settings)
   await page.setViewportSize({ width: 1280, height: 900 })
   await page.goto('/#session=browser-test-session')
   await review(page)

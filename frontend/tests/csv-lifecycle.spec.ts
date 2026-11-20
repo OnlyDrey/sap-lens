@@ -8,7 +8,7 @@ import {
 import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 import { layoutMatrix } from './matrix'
 const columns =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
@@ -28,10 +28,7 @@ async function settings(request: APIRequestContext) {
 async function save(request: APIRequestContext, change: (config: any) => void) {
   const config = await settings(request)
   change(config)
-  const response = await request.post('/api/configuration', {
-    headers,
-    data: config,
-  })
+  const response = await postConfiguration(request, config)
   expect(response.ok(), await response.text()).toBeTruthy()
 }
 async function source(page: Page) {

@@ -2,7 +2,7 @@ import {expectReviewerProfile} from './reviewer-profile'
 import { test, expect, type APIRequestContext } from '@playwright/test'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { headers, openSettings, seedSources, sessionUrl, type SeededSources } from './support'
+import { headers, openSettings, seedSources, sessionUrl, type SeededSources, postConfiguration } from './support'
 const columns = 'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus\n'
 const employee = (department: string, manager: string) => '\ufeff' + columns + `North;Demo Fg;demo_fg;;fg@example.test;${department};Buyer;true;;;${manager};;${manager.toLowerCase()}@example.test;;;Resolved\n`
 
@@ -19,7 +19,7 @@ test.beforeEach(async ({ request }) => {
   seeded = await seedSources(request, { roles: readFileSync('tests/fixtures/role-catalogue-minimal.csv', 'utf8'), users: USERS })
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.features.employee_directory = true
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
   directory = seeded.directory
 })
 test.afterEach(async () => { await seeded.cleanup() })

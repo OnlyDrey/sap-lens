@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, headers, openSod, seedGovernance } from './sod-fixture'
+import { postConfiguration } from './support'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -93,7 +94,7 @@ test('secondary navigation, explorer and SoD settings actions carry icons and re
 
 for (const width of [375, 800, 1280]) for (const theme of ['light', 'dark']) test(`submenu overlays the page without scrollbars, size changes or left borders (${theme} ${width})`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
   await page.setViewportSize({ width, height: 800 })
   await page.goto('/#session=browser-test-session')
   const header = page.locator('header').first(), before = await header.boundingBox()

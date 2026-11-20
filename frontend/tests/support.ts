@@ -1,4 +1,4 @@
-import type { APIRequestContext, Locator, Page } from '@playwright/test'
+import type { APIRequestContext, APIResponse, Locator, Page } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { existsSync } from 'node:fs'
@@ -37,9 +37,37 @@ export function backendFixture(name: string): string {
   return resolved
 }
 
+const SOURCE_PATHS = [['roles', 'data_csv_path'], ['sod', 'sod_csv_path'], ['users', 'user_csv_path'], ['employees', 'employee_csv_path']] as const
+const DEFAULT_SOURCE_MODES: Record<string, string> = { roles: 'dynamic', users: 'dynamic', employees: 'static', sod: 'static' }
+
+/** Saves settings the way the application does. AuthLens never changes a source file through a settings save, so ordinary fields go to
+ *  POST /api/configuration with the saved source paths, and every changed source path is then activated through Data Sources
+ *  (POST /api/data-sources/{source}/select, the call the UI makes; catalogue before user mapping), using the saved source mode and the newly
+ *  saved import profile. An emptied Employee Directory path is cleared through its own endpoint. Returns the first refused response, or the
+ *  last response. */
+export async function postConfiguration(request: APIRequestContext, settings: Record<string, unknown>): Promise<APIResponse> {
+  const current = (await (await request.get('/api/configuration', { headers })).json()).settings
+  const changed = SOURCE_PATHS.filter(([, field]) => field in settings && (settings[field] ?? '') !== (current[field] ?? ''))
+  const ordinary: Record<string, unknown> = { ...settings }
+  for (const [, field] of changed) ordinary[field] = current[field]
+  let response = await request.post('/api/configuration', { headers, data: ordinary })
+  if (!response.ok()) return response
+  for (const [source, field] of changed) {
+    const saved = (await (await request.get('/api/configuration', { headers })).json()).settings
+    const path = settings[field]
+    if (typeof path === 'string' && path) {
+      response = await request.post(`/api/data-sources/${source}/select`, { headers, data: { path, revision: saved.revision, mode: saved.source_modes?.[source] ?? DEFAULT_SOURCE_MODES[source] } })
+    } else if (source === 'employees') {
+      response = await request.post('/api/employees/clear', { headers, data: { revision: saved.revision } })
+    } else throw new Error(`Test setup cannot remove the ${source} source through settings; clear it through Data Sources.`)
+    if (!response.ok()) return response
+  }
+  return response
+}
+
 /** Saves a configuration and, when the server refuses it, fails with the status, a sanitized body and the fixture paths involved. */
 export async function saveConfiguration(request: APIRequestContext, settings: Record<string, unknown>): Promise<void> {
-  const response = await request.post('/api/configuration', { headers, data: settings })
+  const response = await postConfiguration(request, settings)
   if (response.ok()) return
   const body = (await response.text()).replace(/(token|secret|password|authorization)("?\s*[:=]\s*"?)[^",\s}]+/gi, '$1$2<redacted>').slice(0, 600)
   const paths = Object.entries(settings).filter(([key, value]) => /_path$/.test(key) && typeof value === 'string' && value)

@@ -8,7 +8,7 @@ import {
 import { mkdtempSync, writeFileSync, rmSync, mkdirSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 import { layoutMatrix } from './matrix'
 const columns =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
@@ -37,7 +37,7 @@ async function enable(request: APIRequestContext, value = true) {
   const current = await settings(request)
   current.features.employee_directory = value
   expect(
-    (await request.post('/api/configuration', { headers, data: current })).ok(),
+    (await postConfiguration(request, current)).ok(),
   ).toBeTruthy()
 }
 async function source(page: Page) {
@@ -69,7 +69,7 @@ test.beforeEach(async ({ request }) => {
   current.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   current.user_csv_path = users
   expect(
-    (await request.post('/api/configuration', { headers, data: current })).ok(),
+    (await postConfiguration(request, current)).ok(),
   ).toBeTruthy()
 })
 test.afterEach(async ({ request }) => {
@@ -220,7 +220,7 @@ for (const { theme, width } of layoutMatrix([800, 1280])) {
       current.theme = theme
       expect(
         (
-          await request.post('/api/configuration', { headers, data: current })
+          await postConfiguration(request, current)
         ).ok(),
       ).toBeTruthy()
       await page.setViewportSize({ width, height: 1000 })
@@ -407,7 +407,7 @@ for (const { theme, width } of layoutMatrix([375,800,1280])) {
   test(`employee profile and compact date calendar visual QA ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
     await importDirectory(request); await enable(request)
     const current=await settings(request); current.theme=theme
-    expect((await request.post('/api/configuration',{headers,data:current})).ok()).toBeTruthy()
+    expect((await postConfiguration(request, current)).ok()).toBeTruthy()
     await page.setViewportSize({width,height:1000})
     await page.goto('/#session=browser-test-session')
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'User Access',exact:true}).click()

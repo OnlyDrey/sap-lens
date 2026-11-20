@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { headers, setDescending, sortDirection, pickMulti } from './support'
+import { headers, setDescending, sortDirection, pickMulti, postConfiguration } from './support'
 let directory = '', source = '', rows: string[] = []
 const csv = () => 'USERNAME,ROLE_NAME,USER_GROUP,FIRST_NAME,ROLE_VALID_FROM,ROLE_VALID_TO\n' + rows.join('\n') + '\n'
 const user = (n: number) => `DEMO_${String(n).padStart(3, '0')}`
@@ -20,7 +20,7 @@ test.beforeEach(async ({ request }) => {
   writeFileSync(source, csv())
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.user_csv_path = source
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 
@@ -28,7 +28,7 @@ for (const descending of [false, true]) test(`user global navigation crosses bou
   if (descending) {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     settings.theme = 'light'
-    await request.post('/api/configuration', { headers, data: settings })
+    await postConfiguration(request, settings)
   }
   const lookups: URL[] = []
   page.on('request', request => { const url = new URL(request.url()); if (url.pathname === '/api/access/users' && url.searchParams.has('anchor')) lookups.push(url) })

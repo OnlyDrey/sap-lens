@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, postConfiguration } from './support'
 let directory: string
 const roles = `FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT
 MM,ZC:MM:A,Alpha purchasing,ZS:A1,MM - Purchasing,MIGO,Goods movement
@@ -30,7 +30,7 @@ test.beforeEach(async ({ request }) => {
   writeFileSync(roleFile, roles); writeFileSync(userFile, users)
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = roleFile; settings.user_csv_path = userFile
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => {
   // Saved filters live outside the configuration reset; leave none behind for other specs sharing this server.

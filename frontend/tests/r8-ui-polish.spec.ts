@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { goTo, headers, openSettings, seedSources } from './support'
+import { goTo, headers, openSettings, seedSources, postConfiguration } from './support'
 
 const english = 'MM - A deliberately long composite role description that must stay on one line inside the role card and end in an ellipsis instead of wrapping or pushing the action buttons away from the edge of the card'
 const french = "MM - Gestion des achats : description volontairement très longue d'un rôle composite, avec des accents (é, è, ê, à, ç, œ) et des caractères spéciaux — elle doit rester sur une seule ligne et se terminer par des points de suspension"
@@ -11,7 +11,7 @@ test.setTimeout(120_000)
 
 const setTheme = async (request: Parameters<typeof seedSources>[0], theme: string) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
-  await request.post('/api/configuration', { headers, data: settings })
+  await postConfiguration(request, settings)
 }
 async function geometry(page: Page) {
   return page.locator('.role-entry').evaluateAll((entries) => entries.map((entry) => {

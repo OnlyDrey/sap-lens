@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo, openFilters } from './support'
+import { headers, goTo, openFilters, postConfiguration } from './support'
 let directory: string
 async function library(page: Page) {
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
@@ -28,7 +28,7 @@ test.beforeEach(async ({ request }) => {
   settings.user_csv_path = users
   expect(
     (
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
     ).ok(),
   ).toBeTruthy()
   expect((await request.post('/api/refresh', { headers })).ok()).toBeTruthy()
@@ -343,7 +343,7 @@ for (const theme of ['light', 'dark'])
         await (await request.get('/api/configuration', { headers })).json()
       ).settings
       settings.theme = theme
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
       await page.setViewportSize({ width, height: 1000 })
       await page.goto('/#session=browser-test-session')
       await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
@@ -452,7 +452,7 @@ for(const theme of ['light','dark']) for(const width of [375,800,1280])
  test(`import settings visual contracts ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
   const settings=(await(await request.get('/api/configuration',{headers})).json()).settings
   settings.theme=theme
-  await request.post('/api/configuration',{headers,data:settings})
+  await postConfiguration(request, settings)
   await page.setViewportSize({width,height:1000})
   await page.goto('/#session=browser-test-session')
   await page.getByRole('button',{name:'Open settings',exact:true}).click()

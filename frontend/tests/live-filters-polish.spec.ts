@@ -3,7 +3,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, setDescending, sortDirection, pickMulti } from './support'
+import { headers, setDescending, sortDirection, pickMulti, postConfiguration } from './support'
 let directory: string
 const catalogue = 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,MIGO,Goods movement\nMM,ZC:MM:BUY:*,Purchasing,ZS:BUY,MM - Purchasing - Display,ME21N,Create purchase order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,VA03,Display sales order\nSD,ZC:SD:VIEW:*,Sales,ZS:VIEW,SD - Sales - Display,ME21N,Create purchase order\nFI,ZC:FI:EMPTY,No mappings,ZS:EMPTY,Missing exported mappings,,\n'
 test.beforeEach(async ({ request }) => {
@@ -20,7 +20,7 @@ test.beforeEach(async ({ request }) => {
     'DEMO_OTHER,ZC:SD:VIEW:ENO,G2,Demo,Other,20200101,99991231,20200101,99991231,\n')
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = roles; settings.user_csv_path = users
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 async function user(page: Page) {
@@ -150,7 +150,7 @@ test('data status badges retain availability distinction and format timestamps i
 })
 for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`live filter visual QA ${theme} ${width}`, { tag: '@visual' }, async ({ page, request }, info) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
-  settings.theme = theme; await request.post('/api/configuration', { headers, data: settings })
+  settings.theme = theme; await postConfiguration(request, settings)
   await page.setViewportSize({ width, height: 900 })
   const detail = await user(page), filter = detail.getByRole('group', { name: 'Find roles by transaction', exact: true })
   const select = detail.getByLabel('Assignment status', { exact: true })

@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 test.beforeEach(async ({ request }) => {
   expect(
     (await request.post('/api/configuration/reset', { headers })).ok()
@@ -126,7 +126,7 @@ test('unavailable lazy icon assets keep the application usable and preserve save
   cfg.settings.module_overrides.FI = { enabled: true, icon: 'Camera' }
   expect(
     (
-      await request.post('/api/configuration', { headers, data: cfg.settings })
+      await postConfiguration(request, cfg.settings)
     ).ok()
   ).toBeTruthy()
   const errors: string[] = []

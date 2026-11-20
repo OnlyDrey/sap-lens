@@ -1,5 +1,5 @@
 import { test, expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
-import { headers, openSettings } from './support'
+import { headers, openSettings, postConfiguration } from './support'
 
 /** The standard select, the searchable select and the multi-select filter are one component family: one list surface, one option style, one selected state. */
 test.setTimeout(120_000)
@@ -15,7 +15,7 @@ const surface = (list: Locator) => list.evaluate((element) => {
 })
 const setTheme = async (request: APIRequestContext, theme: string) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
-  await request.post('/api/configuration', { headers, data: settings })
+  await postConfiguration(request, settings)
 }
 
 for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`standard, searchable and multi-select dropdowns share one surface in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {

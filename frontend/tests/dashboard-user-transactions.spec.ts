@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo, openFilters, closeFilters } from './support'
+import { headers, goTo, openFilters, closeFilters, postConfiguration } from './support'
 import { layoutMatrix } from './matrix'
 let directory: string
 const roles =
@@ -23,7 +23,7 @@ test.beforeEach(async ({ request }) => {
   settings.user_csv_path = userPath
   expect(
     (
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
     ).ok(),
   ).toBeTruthy()
 })
@@ -177,7 +177,7 @@ test('Dashboard counts and KPI routes are meaningful, with browser Back and disa
   ).settings
   current.features.user_role_mapping = false
   expect(
-    (await request.post('/api/configuration', { headers, data: current })).ok(),
+    (await postConfiguration(request, current)).ok(),
   ).toBeTruthy()
   await page.goto('/#/dashboard')
   await page.reload()
@@ -206,7 +206,7 @@ for (const { theme, width } of layoutMatrix([375, 800, 1280]))
       settings.theme = theme
       expect(
         (
-          await request.post('/api/configuration', { headers, data: settings })
+          await postConfiguration(request, settings)
         ).ok(),
       ).toBeTruthy()
       await page.setViewportSize({ width, height: 1000 })

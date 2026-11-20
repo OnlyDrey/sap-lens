@@ -2,7 +2,7 @@ import {expectReviewerProfile,reviewerName} from './reviewer-profile'
 import { test, expect, type APIRequestContext, type Page } from '@playwright/test'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { headers, openSettings, seedSources, sessionUrl, type SeededSources } from './support'
+import { headers, openSettings, seedSources, sessionUrl, type SeededSources, postConfiguration } from './support'
 
 const unique = Date.now().toString(36)
 const NAMES = ['FG_A', 'FG_B', 'FG_C', 'FG_D', 'FG_E']
@@ -18,7 +18,7 @@ test.beforeEach(async ({ request }) => {
   seeded = await seedSources(request, { roles: readFileSync('tests/fixtures/role-catalogue-minimal.csv', 'utf8'), users: USERS })
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.features.employee_directory = true
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
   const csv = path.join(seeded.directory, 'employees.csv')
   writeFileSync(csv, directoryCsv)
   const revision = (await (await request.get('/api/configuration', { headers })).json()).settings.revision

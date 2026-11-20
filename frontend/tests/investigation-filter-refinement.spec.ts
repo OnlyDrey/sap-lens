@@ -2,7 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 import { layoutMatrix } from './matrix'
 let directory: string
 const roles =
@@ -23,7 +23,7 @@ test.beforeEach(async ({ request }) => {
   settings.user_csv_path = userPath
   expect(
     (
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
     ).ok(),
   ).toBeTruthy()
 })
@@ -361,7 +361,7 @@ for (const { theme, width } of layoutMatrix([800, 1280]))
       current.theme = theme
       expect(
         (
-          await request.post('/api/configuration', { headers, data: current })
+          await postConfiguration(request, current)
         ).ok(),
       ).toBeTruthy()
       await page.setViewportSize({ width, height: 1000 })
@@ -446,7 +446,7 @@ test('catalogue detail navigation crosses page boundaries and returns to its ori
   settings.data_csv_path = file
   expect(
     (
-      await request.post('/api/configuration', { headers, data: settings })
+      await postConfiguration(request, settings)
     ).ok(),
   ).toBeTruthy()
   await go(page)

@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, unlinkSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 test.beforeEach(async ({request}) => { expect((await request.post('/api/configuration/reset',{headers})).ok()).toBeTruthy() })
 
 test('system identity, private logo storage, persisted theme and portable backup/restore',{ tag: '@workflow' }, async ({page}) => {
@@ -111,7 +111,7 @@ test('registry customization preserves custom mappings, CSV modules and transact
     const settings=(await (await request.get('/api/configuration',{headers})).json()).settings
     settings.data_csv_path=file
     settings.import_profiles.find((p:{id:string})=>p.id===settings.active_import).mapping={FUNCTION_KEY:'Module',AGR_NAME:'Role',CHILD_AGR:'Child',PARENT_AGR:'Parent',Effective_Role:'Effective',TCODE:'Transaction'}
-    expect((await request.post('/api/configuration',{headers,data:settings})).ok()).toBeTruthy()
+    expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
     await page.goto('/#session=browser-test-session')
     await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
 

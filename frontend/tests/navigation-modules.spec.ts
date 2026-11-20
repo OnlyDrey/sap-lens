@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 const sections = ['Organization & SAP System', 'Data Sources', 'SAP Modules', 'Appearance & Branding', 'Health & Diagnostics']
 test.beforeEach(async ({ request }) => {
   expect((await request.post('/api/configuration/reset', { headers })).ok()).toBeTruthy()
@@ -93,7 +93,7 @@ test('filter availability is keyboard accessible, persists and preserves explici
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     settings.data_csv_path = file
     settings.module_overrides.FI = { color: '#123456', enabled: true }
-    expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+    expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
     const before = await (await request.get('/api/roles', { headers })).json()
     expect(before).toHaveLength(3)
     const sourceColor = (await (await request.get('/api/modules', { headers })).json()).find((item: { function_key: string }) => item.function_key === 'UNCLASSIFIED').color

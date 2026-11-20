@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, openSod, seedGovernance } from './sod-fixture'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -12,7 +12,7 @@ const strip = (page: Page) => page.getByRole('tablist', { name: 'Access Explorer
 
 for (const theme of ['light', 'dark']) for (const width of [375, 1280]) test(`Access Explorer tabs carry their icons in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
-  await request.post('/api/configuration', { headers, data: settings })
+  await postConfiguration(request, settings)
   await page.setViewportSize({ width, height: 900 })
   await openSod(page, 'Access Explorer')
   for (const [label, icon] of TABS) {

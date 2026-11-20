@@ -3,7 +3,7 @@ import { test, expect, type APIRequestContext } from '@playwright/test'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { headers, goTo } from './support'
+import { headers, goTo, postConfiguration } from './support'
 const columns = 'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 const employees = (department: string, title: string, manager = 'Demo Manager') =>
   '﻿' + columns + '\n' +
@@ -28,7 +28,7 @@ test.beforeEach(async ({ request }) => {
   const current = await settings(request)
   current.data_csv_path = path.resolve('tests/fixtures/role-catalogue-minimal.csv'); current.user_csv_path = users
   current.features.employee_directory = true
-  expect((await request.post('/api/configuration', { headers, data: current })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, current)).ok()).toBeTruthy()
   writeFileSync(csv, employees('Finance', 'Accountant'))
   await importDirectory(request)
 })

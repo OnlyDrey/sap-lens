@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import path from 'node:path'
 import { tmpdir } from 'node:os'
-import { headers, openFilters, closeFilters, backendFixture } from './support'
+import { headers, openFilters, closeFilters, backendFixture, postConfiguration } from './support'
 let directory = ''
 test.beforeEach(async ({ request }) => {
   await request.post('/api/configuration/reset', { headers })
@@ -12,7 +12,7 @@ test.beforeEach(async ({ request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.data_csv_path = source
   settings.user_csv_path = backendFixture('user-access.csv')
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 })
 test.afterEach(async ({ request }) => { await request.post('/api/configuration/reset', { headers }); rmSync(directory, { recursive: true, force: true }) })
 
@@ -72,7 +72,7 @@ for (const theme of ['dark', 'light']) for (const width of [1280, 800]) {
   test(`visual investigation surfaces ${theme} ${width}`, { tag: '@visual' }, async ({ page, request }, info) => {
     const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
     settings.theme = theme
-    await request.post('/api/configuration', { headers, data: settings })
+    await postConfiguration(request, settings)
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session')
     const shot = async (name: string) => {
@@ -219,7 +219,7 @@ for (const theme of ['dark', 'light']) test(`account evidence and keyboard compa
   settings.theme = theme
   settings.data_csv_path = path.join(directory, 'three-role-catalogue.csv')
   writeFileSync(settings.data_csv_path, 'FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,TCODE\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:SHARED,ME23N\nFI,ZC:FI:VIEW:*,Accounting,ZS:SHARED,FB03\nSD,ZC:SD:VIEW:*,Sales,ZS:SHARED,VA03\nMM,ZC:MM:BUY:EN*,Purchasing,ZS:BUY,ME21N\n')
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
   await page.goto('/#session=browser-test-session')
   const nav = page.getByRole('navigation', { name: 'Main navigation' })
   await nav.getByRole('link', { name: 'User Access', exact: true }).click()

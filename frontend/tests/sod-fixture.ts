@@ -1,5 +1,5 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test'
-import { headers } from './support'
+import { headers, postConfiguration } from './support'
 export { headers }
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -22,7 +22,7 @@ export const longRoleName = 'ZC:SYN:A_VERY_LONG_ROLE_IDENTIFIER_FOR_LAYOUT_STRES
 export async function enableSod(request: APIRequestContext, enabled = true) {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.features.sod = enabled
-  expect((await request.post('/api/configuration', { headers, data: settings })).ok()).toBeTruthy()
+  expect((await postConfiguration(request, settings)).ok()).toBeTruthy()
 }
 
 export async function seedGovernance(request: APIRequestContext, sodMode: 'static' | 'dynamic' = 'static', sodMatrix = matrix, longRole = false): Promise<string> {

@@ -1,6 +1,6 @@
 import { test, expect, type Page } from '@playwright/test'
 import { cleanup, headers, openSod, seedGovernance } from './sod-fixture'
-import { pickMulti } from './support'
+import { pickMulti, postConfiguration } from './support'
 import { layoutMatrix } from './matrix'
 
 let directory = ''
@@ -112,7 +112,7 @@ test('All stays responsive with two thousand users', async ({ page }) => {
 
 for (const { theme, width } of layoutMatrix([375, 800, 1280])) test(`the control and range fit the toolbar in ${theme} at ${width}px`, { tag: '@visual' }, async ({ page, request }) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings; settings.theme = theme
-  await request.post('/api/configuration', { headers, data: settings })
+  await postConfiguration(request, settings)
   await population(page)
   await page.setViewportSize({ width, height: 900 })
   await openSod(page, 'Activity Matrix')
