@@ -21,7 +21,7 @@ was deleted. The pre-promotion layout is commit `604f21e`. `work`, `main`, the C
 
 Kept working: the .NET build, tests, release, installer and deployment scripts (deployment finds the project under `backend/` and, for older
 commits, `experiments/dotnet-backend`); the v1 runtime from source and the Playwright suite that uses it; the migration reference tools. A temporary
-wrapper keeps the old operator path of `Deploy-SapLens.ps1`. Archived as is: v1 build/packaging tooling and v1 layout-contract tests
+wrapper keeps the old operator path of `Deploy-AuthLens.ps1`. Archived as is: v1 build/packaging tooling and v1 layout-contract tests
 (`legacy/v1`).
 
 ## Gates

@@ -2,7 +2,7 @@
 
 ## Four distinct interactions
 
-| Pattern | Purpose | SAP Lens implementation |
+| Pattern | Purpose | AuthLens implementation |
 | --- | --- | --- |
 | Main navigation | Major application destinations | Dashboard, Role Lookup, User Access, Release Roles; Settings is a compact utility opening the existing workspace |
 | Secondary navigation | Related pages within a major area | User directory, Account Review, Compare users; real anchor destinations and bottom-border current-page indicator |

@@ -2,12 +2,12 @@
 
 ## Sources and compatibility
 
-SAP Lens has four independent local CSV sources: Role Catalogue, User–Role Mapping, Employee Directory and the [SoD Matrix](SOD_MATRIX.md). Role catalogue and user assignments default to **Dynamic**, preserving the existing refresh behavior. Employee Directory and the SoD Matrix default to **Static**, retaining snapshots until explicit replacement. Older schema-3 settings receive these additive defaults without losing feature preferences, profiles or paths.
+AuthLens has four independent local CSV sources: Role Catalogue, User–Role Mapping, Employee Directory and the [SoD Matrix](SOD_MATRIX.md). Role catalogue and user assignments default to **Dynamic**, preserving the existing refresh behavior. Employee Directory and the SoD Matrix default to **Static**, retaining snapshots until explicit replacement. Older schema-3 settings receive these additive defaults without losing feature preferences, profiles or paths.
 
 Settings → Data Sources offers a source mode selector. Use the existing **Apply settings** action to persist mode changes; no second Save action is needed. Changing a mode does not delete imported records. Existing CSV mappings, delimiter/encoding controls and validation remain authoritative.
 
 - **Static:** selecting a replacement automatically validates and imports it. Global Refresh skips the CSV and continues using the private snapshot, even if the original file is unavailable.
-- **Dynamic:** Global Refresh rereads the entire configured file. A daily export can overwrite that file; SAP Lens does not schedule or monitor exports. A complete valid replacement removes records absent from the incoming file.
+- **Dynamic:** Global Refresh rereads the entire configured file. A daily export can overwrite that file; AuthLens does not schedule or monitor exports. A complete valid replacement removes records absent from the incoming file.
 
 Never point two sources at different interpretations of the same file without configuring their respective import formats.
 
@@ -64,7 +64,7 @@ Reports contain personal data and stay local. Diagnostic exports contain only al
 
 | Deployment | When scheduled refresh runs |
 | --- | --- |
-| Windows Desktop | Only while SAP Lens is running, in its window or in the system tray |
+| Windows Desktop | Only while AuthLens is running, in its window or in the system tray |
 | Windows Service | Continuously while the service runs; no sign-in or browser needed |
 | Linux server / systemd | Continuously while the unit runs |
 

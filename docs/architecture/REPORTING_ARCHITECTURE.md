@@ -1,7 +1,7 @@
 # Reporting architecture: PDF, DOCX and image processing (decision 2026-11-17)
 
 Decision record for MIG-001 (branding), MIG-018 (SoD reports) and the blockers BLK-IMAGE and BLK-REPORTS of the
-[migration matrix](../migration/MIGRATION_MATRIX.md). Evidence: the proof of concept in `src/SapLens.Documents`, `tests/SapLens.Tests/ReportingTests.cs`
+[migration matrix](../migration/MIGRATION_MATRIX.md). Evidence: the proof of concept in `src/AuthLens.Documents`, `tests/AuthLens.Tests/ReportingTests.cs`
 and `tools/reporting_reference.py` (Python v1 reference on the same synthetic models and images).
 
 ## Decision
@@ -12,7 +12,7 @@ and `tools/reporting_reference.py` (Python v1 reference on the same synthetic mo
 | DOCX | Native .NET | DocumentFormat.OpenXml 3.3.0 (MIT) (`DocxReportRenderer`) |
 | Images | Native .NET | SkiaSharp 3.119.1 (MIT) plus SkiaSharp.NativeAssets.Linux.NoDependencies (MIT) (`ImageSanitizer`) |
 
-No Python worker. The renderers sit behind `IReportRenderer` in their own project (`SapLens.Documents`): no data access, no SoD logic, no HTTP; the
+No Python worker. The renderers sit behind `IReportRenderer` in their own project (`AuthLens.Documents`): no data access, no SoD logic, no HTTP; the
 API passes a frozen report model and an already validated logo and receives bytes.
 
 ## What v1 actually contains
@@ -37,7 +37,7 @@ whatever the renderer.
 | Packaging | One native library beside the executable (`libSkiaSharp.so` 9.0 MB, `libSkiaSharp.dll` 11.4 MB), the same pattern as `e_sqlite3` | Frozen CPython plus Pillow, ReportLab, python-docx and lxml (about 46 MB of packages, roughly 60-80 MB frozen per OS), separate signing on Windows | Both |
 | Deployment and upgrade | Unchanged: one release folder, Windows service and systemd units as today | Worker files and versions must match the server; extra files to protect from tampering | Both |
 | Performance | PoC renders the 400-row, 13-page report in well under a second in-process | Process start-up per report (or a pool to manage) | - |
-| Security | Untrusted images decoded by Skia (widely deployed, fuzzed); no extra process, no IPC surface | Pillow and lxml are native parsers with a frequent CVE cadence that SAP Lens would have to patch itself | - |
+| Security | Untrusted images decoded by Skia (widely deployed, fuzzed); no extra process, no IPC surface | Pillow and lxml are native parsers with a frequent CVE cadence that AuthLens would have to patch itself | - |
 | Dependency maintenance | Two NuGet packages (+ native assets), NuGet audit on every build | A second ecosystem (pip, CPython) with its own audit and update cadence | Both ecosystems |
 | Licensing | MIT throughout; Bitstream Vera font licence allows bundling | BSD/MIT; acceptable, but CPython redistribution adds the PSF licence | - |
 | Long-term maintainability | One language, one test suite | Two languages for one feature | Worst of both |
@@ -99,7 +99,7 @@ never shipped; v1 paths come from environment variables), run on Linux x64 with 
 | Hung render | Bounded in-process | Cannot be interrupted safely | Killed by timeout at 3.0 s | Same |
 | .NET 10 | Supported | Works; `PythonEngine.Shutdown` succeeds (2.2 s) | Works | n/a |
 | Runtime to ship | `libSkiaSharp` (9-11 MB) | CPython plus Pillow, ReportLab, python-docx, lxml (packages 46 MB, stdlib 54 MB) per OS, in a folder beside the executable (cannot live inside a single-file binary) | Same plus a second .NET executable | CPython and packages, no .NET host |
-| Patch cadence | NuGet audit on every build | CPython, Pillow and lxml CVEs patched by SAP Lens | Same | Same |
+| Patch cadence | NuGet audit on every build | CPython, Pillow and lxml CVEs patched by AuthLens | Same | Same |
 | Windows x64 | Cross-published; acceptance pending | Not tested (needs the embeddable CPython distribution and `python3xx.dll`) | Not tested | Not tested |
 
 Findings:
@@ -127,7 +127,7 @@ Python library, the conventional subprocess worker (Option B above) is the fallb
 
 ## Updating the dependencies
 
-SkiaSharp and DocumentFormat.OpenXml are pinned in `src/SapLens.Documents/SapLens.Documents.csproj`. NuGet audit runs on every build and fails it
+SkiaSharp and DocumentFormat.OpenXml are pinned in `src/AuthLens.Documents/AuthLens.Documents.csproj`. NuGet audit runs on every build and fails it
 on known vulnerabilities (`TreatWarningsAsErrors`). After an update: `ReportingTests`, `BrandingTests`, `PublishTests` and a release build.
 
 ## What remains

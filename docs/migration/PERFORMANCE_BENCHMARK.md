@@ -4,7 +4,7 @@ All numbers **[M]**: Linux x64, 4 vCPU, 15 GiB, shared cloud VM, Python 3.12 ven
 **large** dataset for both (3,642 roles / 96,924 role rows, 20,000 users / 101,046 user rows, 300 risks / 1,801 SoD rows; 11 MB + 11 MB +
 0.1 MB CSV). Windows was not measured [U]. Single machine, few repetitions: treat differences below about 20 % as noise.
 
-Harnesses: `tools/bench_algorithms.py` / `SapLens.Cli bench` (language level) and `tools/bench_http.py` (service level). Raw JSON is not
+Harnesses: `tools/bench_algorithms.py` / `AuthLens.Cli bench` (language level) and `tools/bench_http.py` (service level). Raw JSON is not
 committed; rerun with the commands in [README.md](README.md).
 
 ## 1. Language level: same algorithms, one process, no HTTP, no storage
@@ -33,7 +33,7 @@ sub-10 ms operations (for example Compare Users 8.9 ms first, 0.5 ms after).
 ## 2. Service level: real servers over loopback HTTP
 
 Python v1 = production `create_app` in desktop mode under Uvicorn (`tools/run_python_v1.py`). .NET = self-contained `linux-x64` publish of
-`SapLens.Api`. Default .NET configuration uses Server GC; a second run with workstation GC (`DOTNET_gcServer=0`) is shown where it matters.
+`AuthLens.Api`. Default .NET configuration uses Server GC; a second run with workstation GC (`DOTNET_gcServer=0`) is shown where it matters.
 
 ### Startup, memory, shutdown
 

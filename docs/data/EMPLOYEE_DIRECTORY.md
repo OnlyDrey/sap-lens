@@ -114,7 +114,7 @@ performing a deliberate personal-data cleanup. **Clear directory data** removes 
 active snapshot and reference, preserving the original file and feature preference.
 Neither records, paths nor snapshot IDs enter portable settings exports. Importing
 portable settings preserves the current local snapshot. `.gitignore` and Windows
-package verification exclude `employee-directory` directories. Server browser uploads go only to the configured SAP Lens server; no third-party
+package verification exclude `employee-directory` directories. Server browser uploads go only to the configured AuthLens server; no third-party
 upload service, credentials, personal-data logs, external profile images or service-worker
 data caches are introduced. Keep local screenshots and exports private.
 

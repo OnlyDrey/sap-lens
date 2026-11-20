@@ -9,7 +9,7 @@ const root = fileURLToPath(new URL('../', import.meta.url))
 const dev = process.argv.includes('--dev')
 const port = Number(process.env.AUTHLENS_BROWSER_TEST_PORT || (dev ? 18744 : 18745))
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw Error('Invalid test port')
-const directory = mkdtempSync(path.join(tmpdir(), 'sap-lens-dotnet-browser-'))
+const directory = mkdtempSync(path.join(tmpdir(), 'authlens-browser-'))
 const token = 'synthetic-browser-capability-0000000000000000'
 let child, stopping = false
 const parent = process.ppid

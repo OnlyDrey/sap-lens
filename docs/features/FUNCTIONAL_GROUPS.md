@@ -1,6 +1,6 @@
 # Functional Groups
 
-A Functional Group is the business function a person performs (Purchasing, Logistics, Finance). It is maintained by SAP Lens reviewers and is
+A Functional Group is the business function a person performs (Purchasing, Logistics, Finance). It is maintained by AuthLens reviewers and is
 independent of Directory Department, Job Title, Manager, Site and SAP User Group. It never changes SAP access.
 
 ## Data model
@@ -83,7 +83,7 @@ a group and are only computed from an unambiguous Directory match.
 
 ## Organizational change handling
 
-Employee Directory imports reuse the existing change detector (`backend/src/SapLens.Application/PositionChangeStore.cs`); there is no second detector. Imports never write
+Employee Directory imports reuse the existing change detector (`backend/src/AuthLens.Application/PositionChangeStore.cs`); there is no second detector. Imports never write
 Functional Groups. Stored change events are applied to classified users when Account Review or User Details is read (idempotent, never failing the read):
 
 | Directory change | Functional Group | Account Review |

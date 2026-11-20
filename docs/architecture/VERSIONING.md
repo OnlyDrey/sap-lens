@@ -1,49 +1,50 @@
-# Versioning and release identity (SAP Lens .NET, 2.x)
+# Versioning and release identity (AuthLens .NET, 2.x)
 
-SAP Lens (the .NET Server and Desktop) has its own product version, independent of SAP Lens v1. Decision of 2026-11-16: the .NET implementation is the
+AuthLens (the .NET Server and Desktop) has its own product version, independent of SAP Lens v1. Decision of 2026-11-16: the .NET implementation is the
 next major version of the product in pre-release, so it uses its own `2.0.0-alpha.N` line instead of sharing v1's version or keeping the
 former placeholder `0.0.0-experiment`.
 
-**Name (2026-11-17):** the product is branded **SAP Lens** everywhere a person sees it (assembly product, `--version`, window title, installers,
-OpenAPI title); the version alone says it is the 2.x line. Executables: `SapLens.exe` (Desktop), `SapLens.Api.exe` (Server); installers
-`SAP-Lens-<version>-Setup.exe` and `SAP-Lens-Server-<version>-Setup.exe`; service `sap-lens`. Identifiers that existing data or installations depend on
-keep their earlier value: the backup archive's manifest product and key-derivation label (`SAP Lens 2 ...`), the `SapLens2` service until it is
-migrated ([WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-sap-lens)), the `SAP Lens 2 Prototype` Desktop folder when it exists,
-and the `SAPLENS2_DEPLOY_CONFIG` variable (still read). The full list is the naming register below.
+**Name (2026-11-19): AuthLens.** The product, previously named SAP Lens, is **AuthLens** everywhere a person sees it (assembly product,
+`--version`, window title, installers, OpenAPI title, reports and export file names). The product version stays `2.0.0-alpha.1`; the repository
+keeps its name `sap-lens`. Executables: `AuthLens.Api.exe` (Server), `AuthLens.exe` (Desktop); installers `AuthLens-<version>-Setup.exe` and
+`AuthLens-Server-<version>-Setup.exe` (new AppIds: they install beside SAP Lens, never over it); release folders `AuthLens-<version>-<UTC>-<commit>-<platform>`.
+Implemented and tested on Linux; native Windows acceptance is pending ([release status](../migration/RELEASE_STATUS.md)).
 
 ## Naming register
 
-Canonical names: product and display name **SAP Lens**; environment variables `AUTHLENS_*` (Server) and `SAPLENS_*_CONFIG` (operator scripts);
-Windows ServiceName `sap-lens`, DisplayName `SAP Lens`; installation `C:\sap-lens`, deployment `C:\sap-lens\deploy`, releases `C:\sap-lens\releases`;
-service data `C:\ProgramData\sap-lens\data`, backups `C:\ProgramData\sap-lens\predeploy-backups`, TLS `C:\ProgramData\sap-lens\tls`.
-Historical service names are read for source compatibility and duplicate-service detection; new installations and production migration targets use
-only the canonical name. Configuration conversion is an explicit read-only plan, never an automatic service rename.
+**Canonical identities:** product and display name AuthLens; Windows service `AuthLens` (account `NT SERVICE\AuthLens`); installation root
+`C:\ProgramData\AuthLens` ([layout](../deployment/WINDOWS_DEPLOYMENT.md#installation-layout)); database `authlens.sqlite3`; Desktop folder
+`%LOCALAPPDATA%\AuthLens` (mutex `Local\AuthLensDesktop`); .NET projects and namespaces `AuthLens.*`; PowerShell module `AuthLens.Deploy`
+(functions `*-AL*`); configuration `AUTHLENS_*` environment variables, `AUTHLENS_DEPLOY_CONFIG`, `AUTHLENS_TEST_CONFIG`, `AUTHLENS_BACKUP_PASSPHRASE`.
 
-**Environment variables renamed (2026-11-18, configuration contract):** the Server's `SAP_LENS_V2_*` variables are now `AUTHLENS_*` (for example
-`AUTHLENS_DATA_DIR`, `AUTHLENS_NETWORK`, `AUTHLENS_BACKUP_KEY_FILE`). The old names are not read. A Server that still finds a `SAP_LENS_V2_*`
-variable refuses to start (exit code 3) and names each replacement, so a renamed setting is never silently ignored. SAP Lens 1 used some of the
-same `AUTHLENS_*` names (`AUTHLENS_DATA_DIR`, `AUTHLENS_PORT`, `AUTHLENS_BACKUP_KEY_FILE`): on a host that still has SAP Lens 1 variables set at
-machine level, remove or scope them before starting the .NET Server, because it now reads them. The test launcher's `SAPLENS2_TEST_CONFIG` is
-now `SAPLENS_TEST_CONFIG` (its earlier `C:\saplens2` defaults are gone; pass `-ConfigFile` for an old file).
+**Configuration contract:** the server reads only `AUTHLENS_*`. `SAP_LENS_*` (SAP Lens and SAP Lens 1) and `SAP_LENS_V2_*` (earlier .NET builds)
+are never read and do not stop the server: it prints a warning naming each with its AuthLens name, because AuthLens may run beside SAP Lens during
+acceptance. Deployment configuration is read only from `-ConfigFile`, `AUTHLENS_DEPLOY_CONFIG` or `C:\ProgramData\AuthLens\config\deploy.json`.
 
-Identifiers that keep a `2` or `V2`, each with its reason and the condition for removal:
+**No adoption of earlier installations:** AuthLens never detects, adopts, stops or changes a SAP Lens service (`sap-lens`, `SapLens`, `SapLens2`),
+data directory or Desktop folder. Their data comes to AuthLens through a backup restore ([migration](../deployment/WINDOWS_DEPLOYMENT.md#migrating-from-sap-lens))
+or the explicit `--adopt-legacy-database` conversion of one data directory.
+
+Identifiers that keep an earlier name on purpose:
 
 | Identifier | Where | Class | Why it stays | Removal condition |
 | --- | --- | --- | --- | --- |
-| `sap-lens-v2.sqlite3` database file, `sap-lens-v2-<kind>-<time>.sqlite3` database backups | `DatabaseOptions`, `DatabaseMaintenance`, backup archive entry | Persisted | Every existing data directory and archive holds this name; renaming needs a migration step of its own | A schema migration that renames the file with rollback, plus archive import of both names |
-| Archive manifest product `SAP Lens 2` | `ApplicationBackups.ManifestProduct` | Persisted (format id) | Every existing `.slbak` declares it; restore validates it | A new archive format version that accepts both |
-| HKDF label `SAP Lens 2 portable archive v3` | `BackupCrypto` | Persisted (crypto) | Changing it makes every existing encrypted archive undecryptable | Never for SLBAK3; a future format uses its own label |
-| Service `SapLens2`, account `NT SERVICE\SapLens2`, Inno Setup fallback `Result[2] := 'SapLens2'` | Deployment module, migration, Server installer | Migration-only | Detects and migrates hosts installed before the rename; never created for a new installation | All supported hosts migrated (`MigrateService`) and owner confirmation |
-| Service `SapLens`, account `NT SERVICE\SapLens`, old target configuration paths `C:\ProgramData\SapLens` | Deployment lookup, conflict checks, canonical configuration plan | Migration-only | Keeps existing registrations readable and blocks a duplicate service; the old target configuration can be reviewed without writing it | Explicit operator reconciliation and canonical configuration review; never renamed automatically |
-| `SAPLENS2_DEPLOY_CONFIG`, `C:\saplens2\deploy.local.json` | Deployment module lookup | Migration-only | The existing Windows host's operator configuration | Same as the service |
-| `Deploy-SapLens2.ps1`, `SAPLENS2-RESULT`, `experiments/dotnet-backend` project lookup | `deploy-windows.sh` | Historical | Deploying or rolling back to a commit from before the rename runs that commit's own script | When rollback to pre-rename commits is no longer supported |
-| `SAP Lens 2 Prototype` folder, `Local\SapLens2Prototype` mutex | `DesktopLocation`, Desktop installer | Migration-only | Existing Desktop data from prototype builds is kept and used in place | When no prototype data folder remains in use |
-| `%ProgramData%\SapLens2`, `SAP Lens 2 Prototype` in the test launcher's protected paths | `start-server-test.ps1` | Safety guard | A test run must never write into an earlier production or Desktop location | With the service and Desktop entries above |
-| Manifest product `SAP Lens 2`, `desktop/SapLens2Prototype.exe` (accepted, never written) | `verify-release.ps1` | Historical | The migration preflight verifies the release an existing service runs; releases built before the rename carry these values | When no supported host runs a release built before the rename |
-| `SAP_LENS_V2_BACKUP_KEY_FILE` (detection only) | `SapLens.Migration.ps1` | Migration-only | Finds the backup key of a host configured before the rename | With the service |
+| Archive entry `sap-lens-v2.sqlite3`, manifest products `SAP Lens 2` and `SAP Lens` (accepted, never written) | `ApplicationBackups` | Compatibility (input) | SAP Lens backups carry them; they restore to `authlens.sqlite3` | When no SAP Lens backup needs restoring |
+| Database file `sap-lens-v2.sqlite3` (recognised, never opened implicitly) | `DatabaseOptions.RefuseUnadoptedLegacy`, `--adopt-legacy-database` | Compatibility (input) | A SAP Lens data directory is refused rather than hidden behind a new empty database | Same |
+| HKDF labels `SAP Lens 2 portable archive v3` and `SAP Lens portable archive v2` | `BackupCrypto` | Persisted (crypto) | Changing them makes every existing encrypted archive undecryptable | Never for these formats; a future format uses its own label |
+| `SAP Lens configuration` export format (accepted, never written) | `V1Configuration` import | Compatibility (input) | Configuration exports made by SAP Lens | When no such export needs importing |
+| `X-SAP-Lens-*` HTTP headers, `sap-lens-session`/`sap-lens-csrf` cookies, `sap-lens-*` browser storage keys and in-page events | API, frontend | API contract | The token header is used by API clients; renaming the rest gains nothing and signs users out or drops remembered settings | A versioned API change |
+| `saplens_session`/`__Host-saplens_session` server session cookies | `Security.cs` | API contract | Renaming signs every user out | A deliberate breaking release |
+| `"app": "sap-lens"` in the refresh status, other v1 API field values | v1-compatible API | API contract | The frontend and v1 clients read the v1 contract | With the v1 API |
+| Product, folder and manifest names `SAP Lens`, `SAP-Lens-*`, `SAP-Lens-2-*` (accepted, never written) | `verify-release.ps1` | Compatibility (input) | Verifying releases built before the rename | When no such release is verified |
+| `SAP_LENS_V1_BACKEND` | `backend/tools` | Historical | Points the reference generators at a SAP Lens 1 checkout | With the v1 reference tools |
+| Logo files `assets/sap-lens.png`, `assets/sap-lens.ico`, `frontend/public/sap-lens.png` | Assets | Visual identity | Unchanged images (no product name in them); the README logo path is preserved | A deliberate asset change |
+| `.gitignore` patterns `*.sap-lens.json`, `SAP-Lens-diagnostics*.json` (beside the AuthLens ones) | `.gitignore` | Safety guard | Exports made by SAP Lens must stay out of Git too | Never |
+| Earlier products' folders and service names in the test launcher's protected paths | `start-server-test.ps1` | Safety guard | A test run must never write into any production or Desktop location | Never |
 
-Product-facing text, code comments, test names and documentation examples use only the canonical names; `scripts/check-structure.py` and the
-startup guard keep the old environment prefix from returning.
+Removed with the rename (2026-11-19): the `SapLens2` to `sap-lens` service migration and its configuration planner, detection of earlier
+service names, `SAPLENS_DEPLOY_CONFIG`/`SAPLENS2_DEPLOY_CONFIG` and the `C:\sap-lens`/`C:\saplens2` configuration lookups, deployment of
+commits that predate AuthLens, the prototype Desktop folder fallback, and the `SAP_LENS_V2_*` startup refusal.
 
 ## Three different things
 
@@ -61,12 +62,12 @@ The Windows file version follows the v1 contract: `MAJOR.MINOR.PATCH.N` with the
 
 | Place | Value |
 | --- | --- |
-| Assemblies (Server, Desktop and all libraries; `Directory.Build.props`) | `AssemblyInformationalVersion` `2.0.0-alpha.1+<commit>`, `FileVersion` `2.0.0.1`, `AssemblyVersion` `2.0.0.0`, product `SAP Lens` |
-| `SapLens.Api --version` | `SAP Lens server 2.0.0-alpha.1`, then channel, commit (or "not recorded (local build)"), file version and runtime |
+| Assemblies (Server, Desktop and all libraries; `Directory.Build.props`) | `AssemblyInformationalVersion` `2.0.0-alpha.1+<commit>`, `FileVersion` `2.0.0.1`, `AssemblyVersion` `2.0.0.0`, product `AuthLens` |
+| `AuthLens.Api --version` | `AuthLens server 2.0.0-alpha.1`, then channel, commit (or "not recorded (local build)"), file version and runtime |
 | `GET /api/version`, `/api/application-info`, `/api/diagnostics` | `version` = product version; application-info also `channel`, `file_version`, `source_sha` |
 | `GET /product-version.json` | The .NET host's identity (`product`, `version`, `base_version`, `channel`, `file_version`, `source_sha`). The file the React build emits carries v1's identity and is not served by the .NET host |
 | Desktop log | `Desktop starting (SAP Lens 2.0.0-alpha.1, commit …, file version 2.0.0.1, …)` |
-| Release folder | `SAP-Lens-2.0.0-alpha.1-<UTC time>-<commit>-win-x64` |
+| Release folder | `AuthLens-2.0.0-alpha.1-<UTC time>-<commit>-win-x64` |
 | `build-manifest.json` | `product`, `version`, `channel`, `file_version`, `ui_source_version` (v1's version the embedded UI was built with, recorded only), `source_sha`, `source_dirty`, build time |
 
 ## SAP Lens v1 is unchanged

@@ -99,7 +99,7 @@ function Get-ALAclPlan($Source, $Target, [string]$KeyPath = '') {
         $plan.Add([pscustomobject]@{ Path = $Source.WorkRoot; Class = 'private'; Role = 'source deployment state'; Recurse = $false; Grant = '' })
         $plan.Add([pscustomobject]@{ Path = $Source.ReleasesRoot; Class = 'binaries'; Role = 'source releases'; Recurse = $false; Grant = 'RX' })
         $plan.Add([pscustomobject]@{ Path = $Source.ConfigFile; Class = 'binaries'; Role = 'source configuration'; Recurse = $false; Grant = '' })
-        # The installation folder that holds the configuration (for example C:\saplens2): no broad write, so nobody can plant files or folders there.
+        # The installation folder that holds the configuration (for example C:\ProgramData\AuthLens\config): no broad write, so nobody can plant files or folders there.
         $plan.Add([pscustomobject]@{ Path = (Split-Path $Source.ConfigFile); Class = 'binaries'; Role = 'source installation folder'; Recurse = $false; Grant = '' })
     }
     if ($Target) {

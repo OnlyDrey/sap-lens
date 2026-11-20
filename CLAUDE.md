@@ -1,4 +1,4 @@
-# SAP Lens – Claude Code
+# AuthLens – Claude Code
 
 @AGENTS.md
 

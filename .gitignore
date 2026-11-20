@@ -72,11 +72,13 @@ htmlcov/
 /app-data/
 /user-branding/
 /configuration-backups/
+*.authlens.json
 *.sap-lens.json
 !examples/synthetic-profile.sap-lens.json
 
 # Compiler and diagnostic exports
 *.tsbuildinfo
+AuthLens-diagnostics*.json
 SAP-Lens-diagnostics*.json
 
 # Private imported Employee Directory snapshots (never build inputs)
@@ -122,6 +124,9 @@ sod-periods.json
 cert-password
 api-token
 # Runtime databases (SQLite and its WAL/SHM side files)
+# Backup archives (encrypted, but they hold private role data); only the synthetic test fixtures are tracked.
+*.slbak
+!backend/tests/AuthLens.Tests/Fixtures/**/*.slbak
 *.sqlite3
 *.sqlite3-wal
 *.sqlite3-shm

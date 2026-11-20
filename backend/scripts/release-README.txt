@@ -3,8 +3,8 @@ Development and acceptance testing only; not a production release.
 
 WHICH EXECUTABLE
   desktop\AuthLens.exe            One user on this PC. Double-click; needs the Microsoft Edge WebView2 Runtime. Data and logs go to
-                                 %LOCALAPPDATA%\AuthLens Desktop (an existing %LOCALAPPDATA%\SAP Lens 2 Prototype folder is kept and used).
-                                 It never uses %LOCALAPPDATA%\AuthLens (SAP Lens v1). It extracts its native libraries to a temporary folder at start.
+                                 %LOCALAPPDATA%\AuthLens. Folders of SAP Lens (v1, Desktop, prototype) are never used or changed;
+                                 bring their data over by restoring a backup. It extracts its native libraries to a temporary folder at start.
   server\AuthLens.Api.exe         Browser access from this PC or the LAN. Keep e_sqlite3.dll and libSkiaSharp.dll next to it. Console or Windows service.
   No .NET installation is needed. Requires Windows 10 1903 / Windows Server 2019 or later (system ICU for Unicode text).
   symbols\ holds debugging symbols only.
@@ -12,11 +12,11 @@ WHICH EXECUTABLE
 SERVER QUICK START
   server\AuthLens.Api.exe --help        all options and environment variables
   server\AuthLens.Api.exe --version
-  server\AuthLens.Api.exe --data-dir C:\ProgramData\sap-lens\data
+  server\AuthLens.Api.exe --data-dir C:\ProgramData\AuthLens\data
       Loopback only: http://127.0.0.1:18790/ on this PC.
   LAN (HTTPS required; all values are examples):
-  server\AuthLens.Api.exe --data-dir C:\ProgramData\sap-lens\data --network --listen 192.0.2.10 --port 18795 --allowed-hosts lens.example.com,192.0.2.10
-      --cert C:\ProgramData\sap-lens\tls\server.pfx --cert-password-file C:\ProgramData\sap-lens\tls\cert-password
+  server\AuthLens.Api.exe --data-dir C:\ProgramData\AuthLens\data --network --listen 192.0.2.10 --port 18795 --allowed-hosts lens.example.com,192.0.2.10
+      --cert C:\ProgramData\AuthLens\tls\server.pfx --cert-password-file C:\ProgramData\AuthLens\tls\cert-password
   Behind a reverse proxy, add --trusted-proxies <the proxy's address as seen by this server>.
   Local administration (no SDK): open an elevated PowerShell and run .\Service-Manager.ps1 -DataDirectory <data-dir>.
   It shows key status, creates the initial key, exports/verifies a recovery copy, and issues administrator activation/recovery codes.

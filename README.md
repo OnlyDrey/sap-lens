@@ -2,7 +2,7 @@
 <h1>
 <p align="center">
   <img src="assets/sap-lens.png" alt="Logo" width="200">
-  <br>SAP Lens
+  <br>AuthLens
 </h1>
   <p align="center">
     <b>SAP S/4HANA</b> · Role analysis and comparison tool for Company's internal SAP authorisation landscape.
@@ -24,15 +24,15 @@
 
 ---
 
-SAP Lens is a local-first SAP investigation and access-review application. Browse roles and transaction mappings, propose access packages,
+AuthLens is a local-first SAP investigation and access-review application. Browse roles and transaction mappings, propose access packages,
 investigate user/release assignments, compare users, enrich identities with optional Employee Directory data, record Account Review decisions,
 and investigate and review potential Segregation of Duties conflicts with frozen periods and DOCX/PDF reports. Role-derived transaction coverage
 is investigation evidence, not proof of effective authorization or license consumption. No direct SAP connection or third-party data-upload
 service is required.
 
-## SAP Lens (.NET implementation)
+## Implementation
 
-This repository's primary implementation is **SAP Lens**: an ASP.NET Core (.NET 10) backend in [`backend/`](backend) serving the React/Vite
+AuthLens was previously named SAP Lens; the repository keeps its name (`sap-lens`). The implementation is an ASP.NET Core (.NET 10) backend in [`backend/`](backend) serving the React/Vite
 frontend in [`frontend/`](frontend), as a Windows service or console **Server** (browser access over HTTPS) and a WebView2 **Desktop** for one user.
 Product version `2.0.0-alpha.1` (pre-release; [versioning](docs/architecture/VERSIONING.md)).
 
@@ -40,20 +40,21 @@ Product version `2.0.0-alpha.1` (pre-release; [versioning](docs/architecture/VER
 | --- | --- |
 | UI and API | Every API route the React UI calls is served by .NET (145 of 145, [route audit](docs/migration/ROUTE_AUDIT.md)); parity per area in the [migration matrix](docs/migration/MIGRATION_MATRIX.md) |
 | Data | SQLite system of record, immutable evidence and review history, encrypted backups ([database design](docs/architecture/DATABASE_DESIGN.md)) |
+| SAP Lens data | A backup (`.slbak`) of a SAP Lens installation restores into a fresh AuthLens installation (`authlens.sqlite3`), also on another machine ([migration from SAP Lens](docs/deployment/WINDOWS_DEPLOYMENT.md#migrating-from-sap-lens)); tested on synthetic data |
 | SAP Lens 1 data | Preview, verified migration and rollback of a v1 data directory or `.slbak` backup ([procedure](docs/migration/V1_MIGRATION.md)); tested on synthetic fixtures |
-| Windows Server | Runs as a Windows service behind a reverse proxy over HTTPS; SSH-driven build, verified deployment and rollback ([Windows deployment](docs/deployment/WINDOWS_DEPLOYMENT.md)) |
+| Windows Server | The `AuthLens` Windows service under `C:\ProgramData\AuthLens`, behind a reverse proxy over HTTPS; install, update and restore with verified releases and rollback ([Windows deployment](docs/deployment/WINDOWS_DEPLOYMENT.md)) |
 | Pending | Parts of the native Windows acceptance checklist, compiled and signed installers, deployment-specific functional acceptance of migrated data, native installer acceptance ([release status](docs/migration/RELEASE_STATUS.md)) |
 
-SAP Lens is not declared feature-complete or production-certified: see [release status](docs/migration/RELEASE_STATUS.md) and
+AuthLens is not declared feature-complete or production-certified: see [release status](docs/migration/RELEASE_STATUS.md) and
 [backend promotion](docs/migration/BACKEND_PROMOTION.md) for what is verified and what is not.
 
 ## Repository layout
 
 | Path | Content |
 | --- | --- |
-| [`backend/`](backend) | SAP Lens .NET solution (`src/`, `tests/`), build, release, installer and deployment scripts (`scripts/`, `installer/`), migration reference tools (`tools/`) |
-| [`frontend/`](frontend) | React/Vite UI, shared by SAP Lens and archived v1 |
-| [`docs/`](docs/README.md) | Documentation (canonical for SAP Lens) |
+| [`backend/`](backend) | AuthLens .NET solution (`src/`, `tests/`), build, release, installer and deployment scripts (`scripts/`, `installer/`), migration reference tools (`tools/`) |
+| [`frontend/`](frontend) | React/Vite UI, shared by AuthLens and archived v1 |
+| [`docs/`](docs/README.md) | Documentation (canonical for AuthLens) |
 | [`scripts/`](scripts/README.md) | Repository-wide checks (documentation links, secrets, workflow contracts, frontend version and icon catalogue) |
 | [`examples/`](examples/README.md), [`assets/`](assets) | Synthetic example data; product icon and logo |
 
@@ -61,8 +62,8 @@ SAP Lens is not declared feature-complete or production-certified: see [release 
 
 ```bash
 npm --prefix frontend ci && npm --prefix frontend run build
-dotnet build backend/SapLens.slnx -c Release
-dotnet test backend/tests/SapLens.Tests -c Release --no-build --filter "Category!=Publish"
+dotnet build backend/AuthLens.slnx -c Release
+dotnet test backend/tests/AuthLens.Tests -c Release --no-build --filter "Category!=Publish"
 backend/scripts/build-release.sh <output>                     # Linux; Windows: backend\scripts\build-release.ps1 -Output <folder>
 ```
 
@@ -84,6 +85,6 @@ repository depends on it, and installed v1 applications are not changed by the .
 
 ## Licensing
 
-SAP Lens is proprietary software. All rights reserved; no open-source license is
+AuthLens is proprietary software. All rights reserved; no open-source license is
 granted. Use or distribution requires authorization from the applicable rights
 holder. See [LICENSE.md](LICENSE.md). Third-party components retain their own licenses.

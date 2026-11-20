@@ -151,4 +151,4 @@ are resolved using catalogue naming evidence; ambiguous patterns and invalid or
 oversized SAP role names are reported rather than silently rewritten. Inspect the
 proposal before copying/exporting it. The package is an investigation proposal:
 it changes no SAP access, imports no assignments and grants no authorization.
-Implementation: `backend/src/SapLens.Api/V1AccessPackage.cs` and `AccessPackagePanel.tsx`.
+Implementation: `backend/src/AuthLens.Api/V1AccessPackage.cs` and `AccessPackagePanel.tsx`.

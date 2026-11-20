@@ -1,7 +1,10 @@
 # Database design: SQLite as the system of record
 
-One file, `sap-lens-v2.sqlite3`, in the data directory, for Desktop and Server. Schema in
-`backend/src/SapLens.Persistence` (`SapLensDb`, `Entities.cs`, migration `Initial`, `ImmutabilitySql`).
+One file, `authlens.sqlite3`, in the data directory, for Desktop and Server. A data directory that holds only the earlier SAP Lens file
+`sap-lens-v2.sqlite3` is **refused** at startup (never opened, renamed or replaced by an empty database): bring that data over by restoring a backup,
+or explicitly with `--adopt-legacy-database`, which takes an exclusive lock, makes a verified copy, checks integrity and identical migrations and
+row counts, and only then renames the file. Schema in
+`backend/src/AuthLens.Persistence` (`AuthLensDb`, `Entities.cs`, migration `Initial`, `ImmutabilitySql`).
 
 ## Tables
 

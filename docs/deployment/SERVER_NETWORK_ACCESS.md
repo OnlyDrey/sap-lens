@@ -8,13 +8,13 @@ machine's non-loopback interface [T] on Linux. On Windows 11 that test failed at
 not yet re-run on Windows [U]. Access **from another device** (desktop or mobile) has **not** been verified, and nothing ran on
 Windows [U]. Use the checklist at the end.
 
-Existing installations may retain the `SapLens2` service, older CA subjects and older firewall-rule labels. Do not recreate services, reissue TLS certificates or change firewall/proxy settings for branding. Use the explicit [Windows migration preflight](WINDOWS_DEPLOYMENT.md#migrating-saplens2-to-sap-lens) before an authorized cutover. The setup examples below describe new installations.
+Existing SAP Lens installations keep their own service, CA subjects and firewall-rule labels; AuthLens never changes them. AuthLens is a fresh installation (service `AuthLens`, root `C:\ProgramData\AuthLens`) that receives SAP Lens data by [restoring a backup](WINDOWS_DEPLOYMENT.md#migrating-from-sap-lens). It needs its own certificate and firewall rule; the setup examples below describe new installations.
 
 Windows ACL remediation has one bounded exception for the configured source `releases\current` junction: it validates the physical release target
-and excludes the junction from native ACL save/reset/restore traversal. Unexpected links still fail closed; migration copying remains strict.
+and excludes the junction from native ACL save/reset/restore traversal. Unexpected links still fail closed.
 See the [release junction security boundary](WINDOWS_DEPLOYMENT.md#release-junction-boundary) before approved ACL remediation. No global Windows
 ACL, active service or release pointer is changed by read-only inspection.
-ACL backup uses verified in-process DACL reads and exclusive recovery files. File-only handle resets avoid per-file processes; directory resets retain individual `/L` commands to avoid introducing recursive propagation. Durable progress journals distinguish backup from possible partial remediation; retain all incomplete artifacts and follow the [interrupted ACL procedure](WINDOWS_DEPLOYMENT.md#handling-the-existing-incomplete-vm-operation-safely) before any separately approved production operation. Journals do not replace verified backups, inventory checksums or exact restoration checks.
+ACL backup uses verified in-process DACL reads and exclusive recovery files. File-only handle resets avoid per-file processes; directory resets retain individual `/L` commands to avoid introducing recursive propagation. Durable progress journals distinguish backup from possible partial remediation; retain all incomplete artifacts and follow the [interrupted ACL procedure](WINDOWS_DEPLOYMENT.md#an-interrupted-acl-operation-on-the-sap-lens-vm) before any separately approved production operation. Journals do not replace verified backups, inventory checksums or exact restoration checks.
 
 ## 1. Secure defaults and fail-closed rules
 
@@ -58,15 +58,15 @@ Windows re-validation (CMD, one command per line):
 
 ```bat
 cd /d C:\src\sap-lens && git fetch origin experiment/dotnet-backend && git checkout experiment/dotnet-backend && git pull --ff-only
-cd /d C:\src\sap-lens\backend && dotnet build SapLens.slnx -c Release
-dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~In_memory_keys_are_prepared_for_the_windows_tls_stack" --logger "console;verbosity=detailed"
-dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~Startup_tls_self_check" --logger "console;verbosity=detailed"
-dotnet test tests\SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~LanHttpsTests" --logger "console;verbosity=detailed"
-dotnet test tests\SapLens.Tests -c Release --no-build
-dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\sap-lens\server
-powershell -NoProfile -Command "New-Item -ItemType Directory -Force C:\sap-lens | Out-Null; $c = New-SelfSignedCertificate -DnsName localhost -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(30); Export-PfxCertificate -Cert $c -FilePath C:\sap-lens\lab.pfx -Password (ConvertTo-SecureString 'lab-only-password' -AsPlainText -Force) | Out-Null; Remove-Item $c.PSPath"
+cd /d C:\src\sap-lens\backend && dotnet build AuthLens.slnx -c Release
+dotnet test tests\AuthLens.Tests -c Release --no-build --filter "FullyQualifiedName~In_memory_keys_are_prepared_for_the_windows_tls_stack" --logger "console;verbosity=detailed"
+dotnet test tests\AuthLens.Tests -c Release --no-build --filter "FullyQualifiedName~Startup_tls_self_check" --logger "console;verbosity=detailed"
+dotnet test tests\AuthLens.Tests -c Release --no-build --filter "FullyQualifiedName~LanHttpsTests" --logger "console;verbosity=detailed"
+dotnet test tests\AuthLens.Tests -c Release --no-build
+dotnet publish src\AuthLens.Api -c Release -r win-x64 --self-contained true -o C:\AuthLens-Test\server
+powershell -NoProfile -Command "New-Item -ItemType Directory -Force C:\AuthLens-Test | Out-Null; $c = New-SelfSignedCertificate -DnsName localhost -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddDays(30); Export-PfxCertificate -Cert $c -FilePath C:\AuthLens-Test\lab.pfx -Password (ConvertTo-SecureString 'lab-only-password' -AsPlainText -Force) | Out-Null; Remove-Item $c.PSPath"
 set "AUTHLENS_CERT_PASSWORD=lab-only-password"
-C:\sap-lens\server\SapLens.Api.exe --data-dir C:\sap-lens\tls-data --port 18792 --cert C:\sap-lens\lab.pfx
+C:\AuthLens-Test\server\AuthLens.Api.exe --data-dir C:\AuthLens-Test\tls-data --port 18792 --cert C:\AuthLens-Test\lab.pfx
 ```
 
 Expected: the first test confirms the premise (the original key is ephemeral, the prepared one is not); all tests pass; the last command logs
@@ -76,8 +76,8 @@ with Ctrl+C, then `set AUTHLENS_CERT_PASSWORD=`. The lab PFX and password are fo
 
 ## 2. Configuration reference
 
-Source of truth: `ServerConfiguration.cs` (parsing), `HostSettings.cs` (validation), `SapLensHost.cs` (startup), covered by `NetworkPolicyTests`,
-`LanHttpsTests` and `PublishTests`. `SapLens.Api --help` prints the same list; `SapLens.Api --version` prints the version and source commit.
+Source of truth: `ServerConfiguration.cs` (parsing), `HostSettings.cs` (validation), `AuthLensHost.cs` (startup), covered by `NetworkPolicyTests`,
+`LanHttpsTests` and `PublishTests`. `AuthLens.Api --help` prints the same list; `AuthLens.Api --version` prints the version and source commit.
 Both exit 0 without reading any configuration.
 
 | Setting | Option | Environment variable | Default |
@@ -103,7 +103,7 @@ Rules:
 
 - **Precedence:** an option wins over its environment variable; an empty variable counts as unset. `--network` is on when the option is given
   or `AUTHLENS_NETWORK` is `true` (case-insensitive).
-- **Required:** only the data directory. A bare `SapLens.Api.exe` therefore refuses to start: `--data-dir (or AUTHLENS_DATA_DIR) is
+- **Required:** only the data directory. A bare `AuthLens.Api.exe` therefore refuses to start: `--data-dir (or AUTHLENS_DATA_DIR) is
   required.` This is deliberate: no implicit data location.
 - **Loopback start:** without `--network` the Server listens on `http://127.0.0.1:18790` (or `--port`), reachable only from the same machine.
   A certificate without `--network` gives HTTPS on loopback.
@@ -142,24 +142,24 @@ Examples (replace every address, name and path):
 
 ```powershell
 # Windows: loopback only (local checks)
-& .\SapLens.Api.exe --data-dir C:\sap-lens\local-test
+& .\AuthLens.Api.exe --data-dir C:\AuthLens-Test\local-test
 # Windows: LAN HTTPS, password from a protected file
-& .\SapLens.Api.exe --data-dir C:\sap-lens\runtime-test --network --listen 192.168.10.20 --port 18795 `
-  --allowed-hosts saplens.test.example,192.168.10.20 --cert C:\ProgramData\sap-lens\tls\server.pfx `
-  --cert-password-file C:\ProgramData\sap-lens\tls\cert-password
+& .\AuthLens.Api.exe --data-dir C:\AuthLens-Test\runtime-test --network --listen 192.168.10.20 --port 18795 `
+  --allowed-hosts authlens.test.example,192.168.10.20 --cert C:\ProgramData\AuthLens\tls\server.pfx `
+  --cert-password-file C:\ProgramData\AuthLens\tls\cert-password
 # Windows: the same through environment variables (current session only)
-$env:AUTHLENS_DATA_DIR = 'C:\sap-lens\runtime-test'; $env:AUTHLENS_NETWORK = 'true'; $env:AUTHLENS_LISTEN = '192.168.10.20'
-$env:AUTHLENS_PORT = '18795'; $env:AUTHLENS_ALLOWED_HOSTS = '192.168.10.20'; $env:AUTHLENS_CERT = 'C:\ProgramData\sap-lens\tls\server.pfx'
-$env:AUTHLENS_CERT_PASSWORD_FILE = 'C:\ProgramData\sap-lens\tls\cert-password'
-& .\SapLens.Api.exe
+$env:AUTHLENS_DATA_DIR = 'C:\AuthLens-Test\runtime-test'; $env:AUTHLENS_NETWORK = 'true'; $env:AUTHLENS_LISTEN = '192.168.10.20'
+$env:AUTHLENS_PORT = '18795'; $env:AUTHLENS_ALLOWED_HOSTS = '192.168.10.20'; $env:AUTHLENS_CERT = 'C:\ProgramData\AuthLens\tls\server.pfx'
+$env:AUTHLENS_CERT_PASSWORD_FILE = 'C:\ProgramData\AuthLens\tls\cert-password'
+& .\AuthLens.Api.exe
 ```
 
 ```bash
 # Linux: loopback only
-./SapLens.Api --data-dir /var/tmp/saplens-local
+./AuthLens.Api --data-dir /var/tmp/authlens-local
 # Linux: LAN HTTPS with a PEM certificate and key
-./SapLens.Api --data-dir /var/lib/saplens --network --listen 192.168.10.20 --port 18791 \
-  --allowed-hosts saplens.corp.example,192.168.10.20 --cert /etc/saplens/tls/server.crt --cert-key /etc/saplens/tls/server.key
+./AuthLens.Api --data-dir /var/lib/authlens --network --listen 192.168.10.20 --port 18791 \
+  --allowed-hosts authlens.corp.example,192.168.10.20 --cert /etc/authlens/tls/server.crt --cert-key /etc/authlens/tls/server.key
 ```
 
 Nothing secret is stored in committed files. The startup log states the address, port, scheme, network mode, allowed hosts and the
@@ -175,8 +175,8 @@ The Server uses the SAP Lens v1 account model, ported to .NET on the same SQLite
 
 | Aspect | Implementation |
 | --- | --- |
-| First administrator | The server creates an empty store at its first start (`/api/auth/state` reports `setup_required`). A local operator runs `SapLens.Cli accounts-code --data <data-dir>`; it prints a single-use code (15 minutes, 5 attempts, stored only as a SHA-256). The React sign-in page completes activation with the code; setup then closes for good |
-| Recovery | `SapLens.Cli accounts-code --data <data-dir> --recover-administrator <username>`: a local recovery code for an existing administrator; sign-in with the old password is blocked until it is used. The API can consume codes but never issue them |
+| First administrator | The server creates an empty store at its first start (`/api/auth/state` reports `setup_required`). A local operator runs `AuthLens.Cli accounts-code --data <data-dir>`; it prints a single-use code (15 minutes, 5 attempts, stored only as a SHA-256). The React sign-in page completes activation with the code; setup then closes for good |
+| Recovery | `AuthLens.Cli accounts-code --data <data-dir> --recover-administrator <username>`: a local recovery code for an existing administrator; sign-in with the old password is blocked until it is used. The API can consume codes but never issue them |
 | Passwords | Argon2id (`m=65536, t=3, p=2`, 16-byte salt, 32-byte hash, PHC string format compatible with Python argon2-cffi); 12 to 1024 characters; v1 PBKDF2 verifiers are accepted and replaced with Argon2id at the next sign-in; unknown users take the same hashing path |
 | Sessions | Random token in an `HttpOnly`, `SameSite=Strict` cookie (`Secure` over HTTPS); only its SHA-256 is stored. Idle (default 30 min) and absolute (default 12 h) lifetimes are an administrator policy. Password, role or status changes and password resets end every session of the account |
 | CSRF | A per-session secret in a readable `sap-lens-csrf` cookie that the React client echoes in `X-SAP-Lens-CSRF` on every write (only its digest is stored), in addition to the same-origin check below |
@@ -228,11 +228,11 @@ commands below create a small private CA for a lab; keep the CA private key off 
 ### Windows (PowerShell as administrator)
 
 ```powershell
-$dns = 'saplens.corp.example'; $ip = '192.168.10.20'
+$dns = 'authlens.corp.example'; $ip = '192.168.10.20'
 # NEW installations only, after explicit approval in an elevated session; migration preserves existing TLS material.
-Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1
-New-ALSecureDirectory 'C:\ProgramData\sap-lens\tls' @('C:\ProgramData\sap-lens')
-$ca = New-SelfSignedCertificate -Subject 'CN=SAP Lens LAN CA' -KeyUsage CertSign,CRLSign,DigitalSignature -KeyLength 3072 -HashAlgorithm SHA256 `
+Import-Module .\backend\scripts\deploy\AuthLens.Deploy.psm1
+New-ALSecureDirectory 'C:\ProgramData\AuthLens\tls' @('C:\ProgramData\AuthLens')
+$ca = New-SelfSignedCertificate -Subject 'CN=AuthLens LAN CA' -KeyUsage CertSign,CRLSign,DigitalSignature -KeyLength 3072 -HashAlgorithm SHA256 `
   -NotAfter (Get-Date).AddYears(5) -CertStoreLocation Cert:\CurrentUser\My -KeyExportPolicy Exportable `
   -TextExtension @('2.5.29.19={critical}{text}ca=1&pathlength=0')
 $server = New-SelfSignedCertificate -Subject "CN=$dns" -Signer $ca -KeyLength 2048 -HashAlgorithm SHA256 -NotAfter (Get-Date).AddDays(397) `
@@ -240,9 +240,9 @@ $server = New-SelfSignedCertificate -Subject "CN=$dns" -Signer $ca -KeyLength 20
   -TextExtension @("2.5.29.17={text}DNS=$dns&IPAddress=$ip", '2.5.29.37={text}1.3.6.1.5.5.7.3.1')
 # Random PFX password, written only to an ACL-protected file the service reads (--cert-password-file).
 $bytes = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($bytes); $plain = [Convert]::ToBase64String($bytes)
-Export-PfxCertificate -Cert $server -FilePath C:\ProgramData\sap-lens\tls\server.pfx -Password (ConvertTo-SecureString $plain -AsPlainText -Force) | Out-Null
-Set-Content -Path C:\ProgramData\sap-lens\tls\cert-password -Value $plain -NoNewline -Encoding ASCII; Remove-Variable plain
-Export-Certificate -Cert $ca -FilePath C:\ProgramData\sap-lens\tls\saplens-ca.cer | Out-Null   # public CA certificate for clients
+Export-PfxCertificate -Cert $server -FilePath C:\ProgramData\AuthLens\tls\server.pfx -Password (ConvertTo-SecureString $plain -AsPlainText -Force) | Out-Null
+Set-Content -Path C:\ProgramData\AuthLens\tls\cert-password -Value $plain -NoNewline -Encoding ASCII; Remove-Variable plain
+Export-Certificate -Cert $ca -FilePath C:\ProgramData\AuthLens\tls\authlens-ca.cer | Out-Null   # public CA certificate for clients
 # Lab only: remove the CA and server keys from the user store (export the CA with a password to offline media first if you need it again).
 Remove-Item $server.PSPath; Remove-Item $ca.PSPath
 ```
@@ -250,15 +250,15 @@ Remove-Item $server.PSPath; Remove-Item $ca.PSPath
 ### Linux (OpenSSL 3)
 
 ```bash
-DNS=saplens.corp.example; IP=192.168.10.20; sudo install -d -m 0750 -o root -g saplens /etc/saplens/tls; cd "$(mktemp -d)"
-openssl req -x509 -newkey rsa:3072 -sha256 -days 1825 -noenc -keyout ca.key -out ca.crt -subj "/CN=SAP Lens LAN CA" \
+DNS=authlens.corp.example; IP=192.168.10.20; sudo install -d -m 0750 -o root -g authlens /etc/authlens/tls; cd "$(mktemp -d)"
+openssl req -x509 -newkey rsa:3072 -sha256 -days 1825 -noenc -keyout ca.key -out ca.crt -subj "/CN=AuthLens LAN CA" \
   -addext "basicConstraints=critical,CA:TRUE,pathlen:0" -addext "keyUsage=critical,keyCertSign,cRLSign"
 openssl req -newkey rsa:2048 -noenc -keyout server.key -out server.csr -subj "/CN=$DNS"
 printf "subjectAltName=DNS:%s,IP:%s\nextendedKeyUsage=serverAuth\nkeyUsage=critical,digitalSignature,keyEncipherment\nbasicConstraints=CA:FALSE\n" "$DNS" "$IP" > ext.cnf
 openssl x509 -req -in server.csr -CA ca.crt -CAkey ca.key -CAcreateserial -days 397 -sha256 -extfile ext.cnf -out server.crt
-sudo install -m 0644 server.crt /etc/saplens/tls/server.crt
-sudo install -m 0600 -o root -g root server.key /etc/saplens/tls/server.key    # delivered to the service via systemd LoadCredential
-cp ca.crt ~/saplens-ca.crt                                                        # distribute to clients; move ca.key offline
+sudo install -m 0644 server.crt /etc/authlens/tls/server.crt
+sudo install -m 0600 -o root -g root server.key /etc/authlens/tls/server.key    # delivered to the service via systemd LoadCredential
+cp ca.crt ~/authlens-ca.crt                                                        # distribute to clients; move ca.key offline
 ```
 
 397 days keeps the leaf within the validity limits that Apple and browsers enforce.
@@ -267,51 +267,50 @@ cp ca.crt ~/saplens-ca.crt                                                      
 
 ### Windows Server (PowerShell as administrator)
 
-**Status:** this procedure uses only standard Windows tooling (`New-Service`, `sc.exe`, `icacls`); SAP Lens ships no installer or service
-tool. The executable contains the service host (`AddWindowsService`, service name `SapLens`), but the procedure has **not been run on
+**Status:** this procedure uses only standard Windows tooling (`New-Service`, `sc.exe`, `icacls`); AuthLens ships no installer or service
+tool. The executable contains the service host (`AddWindowsService`, service name `AuthLens`), but the procedure has **not been run on
 Windows yet** [U]. Treat every step as pending acceptance.
 
-Use the [managed Windows deployment procedure](WINDOWS_DEPLOYMENT.md) for canonical `sap-lens` / DisplayName `SAP Lens` installation under
-`C:\sap-lens`, with data, pre-deployment backups and TLS under `C:\ProgramData\sap-lens`. It verifies private directory provisioning before
-sensitive files are staged and rejects existing services and target roots. The earlier manual copy/create-service recipe is superseded; do not
-use it to bypass ACL readiness or to replace a running `SapLens2` service. Existing service identity, certificates and network settings require
-an explicitly reviewed migration, not regeneration for naming.
+Use the [managed Windows deployment procedure](WINDOWS_DEPLOYMENT.md) for the canonical `AuthLens` service under
+`C:\ProgramData\AuthLens` (releases, data, configuration, TLS, keys and pre-deployment backups). It creates the root with a private ACL before
+sensitive files are staged and never touches services of earlier products. The earlier manual copy/create-service recipe is superseded; do not
+use it to bypass ACL readiness.
 
 ### Linux (systemd)
 
 ```bash
-dotnet publish backend/src/SapLens.Api -c Release -r linux-x64 --self-contained true -o /tmp/saplens-server
-sudo useradd --system --home-dir /var/lib/saplens --shell /usr/sbin/nologin saplens
-sudo install -d -m 0755 /opt/saplens && sudo cp -r /tmp/saplens-server /opt/saplens/server
-sudo tee /etc/systemd/system/saplens.service >/dev/null <<'UNIT'
+dotnet publish backend/src/AuthLens.Api -c Release -r linux-x64 --self-contained true -o /tmp/authlens-server
+sudo useradd --system --home-dir /var/lib/authlens --shell /usr/sbin/nologin authlens
+sudo install -d -m 0755 /opt/authlens && sudo cp -r /tmp/authlens-server /opt/authlens/server
+sudo tee /etc/systemd/system/authlens.service >/dev/null <<'UNIT'
 [Unit]
-Description=SAP Lens server
+Description=AuthLens server
 Wants=network-online.target
 After=network-online.target
 
 [Service]
 Type=notify
-User=saplens
-Group=saplens
-StateDirectory=saplens
+User=authlens
+Group=authlens
+StateDirectory=authlens
 StateDirectoryMode=0700
-LoadCredential=server.key:/etc/saplens/tls/server.key
-ExecStart=/opt/saplens/server/SapLens.Api --data-dir /var/lib/saplens --network --listen 192.168.10.20 --port 18791 \
-  --allowed-hosts saplens.corp.example,192.168.10.20 --cert /etc/saplens/tls/server.crt --cert-key %d/server.key
+LoadCredential=server.key:/etc/authlens/tls/server.key
+ExecStart=/opt/authlens/server/AuthLens.Api --data-dir /var/lib/authlens --network --listen 192.168.10.20 --port 18791 \
+  --allowed-hosts authlens.corp.example,192.168.10.20 --cert /etc/authlens/tls/server.crt --cert-key %d/server.key
 Restart=on-failure
 TimeoutStopSec=30
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
-ReadWritePaths=/var/lib/saplens
+ReadWritePaths=/var/lib/authlens
 
 [Install]
 WantedBy=multi-user.target
 UNIT
-sudo systemctl daemon-reload && sudo systemctl enable --now saplens
-systemctl status saplens --no-pager; journalctl -u saplens -n 20 --no-pager
-sudo cat /var/lib/saplens/api-token
+sudo systemctl daemon-reload && sudo systemctl enable --now authlens
+systemctl status authlens --no-pager; journalctl -u authlens -n 20 --no-pager
+sudo cat /var/lib/authlens/api-token
 ```
 
 ## 6. Firewall: one trusted subnet, one port, nothing automatic
@@ -320,16 +319,16 @@ The Server never creates firewall rules. An administrator adds exactly one inbou
 
 ```powershell
 # Windows: only from 192.168.10.0/24, only to this address and port, only on Domain/Private profiles, only for this program
-New-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' -Direction Inbound -Action Allow -Protocol TCP `
+New-NetFirewallRule -DisplayName 'AuthLens HTTPS (trusted LAN)' -Direction Inbound -Action Allow -Protocol TCP `
   -LocalAddress 192.168.10.20 -LocalPort 18791 -RemoteAddress 192.168.10.0/24 -Profile Domain,Private `
-  -Program 'C:\sap-lens\releases\current\server\SapLens.Api.exe'
-Get-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' | Get-NetFirewallAddressFilter
-# Remove: Remove-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)'
+  -Program 'C:\ProgramData\AuthLens\releases\current\server\AuthLens.Api.exe'
+Get-NetFirewallRule -DisplayName 'AuthLens HTTPS (trusted LAN)' | Get-NetFirewallAddressFilter
+# Remove: Remove-NetFirewallRule -DisplayName 'AuthLens HTTPS (trusted LAN)'
 ```
 
 ```bash
 # Linux, ufw
-sudo ufw allow in from 192.168.10.0/24 to 192.168.10.20 port 18791 proto tcp comment 'SAP Lens trusted LAN'
+sudo ufw allow in from 192.168.10.0/24 to 192.168.10.20 port 18791 proto tcp comment 'AuthLens trusted LAN'
 # Linux, firewalld
 sudo firewall-cmd --permanent --add-rich-rule='rule family="ipv4" source address="192.168.10.0/24" destination address="192.168.10.20" port port="18791" protocol="tcp" accept'
 sudo firewall-cmd --reload
@@ -349,16 +348,16 @@ accepted from it alone. All values below are examples; use your own addresses an
 
 ```powershell
 # Windows (administrator). Example: Server 192.168.10.20:18795, reverse proxy 192.168.10.10.
-New-NetFirewallRule -DisplayName 'SAP Lens HTTPS (reverse proxy only)' -Direction Inbound -Action Allow -Protocol TCP `
+New-NetFirewallRule -DisplayName 'AuthLens HTTPS (reverse proxy only)' -Direction Inbound -Action Allow -Protocol TCP `
   -LocalAddress 192.168.10.20 -LocalPort 18795 -RemoteAddress 192.168.10.10 -Profile Domain,Private
-Get-NetFirewallRule -DisplayName 'SAP Lens HTTPS (reverse proxy only)' | Get-NetFirewallAddressFilter   # RemoteAddress: the proxy only
+Get-NetFirewallRule -DisplayName 'AuthLens HTTPS (reverse proxy only)' | Get-NetFirewallAddressFilter   # RemoteAddress: the proxy only
 Get-NetFirewallRule -Direction Inbound -Enabled True | Get-NetFirewallPortFilter | Where-Object LocalPort -eq 18795   # no other rule opens the port
-# Remove: Remove-NetFirewallRule -DisplayName 'SAP Lens HTTPS (reverse proxy only)'
+# Remove: Remove-NetFirewallRule -DisplayName 'AuthLens HTTPS (reverse proxy only)'
 ```
 
 - **One remote address, never `Any`.** Do not widen the rule to a subnet or to `Any` to troubleshoot; a client that is not the proxy must time
   out. Check from another machine: `Test-NetConnection 192.168.10.20 -Port 18795` fails there and succeeds on the proxy.
-- **Program filter:** the managed Windows service runs `ReleasesRoot\current\server\SapLens.Api.exe` through a link that changes with every
+- **Program filter:** the managed Windows service runs `ReleasesRoot\current\server\AuthLens.Api.exe` through a link that changes with every
   deployment. Whether a `-Program` filter on that path keeps matching after a switch has not been verified [U]; the rule above therefore
   restricts address, port and profile instead. If you add `-Program`, re-check the rule after each deployment.
 - **No automatic rules:** neither the Server, the installers nor the deployment scripts create, widen or remove firewall rules. Review existing
@@ -368,23 +367,23 @@ Get-NetFirewallRule -Direction Inbound -Enabled True | Get-NetFirewallPortFilter
 
 ## 7. LAN connectivity verification (from another device)
 
-Clients resolve `saplens.corp.example` through DNS (or the hosts file on desktops) and trust `saplens-ca` (Windows: import into
+Clients resolve `authlens.corp.example` through DNS (or the hosts file on desktops) and trust `authlens-ca` (Windows: import into
 "Trusted Root Certification Authorities"; Linux: `--cacert` or the system store).
 
 ```powershell
-# Windows client (CA imported: Import-Certificate -FilePath saplens-ca.cer -CertStoreLocation Cert:\CurrentUser\Root)
-Test-NetConnection saplens.corp.example -Port 18791
-curl.exe -s -o NUL -w "ready %{http_code}\n" https://saplens.corp.example:18791/health/ready          # 200
-curl.exe -s -o NUL -w "api without token %{http_code}\n" https://saplens.corp.example:18791/api/v1/roles   # 401
-curl.exe -s -o NUL -w "plain http %{http_code}\n" http://saplens.corp.example:18791/                    # 000 or 400: no page over HTTP
+# Windows client (CA imported: Import-Certificate -FilePath authlens-ca.cer -CertStoreLocation Cert:\CurrentUser\Root)
+Test-NetConnection authlens.corp.example -Port 18791
+curl.exe -s -o NUL -w "ready %{http_code}\n" https://authlens.corp.example:18791/health/ready          # 200
+curl.exe -s -o NUL -w "api without token %{http_code}\n" https://authlens.corp.example:18791/api/v1/roles   # 401
+curl.exe -s -o NUL -w "plain http %{http_code}\n" http://authlens.corp.example:18791/                    # 000 or 400: no page over HTTP
 ```
 
 ```bash
 # Linux/macOS client
-curl --cacert saplens-ca.crt -s -o /dev/null -w "ready %{http_code}\n" https://saplens.corp.example:18791/health/ready
-curl --cacert saplens-ca.crt -s -o /dev/null -w "api without token %{http_code}\n" https://saplens.corp.example:18791/api/v1/roles
-curl --cacert saplens-ca.crt -s -o /dev/null -w "foreign host %{http_code}\n" -H "Host: other.example" https://192.168.10.20:18791/   # 421
-openssl s_client -connect 192.168.10.20:18791 -servername saplens.corp.example -CAfile saplens-ca.crt -verify_return_error </dev/null | grep -E "Verify return code|Protocol"
+curl --cacert authlens-ca.crt -s -o /dev/null -w "ready %{http_code}\n" https://authlens.corp.example:18791/health/ready
+curl --cacert authlens-ca.crt -s -o /dev/null -w "api without token %{http_code}\n" https://authlens.corp.example:18791/api/v1/roles
+curl --cacert authlens-ca.crt -s -o /dev/null -w "foreign host %{http_code}\n" -H "Host: other.example" https://192.168.10.20:18791/   # 421
+openssl s_client -connect 192.168.10.20:18791 -servername authlens.corp.example -CAfile authlens-ca.crt -verify_return_error </dev/null | grep -E "Verify return code|Protocol"
 # On the server: only the configured address listens
 ss -ltn 'sport = :18791'          # Linux; Windows: Get-NetTCPConnection -LocalPort 18791 -State Listen
 ```
@@ -393,11 +392,11 @@ From a device **outside** the trusted subnet the connection must time out (firew
 
 ## 8. Mobile browser testing
 
-1. Copy the **public** CA certificate (`saplens-ca.cer`/`.crt`, never the PFX or a key) to the device (mail, MDM, AirDrop).
+1. Copy the **public** CA certificate (`authlens-ca.cer`/`.crt`, never the PFX or a key) to the device (mail, MDM, AirDrop).
 2. iOS/iPadOS: open it, Settings â†’ Profile Downloaded â†’ Install; then Settings â†’ General â†’ About â†’ Certificate Trust Settings â†’ enable full
-   trust for "SAP Lens LAN CA". Android: Settings â†’ Security â†’ Encryption & credentials â†’ Install a certificate â†’ CA certificate
+   trust for "AuthLens LAN CA". Android: Settings â†’ Security â†’ Encryption & credentials â†’ Install a certificate â†’ CA certificate
    (Chrome honours user CAs; menu names vary by vendor). Managed devices: deploy the CA through MDM instead.
-3. Connect to the corporate Wi-Fi in the trusted subnet (not a guest network), open `https://saplens.corp.example:18791/`: the browser must
+3. Connect to the corporate Wi-Fi in the trusted subnet (not a guest network), open `https://authlens.corp.example:18791/`: the browser must
    show a valid lock without warnings. Never accept a certificate warning: it means the trust setup is wrong.
 4. Sign in with the token, check the status line shows "server", run a Role Lookup, rotate the device (layout is responsive), sign out by
    closing the browser or after 8 h.
@@ -407,20 +406,20 @@ From a device **outside** the trusted subnet the connection must time out (firew
 
 ```powershell
 Stop-Service sap-lens      # graceful: running import handed back (Queued), SQLite closed; Start-Service / Restart-Service sap-lens
-Get-Content 'C:\ProgramData\sap-lens\data\logs\server-*.log' -Tail 5
+Get-Content 'C:\ProgramData\AuthLens\data\logs\server-*.log' -Tail 5
 ```
 
 Windows service operation (pending native verification [U]):
 
 ```powershell
 Get-Service sap-lens | Format-List Name, Status, StartType
-Get-CimInstance Win32_Service -Filter "Name='SapLens'" | Format-List State, StartName, PathName, ProcessId   # identity and command line
+Get-CimInstance Win32_Service -Filter "Name='AuthLens'" | Format-List State, StartName, PathName, ProcessId   # identity and command line
 Restart-Service sap-lens
 # Service Control Manager: start/stop (7036), failures to start (7000, 7009), unexpected exits and recovery (7031, 7034)
 Get-WinEvent -FilterHashtable @{ LogName = 'System'; ProviderName = 'Service Control Manager'; StartTime = (Get-Date).AddHours(-1) } |
-  Where-Object Message -like '*SAP Lens*' | Format-Table TimeCreated, Id, Message -Wrap
+  Where-Object Message -like '*AuthLens*' | Format-Table TimeCreated, Id, Message -Wrap
 # Application log: the Windows service host can write warnings and errors under the source of the executable; not observed yet [U].
-Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddHours(-1) } | Where-Object ProviderName -like 'SapLens*'
+Get-WinEvent -FilterHashtable @{ LogName = 'Application'; StartTime = (Get-Date).AddHours(-1) } | Where-Object ProviderName -like 'AuthLens*'
 ```
 
 The authoritative application log is `<data-dir>\logs\server-YYYYMMDD.log`; a refused startup writes `startup refused: <reason>` to stderr,
@@ -431,13 +430,13 @@ Safe removal (keeps data, certificates and the firewall rule unless removed expl
 ```powershell
 Stop-Service sap-lens
 sc.exe delete sap-lens                                        # removes the registration only
-Remove-NetFirewallRule -DisplayName 'SAP Lens HTTPS (trusted LAN)' -ErrorAction SilentlyContinue
-# Data (C:\ProgramData\sap-lens\data) and TLS files stay; back them up or delete them deliberately.
+Remove-NetFirewallRule -DisplayName 'AuthLens HTTPS (trusted LAN)' -ErrorAction SilentlyContinue
+# Data (C:\ProgramData\AuthLens\data) and TLS files stay; back them up or delete them deliberately.
 ```
 
 ```bash
-sudo systemctl stop saplens      # SIGTERM, graceful within TimeoutStopSec; start / restart likewise
-journalctl -u saplens -n 20 --no-pager
+sudo systemctl stop authlens      # SIGTERM, graceful within TimeoutStopSec; start / restart likewise
+journalctl -u authlens -n 20 --no-pager
 ```
 
 After a restart all browser sessions are gone (sign in again); data and decisions persist in SQLite. Token rotation: stop, replace
@@ -499,9 +498,9 @@ normally the LAN address of the machine running Newt (the VM's own address if Ne
 configuring it.
 
 ```powershell
-& .\SapLens.Api.exe --data-dir C:\sap-lens\runtime-test --network --listen 192.168.10.20 --port 18795 `
-  --allowed-hosts lens.example.com,192.168.10.20 --cert C:\ProgramData\sap-lens\tls\server.pfx `
-  --cert-password-file C:\ProgramData\sap-lens\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
+& .\AuthLens.Api.exe --data-dir C:\AuthLens-Test\runtime-test --network --listen 192.168.10.20 --port 18795 `
+  --allowed-hosts lens.example.com,192.168.10.20 --cert C:\ProgramData\AuthLens\tls\server.pfx `
+  --cert-password-file C:\ProgramData\AuthLens\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
 ```
 
 With the test launcher: `.\scripts\start-server-test.ps1 -AllowedHosts 'lens.example.com','192.168.10.20' -TrustedProxies '<PANGOLIN_PEER_IP>'`.
@@ -526,12 +525,12 @@ Pangolin is built on Traefik; field names differ between versions, so check them
 | --- | --- |
 | Resource domain | `lens.example.com` (HTTP resource, TLS at Pangolin) |
 | Target | method `https`, address `192.168.10.20`, port `18795` |
-| Upstream TLS | verify the backend certificate: add the private CA (`saplens-ca.cer`) to the trust store Traefik uses for upstream connections, and use a server name (SNI) that the SAN covers (`lens.example.com` or `192.168.10.20`). Skipping verification is acceptable only for a short diagnostic run, never as the configuration |
+| Upstream TLS | verify the backend certificate: add the private CA (`authlens-ca.cer`) to the trust store Traefik uses for upstream connections, and use a server name (SNI) that the SAN covers (`lens.example.com` or `192.168.10.20`). Skipping verification is acceptable only for a short diagnostic run, never as the configuration |
 | Host header | leave Traefik's default (pass the client's Host) or set a custom Host of `lens.example.com`; either works once the proxy is trusted, because `X-Forwarded-Host` carries the public host |
 | Forwarded headers | keep `X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-For` (Traefik sets them by default); do not strip them |
-| Pangolin authentication | optional. With Pangolin's resource authentication on, unauthenticated requests get Pangolin's own (plain-text) 401 before reaching SAP Lens; SAP Lens accounts still apply after it |
+| Pangolin authentication | optional. With Pangolin's resource authentication on, unauthenticated requests get Pangolin's own (plain-text) 401 before reaching AuthLens; AuthLens accounts still apply after it |
 
-Cloudflare: use SSL mode "Full (strict)" so Cloudflare to Pangolin is verified HTTPS. SAP Lens does not trust Cloudflare directly.
+Cloudflare: use SSL mode "Full (strict)" so Cloudflare to Pangolin is verified HTTPS. AuthLens does not trust Cloudflare directly.
 
 ### Troubleshooting 403 and 421
 
@@ -543,7 +542,7 @@ Cloudflare: use SSL mode "Full (strict)" so Cloudflare to Pangolin is verified H
 | `403 Cross-origin request refused.` with `comparison PortMismatch` | Host and Origin differ by port (for example `:18795` against the public 443) | Same as above: the public host must come from the trusted proxy |
 | `403 HTTPS is required.` | A trusted proxy reported `X-Forwarded-Proto: http` | Serve the resource over HTTPS only |
 | `403 State-changing requests need a same-origin signal.` | No Origin and no `Sec-Fetch-Site: same-origin` on a state change | Expected for non-browser clients; use the access-token header |
-| Plain-text 401 not in JSON | Pangolin's authentication layer, not SAP Lens | Sign in to Pangolin first or disable its resource authentication |
+| Plain-text 401 not in JSON | Pangolin's authentication layer, not AuthLens | Sign in to Pangolin first or disable its resource authentication |
 
 A 401 from `/api/auth/login` with an error `code` means the request passed the boundary and the credentials were wrong; it is not a
 successful sign-in. A successful sign-in returns 200 with the account and sets `sap-lens-session` (Secure, HttpOnly, SameSite=Strict).
@@ -551,7 +550,7 @@ successful sign-in. A successful sign-in returns 200 with the account and sets `
 ### Verification (Windows PowerShell, after configuring the trusted proxy)
 
 ```powershell
-$body = Join-Path $env:TEMP 'saplens-login.json'
+$body = Join-Path $env:TEMP 'authlens-login.json'
 Set-Content -Path $body -Value '{"username":"nobody","password":"wrong-password"}' -Encoding ASCII -NoNewline   # synthetic, not an account
 # Direct LAN access still works (boundary passes; JSON 401 with a code = wrong credentials, as intended)
 curl.exe -s -w "`n%{http_code}`n" -X POST https://192.168.10.20:18795/api/auth/login -H "Origin: https://192.168.10.20:18795" -H "Content-Type: application/json" --data "@$body"

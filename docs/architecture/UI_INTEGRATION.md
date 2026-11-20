@@ -1,38 +1,38 @@
 # Production React UI on the .NET server (Phase 1)
 
-The SAP Lens UI from `origin/work` (`frontend/`, unchanged) is built with its own npm scripts and served by the ASP.NET Core host on Desktop
+The AuthLens UI from `origin/work` (`frontend/`, unchanged) is built with its own npm scripts and served by the ASP.NET Core host on Desktop
 and Server. The earlier simplified prototype UI was removed. Status tags as in [README](../migration/README.md).
 
 ## How it works
 
-- **Build**: `SapLens.Api.csproj` embeds `frontend/dist/**` under `wwwroot/` (`ManifestEmbeddedFileProvider`). When `frontend/dist/index.html`
+- **Build**: `AuthLens.Api.csproj` embeds `frontend/dist/**` under `wwwroot/` (`ManifestEmbeddedFileProvider`). When `frontend/dist/index.html`
   is missing, or with `-p:BuildFrontend=true`, the build runs `npm ci` and `npm run build` first. Node.js 24 or 25 is a build-time requirement
   only; no Node.js, Python or loose UI files ship. Releases remove `frontend/dist` and let this target rebuild it once; the publishes reuse it
   ([build and publish flow](../development/README.md#build-and-publish-flow)).
 - **Embedding** (the cause of the Windows release failures, "The user interface is incomplete in this build"):
   - Every UI file (`frontend/dist/**` and the sign-in page in `wwwroot/`) is a manifest resource with the explicit name
-    `SapLensUi/<relative path>`; `EmbeddedUiFileProvider` (`UiAssets.cs`) serves them, normalizes `\` to `/` (MSBuild's `RecursiveDir` uses
+    `AuthLensUi/<relative path>`; `EmbeddedUiFileProvider` (`UiAssets.cs`) serves them, normalizes `\` to `/` (MSBuild's `RecursiveDir` uses
     the build machine's separator) and refuses `..`, empty and drive segments.
   - The embedded-files manifest (`GenerateEmbeddedFilesManifest`, `ManifestEmbeddedFileProvider`) is no longer used. It splits paths on the
     build machine's separator only, so a `wwwroot/...` path became a flat root entry on Windows, and its regeneration check ignores changes
     other than the file list, so an existing `obj` folder could keep a broken manifest after the fix.
-  - The list of embedded UI names is a compile input (`obj/.../SapLensUi.files`); adding or removing a UI file always rebuilds the assembly.
+  - The list of embedded UI names is a compile input (`obj/.../AuthLensUi.files`); adding or removing a UI file always rebuilds the assembly.
   - Guards: `BuildIntegrationTests` (resource names and layout of the built assembly; Windows-style names; path traversal; a clean build and two
-    incremental builds with a replaced and a removed asset, checked by loading the built assembly) and both release scripts (`SapLensUi/index.html`
-    and `SapLensUi/assets` in every published binary).
+    incremental builds with a replaced and a removed asset, checked by loading the built assembly) and both release scripts (`AuthLensUi/index.html`
+    and `AuthLensUi/assets` in every published binary).
 - **Serving**: `/` serves the React `index.html`; assets, icons and `theme.js` are served without credentials (they contain no data). The
   Content Security Policy is v1's policy for this UI (`script-src 'self'`, inline styles allowed as React needs them, no framing).
 - **Authentication** (unchanged rules):
   - Desktop: the WebView2 shell adds the per-run token to `/api` requests outside page script. The React client's own `X-SAP-Lens` header
     carries no authority.
   - Server (Accounts mode, the default): the React app loads, `/api/auth/state` reports `local-sessions`, and the React sign-in page handles
-    activation (code from `SapLens.Cli accounts-code`), sign-in, password reset and recovery against the v1 account API. Roles hide and
+    activation (code from `AuthLens.Cli accounts-code`), sign-in, password reset and recovery against the v1 account API. Roles hide and
     refuse what the account may not do. See [SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md#accounts-mode-default).
   - Server with `--auth shared-token`: a browser without a session is redirected to `/login.html` and signs in with the access token.
   - Host allow-list, origin/CSRF checks, TLS and the private-LAN policy apply to every request, including the v1 routes.
 - **API adapter**: a server-side compatibility layer (`V1Compatibility.cs`) serves the v1 routes the UI calls, in the v1 response shapes, from
   the C# domain. The UI code is not changed and no backend-specific logic is added to it. Every route not migrated answers
-  `501` with `{"code":"not_migrated","detail":"This SAP Lens function is not available in the .NET server yet (...). No data was changed."}`;
+  `501` with `{"code":"not_migrated","detail":"This AuthLens function is not available in the .NET server yet (...). No data was changed."}`;
   the UI shows that text where the function is used. `X-Data-Revision` follows v1's `boot.publication.directory` format.
 
 ## Served now
@@ -79,29 +79,29 @@ the new package runs side by side with its own data directory and port.
 ```bat
 cd /d C:\src\sap-lens && git fetch origin && git checkout experiment/dotnet-backend && git pull --ff-only
 cd /d C:\src\sap-lens\backend
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Output C:\sap-lens\release-next
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\build-release.ps1 -Output C:\AuthLens-Test\release-next
 ```
 
 At that milestone the script ran `npm ci`, `npm run build`, `dotnet build`, `dotnet test` (add `-SkipPublishTests` to skip the slow publish
-tests) and published `C:\sap-lens\release-next\server-win-x64` and `C:\sap-lens\release-next\desktop-win-x64`. Today the UI is built by the
+tests) and published `C:\AuthLens-Test\release-next\server-win-x64` and `C:\AuthLens-Test\release-next\desktop-win-x64`. Today the UI is built by the
 .NET build itself ([build and publish flow](../development/README.md#build-and-publish-flow)). The same steps one by one:
 
 ```bat
-cd /d C:\src\sap-lens\backend && dotnet build SapLens.slnx -c Release -p:BuildFrontend=true
-dotnet test tests\SapLens.Tests -c Release --no-build
-dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\sap-lens\release-next\server-win-x64
-dotnet publish src\SapLens.Desktop -c Release -o C:\sap-lens\release-next\desktop-win-x64
+cd /d C:\src\sap-lens\backend && dotnet build AuthLens.slnx -c Release -p:BuildFrontend=true
+dotnet test tests\AuthLens.Tests -c Release --no-build
+dotnet publish src\AuthLens.Api -c Release -r win-x64 --self-contained true -o C:\AuthLens-Test\release-next\server-win-x64
+dotnet publish src\AuthLens.Desktop -c Release -o C:\AuthLens-Test\release-next\desktop-win-x64
 ```
 
 Validate the new server package side by side over HTTPS (replace the certificate paths with the lab's; port 18795 is free for this test and
 needs no firewall change when tested from the VM itself):
 
 ```bat
-start "SAP Lens validation" C:\sap-lens\release-next\server-win-x64\SapLens.Api.exe --data-dir C:\sap-lens\validation-data --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20 --cert <path-to-server.pfx> --cert-password-file <path-to-cert-password>
+start "AuthLens validation" C:\AuthLens-Test\release-next\server-win-x64\AuthLens.Api.exe --data-dir C:\AuthLens-Test\validation-data --network --listen 192.168.10.20 --port 18795 --allowed-hosts 192.168.10.20 --cert <path-to-server.pfx> --cert-password-file <path-to-cert-password>
 curl.exe -s -o NUL -w "sign-in page %{http_code}\n" https://192.168.10.20:18795/login.html
 curl.exe -s -o NUL -w "app without session %{http_code} (302 expected)\n" https://192.168.10.20:18795/
 curl.exe -s -o NUL -w "api without token %{http_code} (401 expected)\n" https://192.168.10.20:18795/api/roles
-set /p TOKEN=<C:\sap-lens\validation-data\api-token
+set /p TOKEN=<C:\AuthLens-Test\validation-data\api-token
 curl.exe -s -H "X-SAP-Lens-Token: %TOKEN%" https://192.168.10.20:18795/api/version
 curl.exe -s -o NUL -w "not migrated %{http_code} (501 expected)\n" -H "X-SAP-Lens-Token: %TOKEN%" https://192.168.10.20:18795/api/dashboard
 curl.exe -s -X POST -H "X-SAP-Lens-Token: %TOKEN%" -H "Content-Type: text/csv" --data-binary @%TEMP%\sap-lens-csv\roles.csv https://192.168.10.20:18795/api/v1/imports/roles
@@ -111,11 +111,11 @@ set TOKEN=
 The synthetic `roles.csv` comes from the PowerShell snippet in
 [DESKTOP_SERVER_DEPLOYMENT.md](../deployment/DESKTOP_SERVER_DEPLOYMENT.md#b-interactive-desktop-session-powershell-51-or-7-window-webview2-import-shutdown). Then
 open `https://192.168.10.20:18795/` in a browser on the VM (and, with a temporary firewall rule for port 18795 restricted to the trusted subnet,
-from another device): expected are the sign-in page, then the SAP Lens UI with the .NET notice, and Role Lookup listing the imported roles.
+from another device): expected are the sign-in page, then the AuthLens UI with the .NET notice, and Role Lookup listing the imported roles.
 Stop the validation server by closing its window. Only after this passes, replace the running lab service's binaries
-(`Stop-Service SapLens`, copy `server-win-x64`, `Start-Service SapLens`; see [SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md#9-secure-shutdown-and-restart)).
+(`Stop-Service AuthLens`, copy `server-win-x64`, `Start-Service AuthLens`; see [SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md#9-secure-shutdown-and-restart)).
 
-Desktop: `C:\sap-lens\release-next\desktop-win-x64\SapLens.exe --self-check` (exit code 0), then start it normally; the window shows
+Desktop: `C:\AuthLens-Test\release-next\desktop-win-x64\AuthLens.exe --self-check` (exit code 0), then start it normally; the window shows
 the same React UI without a sign-in.
 
 ## Limitations of this milestone

@@ -62,7 +62,7 @@ does not invent Previous/Next positions from the independent User Directory orde
 
 ## Position changes
 
-When a replacement Employee Directory is imported, SAP Lens compares it with the previous validated snapshot and records a **position change** when an employee's **Department** or **Job title** differs. Employees are matched by their unique e-mail address and then attributed to a SAP user only through the existing reliable directory match. The previous and current values, detection time, source generation and affected fields are kept as private evidence (`position-changes.json`, never copied SAP rows).
+When a replacement Employee Directory is imported, AuthLens compares it with the previous validated snapshot and records a **position change** when an employee's **Department** or **Job title** differs. Employees are matched by their unique e-mail address and then attributed to a SAP user only through the existing reliable directory match. The previous and current values, detection time, source generation and affected fields are kept as private evidence (`position-changes.json`, never copied SAP rows).
 
 These never count as a change: manager-only differences, spacing or capitalization differences, a missing old or new value, employees new to the directory, duplicate or ambiguous e-mail addresses, and a replacement with far fewer records or a mostly empty Department/Title column (a notice is stored instead). The first import is a baseline. Changes older than 90 days drop out.
 

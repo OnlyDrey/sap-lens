@@ -95,7 +95,7 @@ Describe 'Bounded source releases/current junction' -Skip:([IO.Path]::DirectoryS
     }
     It 'rejects a nested junction in the physical release' {
         New-FixtureJunction (Join-Path $script:Release 'nested') (Join-Path $script:Install 'data')
-        { Get-ALReleaseJunction $script:Releases } | Should -Throw '*Migration sources must not contain reparse points*'
+        { Get-ALReleaseJunction $script:Releases } | Should -Throw '*must not contain reparse points*'
     }
     It 'rejects a target that is itself a junction to another tree' {
         $alias = Join-Path $script:Releases 'alias'
@@ -156,13 +156,6 @@ Describe 'Bounded source releases/current junction' -Skip:([IO.Path]::DirectoryS
         $saved | ConvertTo-Json -Depth 10 | Set-Content $file
         $script:Calls.Clear()
         { Invoke-ALRestoreAcl $result.backup $script:Approved } | Should -Throw '*paths must not traverse reparse points*'
-        $script:Calls.Count | Should -Be 0
-    }
-    It 'keeps migration copying strict and rejects a linked tree before creating staging' {
-        $target = Join-Path $script:Root 'stage'
-        { Copy-ALMigrationTree $script:Install $target $script:Approved } | Should -Throw '*Migration sources must not contain reparse points*'
-        Test-Path $target | Should -BeFalse
-        @(Get-ALTreeFiles $script:Release).Count | Should -Be 2
         $script:Calls.Count | Should -Be 0
     }
     It 'saves a real native ACL inventory without following current' {

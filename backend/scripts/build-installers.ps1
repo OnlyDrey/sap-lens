@@ -9,7 +9,7 @@
   Nothing is signed, uploaded, tagged or installed. Code signing is a separate, authorized release step.
 
 .EXAMPLE
-  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-installers.ps1 -ReleasePath C:\saplens\builds\AuthLens-2.0.0-alpha.1-...-win-x64 -Output C:\saplens\installers
+  powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\build-installers.ps1 -ReleasePath C:\AuthLens-Build\builds\AuthLens-2.0.0-alpha.1-...-win-x64 -Output C:\AuthLens-Build\installers
 #>
 param(
     [Parameter(Mandatory = $true)][string]$ReleasePath,

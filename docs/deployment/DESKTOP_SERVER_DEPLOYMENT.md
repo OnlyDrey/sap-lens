@@ -22,7 +22,7 @@ window received 404, while `/api` (401) and WebView2 worked. Copying the v1 Reac
 
 Fix:
 
-1. The UI is **embedded in `SapLens.Api.dll`** (`ManifestEmbeddedFileProvider`). Every host serves it regardless of working directory,
+1. The UI is **embedded in `AuthLens.Api.dll`** (`ManifestEmbeddedFileProvider`). Every host serves it regardless of working directory,
    publish layout or single-file bundling; nothing is copied after publishing. (First a small prototype UI; since Phase 1 the production React
    UI from `frontend/`, see [UI_INTEGRATION.md](../architecture/UI_INTEGRATION.md).)
 2. A build without the UI fails at startup with a clear message instead of serving 404.
@@ -36,13 +36,13 @@ Fix:
 
 ```bash
 cd backend
-dotnet publish src/SapLens.Api -c Release -r linux-x64 --self-contained true -o <out>/server-linux-x64   # folder publish
-dotnet publish src/SapLens.Api -c Release -r win-x64 -o <out>/server   # single file: SapLens.Api.exe + e_sqlite3.dll (settings in the project)
+dotnet publish src/AuthLens.Api -c Release -r linux-x64 --self-contained true -o <out>/server-linux-x64   # folder publish
+dotnet publish src/AuthLens.Api -c Release -r win-x64 -o <out>/server   # single file: AuthLens.Api.exe + e_sqlite3.dll (settings in the project)
 # run (no .NET or Python needed on the host)
-AUTHLENS_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-dir /var/lib/saplens-v2 --port 18790 [--no-worker]
+AUTHLENS_TOKEN=<at least 32 chars> <out>/server-linux-x64/AuthLens.Api --data-dir /var/lib/authlens --port 18790 [--no-worker]
 ```
 
-- **Options**: `SapLens.Api --help`; full reference in [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md#2-configuration-reference); Windows
+- **Options**: `AuthLens.Api --help`; full reference in [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md#2-configuration-reference); Windows
   VM runbook and test launcher in [WINDOWS_TEST_VM.md](WINDOWS_TEST_VM.md).
 - **Data directory**: `--data-dir` or `AUTHLENS_DATA_DIR` (required, no default); must be absolute and local (UNC, `//host/share` and network drives refused).
 - **Token**: `AUTHLENS_TOKEN`, otherwise generated once into `<data>/api-token` (mode 0600 on Linux; on Windows it inherits the data
@@ -50,7 +50,7 @@ AUTHLENS_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-dir
 - **Binding**: `127.0.0.1` by default. Access from other devices only with `--network`, one private LAN address, HTTPS with a validated
   certificate and explicit `--allowed-hosts`; everything else is refused at startup. See [SERVER_NETWORK_ACCESS.md](SERVER_NETWORK_ACCESS.md).
 - **UI**: `http://127.0.0.1:<port>/` serves the React UI. By default (`--auth accounts`) people sign in with individual v1-compatible
-  accounts and roles; the first administrator is activated with a one-time code from `SapLens.Cli accounts-code --data <data-dir>`
+  accounts and roles; the first administrator is activated with a one-time code from `AuthLens.Cli accounts-code --data <data-dir>`
   ([details](SERVER_NETWORK_ACCESS.md#accounts-mode-default)). API clients keep using the access-token header. `--auth shared-token`
   keeps the earlier single-secret sign-in through `/login.html` for isolated tests.
 - **Health**: `/health/live` (process up), `/health/ready` (database initialized, migrated, integrity-checked); `503` with the reason
@@ -67,25 +67,25 @@ AUTHLENS_TOKEN=<at least 32 chars> <out>/server-linux-x64/SapLens.Api --data-dir
 ## Desktop
 
 ```bash
-dotnet publish src/SapLens.Desktop -c Release -o <out>/desktop   # win-x64, self-contained, single file: set in the project
+dotnet publish src/AuthLens.Desktop -c Release -o <out>/desktop   # win-x64, self-contained, single file: set in the project
 ```
 
-The package is `SapLens.exe` (plus `.pdb` files that can be deleted; the release scripts move them to `symbols\desktop`). No `frontend` or `wwwroot` folder exists or is needed.
-Arguments: `--data-dir <absolute path>` (default `%LOCALAPPDATA%\SAP Lens Desktop\data`) and `--self-check` (start, probe, log, exit
+The package is `AuthLens.exe` (plus `.pdb` files that can be deleted; the release scripts move them to `symbols\desktop`). No `frontend` or `wwwroot` folder exists or is needed.
+Arguments: `--data-dir <absolute path>` (default `%LOCALAPPDATA%\AuthLens\data`) and `--self-check` (start, probe, log, exit
 without a window: exit code 0 ready, 2 start or readiness failure, 1 another instance running).
 
 Lifecycle as implemented (`Program.cs`, `MainWindow.cs`) [C]:
 
 1. Single instance per Windows session (named mutex).
-2. Private data directory `%LOCALAPPDATA%\SAP Lens Desktop\data`, separate from v1 (`%LOCALAPPDATA%\SAP Lens`, never used). A folder of the earlier
-   prototype builds, `%LOCALAPPDATA%\SAP Lens 2 Prototype`, is kept in place and used as long as `SAP Lens Desktop` does not exist; nothing is moved
-   or renamed (`DesktopLocation`). Single-instance mutex `Local\SapLensDotnetDesktop`, or `Local\SapLens2Prototype` with the earlier folder.
+2. Private data directory `%LOCALAPPDATA%\AuthLens\data`. Folders of earlier products (`SAP Lens Desktop`, `SAP Lens 2 Prototype`, SAP Lens 1's
+   `SAP Lens`) are never opened, moved or changed; they are only reported so the user can bring that data over by restoring a backup
+   (`DesktopLocation`). Single-instance mutex `Local\AuthLensDesktop`.
 3. Core starts in-process on `127.0.0.1:0`; a fresh 256-bit token per run.
 4. The window is created only after `StartupProbe` confirmed `/health/ready` = 200 and the UI at `/` (30 s limit); otherwise the host is
    stopped, a message with the reason and the log path is shown, exit code 2.
-4a. Log file `%LOCALAPPDATA%\SAP Lens Desktop\logs\desktop-YYYYMMDD.log` (startup, readiness, WebView2 version, navigation and
+4a. Log file `%LOCALAPPDATA%\AuthLens\logs\desktop-YYYYMMDD.log` (startup, readiness, WebView2 version, navigation and
    browser-process failures, shutdown). The token is never logged (tested).
-5. WebView2 profile in `%LOCALAPPDATA%\SAP Lens Desktop\webview2`; DevTools and default context menus off; navigation confined to the
+5. WebView2 profile in `%LOCALAPPDATA%\AuthLens\webview2`; DevTools and default context menus off; navigation confined to the
    loopback origin; new windows blocked.
 6. The token is added to `/api` requests in `WebResourceRequested` by the host. Page script never sees it, which also removes the v1
    finding F1 (capability passed through the first page load).
@@ -113,14 +113,14 @@ system-wide .NET.
 
 ## Backups, keys and SAP Lens 1 data
 
-- Application backups need a host backup key outside the data directory: `SapLens.Api --backup-key create <file> --data-dir <dir>`, then
+- Application backups need a host backup key outside the data directory: `AuthLens.Api --backup-key create <file> --data-dir <dir>`, then
   `--backup-key export <file>` for the escrowed recovery copy, verified in Settings, Backups. Automatic backups stay off until it is verified.
 - SAP Lens 1 data (a `.slbak`, `.tar.gz` or data directory) moves with `--migrate-v1`; the step-by-step Windows procedure is
   [V1_MIGRATION.md](../migration/V1_MIGRATION.md).
 
 ## Unicode and ICU (runtime requirement)
 
-SAP Lens builds with `InvariantGlobalization=false`: Unicode normalization (NFKC, used for Employee Directory and Functional Group text) and IANA time
+AuthLens builds with `InvariantGlobalization=false`: Unicode normalization (NFKC, used for Employee Directory and Functional Group text) and IANA time
 zones need ICU at runtime.
 
 - **Windows:** Windows 10 1903, Windows Server 2019 and later include ICU (`icu.dll`); nothing to install.
@@ -148,7 +148,7 @@ it would mean Dapper or hand-written SQL instead of EF Core.
 
 ## Windows verification
 
-Assumes the .NET 10 SDK and Git on the VM, the repository at `C:\src\sap-lens`, and output under `C:\sap-lens` (outside the repository).
+Assumes the .NET 10 SDK and Git on the VM, the repository at `C:\src\sap-lens`, and output under `C:\AuthLens-Test` (outside the repository).
 Commands are for an interactive prompt; in a `.bat` file double every `%` in the `curl -w` formats.
 
 ### A. Over SSH (CMD): build, tests, publish, headless Desktop self-check, Server
@@ -160,41 +160,41 @@ git checkout experiment/dotnet-backend
 git pull --ff-only
 cd backend
 
-dotnet build SapLens.slnx -c Release
-dotnet test tests\SapLens.Tests -c Release --no-build --filter "Category!=Publish"
-dotnet test tests\SapLens.Tests -c Release --no-build --filter "Category=Publish"
+dotnet build AuthLens.slnx -c Release
+dotnet test tests\AuthLens.Tests -c Release --no-build --filter "Category!=Publish"
+dotnet test tests\AuthLens.Tests -c Release --no-build --filter "Category=Publish"
 
-rmdir /s /q C:\sap-lens 2>NUL
-dotnet publish src\SapLens.Desktop -c Release -o C:\sap-lens\desktop
-dotnet publish src\SapLens.Api -c Release -r win-x64 --self-contained true -o C:\sap-lens\server
-dir C:\sap-lens\desktop
-if exist C:\sap-lens\desktop\frontend (echo UNEXPECTED frontend folder) else (echo OK no loose frontend)
+rmdir /s /q C:\AuthLens-Test 2>NUL
+dotnet publish src\AuthLens.Desktop -c Release -o C:\AuthLens-Test\desktop
+dotnet publish src\AuthLens.Api -c Release -r win-x64 --self-contained true -o C:\AuthLens-Test\server
+dir C:\AuthLens-Test\desktop
+if exist C:\AuthLens-Test\desktop\frontend (echo UNEXPECTED frontend folder) else (echo OK no loose frontend)
 
 REM Desktop without a window, from an unrelated working directory, with its own data directory
 cd /d %TEMP%
-start "" /wait C:\sap-lens\desktop\SapLens.exe --self-check --data-dir C:\sap-lens\desktop-check
+start "" /wait C:\AuthLens-Test\desktop\AuthLens.exe --self-check --data-dir C:\AuthLens-Test\desktop-check
 echo self-check exit code %ERRORLEVEL%
-dir C:\sap-lens\desktop-check
-type "%LOCALAPPDATA%\SAP Lens Desktop\logs\self-check-*.log"
+dir C:\AuthLens-Test\desktop-check
+type "%LOCALAPPDATA%\AuthLens\logs\self-check-*.log"
 
 REM Server from an unrelated working directory; it generates its token file on first start
-start "" /b C:\sap-lens\server\SapLens.Api.exe --data-dir C:\sap-lens\server-data --port 18790 > C:\sap-lens\server.log 2>&1
+start "" /b C:\AuthLens-Test\server\AuthLens.Api.exe --data-dir C:\AuthLens-Test\server-data --port 18790 > C:\AuthLens-Test\server.log 2>&1
 timeout /t 5 /nobreak >NUL
 curl -s -o NUL -w "ready %{http_code}\n" http://127.0.0.1:18790/health/ready
 curl -s http://127.0.0.1:18790/ | findstr /c:"prototype-ui-v1"
 curl -s -o NUL -w "app.js %{http_code} %{content_type}\n" http://127.0.0.1:18790/app.js
 curl -s -o NUL -w "app.css %{http_code} %{content_type}\n" http://127.0.0.1:18790/app.css
 curl -s -o NUL -w "api without token %{http_code}\n" http://127.0.0.1:18790/api/v1/roles
-set /p TOKEN=<C:\sap-lens\server-data\api-token
+set /p TOKEN=<C:\AuthLens-Test\server-data\api-token
 curl -s -H "X-SAP-Lens-Token: %TOKEN%" http://127.0.0.1:18790/api/v1/session
 curl -s -H "X-SAP-Lens-Token: %TOKEN%" http://127.0.0.1:18790/api/v1/admin/integrity
 set TOKEN=
-dir C:\sap-lens\server-data
-taskkill /im SapLens.Api.exe /f
-tasklist /fi "imagename eq SapLens.Api.exe"
+dir C:\AuthLens-Test\server-data
+taskkill /im AuthLens.Api.exe /f
+tasklist /fi "imagename eq AuthLens.Api.exe"
 ```
 
-Expected: tests pass (the Linux-only publish test returns immediately on Windows); `self-check exit code 0`; `sap-lens-v2.sqlite3` in both
+Expected: tests pass (the Linux-only publish test returns immediately on Windows); `self-check exit code 0`; `authlens.sqlite3` in both
 data directories; `ready 200`; the marker line printed; `app.js 200 text/javascript`; `app.css 200 text/css`; `api without token 401`;
 session JSON with `"mode":"server"`; `"database_ok":true`. `taskkill /f` is a hard stop: graceful Windows shutdown is verified only once the
 Server runs as a Windows service (not built).
@@ -210,29 +210,29 @@ $users = @('USERNAME;ROLE_NAME;USER_GROUP;FIRST_NAME;LAST_NAME;EMAIL;USER_VALID_
 Set-Content -Path (Join-Path $csv 'roles.csv') -Value $roles -Encoding UTF8
 Set-Content -Path (Join-Path $csv 'users.csv') -Value $users -Encoding UTF8
 
-Start-Process -FilePath 'C:\sap-lens\desktop\SapLens.exe' -WorkingDirectory $env:TEMP
+Start-Process -FilePath 'C:\AuthLens-Test\desktop\AuthLens.exe' -WorkingDirectory $env:TEMP
 # In the window: status line shows "<user> · desktop · No data imported yet"; Data tab: import roles.csv as Roles, then users.csv as Users;
 # Role Lookup: search ZC:FI*; User Access: search USER; Compare Users: USER0001 and USER0002 with validity "all". Then close the window.
 
-$app = Join-Path $env:LOCALAPPDATA 'SAP Lens Desktop'
+$app = Join-Path $env:LOCALAPPDATA 'AuthLens Desktop'
 Get-ChildItem (Join-Path $app 'data')
 Get-ChildItem (Join-Path $app 'logs') | Sort-Object LastWriteTime | Select-Object -Last 1 | Get-Content -Tail 40
 # After closing the window, both must return nothing:
-Get-Process SapLens -ErrorAction SilentlyContinue
-Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -like '*SAP Lens Desktop*' }
+Get-Process AuthLens -ErrorAction SilentlyContinue
+Get-CimInstance Win32_Process -Filter "Name='msedgewebview2.exe'" | Where-Object { $_.CommandLine -like '*AuthLens Desktop*' }
 ```
 
 ### Acceptance checklist (Windows)
 
 | # | Check | Pass when | Status |
 | --- | --- | --- | --- |
-| 1 | Package completeness | `C:\sap-lens\desktop` holds `SapLens.exe` and no `frontend`/`wwwroot`; publish tests pass | Pending |
+| 1 | Package completeness | `C:\AuthLens-Test\desktop` holds `AuthLens.exe` and no `frontend`/`wwwroot`; publish tests pass | Pending |
 | 2 | Headless start | `--self-check` exit code 0 from `%TEMP%`; log says "Self-check passed" | Pending |
 | 3 | Desktop launch | Window opens within a few seconds; one instance only (second start says already running) | Pending |
 | 4 | WebView2 rendering | Prototype UI visible (header, tabs, status line), not a 404 or blank page | Pending |
 | 5 | Local API connectivity | Status line shows the Windows user and `desktop`; imports and lookups return data; no sign-in prompt | Pending |
-| 6 | SQLite initialization | `sap-lens-v2.sqlite3` (plus `-wal`/`-shm` while running) in the data directory | Pending |
-| 7 | Clean shutdown | After closing: no `SapLens` process, no `msedgewebview2` with the prototype profile; log ends with "Desktop stopped" | Pending |
+| 6 | SQLite initialization | `authlens.sqlite3` (plus `-wal`/`-shm` while running) in the data directory | Pending |
+| 7 | Clean shutdown | After closing: no `AuthLens` process, no `msedgewebview2` with the prototype profile; log ends with "Desktop stopped" | Pending |
 | 8 | Server package | Section A Server results as expected, from `%TEMP%` | Pending |
 
 Windows Desktop acceptance is **not complete** until rows 1 to 8 pass on the VM with the fixed build.

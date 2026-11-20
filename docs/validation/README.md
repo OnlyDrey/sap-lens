@@ -1,6 +1,6 @@
 # Validation tracker
 
-A repository-maintained checklist of what SAP Lens should do on every page, and what a reviewer found when checking it. The source of truth is plain CSV; an
+A repository-maintained checklist of what AuthLens should do on every page, and what a reviewer found when checking it. The source of truth is plain CSV; an
 Excel workbook generated from it is provided for manual review. Nothing is approved until a person validates it and records the evidence: automated test
 results are listed separately and never approve an item.
 

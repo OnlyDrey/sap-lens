@@ -72,7 +72,7 @@ in the repository.
 `Enabled` accepts `true`/`false` or `1`/`0`, case-insensitively. Other/missing values
 remain **Unknown**, never implicitly enabled. AD account state is shown separately
 from SAP lock and validity evidence. `UserPrincipalName` is not an email fallback;
-`ManagerLookupStatus` is source information, not proof that SAP Lens resolved a
+`ManagerLookupStatus` is source information, not proof that AuthLens resolved a
 manager.
 
 

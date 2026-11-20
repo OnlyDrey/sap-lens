@@ -235,7 +235,7 @@ Describe 'Background mode with a fake Server executable' -Skip:([System.IO.Path]
             $run.Code | Should -Be 0
             $run.Output | Should -Match 'Running in the background: process \d+'
             $run.Output | Should -Not -Match 'synthetic-password-value'
-            $record = Get-Content (Join-Path $logs 'sap-lens-test-server.json') -Raw | ConvertFrom-Json
+            $record = Get-Content (Join-Path $logs 'authlens-test-server.json') -Raw | ConvertFrom-Json
             Get-Process -Id $record.pid | Should -Not -BeNullOrEmpty
             (Get-Content $record.out_log -Raw) | Should -Match 'Listening \(fake\)'
             $again = Invoke-Background $builds $logs (Get-FreePort) @('-Background')
@@ -247,7 +247,7 @@ Describe 'Background mode with a fake Server executable' -Skip:([System.IO.Path]
         $stop.Code | Should -Be 0
         $stop.Output | Should -Match 'Stopped the test server'
         Get-Process -Id $record.pid -ErrorAction SilentlyContinue | Should -BeNullOrEmpty
-        Test-Path (Join-Path $logs 'sap-lens-test-server.json') | Should -BeFalse
+        Test-Path (Join-Path $logs 'authlens-test-server.json') | Should -BeFalse
         (Invoke-Background $builds $logs $port @('-Stop')).Output | Should -Match 'No test server started by this script is running'
     }
 
@@ -259,7 +259,7 @@ Describe 'Background mode with a fake Server executable' -Skip:([System.IO.Path]
         $run.Code | Should -Be 3
         $run.Output | Should -Match 'exited with code 3 during startup'
         $run.Output | Should -Match 'startup refused: synthetic reason'
-        Test-Path (Join-Path $logs 'sap-lens-test-server.json') | Should -BeFalse
+        Test-Path (Join-Path $logs 'authlens-test-server.json') | Should -BeFalse
     }
 
     It 'refuses a log directory inside the release folder' {

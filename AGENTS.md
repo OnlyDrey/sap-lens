@@ -1,14 +1,18 @@
 # Repository guidance
 
-- Preserve the README `<!-- LOGO -->` block, including the logo path, SAP Lens title, and SAP S/4HANA description, unless the user explicitly requests a change. Keep the navigation links immediately below the description in the centered paragraph.
+- Preserve the README `<!-- LOGO -->` block, including the logo path, AuthLens title, and SAP S/4HANA description, unless the user explicitly requests a change. Keep the navigation links immediately below the description in the centered paragraph.
 - Each cloud task is isolated. Use the existing checkout; do not create a Git worktree unless requested.
 - SAP role exports, local settings, logs, .env files and credentials must not be committed or included in release artifacts.
 - The .NET Desktop binds only to 127.0.0.1 on an OS-assigned port. Do not weaken local host/origin checks, expose the API to a LAN, or cache role data in a service worker.
 - Validate every change with the Progressive test validation policy below (Level 1 and 2 during development). The whole .NET suite
-  (`dotnet test backend/tests/SapLens.Tests`) and the complete browser suite are explicit FULL checks, not automatic development steps. Keep
+  (`dotnet test backend/tests/AuthLens.Tests`) and the complete browser suite are explicit FULL checks, not automatic development steps. Keep
   frontend type/build checks proportional to affected code.
-- **SAP Lens is the .NET implementation in `backend/` with the React frontend in `frontend/`** (product version 2.0.0-alpha.1; never call the
-  current product "SAP Lens 2"). SAP Lens 1 (Python/FastAPI) is archived **outside** this repository (a separate archive; the last commit with
+- **AuthLens is the .NET implementation in `backend/` with the React frontend in `frontend/`** (product version 2.0.0-alpha.1; the product was
+  previously named SAP Lens and the repository keeps the name `sap-lens`; never call the current product "SAP Lens", "SAP Lens 2" or "AuthLens 2").
+  Canonical identities: Windows service `AuthLens`, installation root `C:\ProgramData\AuthLens`, database `authlens.sqlite3`, server
+  `AuthLens.Api.exe`, environment variables `AUTHLENS_*`. SAP Lens data reaches AuthLens only by restoring a backup into a fresh installation (or the
+  explicit `--adopt-legacy-database`); never adopt, rename or change a SAP Lens service, data directory or database. Compatibility identifiers
+  that keep an earlier name are listed in the naming register (docs/architecture/VERSIONING.md). SAP Lens 1 (Python/FastAPI) is archived **outside** this repository (a separate archive; the last commit with
   it in place is `604f21e`). Nothing active may depend on it: no `legacy/` paths, no Python fixtures or servers in builds and tests
   (`scripts/check-structure.py` enforces this). Historical v1 documentation stays in `docs/legacy/v1`.
 - `.github/workflows/validate.yml` validates .NET, the frontend and focused Playwright only on push to `main`. No dispatch, PR,
@@ -22,11 +26,11 @@
 
 Verified against `backend/` project files, `frontend/package.json` and configs.
 
-- **Backend:** .NET 10, ASP.NET Core, EF Core SQLite, xUnit. Solution `backend/SapLens.slnx`; projects in `backend/src`:
-  `SapLens.Domain` (ported business rules: CSV, catalogue, users, SoD), `SapLens.Persistence` (SQLite schema, migrations, write coordinator,
-  backups), `SapLens.Application` (imports, jobs, reviews, accounts, backups, retention), `SapLens.Api` (Server host and the v1-compatible API the
-  React UI calls, `V1*.cs`), `SapLens.Desktop` (WinForms + WebView2), `SapLens.Documents` (DOCX/PDF), `SapLens.Cli`. Tests in
-  `backend/tests/SapLens.Tests`; release, installer and deployment scripts in `backend/scripts` (Pester and Bash tests in `backend/scripts/tests`);
+- **Backend:** .NET 10, ASP.NET Core, EF Core SQLite, xUnit. Solution `backend/AuthLens.slnx`; projects in `backend/src`:
+  `AuthLens.Domain` (ported business rules: CSV, catalogue, users, SoD), `AuthLens.Persistence` (SQLite schema, migrations, write coordinator,
+  backups), `AuthLens.Application` (imports, jobs, reviews, accounts, backups, retention), `AuthLens.Api` (Server host and the v1-compatible API the
+  React UI calls, `V1*.cs`), `AuthLens.Desktop` (WinForms + WebView2), `AuthLens.Documents` (DOCX/PDF), `AuthLens.Cli`. Tests in
+  `backend/tests/AuthLens.Tests`; release, installer and deployment scripts in `backend/scripts` (Pester and Bash tests in `backend/scripts/tests`);
   historical Python tools that regenerate v1 comparison fixtures in `backend/tools` (they need an external SAP Lens 1 checkout through
   `SAP_LENS_V1_BACKEND`; builds and tests only read the committed fixtures).
 - **Repository checks:** Python 3 scripts in `scripts/` (docs, secrets, structure, workflows, dependencies) with `scripts/requirements-checks.txt`.
@@ -53,13 +57,13 @@ Verified against `backend/` project files, `frontend/package.json` and configs.
 
 From the repository root ([development](docs/development/README.md)).
 
-- .NET: `cd backend && dotnet build SapLens.slnx -c Release`; tests `dotnet test tests/SapLens.Tests -c Release --no-build --filter
+- .NET: `cd backend && dotnet build AuthLens.slnx -c Release`; tests `dotnet test tests/AuthLens.Tests -c Release --no-build --filter
   "FullyQualifiedName~<Class>"` (affected classes), the whole suite only as FULL. The build embeds `frontend/dist` as it is (built only when missing or with `-p:BuildFrontend=true`); release scripts always rebuild it once.
 - Scripts: `pwsh -NoProfile -Command "Invoke-Pester backend/scripts/tests"` (deployment state machine, test launcher),
   `bash backend/scripts/tests/deploy-windows.test.sh` (SSH orchestrator), PowerShell syntax via the parser for changed scripts.
 - Frontend, in `frontend`: `npm ci`, `npm run check:types`, `npm run lint`, `npm run test:unit`, `npm run build`,
   `npm run test:browser`. Build first: Playwright serves `dist` through the isolated .NET test host
-  (`scripts/browser-server.mjs`, `backend/tests/SapLens.BrowserHost`) on 127.0.0.1:18745, and a stale server on that
+  (`scripts/browser-server.mjs`, `backend/tests/AuthLens.BrowserHost`) on 127.0.0.1:18745, and a stale server on that
   port blocks the run. A prepared Chromium may need `PLAYWRIGHT_EXECUTABLE_PATH`;
   report the override. Target with `npm run test:browser -- tests/<file>.spec.ts --grep <name>`.
 - Static: `python scripts/check-docs.py`, `python scripts/check-secrets.py`, `python scripts/check-structure.py`,
@@ -174,14 +178,14 @@ planned checkpoints, never after every correction. Commands: [development](docs/
 ## Architecture and documentation map
 
 - Preserve approved history and private data; publication limits are in Git workflow.
-- SoD: rules in `backend/src/SapLens.Domain/Sod`, decisions in `SapLens.Application/SodDecisionStore.cs`, API in
-  `backend/src/SapLens.Api/V1Sod*.cs`, `SodScope.cs`, `SodPeriods.cs`, `SodReports.cs`; UI in
+- SoD: rules in `backend/src/AuthLens.Domain/Sod`, decisions in `AuthLens.Application/SodDecisionStore.cs`, API in
+  `backend/src/AuthLens.Api/V1Sod*.cs`, `SodScope.cs`, `SodPeriods.cs`, `SodReports.cs`; UI in
   `frontend/src/components/Sod` plus Shared `MatrixGrid`/`SidePanel`. Review decisions never
   change conflict detection, snapshots and decisions are immutable private data, reports render
   from one frozen model. Browser specs share `frontend/tests/sod-fixture.ts` (unique users per
   test because reset keeps review history). Guides: [SoD workflow](docs/features/SOD.md),
   [SoD architecture (v1 history)](docs/legacy/v1/architecture/SOD.md), [SoD matrix reference](docs/data/SOD_MATRIX.md).
-- Business logic lives in the shared .NET projects; `SapLens.Desktop` owns the Windows WebView2 lifecycle and `SapLens.Api` the Server host
+- Business logic lives in the shared .NET projects; `AuthLens.Desktop` owns the Windows WebView2 lifecycle and `AuthLens.Api` the Server host
   (console or Windows service). Do not duplicate CSV import, role matching, transaction evidence or account interpretation per host.
 - Server mode must use separate mutable storage, enforce its authentication and
   host/origin boundary, and keep browser uploads local to the configured server.
@@ -224,7 +228,7 @@ planned checkpoints, never after every correction. Commands: [development](docs/
   genuine blockers, final validation and overall completion. Do not narrate
   individual commands, edits or routine retries. Use this format:
 
-  **SAP Lens — Implementation Progress**
+  **AuthLens — Implementation Progress**
   **Overall:** X/Y phases completed (Z%)
   **Current phase:** Phase N — Name
   **Status:** In progress / Completed / Blocked

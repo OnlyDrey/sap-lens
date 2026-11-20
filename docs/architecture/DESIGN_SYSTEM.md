@@ -1,4 +1,4 @@
-# SAP Lens design system
+# AuthLens design system
 
 ## Principles and scope
 

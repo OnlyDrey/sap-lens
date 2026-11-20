@@ -1,27 +1,29 @@
 # Windows deployment: SSH-driven test server and installers
 
-How the SAP Lens .NET server is built, validated and deployed on a Windows test host from Linux over SSH, how an earlier `SapLens2` service is
-migrated to `sap-lens`, and how the Desktop and Server installers are built. Every value below is an example (`192.0.2.0/24`, `lens.example.com`,
-`deployer`, `C:\Users\example`); real host names, addresses, paths and credentials stay in the host's own configuration file and are never committed.
+How AuthLens is installed, updated and restored as the `AuthLens` Windows service under one installation root (`C:\ProgramData\AuthLens`), driven
+from Linux over SSH or locally, how a SAP Lens installation is migrated (a fresh AuthLens installation plus a restore of a SAP Lens backup), and how
+the Desktop and Server installers are built. Every value below is an example (`192.0.2.0/24`, `lens.example.com`, `deployer`, `C:\Users\example`);
+real host names, addresses, paths and credentials stay in the host's own configuration file and are never committed.
 
-Status: deployment state-machine tests use mocked SCM/network operations (Pester); SSH tests use a fake SSH (Bash). Windows PowerShell 5.1
-script tests and disposable NTFS audit/ACL-save fixtures are separate from **native service/cutover acceptance, which remains pending**; see
-[Acceptance checklist](#acceptance-checklist-windows-pending). Passing mocked tests never establishes production migration readiness.
+Status: the deployment state machine is tested with mocked SCM/network operations (Pester), the SSH orchestrator with a fake SSH (Bash), and the
+restore of SAP Lens backups into a fresh installation, also on another machine, by the .NET suite (`LegacyRestoreTests`). **Native Windows
+acceptance is pending** ([acceptance checklist](#acceptance-checklist-windows-pending)); nothing here has run on Windows from this environment.
 
 ## Components
 
 | Path (under `backend/`) | Role |
 | --- | --- |
 | `scripts/deploy/deploy-windows.sh` | Linux entry point. Validates input, sends one PowerShell bootstrap over SSH (`-EncodedCommand`), keeps a local log, maps exit codes |
-| `scripts/deploy/Deploy-SapLens.ps1` | Windows entry point (Windows PowerShell 5.1 and PowerShell 7): actions, elevation and `-Yes` checks, result line `SAPLENS-RESULT: <json>` |
-| `scripts/deploy/SapLens.Deploy.psm1` | Deployment state machine: commit lock, isolated worktree build, release verification, backup, service control, rollback, recovery, service migration |
+| `scripts/deploy/Deploy-AuthLens.ps1` | Windows entry point (Windows PowerShell 5.1 and PowerShell 7): actions, elevation and `-Yes` checks, result line `AUTHLENS-RESULT: <json>` |
+| `scripts/deploy/AuthLens.Deploy.psm1` | Install, update and restore: installation layout, commit lock, isolated worktree build, release verification, backup, service control, rollback, recovery |
+| `scripts/deploy/AuthLens.Acl.ps1`, `scripts/deploy/AuthLens.Paths.ps1` | NTFS audit and remediation; path safety (no reparse points, disjoint roots) |
 | `scripts/deploy/deploy.example.json` | Configuration template (copy it outside the repository) |
-| `installer/SapLens-Desktop.iss`, `installer/SapLens-Server.iss`, `scripts/build-installers.ps1` | Inno Setup installers and their build script |
-| `scripts/tests/SapLens.Deploy.Tests.ps1`, `scripts/tests/deploy-windows.test.sh` | Pester (mocked operating system) and Bash (fake SSH, real PowerShell) tests |
+| `installer/AuthLens-Desktop.iss`, `installer/AuthLens-Server.iss`, `scripts/build-installers.ps1` | Inno Setup installers and their build script |
+| `scripts/tests/AuthLens.Deploy.Tests.ps1`, `scripts/tests/deploy-windows.test.sh` | Pester (mocked operating system) and Bash (fake SSH, real PowerShell) tests |
 
 The bootstrap resolves the branch or commit **on the Windows host**, locks the full SHA, extracts the deployment scripts of exactly that commit with
-`git archive` and runs them. A developer checkout is never copied to the host. Commits from before the rename (with `Deploy-SapLens2.ps1` and
-`SAPLENS2-RESULT`) still run.
+`git archive` and runs them. A developer checkout is never copied to the host. A commit that predates AuthLens (without
+`backend/scripts/deploy/Deploy-AuthLens.ps1`) is refused.
 
 Exit codes: `0` success, `1` failed (nothing changed, or rolled back and ready again), `2` refused before any change, `4` manual action required
 (`RECOVERY-REQUIRED.txt` in the run folder), `64` invalid usage (Linux side, SSH never called), `255` SSH failure, `130` interrupted locally.
@@ -46,17 +48,19 @@ On Linux: `ssh`, `bash`, `iconv`, `base64` and an SSH key or agent for the host 
 
 ## Configuration
 
-Copy `backend\scripts\deploy\deploy.example.json` to a folder outside the repository and edit it. Lookup when `-ConfigFile`/`--config` is not given, first
-match wins: `$env:SAPLENS_DEPLOY_CONFIG`, `$env:SAPLENS2_DEPLOY_CONFIG`, `C:\sap-lens\deploy\deploy.local.json`, `C:\saplens\deploy.local.json`, `C:\saplens2\deploy.local.json`.
+Copy `backend\scripts\deploy\deploy.example.json` to `C:\ProgramData\AuthLens\config\deploy.json` (or elsewhere, outside the repository) and edit it.
+Lookup when `-ConfigFile`/`--config` is not given: `$env:AUTHLENS_DEPLOY_CONFIG`, then `C:\ProgramData\AuthLens\config\deploy.json`. No other
+location, and no configuration of an earlier product, is read.
 
 | Setting | Default | Notes |
 | --- | --- | --- |
-| `RepositoryPath` | required | The clone on the host |
-| `WorkRoot`, `ReleasesRoot`, `BackupRoot` | Canonical roots below for `sap-lens`; configuration-relative for legacy sources | Explicit existing values are retained; use `PlanCanonicalTarget` to review a target conversion |
-| `ServiceName`, `ServiceAccount` | detected | Leave both out: an existing `sap-lens`, historical `SapLens`, or `SapLens2` is retained; new installations use `sap-lens`. Explicit migration targets must name `sap-lens`. Account `NT SERVICE\<name>` |
+| `Root` | `C:\ProgramData\AuthLens` | The installation root; every path below defaults to its [layout](#installation-layout) |
+| `RepositoryPath` | required | The clone on the host (build time only; nothing runs from it) |
+| `WorkRoot`, `ReleasesRoot`, `BackupRoot`, `DataDirectory` | `<Root>\deployment`, `\releases`, `\backups\predeploy`, `\data` | Set one explicitly only to move that path |
+| `CertificatePath`, `CertificatePasswordFile` | `<Root>\tls\server.pfx`, `<Root>\tls\cert-password` | Provided by the operator before installing |
+| `ServiceName`, `ServiceAccount` | `AuthLens`, `NT SERVICE\AuthLens` | Set only for an isolated test service |
 | `ListenAddress`, `Port` | required | The server's HTTPS endpoint (`--listen`, `--port`) |
 | `AllowedHosts`, `TrustedProxies` | `[]` | `--allowed-hosts` (every name the browser uses) and `--trusted-proxies` (only the reverse proxy's address) |
-| `DataDirectory`, `CertificatePath`, `CertificatePasswordFile` | required | Absolute paths outside the release and the repository |
 | `ReadyTimeoutSeconds`, `StopTimeoutSeconds` | 120, 90 | Readiness wait after start; graceful stop wait (the service is never killed) |
 
 Unknown settings, relative paths and invalid ports are refused. The file holds paths, addresses and host names only: the certificate password stays in
@@ -75,7 +79,7 @@ $D "${H[@]}" --mode deploy --tests focused --yes # build, test, verify, back up,
 $D "${H[@]}" --mode deploy --commit 1a2b3c4d --tests full --yes
 $D "${H[@]}" --mode rollback --yes               # previous release, only when it can open the current data
 $D "${H[@]}" --mode recover --yes                # finish an interrupted deployment (Ctrl+C, dropped SSH)
-# Directory migration uses the explicit local PowerShell actions below; no SSH shortcut is implied.
+$D "${H[@]}" --mode restore --backup 'D:\transfer\SAP-Lens-manual-<id>.slbak' --key-file 'D:\transfer\recovery.key' --yes
 ```
 
 `--tests focused` runs the deployment-relevant test classes (startup, API, network, reverse proxy, sessions, accounts, persistence, backups,
@@ -100,7 +104,7 @@ exclusive lock:
 
 ### Release packages and integrity
 
-Implemented and tested on Linux (Pester `verify-release.Tests.ps1`, `SapLens.Migration.Tests.ps1`); awaiting Windows acceptance.
+Implemented and tested on Linux (Pester `verify-release.Tests.ps1`); awaiting Windows acceptance.
 
 | Kind | Where | Contents | Verify with |
 | --- | --- | --- | --- |
@@ -123,173 +127,75 @@ Implemented and tested on Linux (Pester `verify-release.Tests.ps1`, `SapLens.Mig
 - A package published by an older script from a build that contained `Service-Manager.ps1` lacks that file and fails `-Scope Server`: republish
   it from its verified full build with the current scripts.
 
-## First deployment
+## Installation layout
 
-**Host with a hand-installed server** (for example an earlier `SapLens2` service started from a build folder):
+One root, `C:\ProgramData\AuthLens` (setting `Root`). Nothing runs from the repository or a build folder; the service runs the verified release
+under `releases\current`.
+
+```text
+C:\ProgramData\AuthLens\              protected DACL: SYSTEM and Administrators (not inherited from ProgramData)
+  releases\<release>\, releases\current   verified server packages and the junction the service runs; service: read and execute
+  data\                               authlens.sqlite3, accounts, uploads (sources\), application backups (backups\), logs\; service: modify
+  config\deploy.json                  deployment configuration (no secrets)
+  tls\server.pfx, tls\cert-password    TLS certificate and its password file; service: read
+  keys\                               host backup key (selected with --backup-key use); service: read
+  backups\predeploy\                   encrypted, verified pre-deployment backups
+  deployment\                         journal, lock, runs (logs), worktrees and builds
+```
+
+Adjustments to the originally proposed layout, with the reason: application backups (automatic 90 days, manual until deleted, migration until
+confirmed) stay in `data\backups\`, where the server manages and restores them; server logs stay in `data\logs\`; `app\` is used only by the
+installer, scripted deployments use `releases\` (versioned, with rollback). A new root is created with its protected DACL by the first
+install; an existing root must pass `-Action AuditAcl` (prepare it with `-Action ProtectAcl`, [NTFS permissions](#ntfs-permissions)).
+
+## Install
 
 ```bash
-$D "${H[@]}" --mode status                                  # service_model windows-service, binary_path_matches false
-$D "${H[@]}" --mode dry-run
-$D "${H[@]}" --mode deploy --tests focused --adopt-service --yes
+$D "${H[@]}" --mode build --tests focused                   # verified release under releases\, no service change
+$D "${H[@]}" --mode deploy --first-install --tests focused --yes
+$D "${H[@]}" --mode status                                  # service AuthLens running, binary_path_matches true, ready
 ```
 
-Adoption requires the service's arguments to be equivalent to the configuration (data directory, network mode, listen address, port, allowed
-hosts, trusted proxies, certificate and password file); otherwise it is refused before any change, listing each difference. The comparison is
-semantic: option order and the order of entries in `--allowed-hosts`/`--trusted-proxies` do not matter, host names and Windows paths compare
-without regard to case, addresses as IP addresses. A missing, repeated, unknown or valueless option is always a difference. The original command line is recorded and restored if the adopted deployment fails.
+`--first-install` creates the root and its folders, installs the `AuthLens` service (automatic start, `NT SERVICE\AuthLens`, restart on failure,
+per-folder grants) and starts it on a new, empty `authlens.sqlite3`. Then create the first administrator (Accounts mode) or restore a backup.
+`--adopt-service` remains for a hand-installed `AuthLens` service with equivalent arguments (compared semantically; any difference is refused
+before a change). Services of earlier products are never looked at, adopted, stopped or changed.
 
-**New host:** `--mode build`, then `--mode deploy --first-install --yes` (installs the `sap-lens` service with automatic start, its virtual account,
-restart on failure and least-privilege grants), then `--mode status`.
+## Restore
 
-## Migrating SapLens2 to sap-lens
+`-Action Restore -Backup <file.slbak> [-KeyFile <recovery key>]` (`--mode restore --backup ... --key-file ...`) restores an AuthLens or SAP Lens
+backup into this installation: the key that sealed it is copied into `keys\` (never overwritten) and selected, `AuthLens.Api --restore` stages and
+validates the archive (authenticated decryption, manifest checksums, SQLite integrity, known migrations, an enabled administrator), the service
+restarts, and the server applies the restore before the database opens. The current data is first saved as an encrypted recovery backup (a fresh
+installation has nothing to save). Any failure is rolled back by the server and reported with exit code 1; the previous data is unchanged.
+A passphrase-protected backup takes `AUTHLENS_BACKUP_PASSPHRASE` instead of `-KeyFile`.
 
-This is an explicit, separate maintenance operation. Do not run it on the working VM during development. Native acceptance must pass first
-on [unique synthetic fixtures](WINDOWS_TEST_VM.md#isolated-native-migration-acceptance). Production cutover still needs authorization.
-An already activated v1 data migration is preserved; do not preview/run/activate it again and do not auto-confirm its functional acceptance.
+## Migrating from SAP Lens
 
-| Purpose | Canonical location |
-| --- | --- |
-| Verified immutable releases / current junction | `C:\sap-lens\releases` / `C:\sap-lens\releases\current` |
-| Deployment tools, private config and mirrored journal | `C:\sap-lens\deploy` |
-| Mutable application data | `C:\ProgramData\sap-lens\data` |
-| Existing TLS certificate and password copy | `C:\ProgramData\sap-lens\tls` |
-| Existing host key and recovery copies | `C:\ProgramData\sap-lens\backup` |
-| Verified pre-deployment/migration archives | `C:\ProgramData\sap-lens\predeploy-backups` |
+The supported path is a **fresh AuthLens installation plus a restore** of a SAP Lens backup. The SAP Lens service (`SapLens2`, `sap-lens` or
+`SapLens`), its data, keys, TLS files and releases are not changed and stay available for rollback until AuthLens is accepted.
 
-Prepare two private JSON configurations **outside the new target roots**. Source explicitly names `SapLens2` and its actual paths, arguments
-and account. Target explicitly names `sap-lens` and the canonical paths above. Preserve `LocalSystem` when the source uses it; a source virtual
-account maps to `NT SERVICE\sap-lens`. Custom credential accounts are refused. Never switch the account implicitly. Preserve the exact listen
-address, port, allowed hosts, trusted proxies and TLS filenames; no certificate regeneration, key rotation, proxy or firewall change occurs.
-Target roots must not exist, must be disjoint local NTFS directories, and must have private parent ACLs and adequate free space.
-Existing application roots must have verified SYSTEM/Administrators access and safe ACLs. Missing application parents below ordinary Windows
-ancestors are reported as requiring exclusive secure provisioning; read/create permissions on `C:\ProgramData` alone are not a global ACL defect.
-See [NTFS permissions](#ntfs-permissions). Staging creates its work directory exclusively and never adopts a directory that appeared after inspection.
+1. **On the SAP Lens installation:** Settings > Backup & Restore, create a backup, verify it and download it (`SAP-Lens-manual-<id>.slbak`).
+   Export the host recovery key (`Service-Manager.ps1 -Action ExportKey -Path <new file>` with the SAP Lens data directory, then `-Action VerifyKey`).
+   Transfer both to the AuthLens host over a private channel; the key decrypts every backup it sealed.
+2. **On the AuthLens host:** install AuthLens ([Install](#install)) with a TLS certificate under `tls\`. If AuthLens must use the same port as the
+   running SAP Lens service, install it on another port first, or stop SAP Lens yourself in the maintenance window (AuthLens never stops it).
+3. **Restore:** `--mode restore --backup <file> --key-file <key> --yes`. The archive's `sap-lens-v2.sqlite3` becomes `authlens.sqlite3`; migration
+   history, tables, accounts, review history, SoD decisions and branding are restored unchanged. Nothing depends on the original paths, service name or
+   machine.
+4. **Verify:** `--mode status` and `--mode health` (version `2.0.0-alpha.1`, expected commit); sign in and compare Dashboard, User Access, Account
+   Review and SoD with the SAP Lens installation; create and verify a new AuthLens backup.
+5. **Activate:** point the reverse proxy (or DNS) at AuthLens. Keep the SAP Lens installation stopped but intact until AuthLens is accepted.
+6. **If anything fails:** the restore rolls back by itself; remove the AuthLens service and root if wanted, and keep using SAP Lens. Nothing of
+   SAP Lens was changed.
 
-### Preparing the migration
-
-In this order; steps 1 to 3 change nothing. Status: the procedure is implemented; the native run on the VM is pending.
-
-1. **Source release integrity (read-only).** Verify the release the `SapLens2` service runs, as a server package:
-   `powershell -NoProfile -File .\backend\scripts\verify-release.ps1 -ReleasePath <ReleasesRoot>\<release> -Scope Server`. Expect
-   "Release verified as a server package (undeclared …)" and the omitted Desktop and symbol files listed by name. Anything else (a changed or
-   missing server file, a changed manifest) is a real integrity failure: stop and investigate; do not edit the folder. If the full build is
-   needed, check `WorkRoot\builds\<sha12>` with the default full scope ([release packages](#release-packages-and-integrity)).
-2. **Target roots.** `Test-Path` each target root of the target configuration (`DataDirectory`, `BackupRoot`, the TLS folder,
-   `<data parent>\backup`, `WorkRoot`, `ReleasesRoot`): all must be `False`. A configuration file must not live inside a target root. If, for
-   example, `C:\sap-lens\deploy` already exists and is the target `WorkRoot`, retain and inventory the operator files; separately approve their relocation outside the target roots; migration never adopts an existing root.
-3. **ACL audit (read-only).** `-Action AuditAcl -ConfigFile $source -TargetConfigFile $target`; review every finding.
-4. **Backup.** Create and verify an application backup and export the recovery key (checklist steps 2 and 3) before changing permissions.
-5. **ACL remediation (explicit).** `-Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -ApprovedAclRoot $approvedRoots -AclBackupRoot $aclBackupRoot -Yes` in an elevated session; keep the
-   printed backup folder; then `AuditAcl` again until it exits 0. The service keeps running.
-6. **Preflight.** `-Action PreflightMigration …` until `safe: true`. Migration is only ready then; `MigrateService` still needs authorization.
-
-Canonical production targets use `ServiceName=sap-lens`, DisplayName `SAP Lens`, `C:\sap-lens\deploy`, `C:\sap-lens\releases`,
-and `C:\ProgramData\sap-lens\{data,predeploy-backups,tls}`. The backup-key copy goes in `C:\ProgramData\sap-lens\backup`.
-Legacy `SapLens2` source paths remain unchanged. A separately existing historical `SapLens` service blocks migration; it is never renamed or adopted
-implicitly. Only matching unique acceptance service pairs may use synthetic target roots.
-
-Use `-Action PlanCanonicalTarget -ConfigFile <source> -TargetConfigFile <existing-target>` to print a **read-only** conversion plan. It records both
-configuration hashes, changed settings and `proposed_config`; it never writes either file, creates a directory or changes SCM. Legacy settings may read SCM to resolve an omitted service name. For example,
-an existing `SapLens`/`C:\ProgramData\SapLens` target becomes `sap-lens`/`C:\ProgramData\sap-lens`. The plan carries the source configuration's exact network
-settings and TLS filenames forward. Verify those declared values and the account against read-only Status on the actual VM. It preserves LocalSystem, or explicitly maps `NT SERVICE\SapLens2` to `NT SERVICE\sap-lens`.
-Review and save the proposal using create-new semantics in a protected configuration folder **outside all target roots**, retaining the original;
-all path defaults are made explicit so moving the configuration cannot change them. A configuration plan does not establish migration readiness.
-
-If `C:\sap-lens\deploy` already exists, canonical preflight still refuses it. Inventory it and retain `C:\sap-lens\migration` in place. Do not
-select an alternate work root to bypass the canonical policy. An operator must separately approve any relocation of obsolete deployment artifacts
-to a retained location outside the target roots; no automatic cleanup or relocation occurs. All six target roots must remain absent until migration.
-A folder named `backup-runtime-test-*` may be active service data: establish that from SCM arguments and the source configuration, never its name.
-Never manually copy live SQLite files as preparation or repeat an activated v1 data import.
-
-Run inspection on the Windows machine that actually owns the source service. If `Get-Service SapLens2` or the explicit source paths are absent,
-obtain the correct VM connection; do not create substitute production paths or report synthetic preflight as a production result. Production ACL
-remediation/restore, destructive cleanup and service cutover require separate authorization.
-
-**Rollback considerations.** Permissions: `-Action RestoreAcl -AclBackup <folder> -ApprovedAclRoot $approvedRoots -Yes` restores every saved ACL; created parents stay
-(empty, protected). Releases: nothing is rewritten, so there is nothing to roll back; a failed publication leaves only
-`ReleasesRoot\.staging\<name>` for inspection. Migration: `RecoverMigration`/`RollbackMigration` as described below; `SapLens2`, its release,
-data, keys and TLS are retained, stopped and disabled, and the protected ACLs carry over to the copies (staging compares content and ACLs).
-
-Use the **new verified release's** server executable as an inspector, using its absolute physical versioned path rather than `current`. Its read-only `--inspect-data` must advertise both `rebase-upload-paths-v1` and `canonical-sqlite-stores-v1`;
-older inspectors are refused before service control. The inspector is never installed by migration: the
-source's verified release is copied unchanged. Legacy source releases need `--schema-info`, `--backup-local` and `--backup-verify` support.
-The inspector release is verified with `verify-release.ps1 -Scope Server` before execution. The inspector copies only the canonical active database and optional security database, including their WAL/journal files, into scratch and opens only those copies; it never opens live source SQLite. SHM is rebuilt in scratch because Windows locks the live WAL index; source SHM is neither read nor written. Before opening scratch SQLite, it requires unchanged source input sets and hashes across both stores and matching hashes for the copied bytes. Inspection refuses concurrent changes; repeat at a quiet time, without weakening checks. This is an observational integrity check, not a production backup or authorization to copy live data manually.
-
-```powershell
-$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
-$source = 'C:\private-operations\source.local.json'
-$target = 'C:\private-operations\target.local.json'
-$inspector = 'C:\private-operations\verified-release\server\SapLens.Api.exe'
-# Read-only: inspect result.safe and every check; no backup, journal, ACL or service change.
-& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector
-# ONLY in an explicitly authorized maintenance window after isolated acceptance:
-& $entry -Action MigrateService -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector -Yes
-& $entry -Action VerifyMigration -ConfigFile $source
-& $entry -Action Status -ConfigFile 'C:\sap-lens\deploy\deploy.local.json'
-```
-
-Preflight checks the actual SCM arguments/account/listener PID, readiness and running SHA/version against the verified release manifest,
-SQLite integrity/schema compatibility, private ACLs, TLS/private key/password validity, host/recovery key location, history and recovery state.
-Environment overrides and pending deployment, restore or v1 activation/rollback block migration. CSV source paths within the retiring
-executable/tool installation also block it: re-import from an approved durable external location first, rather than blindly rewriting settings.
-Recognized private uploads (`data/sources/<source>-<16 hex>.csv`) are recorded for checked rebasing in the staged copy; preflight never changes them.
-
-### Active SQLite discovery and preflight diagnostics
-
-The source SCM service must be running and its supported arguments must match the explicit source configuration. Preflight resolves its single nonempty, absolute local `--data-dir` and checks the exact application filename defined by `DatabaseOptions.DatabasePath` / `ApplicationBackups.DatabaseEntry`: `sap-lens-v2.sqlite3`. It never recursively selects a database by extension, selects `security/accounts.sqlite3` as the application store, or falls back to a historical database under `migration/<id>/previous`. The optional security store uses `AccountStore.For` / `ApplicationBackups.AccountsEntry` and is checked separately. Historical databases remain subject to link/ACL/recovery checks and are preserved by the offline whole-tree copy, but are not opened as active SQLite stores.
-
-A `sqlite_consistency` error saying `Cannot bind argument to parameter 'LiteralPath' because it is an empty string` was caused by a blank **inspector executable**, not a missing SQLite file: `-InspectorExecutable` defaults to an empty string and the old check passed it straight to `Test-Path`. The ACL follow-up example also omitted this required argument; it is corrected below. No inspector is now guessed or silently substituted. Blank, relative, missing, linked or unverified inspector paths fail with an explicit diagnostic before SQLite inspection. An older verified inspector without the new capability is also blocked: build and verify a new inspector package containing this implementation; do not replace the running source release or regenerate its historical manifest.
-
-The former `details.schema.database_exists: false` came from a deliberately nonexistent `.schema-probe-<GUID>` directory used only to ask the old source executable for its **compiled migrations** without opening live SQLite. That result did not describe the active database. Compiled metadata is now `details.release_schema` (`purpose: compiled_migrations_only`, `database_opened: false`). `details.source_data` reports the actual resolved `data_directory`, `database_path`, existence and WAL/SHM presence. `details.schema` reports active-file existence with `inspection_status: not_run` until inspection succeeds; then it holds the scratch-verified active schema. `details.inspection` identifies the source paths, active/security roles and `stable-private-copy` mode. Unsupported/invalid service arguments are not echoed as raw command lines; no passwords, keys, database contents or SHM lock bytes are emitted.
-
-For the known VM, run from the updated checkout (read-only; an explicit **new verified** inspector is required):
-
-```powershell
-$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
-$source = 'C:\saplens2\deploy.local.json'
-$target = 'C:\saplens2\migration-config\deploy.local.json'
-$inspector = Read-Host 'Absolute physical path to the newly verified release server\SapLens.Api.exe'
-& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector
-$LASTEXITCODE
-```
-
-For the confirmed running arguments, `details.source_data.database_path` must resolve to `C:\saplens2\acceptance\backup-runtime-test-20261117-094015\sap-lens-v2.sqlite3`. `safe: true` requires all seven checks, not merely the existence of that file. If the configuration differs from SCM, a store changes during capture, integrity/schema verification fails, or the current inspector package is unavailable, retain the evidence and resolve the named blocker; never initialize a replacement database or bypass the check.
-
-The separately approved migration still takes and verifies an online application backup first, disables/stops the source, waits for quiescence, takes its final verified offline backup, copies the entire data tree (including remaining WAL/SHM and completed v1 recovery evidence), verifies content/ACL inventories and inspects SQLite in the staged copy before creating/starting the target service. It never copies only the live main database. The current development task runs none of those production-changing operations and never repeats v1 activation.
-
-Windows SQLite preflight checkpoint (2026-11-19): the affected Pester files `SapLens.Migration.Tests.ps1`, `SapLens.Deploy.Tests.ps1` and `verify-release.Tests.ps1` passed **140 tests, 0 failed, 0 skipped**, with 0 failed containers (186.78 seconds). The affected .NET classes `MaintenanceCommandsTests` and `MaintenanceInspectionTests` passed **12 tests, 0 failed**. Coverage includes the reproduced empty-inspector failure and misleading probe metadata, quoted service data paths, WAL/SHM presence, missing/empty/relative/root/duplicate/mismatched arguments, invalid inspectors, active versus historical/security databases, real committed WAL content, source-file preservation and stopped-source whole-tree copying. The 5.1 parser accepted all 26 active scripts; documentation links and main-only workflow contracts passed. These are isolated Windows workstation results; the actual VM paths were absent, PowerShell 7 was unavailable, and production `safe: true` is not claimed. No complete .NET/browser regression or production migration ran.
-
-The existing deployment framework serializes operations with a host mutex. It durably journals intent before service operations and mirrors
-`migration-journal.json` to both work roots. It takes an online encrypted backup, verifies it, stages release/TLS/key files, disables and stops
-the source, takes a final verified offline backup, copies all data and history with NTFS security, and verifies content/ACL inventories.
-The copied key pointer and recognized private-upload paths are updated. The copy-only maintenance command requires the original data root, expected
-database SHA-256 and an explicit migration-copy flag; it compares copied CSV bytes, keeps external locations unchanged, advances only the settings
-revision and preserves immutable source/review records. Missing CSVs never erase valid imported records. It verifies decryption using the copied key,
-creates the target service with manual start, verifies
-readiness/SHA/version, then enables automatic start and publishes the canonical config. `SapLens2` remains stopped and disabled; its service,
-data, keys, TLS and releases are never deleted. Target partial copies are retained on failure. There is no automatic cleanup.
-
-After interruption use `Status`, inspect both journals, then explicitly recover:
-
-```powershell
-& $entry -Action RecoverMigration -ConfigFile $source -Yes
-# Explicit rollback request after completed cutover; subject to the same no-lost-writes proof:
-& $entry -Action RollbackMigration -ConfigFile $source -Yes
-```
-
-Recovery first disables/stops the owned target. It returns to the source only when inventories prove no writes would be discarded.
-After target startup, even normal log/database changes can make automatic rollback unsafe. Exit `4` and journal `recovery` instructions mean
-**manual recovery required**: retain and back up both trees, reconcile into a NEW directory, and enable only the chosen service. Recovery never
-restores over live data, deletes staging, guesses ownership or starts the source after a failed target stop. Completed reruns verify status.
-
-Subsequent Build & Replace uses the published **target** config and the usual `Deploy`/`Rollback` actions, retaining backups and data. The old
-source config is blocked. `VerifyMigration` follows the current release after later deployments, reporting both current and migration commits.
-Legacy cleanup needs separate authorization after acceptance and backup verification; once the retained old service is removed, use ordinary
-`Health`/`Status` rather than the migration verifier, which deliberately requires the retained rollback service.
+A single SAP Lens data directory (for example a Desktop folder) can instead be converted in place with `AuthLens.Api --adopt-legacy-database
+--data-dir <dir>` while SAP Lens is stopped: the SAP Lens file is kept, and the copy is verified (integrity, migration history, row counts) before
+it becomes `authlens.sqlite3`. AuthLens refuses to start on a directory that holds only `sap-lens-v2.sqlite3`.
 
 ## NTFS permissions
 
-Implemented and tested on Linux with synthetic ACLs (Pester `SapLens.Acl.Tests.ps1`, `SapLens.Migration.Tests.ps1`); **awaiting Windows
+Implemented and tested on Linux with synthetic ACLs (Pester `AuthLens.Acl.Tests.ps1`, `AuthLens.Deploy.Tests.ps1`); **awaiting Windows
 acceptance** (no real ACL was read or changed from this environment).
 
 **Broad principals** (matched by well-known SID, so localized account names do not matter): Everyone `S-1-1-0`, Authenticated Users
@@ -302,7 +208,7 @@ WriteAttributes, DeleteSubdirectoriesAndFiles, Delete, ChangePermissions, TakeOw
 | Class | Paths (source configuration, then migration target) | Broad read | Broad write | Required identities |
 | --- | --- | --- | --- | --- |
 | Private | Data directory and every descendant; pre-deployment backups; TLS folder (certificate, password file); the folder of the host backup key; deployment state (`WorkRoot`) | refused | refused | SYSTEM and Administrators full control; the service's virtual account modify on data, read on TLS and key (an `NT SERVICE\…` account only: `LocalSystem` is SYSTEM) |
-| Binaries | `ReleasesRoot`, the configuration file, the folder that holds it (for example `C:\saplens2`) | allowed (read and execute) | refused | SYSTEM and Administrators full control; service read and execute on `ReleasesRoot` |
+| Binaries | `ReleasesRoot`, the configuration file, the folder that holds it (`C:\ProgramData\AuthLens\config`) | allowed (read and execute) | refused | SYSTEM and Administrators full control; service read and execute on `ReleasesRoot` |
 | Target parent | Existing application parent, or a missing application parent with its ancestor findings reported separately | refused when it holds a private target | refused | SYSTEM and Administrators |
 
 `C:\ProgramData` normally grants Users read and inherited create rights. It is **never changed**. Missing application parents are marked
@@ -317,16 +223,17 @@ and inheritance representation Windows returns. Do not weaken these findings bec
 ### Audit and remediation
 
 ```powershell
-$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
-# Read-only: every finding for the source state and the target parents (exit 0 safe, 2 unsafe). Changes nothing.
-& $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target
-# Only after separate production approval and verified application/recovery backups. Review all roots first.
-$approvedRoots = @('C:\saplens2', 'C:\sap-lens', 'C:\ProgramData\sap-lens', 'C:\ProgramData\sap-lens-acl-recovery')
-$aclBackupRoot = 'C:\ProgramData\sap-lens-acl-recovery' # dedicated, outside affected trees; never ProgramData itself
+$entry = '.\backend\scripts\deploy\Deploy-AuthLens.ps1'
+$config = 'C:\ProgramData\AuthLens\config\deploy.json'
+# Read-only: every finding for the installation (exit 0 safe, 2 unsafe). Changes nothing.
+& $entry -Action AuditAcl -ConfigFile $config
+# Only after approval and verified application/recovery backups. Review all roots first.
+$approvedRoots = @('C:\ProgramData\AuthLens', 'C:\ProgramData\AuthLens-acl-recovery')
+$aclBackupRoot = 'C:\ProgramData\AuthLens-acl-recovery'   # dedicated, outside affected trees; never ProgramData itself
 # Explicit, approved remediation in an elevated session (does not stop or reconfigure the service):
-& $entry -Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -ApprovedAclRoot $approvedRoots -AclBackupRoot $aclBackupRoot -Yes
+& $entry -Action ProtectAcl -ConfigFile $config -ApprovedAclRoot $approvedRoots -AclBackupRoot $aclBackupRoot -Yes
 # Undo exactly what ProtectAcl changed:
-& $entry -Action RestoreAcl -ConfigFile $source -AclBackup <printed-backup-folder> -ApprovedAclRoot $approvedRoots -Yes
+& $entry -Action RestoreAcl -ConfigFile $config -AclBackup <printed-backup-folder> -ApprovedAclRoot $approvedRoots -Yes
 ```
 
 `ProtectAcl` changes only paths with broad grants or missing required access, and missing target parents:
@@ -339,7 +246,7 @@ $aclBackupRoot = 'C:\ProgramData\sap-lens-acl-recovery' # dedicated, outside aff
    inventoried physical descendants of private folders individually to inherit (their earlier explicit entries are in the backup). Ordinary files use a file-handle native reset; directories retain individual `icacls /reset /L /C /Q` calls. The native reset opens the final object with `OPEN_REPARSE_POINT`, rejects directory/reparse handles and supplies a real empty DACL with inheritance enabled, never a null DACL. Owner, group and SACL are outside this DACL-only operation.
 3. Creates missing target parents with the same protected DACL supplied in the native exclusive [CreateDirectoryW operation](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw), verifies ACE bytes/protection
    and required SYSTEM/Administrators access, then permits file writes. Creation failure, a raced existing path, unsupported storage or verification
-   failure refuses further writes. Migration staging uses this boundary too, before journal, TLS, key or database copies. ProtectAcl leaves target roots absent; the separately authorized migration creates them exclusively.
+   failure refuses further writes. `Initialize-ALInstallation` creates a new AuthLens root the same way (protected SYSTEM/Administrators DACL) before any file is staged.
 4. Verifies required SYSTEM/Administrators full control and audits again; an unsafe result fails closed and retains the ACL backup.
 
 It refuses drive roots, `%ProgramData%`, `%ProgramFiles%`, the Windows folder, `%SystemDrive%\Users` and user profiles. The running service
@@ -356,7 +263,7 @@ An elevated Windows token is required for native remediation/restore acceptance.
 
 The source service may run through `<Source.ReleasesRoot>\current`. The former ACL backup path was
 `Invoke-ALProtectAcl` -> `Get-ALAclSnapshot` -> `Get-ALTreeFiles`; the last helper intentionally rejects all reparse points, so snapshotting the
-releases or installation folder rejected its legitimate release junction. Migration traversal keeps that strict behavior.
+releases or installation folder rejected its legitimate release junction. Every other installation-tree traversal keeps that strict behavior.
 
 ACL inventory alone accepts the exact `current` **directory junction** directly below the explicitly configured source releases root. Its target
 must be an existing direct physical child of that root, contain a release manifest and Server directory, and have no linked ancestors or linked
@@ -380,15 +287,15 @@ The release's historical build manifest is never regenerated for this procedure.
 Read-only inspection from the updated checkout on the actual Windows host:
 
 ```powershell
-Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
-$source = Read-SapLensSettings 'C:\saplens2\deploy.local.json'
+Import-Module .\backend\scripts\deploy\AuthLens.Deploy.psm1 -Force
+$source = Read-AuthLensSettings 'C:\ProgramData\AuthLens\config\deploy.json'
 Get-ALReleaseJunction $source.ReleasesRoot | ConvertTo-Json
 # ACL metadata only: validates the whole installation tree and omits the validated current junction.
 @(Get-ALAclSnapshot (Split-Path $source.ConfigFile) $source.ReleasesRoot).Count
 ```
 
-Run `SapLens.Junction.Tests.ps1` on isolated Windows fixtures. It covers allowed and rejected junctions, nonrecursive native ACL save, restore
-binding/path boundaries and strict migration staging. The native junction restore round trip additionally requires elevation; a skipped check is
+Run `AuthLens.Junction.Tests.ps1` on isolated Windows fixtures. It covers allowed and rejected junctions, nonrecursive native ACL save, restore
+binding/path boundaries and strict tree traversal. The native junction restore round trip additionally requires elevation; a skipped check is
 pending acceptance, not a production-ready result. See the measured implementation and interruption procedure below; performance measurements do not establish production acceptance.
 
 Windows junction checkpoint (2026-11-19, Windows PowerShell 5.1 / Pester 5.9.1): complete suite **208 passed, 0 failed, 11 skipped**,
@@ -432,37 +339,15 @@ Repeat only on fresh synthetic fixtures (the script accepts no installation path
 
 Windows performance checkpoint (2026-11-19, Windows PowerShell 5.1 / Pester 5.9.1): **219 passed, 0 failed, 11 skipped**, 0 failed containers, 230 discovered, 452.42 seconds. The ten new performance/recovery tests cover a 1,000-file tree, zero backup process launches, partial read failures and non-overwrite, changed DACLs, drive-root/Unicode recovery paths, reset equivalence/idempotency, junction substitution and interrupted/corrupt journal status. A separate remediation fault-injection test retains all completed inventories and verifies the restoration control flow. The final direct performance/junction run passed **25**, failed **0**, skipped **1**; the broader focused deployment/migration regression passed **139**, failed **0**, skipped **2** before the final recovery-path additions. Nine complete-suite skips are Linux-only fixtures; two are elevated native restore acceptance. The 5.1 parser accepted all 26 active scripts; documentation links and main-only workflow contracts passed. An earlier checkpoint attempt was cancelled to add the drive-root regression; the figures above are from the one completed final checkpoint. PowerShell 7 and elevated production-shaped restore were unavailable. No full .NET/browser suite or production operation ran.
 
-#### Handling the existing incomplete VM operation safely
+#### An interrupted ACL operation on the SAP Lens VM
 
-1. **Do not start another ACL operation or update the running process in place.** Do not delete, rename, merge, edit or reuse any old recovery directory or `.part` file. Do not run automated restore from `01.acl` through `03.acl` alone or treat `04.acl.part` as complete.
-2. Identify the exact ACL runner and native children, its script revision and recovery folder using the read-only commands below. Check process activity and file timestamps again after an interval. Preserve the console/log output and evidence in place. `AuditAcl safe:false` is not an operation-status signal. If the runner is still active, cancellation of **that identified ACL runner and its children only** requires a separate operator decision/approval. Prefer its original console's controlled cancellation; never stop/restart `SapLens2` or kill an unidentified PowerShell host. This task performs no cancellation.
-3. After an approved cancellation or confirmed natural exit, confirm that the runner and native children are gone and artifact timestamps no longer change. Leave service, junction and recovery evidence untouched. Do not manually remove a deployment lock while a process might own it.
-4. On `8ee1cc6`, application mutation starts only after every backup and `acl-backup.json` is written. An absent manifest is consistent with interruption during backup, but `.part` timestamps alone cannot establish this. Correlate the exact running revision, process exit and logs. An absent/partial manifest cannot support automated exact restore. If the revision, mutation state or backup completeness is uncertain, stop for reviewed recovery; do not infer safety from the original broad grants still being present.
-5. A complete schema-2 manifest is only a candidate recovery set: require all files, hashes, path/junction bounds and elevated isolated restore acceptance before a separately approved restore. Never regenerate missing historical ACLs or overwrite recovery evidence. A partial remediation requires reviewed restoration or a reviewed new baseline; rerunning from a partly changed state does not preserve the original ACLs by itself.
-6. Only after the old operation is quiescent and its recovery decision is resolved: obtain a verified application backup and recovery key, finish elevated isolated tests on the actual VM, inspect `AuditAcl`/`PreflightMigration`, and seek approval for a new production remediation. Use the verified new checkout and a **new** disjoint application-owned backup location. No production `ProtectAcl`, `RestoreAcl`, service migration or cutover is authorized here.
-
-Read-only VM inspection from the repository root:
+An earlier `ProtectAcl` run against the SAP Lens installation on the VM was interrupted. With the AuthLens migration path (fresh installation plus
+restore) the SAP Lens installation needs **no** ACL change. Leave that operation's recovery directory, `.part` files, service and junction
+exactly as they are; do not restart, resume, delete or reuse them. Inspect it read-only only if needed:
 
 ```powershell
-$aclRuns = @(Get-CimInstance Win32_Process | Where-Object {
-    $_.Name -in @('powershell.exe','pwsh.exe') -and $_.CommandLine -match '\bProtectAcl\b'
-})
-$aclRuns | Select-Object ProcessId, ParentProcessId, CreationDate, ExecutablePath
-Get-CimInstance Win32_Process | Where-Object { $_.ParentProcessId -in $aclRuns.ProcessId } |
-    Select-Object Name, ProcessId, ParentProcessId, CreationDate
-Get-CimInstance Win32_Service -Filter "Name='SapLens2'" | Select-Object Name, State, StartName
-
-$oldRecovery = Read-Host 'Exact existing ACL recovery directory (read only)'
-Get-ChildItem -LiteralPath $oldRecovery -Force | Select-Object Name, Length, LastWriteTimeUtc, Attributes
-Import-Module .\backend\scripts\deploy\SapLens.Deploy.psm1 -Force
-Get-ALAclOperationStatus $oldRecovery | ConvertTo-Json -Depth 5
-# For old versions without a journal this deliberately reports legacy_unknown.
-$source = 'C:\saplens2\deploy.local.json'
-$target = 'C:\saplens2\migration-config\deploy.local.json'
-$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
-& $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target
-$inspector = Read-Host 'Absolute physical path to the newly verified release server\SapLens.Api.exe'
-& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector
+Import-Module .\backend\scripts\deploy\AuthLens.Deploy.psm1 -Force
+Get-ALAclOperationStatus (Read-Host 'Exact existing ACL recovery directory (read only)') | ConvertTo-Json -Depth 5
 ```
 
 These commands do not remediate findings or verify a complete restore. Do not weaken the junction boundary or global Windows ACLs to improve throughput. Active-service permissions, databases/WAL, TLS, encryption keys and historical migration evidence remain outside this development task.
@@ -479,16 +364,16 @@ powershell.exe -NoProfile -File .\backend\scripts\check-powershell.ps1
 # In a fresh Windows PowerShell 5.1 session with Pester 5 installed/importable:
 Import-Module Pester -MinimumVersion 5.0
 Invoke-Pester -Path .\backend\scripts\tests\TestHelpers.Tests.ps1 -Output Detailed
-Invoke-Pester -Path .\backend\scripts\tests\SapLens.Acl.Tests.ps1,.\backend\scripts\tests\SapLens.Acl.Native.Tests.ps1 -Output Detailed
+Invoke-Pester -Path .\backend\scripts\tests\AuthLens.Acl.Tests.ps1,.\backend\scripts\tests\AuthLens.Acl.Native.Tests.ps1 -Output Detailed
 # Phase checkpoint, after affected groups pass (not after every edit):
 Invoke-Pester -Path .\backend\scripts\tests -Output Detailed
 ```
 
 `Import-Module -Force` reloads one path but leaves same-name copies from other checkouts loaded. Pester's name-based mocks then fail with
-"Multiple script or manifest modules named 'SapLens.Deploy' are currently loaded." Repeated canonical imports alone do not imply that defect.
+"Multiple script or manifest modules named 'AuthLens.Deploy' are currently loaded." Repeated canonical imports alone do not imply that defect.
 The shared test helper removes loaded copies and imports the resolved canonical module globally at each container's setup. Tests run serially;
 do not share that process with operator actions. The regression creates a synthetic second module and proves the mock becomes unambiguous.
-The test launcher protects both canonical `ProgramData\sap-lens` and historical production data roots. The real NTFS fixtures touch only TestDrive. Their restore test explicitly reports a skip without elevation; mocked remediation is reported
+The test launcher protects `ProgramData\AuthLens` and every earlier product's production and Desktop data roots. The real NTFS fixtures touch only TestDrive. Their restore test explicitly reports a skip without elevation; mocked remediation is reported
 separately. Linux shell-server fixtures remain Windows skips. Missing `pwsh` never skips deployment or release-contract tests.
 
 Windows script checkpoint, 2026-11-19: Windows PowerShell 5.1 with Pester 5.9.1 discovered 203 tests: **193 passed, 0 failed, 10 skipped,
@@ -501,15 +386,15 @@ release manifest unchanged and obtain the actual VM connection before continuing
 ## Service model and permissions
 
 - **Managed or not:** a service counts as managed (`binary_path_matches` in status) when its executable is the release link's
-  `current\server\SapLens.Api.exe` and its arguments are equivalent to the configuration. Both are compared normalized (quotes, separators and
-  case of the path; option and list order of the arguments, as in [adoption](#first-deployment)), never as raw strings: Windows can store an
+  `current\server\AuthLens.Api.exe` and its arguments are equivalent to the configuration. Both are compared normalized (quotes, separators and
+  case of the path; option and list order of the arguments, as in [adoption](#install)), never as raw strings: Windows can store an
   equivalent command line differently (for example without the quotes around the executable when Windows PowerShell 5.1 passes `binPath=` to
   `sc.exe`). A real difference in any argument still reads as not managed.
 
-- One service, never two: installing `sap-lens` while `SapLens2` exists (or the reverse) is refused.
+- One service: `AuthLens`. Services of earlier products (`SapLens2`, `sap-lens`, `SapLens`) are never looked at, adopted, stopped or changed; AuthLens runs beside them.
 - Account: the service's own virtual account (`NT SERVICE\<name>`), no password. Grants are added, never removed: modify on the data directory
   (inherited), read and execute on `ReleasesRoot`, read on the certificate, its password file and the backup key file.
-- Command line (no secret): `SapLens.Api.exe --data-dir … --network --listen … --port … --allowed-hosts … --cert … --cert-password-file … [--trusted-proxies …]`.
+- Command line (no secret): `AuthLens.Api.exe --data-dir … --network --listen … --port … --allowed-hosts … --cert … --cert-password-file … [--trusted-proxies …]`.
   TLS, the Host allow-list, Origin/CSRF checks and the trusted-proxy restriction are the server's own and unchanged by the deployment.
 - Processes: only the service is stopped, through the SCM. A port held by another process (for example `start-server-test.ps1`) is reported and left alone.
 
@@ -517,11 +402,11 @@ release manifest unchanged and obtain the actual VM connection before continuing
 
 | Where | What |
 | --- | --- |
-| `${XDG_STATE_HOME:-~/.local/state}/saplens-deploy/<UTC>-<mode>-<host>.log` (Linux) | Complete remote output of each run |
+| `${XDG_STATE_HOME:-~/.local/state}/authlens-deploy/<UTC>-<mode>-<host>.log` (Linux) | Complete remote output of each run |
 | `WorkRoot\runs\<run id>\` | `deploy.log`, `build.log`, `RECOVERY-REQUIRED.txt` when needed |
 | `WorkRoot\deployment-journal.json`, `WorkRoot\deployment.lock` | Phase history of the last run; one operation at a time |
 | `WorkRoot\worktrees\<sha12>`, `WorkRoot\builds\<sha12>` | Isolated build checkouts and builder output |
-| `ReleasesRoot\SAP-Lens-<version>-<UTC>-<sha7>-win-x64`, `ReleasesRoot\current` | Verified server deployment packages ([release packages](#release-packages-and-integrity)) and the junction the service runs |
+| `ReleasesRoot\AuthLens-<version>-<UTC>-<sha7>-win-x64`, `ReleasesRoot\current` | Verified server deployment packages ([release packages](#release-packages-and-integrity)) and the junction the service runs |
 | `ReleasesRoot\.staging\<release>` | Only after a failed publication: the unverified copy, kept for inspection |
 | `BackupRoot` | Encrypted, verified pre-deployment backups (`.slbak`) |
 | `<DataDirectory>\logs\server-*.log` | The server's own log when it runs as a service |
@@ -546,17 +431,17 @@ Built on Windows with Inno Setup 6 from a release folder written by `build-relea
 
 ```powershell
 cd C:\Users\example\Git\sap-lens\backend
-powershell -NoProfile -File .\scripts\build-release.ps1 -Output C:\saplens\builds
-$release = Get-ChildItem C:\saplens\builds -Directory -Filter 'SAP-Lens-*-win-x64' | Sort-Object Name | Select-Object -Last 1
-powershell -NoProfile -File .\scripts\build-installers.ps1 -ReleasePath $release.FullName -Output C:\saplens\installers
+powershell -NoProfile -File .\scripts\build-release.ps1 -Output C:\AuthLens-Build\builds
+$release = Get-ChildItem C:\AuthLens-Build\builds -Directory -Filter 'AuthLens-*-win-x64' | Sort-Object Name | Select-Object -Last 1
+powershell -NoProfile -File .\scripts\build-installers.ps1 -ReleasePath $release.FullName -Output C:\AuthLens-Build\installers
 ```
 
 | Installer | Scope and folder | Behavior |
 | --- | --- | --- |
-| `SAP-Lens-<version>-Setup.exe` (Desktop) | Per user, `%LOCALAPPDATA%\Programs\SAP Lens Desktop` | Own AppId; SAP Lens v1 (`%LOCALAPPDATA%\Programs\SAP Lens`, data `%LOCALAPPDATA%\SAP Lens`) is detected and left untouched. Requires WebView2. Waits for a running Desktop (it is never closed by Setup). Refuses downgrades. Data in `%LOCALAPPDATA%\SAP Lens Desktop` (or a kept `SAP Lens 2 Prototype` folder) is never deleted |
-| `SAP-Lens-Server-<version>-Setup.exe` | Machine, `C:\sap-lens\server` (new installations); product name `SAP Lens` | Own AppId. Existing installation folders are retained by Inno Setup until explicitly migrated. Never creates, reconfigures or deletes a service and never touches data. On upgrade, a `sap-lens`/historical `SapLens`/`SapLens2` service running from this folder is stopped with `net stop` and started again; uninstall is refused while one runs from it. Refuses downgrades |
+| `AuthLens-<version>-Setup.exe` (Desktop) | Per user, `%LOCALAPPDATA%\Programs\AuthLens Desktop`; data `%LOCALAPPDATA%\AuthLens` | New AppId; SAP Lens 1 and the SAP Lens Desktop are detected and left untouched (their data comes over by restoring a backup) |
+| `AuthLens-Server-<version>-Setup.exe` | Machine, `C:\ProgramData\AuthLens\app\server` | New AppId; installs beside SAP Lens. Stops and restarts only the `AuthLens` service when it runs from `{app}`; never creates or deletes a service |
 
-Silent: `SAP-Lens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=C:\saplens\install.log`. Installers are unsigned; signing,
+Silent: `AuthLens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=C:\ProgramData\AuthLens\install.log`. Installers are unsigned; signing,
 publishing and tagging are separate, authorized release steps. Upgrades replace executables only: the server and Desktop back the database up
 themselves before any schema migration.
 
@@ -567,9 +452,9 @@ server binary directly, needs no SDK, opens no listener and never controls the s
 when operating an older installation. Key export/provisioning stays local-only; no browser export endpoint exists.
 
 ```powershell
-$manager='C:\sap-lens\releases\current\Service-Manager.ps1'
-$exe='C:\sap-lens\releases\current\server\SapLens.Api.exe'
-$data='C:\ProgramData\sap-lens\data'
+$manager='C:\ProgramData\AuthLens\releases\current\Service-Manager.ps1'
+$exe='C:\ProgramData\AuthLens\releases\current\server\AuthLens.Api.exe'
+$data='C:\ProgramData\AuthLens\data'
 & $manager -Action Status -DataDirectory $data -Executable $exe
 # Elevated, explicit local operations. Export refuses an existing destination.
 & $manager -Action ExportKey -DataDirectory $data -Executable $exe -Path 'D:\private-recovery\host-copy.key' -Yes
@@ -597,38 +482,29 @@ only after administrator/current-password reauthentication, with a session-bound
 
 ## Acceptance checklist (Windows, pending)
 
-A controlled procedure for the dedicated Windows VM, in an authorized maintenance window, from an elevated Windows PowerShell 5.1 prompt in the
-repository root. Nothing here runs automatically, and every step is **Pending** until its result is recorded. Do not rerun the SAP Lens 1 data
-migration that is already activated on the VM; its data and migration backup must stay as they are.
-
-```powershell
-$entry = '.\backend\scripts\deploy\Deploy-SapLens.ps1'
-$source = 'C:\private-operations\source.local.json'          # the running SapLens2 installation
-$target = 'C:\private-operations\target.local.json'          # canonical C:\sap-lens and C:\ProgramData\sap-lens roots
-$inspector = 'C:\private-operations\verified-release\server\SapLens.Api.exe'
-$admin = '.\backend\scripts\Service-Manager.ps1'
-```
+On a dedicated Windows VM, from an elevated Windows PowerShell 5.1 prompt in the repository root, with an isolated root (for example
+`C:\AuthLens-Acceptance\root`, `Root` in a private test configuration) and synthetic or copied data. Every step is **Pending** until its result is
+recorded. Existing SAP Lens services and installations stay untouched; never stop, rename or reconfigure them.
 
 | # | Step | Command | Pass when |
 | --- | --- | --- | --- |
-| 1 | Preflight (read-only) | `& $entry -Action Status -ConfigFile $source` and `& $entry -Action PreflightMigration -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector` | `result.safe` true; every check passes; nothing changed (no journal, backup or service change) |
-| 1a | Source release and ACLs (read-only) | `verify-release.ps1 -ReleasePath <running release> -Scope Server`; `Test-Path` on every target root; `& $entry -Action AuditAcl -ConfigFile $source -TargetConfigFile $target` | Server package verified with only Desktop/symbol files omitted; no target root exists; every ACL finding reviewed |
-| 1b | ACL preparation (after steps 2 and 3) | `& $entry -Action ProtectAcl -ConfigFile $source -TargetConfigFile $target -ApprovedAclRoot $approvedRoots -AclBackupRoot $aclBackupRoot -Yes`, then `AuditAcl` and the preflight again | Backup folder printed; `AuditAcl` exit 0; preflight `safe: true` |
-| 2 | Verified backup | Settings > Backup & Restore > Overview > create, then Backup History > verify and download | Archive verified; the download decrypts with `SapLens.Api --backup-verify <file> --data-dir <data>` |
-| 3 | Recovery key | `& $admin -Action Status -DataDirectory <source data dir>`, then `-Action ExportKey -Path <new file>` and `-Action VerifyKey -Path <that file>` (same `-DataDirectory`; the default is the canonical `C:\ProgramData\sap-lens\data`) | Same fingerprint; the recovery copy verifies; key material never appears in output |
-| 4 | Service migration | `& $entry -Action MigrateService -ConfigFile $source -TargetConfigFile $target -InspectorExecutable $inspector -Yes`, then `& $entry -Action VerifyMigration -ConfigFile $source` | `sap-lens` running with automatic start; `SapLens2` stopped and disabled, not deleted; verification passes |
-| 5 | Startup | `Get-Service sap-lens,SapLens2`; `& $entry -Action Health -ConfigFile 'C:\sap-lens\deploy\deploy.local.json'` | Ready; identity shows version 2.0.0-alpha.1 and the expected commit; `binary_path_matches` true in Status |
-| 6 | Functional validation | Sign in through the reverse proxy; open Dashboard, User Access, Account Review, SoD | Same data as before (source revisions, evidence snapshots, review and SoD decision counts unchanged) |
-| 7 | Empty import guard | Data Sources > upload a header-only copy of a source and confirm the anomaly | Refused: "contains no usable records"; previous records remain |
-| 8 | Backup after migration | Create, verify and download a backup on the migrated installation | Verified archive; downloadable |
-| 9 | Automatic backups | Scheduling: daily (and weekly) at a near-future local time with an explicit zone; wait for the slot; restart the service once | One verified automatic archive per slot; next run shown in the chosen zone; settings survive the restart |
-| 10 | Upgrade confirmation | Settings > Storage: run the integrity check, then confirm the upgrade | Confirmation recorded; the migration backup still exists |
-| 11 | Rollback rehearsal | `& $entry -Action RollbackMigration -ConfigFile $source -Yes` only if step 4-6 failed; otherwise `& $entry -Action Rollback -ConfigFile 'C:\sap-lens\deploy\deploy.local.json' -Yes` after a later update deploy | The previous release or service returns ready; no data is overwritten |
-| 12 | Installers | `build-installers.ps1`, then both setups interactively and with `/VERYSILENT` | Desktop starts as "SAP Lens"; Server upgrade restarts its service; uninstall keeps data |
-| 13 | Desktop self-check | `"%LOCALAPPDATA%\Programs\SAP Lens Desktop\SapLens.exe" --self-check` | Exit 0; log written |
+| A | Fresh installation | `& $entry -Action Deploy -FirstInstall -ConfigFile $config -Tests focused -Yes` | Root created with a protected DACL; service `AuthLens` (display name AuthLens) running `releases\current\server\AuthLens.Api.exe`; `AuditAcl` exit 0 |
+| B | Database name | `Get-ChildItem <root>\data` | `authlens.sqlite3` present; no `sap-lens-v2.sqlite3` |
+| C, D | Restore a SAP Lens backup | `& $entry -Action Restore -Backup <SAP Lens .slbak> -KeyFile <exported key> -Yes` | Exit 0; the same users, roles, reviews, SoD decisions and settings as the SAP Lens installation |
+| E | Another machine | Repeat A and C on a second VM with only the backup and the key | Same result; no SAP Lens path exists there |
+| F | Wrong or missing key | Restore with another key, then without `-KeyFile` | Refused; data unchanged; no pending restore |
+| G | Corrupted backup | Restore a copy with one changed byte | Refused before anything is staged |
+| I | Interrupted activation | Stop the service during `Restore` after staging, then start it | The restore is applied or rolled back as a whole, never partially |
+| J | Earlier products untouched | `Get-Service SapLens2, sap-lens, SapLens -ErrorAction SilentlyContinue` before and after | Unchanged state, start mode and command line |
+| K | Version | `& $entry -Action Health -ConfigFile $config` | `2.0.0-alpha.1` and the expected commit |
+| M | Functional validation | Sign in; Dashboard, User Access, Account Review, SoD, reports, exports | As on SAP Lens; export file names start with `authlens-` |
+| N | Update and rollback | `Deploy` a newer commit, then `Rollback` | Data kept; previous release serves again |
+| | Service lifecycle | `Restart-Service AuthLens`; reboot the VM | Graceful stop, automatic start, ready |
+| | Installers | `build-installers.ps1`, then both setups | Install beside SAP Lens (own AppIds); Desktop data in `%LOCALAPPDATA%\AuthLens` |
+| | Desktop self-check | `"%LOCALAPPDATA%\Programs\AuthLens Desktop\AuthLens.exe" --self-check` | Exit 0; log written |
 
-Also run the native test suites once on the VM: `Invoke-Pester backend\scripts\tests` (includes the Windows-only migration tests that Linux
-skips) and `dotnet test backend\tests\SapLens.Tests -c Release`.
+Also run the native test suites once on the VM: `Invoke-Pester backend\scripts\tests` (includes the Windows-only tests that Linux skips) and
+`dotnet test backend\tests\AuthLens.Tests -c Release`.
 
 ## Post-promotion infrastructure verification
 
@@ -648,8 +524,8 @@ git pull --ff-only origin experiment/dotnet-backend
 node scripts/product-version.mjs
 powershell -NoProfile -File .\backend\scripts\check-powershell.ps1
 pwsh -NoProfile -Command "Invoke-Pester -Path backend/scripts/tests -CI"
-dotnet build backend/SapLens.slnx -c Release
-dotnet test backend/tests/SapLens.Tests -c Release --no-build --filter "FullyQualifiedName~StartupTests|FullyQualifiedName~NetworkTests|FullyQualifiedName~ReverseProxyTests|FullyQualifiedName~DesktopLocationTests|FullyQualifiedName~InstallerTests|FullyQualifiedName~VersioningTests"
+dotnet build backend/AuthLens.slnx -c Release
+dotnet test backend/tests/AuthLens.Tests -c Release --no-build --filter "FullyQualifiedName~StartupTests|FullyQualifiedName~NetworkTests|FullyQualifiedName~ReverseProxyTests|FullyQualifiedName~DesktopLocationTests|FullyQualifiedName~InstallerTests|FullyQualifiedName~VersioningTests"
 ```
 
 Pester requires version 5.7.1 (`Install-Module Pester -RequiredVersion 5.7.1 -Scope

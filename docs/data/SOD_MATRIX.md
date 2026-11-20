@@ -1,6 +1,6 @@
 # SoD matrix source
 
-The SoD matrix is an externally supplied CSV. SAP Lens does not query SAP or
+The SoD matrix is an externally supplied CSV. AuthLens does not query SAP or
 schedule source extraction. The backend supports it as a fourth source through
 the existing validated import, snapshot and refresh lifecycle. Settings → SoD Risk Configuration provides the imported catalogue and local
 business guidance. The SoD area adds matrices and investigation, activity, role-assignment and
@@ -34,7 +34,7 @@ effective authorization or a confirmed security violation.
 ## Optional descriptive columns
 
 The ten documented columns above are the only required ones and keep their meaning. A file may also carry any of these optional columns, which
-SAP Lens maps automatically by name (or by hand under *Advanced import format and column mapping*): `RISK_NAME`, `RISK_DESCRIPTION`, `RISK_IMPACT`,
+AuthLens maps automatically by name (or by hand under *Advanced import format and column mapping*): `RISK_NAME`, `RISK_DESCRIPTION`, `RISK_IMPACT`,
 `BUSINESS_PROCESS`, `ACTIVITY_NAME`, `ACTIVITY_DESCRIPTION`, `ACTIVITY_TYPE`, `ACTIVITY_BUSINESS_PROCESS`, `RULESET_ID`, `RULESET_VERSION`,
 `SOURCE_SYSTEM`, `LANGUAGE` and `LAST_CHANGED`. These are proposed export fields, **not verified SAP columns**; nothing is generated from identifiers.
 
@@ -44,8 +44,8 @@ SAP Lens maps automatically by name (or by hand under *Advanced import format an
 - **Storage.** Optional values are kept apart from the records, in the import report of the private snapshot. Per risk and per activity the first value in
   file order is kept (a conflict is counted in a warning); values longer than 4096 characters or with control characters are skipped and counted, never fatal.
   A change that touches only these descriptions is staged as a new snapshot so refreshes do not ignore it.
-- **Priority and provenance.** SAP Lens uses non-empty explicit local overrides first, imported metadata second, curated reference definitions third, otherwise "No description available". Local guidance is maintained in Settings → SoD Risk Configuration. Both stores stay separate: a refresh or import never overwrites local text, and local text never edits
-  the import. Where they differ both are kept and the popover and Settings name the origin of each. One resolver (in `backend/src/SapLens.Api/V1SodCatalogue.cs`) serves pills,
+- **Priority and provenance.** AuthLens uses non-empty explicit local overrides first, imported metadata second, curated reference definitions third, otherwise "No description available". Local guidance is maintained in Settings → SoD Risk Configuration. Both stores stay separate: a refresh or import never overwrites local text, and local text never edits
+  the import. Where they differ both are kept and the popover and Settings name the origin of each. One resolver (in `backend/src/AuthLens.Api/V1SodCatalogue.cs`) serves pills,
   popovers, Settings and the diagnostics.
 - **Coverage.** The SoD source inspection and the pre-import validation list, for risk names and descriptions, activity names and descriptions and transaction
   descriptions, the available and total counts, the percentage, the missing count, imported, local-override and reference counts and a status: *Complete*,
@@ -202,7 +202,7 @@ Reports are bounded at 20,000 rows, an 8 MiB model and 32 MiB output. Exported r
 recorded in a private log; reports issued for review or approval protect their period from
 deletion. A missing frozen logo needs backup recovery rather than silently changing branding.
 
-Reports are rendered by `SapLens.Documents` with pinned MIT-licensed libraries and the bundled Bitstream Vera fonts
+Reports are rendered by `AuthLens.Documents` with pinned MIT-licensed libraries and the bundled Bitstream Vera fonts
 ([reporting architecture](../architecture/REPORTING_ARCHITECTURE.md)); every Windows and Linux build embeds the same
 resources. Native Word/WebView2/packaged Windows acceptance remains separate from structural DOCX, Linux PDF and mocked
 native-dialog validation.
@@ -287,7 +287,7 @@ Both delegate to the same exact-ID parser, private atomic library and revision c
 ### Bundled defaults and reset
 
 Default reference content is a separate versioned business resource (currently 1.0.1),
-not the SAP Lens product version or an active matrix. It contains guidance/terms only,
+not the AuthLens product version or an active matrix. It contains guidance/terms only,
 no user assignments, transactions or employee identities. It is available lazily without
 writing private configuration; existing custom libraries take precedence as the active
 reference source. Non-empty local annotations and imported metadata still take precedence
@@ -300,7 +300,7 @@ storage backup mechanism. A later application/library upgrade never overwrites a
 custom library; reset can explicitly select the newly bundled version. Review snapshots
 retain their captured text and provenance, not tomorrow's default resource.
 
-The bundled resources (`backend/src/SapLens.Api/V1Reference`) are embedded in the Server and Desktop executables, so every
+The bundled resources (`backend/src/AuthLens.Api/V1Reference`) are embedded in the Server and Desktop executables, so every
 Windows and Linux build carries the same files. A missing default resource is
 reported in reference status and disables reset; custom imports and existing private data
 remain available. Invalid bundled data returns a controlled error without changing data.
@@ -325,11 +325,11 @@ The original workbooks and matrix remain outside Git.
 
 | Repository item | Purpose and validation |
 |---|---|
-| [backend/src/SapLens.Api/V1Reference/sod-reference-defaults.json](../../backend/src/SapLens.Api/V1Reference/sod-reference-defaults.json) | Canonical business library 1.0.1: 14 risks, 14 activities, six terms. Contains P001, P002, P008 and PR01. Validated by the Library model; risk/activity records also round-trip through the real XLSX importer in tests. |
-| [backend/src/SapLens.Api/V1Reference/sod-reference-template.xlsx](../../backend/src/SapLens.Api/V1Reference/sod-reference-template.xlsx) | Schema example, not a populated copy of library 1.0.1. Contains synthetic R_EXAMPLE/ACT_EXAMPLE and one example term. Parsed by the real importer; its XML members are checked against the canonical generator. |
+| [backend/src/AuthLens.Api/V1Reference/sod-reference-defaults.json](../../backend/src/AuthLens.Api/V1Reference/sod-reference-defaults.json) | Canonical business library 1.0.1: 14 risks, 14 activities, six terms. Contains P001, P002, P008 and PR01. Validated by the Library model; risk/activity records also round-trip through the real XLSX importer in tests. |
+| [backend/src/AuthLens.Api/V1Reference/sod-reference-template.xlsx](../../backend/src/AuthLens.Api/V1Reference/sod-reference-template.xlsx) | Schema example, not a populated copy of library 1.0.1. Contains synthetic R_EXAMPLE/ACT_EXAMPLE and one example term. Parsed by the real importer; its XML members are checked against the canonical generator. |
 | `reference-template.py` (SAP Lens 1 maintenance script, archived) | Generates that synthetic template from the importer's actual header mappings. It does not duplicate curated business definitions. |
 | [examples/sod-matrix.example.csv](../../examples/sod-matrix.example.csv) | Separate active-matrix example: two synthetic risks/four mapping rows. Validated by `parse_sod`, including links to example catalogue transactions. It intentionally does not substitute production-like P001/PR01 relationships into the synthetic scenario. |
-| [backend/tests/SapLens.Tests/Fixtures/sod/reference](../../backend/tests/SapLens.Tests/Fixtures/sod/reference) and `SodCatalogueTests` | Synthetic schema/negative fixtures; populated round-trip fixtures derive directly from the JSON library. No second maintained business library. |
+| [backend/tests/AuthLens.Tests/Fixtures/sod/reference](../../backend/tests/AuthLens.Tests/Fixtures/sod/reference) and `SodCatalogueTests` | Synthetic schema/negative fixtures; populated round-trip fixtures derive directly from the JSON library. No second maintained business library. |
 
 The original supplied reference workbooks stay outside Git and deployment packages.
 The tracked validation-tracker XLSX is a maintenance report, not an import/reference workbook.

@@ -3,7 +3,7 @@
 Dashboard is the default landing page, available from the main navigation and at
 `#/dashboard`. Explicit `#/role-lookup`, `#/user-access` and `#/release-roles` routes
 still work, and an existing detail history entry remains meaningful. No historical trends are inferred
-from a single import. Data stays on the configured SAP Lens instance; desktop defaults to loopback.
+from a single import. Data stays on the configured AuthLens instance; desktop defaults to loopback.
 
 ## Layout and cards (v4)
 

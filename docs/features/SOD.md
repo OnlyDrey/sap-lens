@@ -154,7 +154,7 @@ Every period status can be deleted from the row action menu or the period dialog
   decisions, actions and report log stay on disk. It appears under "Show archived periods". Archiving needs an impact confirmation.
 - Approved or closed periods, periods with issued reports, and periods used as a report baseline need a second history confirmation.
   Approved or closed periods also need a reason. The reason, actor and previous state are stored in the deletion record and the period history.
-- Reports already issued outside SAP Lens stay valid; their log entries remain, but they cannot be regenerated afterwards. Findings first seen in a deleted
+- Reports already issued outside AuthLens stay valid; their log entries remain, but they cannot be regenerated afterwards. Findings first seen in a deleted
   approved period are classified as new instead of reopened in later comparisons. Other periods and current decisions are never changed (no cascade).
 
 
@@ -227,7 +227,7 @@ The filter tiles of the Work Queue (review progress) and Remediation (recommende
   (for example CJK) makes the PDF fail with the existing explicit message while the editable DOCX works.
 - **Access remediation report** (CSV, DOCX, PDF): also lists role assignments *awaiting review* and adds the status tables, so it is useful before any decision or action exists, with an explicit note that no actions are recorded. Nothing in it claims that access was removed.
 - The report forms show the essentials (period or context, title, status, handling groups) and keep people, roles, version, date and comments under "Document details". The Norwegian language option was removed; older API requests that send `language` remain accepted and produce the English report.
-- **Report status** distinguishes four labels: *Draft* (not reviewed or approved), *Reviewed* (a reviewer is named; the name is not authenticated, so it is not an approval), *Approved* (the period has a recorded approval and is frozen; names are still typed locally) and *Externally signed* (the preparer states it was signed outside SAP Lens; the signature is not verified). Approved and Externally signed require a frozen period. Earlier values *For review* and *Approved snapshot* are read as Reviewed and Approved. The preview, DOCX and PDF show the same status statement.
+- **Report status** distinguishes four labels: *Draft* (not reviewed or approved), *Reviewed* (a reviewer is named; the name is not authenticated, so it is not an approval), *Approved* (the period has a recorded approval and is frozen; names are still typed locally) and *Externally signed* (the preparer states it was signed outside AuthLens; the signature is not verified). Approved and Externally signed require a frozen period. Earlier values *For review* and *Approved snapshot* are read as Reviewed and Approved. The preview, DOCX and PDF show the same status statement.
 - **Export notice**: every export reports through one notice fixed at the top of the application. It overlays the page, so nothing shifts. Success and cancel messages fade after a few seconds; errors stay until dismissed.
 
 ## Consolidated review workflows

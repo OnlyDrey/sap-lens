@@ -15,7 +15,7 @@ The earlier dated tables below remain historical evidence.
 
 ## Release decision: NO-GO (not a Release Candidate), updated 2026-11-17
 
-SAP Lens (.NET, `2.0.0-alpha.1`) is **not** a Release Candidate. Functional migration is complete on Linux: **145 of 145** API routes the React UI
+AuthLens (.NET, `2.0.0-alpha.1`) is **not** a Release Candidate. Functional migration is complete on Linux: **145 of 145** API routes the React UI
 references are served ([ROUTE_AUDIT.md](ROUTE_AUDIT.md)), the v1 data migration passes on synthetic fixtures, and branding, deployment tooling and
 installers exist. What blocks a release candidate:
 
@@ -48,7 +48,7 @@ explicit approval. Release folders are scanned by the build scripts (`check-secr
 | Phase | Status | Evidence | What blocks exit |
 | --- | --- | --- | --- |
 | 3 Integration and stabilization | **In progress; exit criteria not met** | Route audit generated from code (no undocumented 501: every unmigrated route answers `501 not_migrated`, contract-tested); React UI verified against .NET in Chromium for sign-in, Data Sources import, Role Lookup, User Access, Compare Users [M]; Data Health findings equal Python v1 `calculations()` on the small synthetic set (11 of 11) [M]; Dashboard KPIs and distributions identical to Python v1 `overview()` on the 20 000-user set [M]; Saved Filters and Access Packages migrated with the v1 test cases ported [T]; v1 accounts, sessions and roles migrated (Accounts mode is the Server default), React activation, sign-in, User Management and viewer restrictions verified in Chromium [M]; Employee Directory on the versioned dataset pipeline [T][M]; Account Review on the hash-chained decision store with per-user attribution [T][M]; SoD source metadata and risk catalogue with Python-identical fingerprints and catalogue output [T][M]; SoD reference workbook upload and analysis findings equal to Python v1 on golden fixtures [T]; configuration export/import/reset, reviewer profile, User Access selection/export, Release Roles, diagnostics and legacy compare with Python v1 golden fixtures [T]; 300 automated tests [T]; remaining work in [MIGRATION_BACKLOG.md](MIGRATION_BACKLOG.md); release build embeds the current frontend build incrementally and tests the solution it built (build-integration tests) [T] | 68 routes not migrated (and the sub-routes listed in MIGRATION_BACKLOG.md); browser tests exist only as ad-hoc scripts in `tools/` and scratch, not a suite |
-| 4 Platform and distribution | **Partial** | Reproducible release build (`scripts/build-release.sh`, `.ps1`): React build, tests, self-contained single-file Server win-x64 (`SapLens.Api.exe` + `e_sqlite3.dll`) and linux-x64, single-file Desktop win-x64, in a versioned release folder (`server/`, `desktop/`, `symbols/`, `build-manifest.json` with every artifact's SHA-256, `README.txt`, `SHA256SUMS`, `verify-release.ps1`), build identity stamped (`+<sha>`) and verified [M on Linux; single-file layout not yet built on Windows]; Windows service and systemd hosting in code; install/upgrade commands documented | Windows release build validated natively at `ea09de2` (Windows 11 Pro, .NET SDK 10.0.404, Node.js 24.22.3): 238 tests passed, React build, Server win-x64 (117 MB) and Desktop win-x64 (151 MB) published, script exit 0 (output `C:\saplens2\builds\release-ea09de2a849c-20261116-135041`) [M on Windows]. Earlier Windows failures ("user interface is incomplete") came from the separator-sensitive, stale-prone embedded-files manifest, replaced by explicit `SapLensUi/<path>` resources (see [UI_INTEGRATION.md](../architecture/UI_INTEGRATION.md#how-it-works)). Not yet done on Windows: Server and Desktop startup, HTTPS, application workflows (runtime acceptance); installer and upgrade/rollback scripts are documented commands, not tested tooling; Desktop installer not built |
+| 4 Platform and distribution | **Partial** | Reproducible release build (`scripts/build-release.sh`, `.ps1`): React build, tests, self-contained single-file Server win-x64 (`AuthLens.Api.exe` + `e_sqlite3.dll`) and linux-x64, single-file Desktop win-x64, in a versioned release folder (`server/`, `desktop/`, `symbols/`, `build-manifest.json` with every artifact's SHA-256, `README.txt`, `SHA256SUMS`, `verify-release.ps1`), build identity stamped (`+<sha>`) and verified [M on Linux; single-file layout not yet built on Windows]; Windows service and systemd hosting in code; install/upgrade commands documented | Windows release build validated natively at `ea09de2` (Windows 11 Pro, .NET SDK 10.0.404, Node.js 24.22.3): 238 tests passed, React build, Server win-x64 (117 MB) and Desktop win-x64 (151 MB) published, script exit 0 (output `C:\saplens2\builds\release-ea09de2a849c-20261116-135041`) [M on Windows]. Earlier Windows failures ("user interface is incomplete") came from the separator-sensitive, stale-prone embedded-files manifest, replaced by explicit `AuthLensUi/<path>` resources (see [UI_INTEGRATION.md](../architecture/UI_INTEGRATION.md#how-it-works)). Not yet done on Windows: Server and Desktop startup, HTTPS, application workflows (runtime acceptance); installer and upgrade/rollback scripts are documented commands, not tested tooling; Desktop installer not built |
 | 5 Full regression and hardening | **Not started as a phase** | Existing suites: equivalence 68/68 small and large (domain), benchmarks, security and TLS tests, multi-process SQLite tests [T][M] | Depends on Phase 3 parity; the v1 Playwright suite cannot pass until the UI's areas are migrated |
 | 6 Release Candidate and acceptance | **Not started** | Windows acceptance commands and checklists exist ([UI_INTEGRATION.md](../architecture/UI_INTEGRATION.md), [SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md), [DESKTOP_SERVER_DEPLOYMENT.md](../deployment/DESKTOP_SERVER_DEPLOYMENT.md)) | No RC exists (see decision); no Windows or mobile acceptance run |
 
@@ -56,7 +56,7 @@ explicit approval. Release folders are scanned by the build scripts (`check-secr
 
 | Check | Result |
 | --- | --- |
-| .NET suite (`dotnet test tests/SapLens.Tests -c Release`) | 160/160, two consecutive full runs [T] |
+| .NET suite (`dotnet test tests/AuthLens.Tests -c Release`) | 160/160, two consecutive full runs [T] |
 | Equivalence harness vs Python v1 | 68/68 small, 68/68 large [T] |
 | EF migrations (`dotnet ef migrations has-pending-model-changes`) | No pending model changes [T] |
 | Frontend unit tests, `tsc --noEmit`, production build | 41/41, clean, built [T] (no frontend code changed) |
@@ -70,13 +70,13 @@ one test process refused each other's imports (409). It is now a per-host single
 ## Checkpoint: SoD governance (next task)
 
 Done: steps 1 and 2 (optional source columns with v1 content hash; risk and activity catalogue with byte-identical definition fingerprints, metadata
-lookup, reference status/reset/template). Golden fixtures in `tests/SapLens.Tests/Fixtures/sod` are produced by `tools/sod_fingerprints_reference.py`
+lookup, reference status/reset/template). Golden fixtures in `tests/AuthLens.Tests/Fixtures/sod` are produced by `tools/sod_fingerprints_reference.py`
 and `tools/sod_catalogue_reference.py` from Python v1.
 
 Next, in order, each a validated commit:
 
 1. Done: reference workbook upload (`SodReferenceWorkbook`, golden fixtures from `tools/sod_reference_fixtures.py`; known difference: a value
-   that fails the field rules is refused with a .NET message instead of Pydantic's text). The v1 file migration is done: `SapLens.Cli import-v1-sod --data DIR --catalogue sod-catalogue.json [--reference sod-reference.json]` validates
+   that fails the field rules is refused with a .NET message instead of Pydantic's text). The v1 file migration is done: `AuthLens.Cli import-v1-sod --data DIR --catalogue sod-catalogue.json [--reference sod-reference.json]` validates
    against the v1 storage contract, writes both documents in one transaction and never overwrites existing .NET annotations.
 2. **Scope and analysis**: `routers/sod_analysis.py` is done (golden fixtures from `tools/sod_analysis_reference.py`). Next: `sod_scope.py` with
    `context`, `filter-options` and `overview`; the React SoD workspace loads these first, so the Explorer and Overview screens can only be
@@ -87,11 +87,11 @@ Next, in order, each a validated commit:
 
 ## Remaining work, in dependency order
 
-1. Windows acceptance checklist ([WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending)), including `SapLens2` to `SapLens` migration.
-   The two preflight blockers reported on the VM on 2026-11-19 are addressed in code, tested on Linux only: the running `5096382` release is a
-   server package that the full-scope check could never pass (it now verifies with `-Scope Server`; new packages are declared and verified before
-   publication), and broad NTFS access (`AuditAcl`, explicit `ProtectAcl`/`RestoreAcl`). **Migration is not ready** until the VM preflight
-   returns `safe: true` ([preparing the migration](../deployment/WINDOWS_DEPLOYMENT.md#preparing-the-migration)).
+1. Windows acceptance checklist ([WINDOWS_DEPLOYMENT.md](../deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending)), including the
+   AuthLens scenarios (fresh install, restore of a SAP Lens backup, earlier services untouched). The service-to-service migration
+   (`SapLens2` to `sap-lens`) and its preflight were removed on 2026-11-20: SAP Lens data reaches AuthLens only through a fresh installation plus
+   [restore](../deployment/WINDOWS_DEPLOYMENT.md#migrating-from-sap-lens), so the VM preflight blockers of 2026-11-19 no longer gate it.
+   Restore, legacy-archive compatibility and fail-safe database handling are tested on Linux only.
 2. Installer compilation and acceptance on Windows (`scripts/build-installers.ps1`); code signing as an authorized release step.
 3. v1 migration rehearsal on a copy of real data.
 4. Owner decision on Desktop identity (beside v1 or replacing it), then the promotion in [BACKEND_PROMOTION.md](BACKEND_PROMOTION.md).
@@ -107,9 +107,9 @@ Next, in order, each a validated commit:
 
 ```bash
 git fetch origin && git checkout experiment/dotnet-backend && git pull --ff-only
-cd backend && dotnet build SapLens.slnx -c Release && dotnet test tests/SapLens.Tests -c Release --no-build
+cd backend && dotnet build AuthLens.slnx -c Release && dotnet test tests/AuthLens.Tests -c Release --no-build
 python -I tools/route_audit.py .. ../docs/migration/ROUTE_AUDIT.md     # regenerate parity after each step
-scripts/build-release.sh /tmp/saplens-rc --skip-tests                                          # Linux; Windows: scripts\build-release.ps1 -Output C:\saplens\builds
+scripts/build-release.sh /tmp/authlens-rc --skip-tests                                          # Linux; Windows: scripts\build-release.ps1 -Output C:\AuthLens-Build\builds
 ```
 
 ## Infrastructure stabilization evidence (2026-11-18)

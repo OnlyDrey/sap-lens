@@ -32,7 +32,7 @@
   powershell -NoProfile -ExecutionPolicy Bypass -File .\start-server-test.ps1 -Stop           # stops the process recorded in the PID file
 
   -Background starts the Server detached, writes its output to <LogDirectory>\server-<UTC time>.out.log / .err.log and its identity to
-  <LogDirectory>\sap-lens-test-server.json, then waits until the port accepts connections (or the process exits, which is reported with its exit code
+  <LogDirectory>\authlens-test-server.json, then waits until the port accepts connections (or the process exits, which is reported with its exit code
   and the error log). -Stop ends exactly that process (process id and start time must match). Stopping a detached console process is a hard stop:
   a running import is recovered when its 30-second lease expires on the next start. Use the foreground mode or the Windows service for a graceful stop.
 #>
@@ -194,7 +194,7 @@ function Format-CommandLine([string]$Executable, [string[]]$Arguments) {
     (@($Executable) + $Arguments | ForEach-Object { if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ } }) -join ' '
 }
 
-function Get-PidFile([string]$LogDirectory) { Join-Path $LogDirectory 'sap-lens-test-server.json' }
+function Get-PidFile([string]$LogDirectory) { Join-Path $LogDirectory 'authlens-test-server.json' }
 
 function Get-RecordedServer([string]$LogDirectory) {
     <# The process recorded by -Background when it is still the same process (id and start time match), otherwise $null. #>

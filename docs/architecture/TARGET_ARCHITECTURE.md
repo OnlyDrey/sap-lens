@@ -6,11 +6,11 @@ Server run the same core; only the host and the security boundary differ.
 ## Layers (implemented as projects)
 
 ```
-SapLens.Desktop (Windows shell)      SapLens.Api (Server entry point, shared host builder, v1-compatible API)   SapLens.Cli (local tools)
+AuthLens.Desktop (Windows shell)      AuthLens.Api (Server entry point, shared host builder, v1-compatible API)   AuthLens.Cli (local tools)
             \                          /          \
-             SapLens.Application                SapLens.Documents   import pipeline, jobs, snapshot, reviews, accounts, backups and
+             AuthLens.Application                AuthLens.Documents   import pipeline, jobs, snapshot, reviews, accounts, backups and
                   |            \                                     crypto, v1 backup archives, data retention | PDF/DOCX rendering
-         SapLens.Domain     SapLens.Persistence    pure rules, Python text semantics  |  EF Core SQLite, migrations, write coordinator
+         AuthLens.Domain     AuthLens.Persistence    pure rules, Python text semantics  |  EF Core SQLite, migrations, write coordinator
 ```
 
 The project references are acyclic: Domain has none; Persistence references Domain; Application references both; Api references
@@ -38,7 +38,7 @@ would make each a folder with its own endpoints, services and tests, still in on
 | Access Analysis | `UserDirectoryBuilder`, `UserLookup`, `UserComparison`, `TransactionFilters` | Implemented (core filters) |
 | SoD Analysis | `SodSource`, `SodAnalyzer`, canonical JSON identities | Implemented (analysis only) |
 | Review & Governance | `ReviewService`, `SodDecisionStore`, `SodPeriods`, `SodReviewStore`, `AssignmentLifecycle`: append-only hash-chained decisions, periods with approval and frozen evidence | Implemented |
-| Reporting & Evidence | Dataset revisions kept as evidence; `SodReports` with the native PDF/DOCX renderers (`SapLens.Documents`) | Implemented |
+| Reporting & Evidence | Dataset revisions kept as evidence; `SodReports` with the native PDF/DOCX renderers (`AuthLens.Documents`) | Implemented |
 | Identity & Access | `AccountStore` (v1 schema, Argon2id, sessions, roles), `V1Auth` permission map, token boundary, host/origin/CSRF checks, `ProxyTrust` | Implemented |
 | Backups, Retention & Migration | `ApplicationBackups`, `BackupCrypto` (SLBAK3), `V1BackupArchive`, `DataRetention`, `V1DataMigration` | Implemented |
 | Platform & Operations | Health, readiness, JSON logs, correlation ids, migrations, integrity, job worker, schedulers, ICU check | Implemented |
@@ -47,7 +47,7 @@ would make each a folder with its own endpoints, services and tests, still in on
 
 | Item | Why it matters | Proposal |
 | --- | --- | --- |
-| Domain stores in the Api project (`FunctionalGroupStore`, `SodPeriodStore`, `SodReviewStore`, `PrivateSnapshots`, `V1DataMigration`) | Application-level services cannot be reused without the web host; Api is 14k lines | Move to `SapLens.Application` module folders; pure move, covered by the existing tests |
+| Domain stores in the Api project (`FunctionalGroupStore`, `SodPeriodStore`, `SodReviewStore`, `PrivateSnapshots`, `V1DataMigration`) | Application-level services cannot be reused without the web host; Api is 14k lines | Move to `AuthLens.Application` module folders; pure move, covered by the existing tests |
 | Large route modules (`SodPeriods.cs` about 1,100 lines, `V1DataMigration.cs` about 830) | Hard to review | Split by sub-feature together with the move above |
 | Per-file small helpers (`Json(...)`, `Detail(...)`) repeated in route files | Noise, not risk | Fold into one result helper when the files are next changed |
 | SAP Lens 1 archives authenticated in memory (one AES-GCM stream, tag at the end) | 1 GiB limit for `.slbak` migration | Migrate larger installations from a stopped copy of the data directory (documented) |
@@ -77,11 +77,11 @@ paged, snake_case JSON. Errors become RFC 9457 problem details with the correlat
 
 | | Desktop | Server |
 | --- | --- | --- |
-| Entry | `SapLens.Desktop` (WinForms + WebView2) | `SapLens.Api` executable |
+| Entry | `AuthLens.Desktop` (WinForms + WebView2) | `AuthLens.Api` executable |
 | Bind | `127.0.0.1:0` (OS-assigned), never anything else | `127.0.0.1:18790` by default; trusted LAN only with `--network`, one private address, HTTPS and explicit host names ([SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md)) |
 | Token | New 256-bit token per run, injected into `/api` requests by WebView2 `WebResourceRequested`; never visible to page script | `AUTHLENS_TOKEN` or a generated `api-token` file (0600 on Linux) |
-| Data | `%LOCALAPPDATA%\SAP Lens Desktop\data` | `--data-dir` (absolute, local; UNC and network drives refused) |
-| UI | Embedded prototype UI for `/api/v1` (in `SapLens.Api.dll`), token injected by the shell | Same embedded UI; browser sign-in exchanges the token for an HttpOnly session cookie |
+| Data | `%LOCALAPPDATA%\AuthLens\data` | `--data-dir` (absolute, local; UNC and network drives refused) |
+| UI | Embedded prototype UI for `/api/v1` (in `AuthLens.Api.dll`), token injected by the shell | Same embedded UI; browser sign-in exchanges the token for an HttpOnly session cookie |
 | Shutdown | Window closed -> host stop; running job handed back | SIGTERM / service stop -> same |
 
 ## Deliberate non-decisions

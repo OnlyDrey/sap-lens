@@ -15,10 +15,9 @@ def check(root=ROOT):
     assert not experiments, f'Experimental code was consolidated into backend/ and scripts/; tracked files under experiments/: {experiments[:3]}'
     for path in ('Dockerfile', 'compose.yml', '.dockerignore', 'backend/scripts/docker'):
         assert not (root / path).exists(), f'Docker support was removed (no supported use); unexpected {path}'
-    # The Server's environment variables are AUTHLENS_*; SAP_LENS_V2_* is named only by the startup guard, its test, the key-file detection of
-    # the deployment migration and the naming register (docs/architecture/VERSIONING.md).
-    allowed_v2 = {'backend/src/AuthLens.Api/ServerConfiguration.cs', 'backend/tests/AuthLens.Tests/NetworkTests.cs',
-                  'backend/scripts/deploy/AuthLens.Migration.ps1', 'docs/architecture/VERSIONING.md'}
+    # The Server's environment variables are AUTHLENS_*; SAP_LENS_V2_* is named only by the startup warning, its test and the naming
+    # register (docs/architecture/VERSIONING.md).
+    allowed_v2 = {'backend/src/AuthLens.Api/ServerConfiguration.cs', 'backend/tests/AuthLens.Tests/NetworkTests.cs', 'docs/architecture/VERSIONING.md'}
     v2 = subprocess.run(['git', '-C', str(root), 'grep', '-l', '-i', 'SAP_LENS_V2_', '--', '.', ':!scripts/check-structure.py'],
                         capture_output=True, text=True, check=False).stdout.split()
     assert not set(v2) - allowed_v2, f'The SAP_LENS_V2_ prefix was renamed to AUTHLENS_; found in: {sorted(set(v2) - allowed_v2)}'

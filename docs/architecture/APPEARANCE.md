@@ -2,7 +2,7 @@
 
 ## Startup and recovery
 
-A self-contained SAP Lens document is shown before backend readiness, with the product logo and real status messages. Service startup runs off the GUI thread. The app verifies its owned listener and instance identity before navigating to the application. Configuration and role loading then use the actual API state. There are no progress percentages. The default startup uses the SAP Lens dark identity; saved colors are applied as soon as configuration is available.
+A self-contained AuthLens document is shown before backend readiness, with the product logo and real status messages. Service startup runs off the GUI thread. The app verifies its owned listener and instance identity before navigating to the application. Configuration and role loading then use the actual API state. There are no progress percentages. The default startup uses the AuthLens dark identity; saved colors are applied as soon as configuration is available.
 
 Startup errors retain a recovery message and guarded Close action. Connection failure offers Retry; a missing/invalid CSV keeps Settings available. A slow read can be canceled from Data Source & Import. Closing during startup cancels readiness waits and cleans up the owned listener. If the application module fails to load, the static document offers an interface retry. Native WebView2 installation failures still use the Windows prerequisite message before a window can be created.
 
@@ -12,7 +12,7 @@ Settings occupies the application content area below the compact header. The cat
 
 Module management shows area, type, parent, icon, color and enabled status. Expand an area for label, color and a curated visual icon picker. Search icons by descriptive names; arrow keys move through choices and Enter selects. Reset restores the central registry defaults. SAP area colors remain separate from general theme colors, with contrasting icon foregrounds.
 
-The configured organization name is the primary header heading. An empty or whitespace-only name uses SAP Lens and the product logo. Custom logos retain their proportions inside a maximum 160 × 48 pixel header area with contain sizing. The EXE, taskbar and README remain product-branded.
+The configured organization name is the primary header heading. An empty or whitespace-only name uses AuthLens and the product logo. Custom logos retain their proportions inside a maximum 160 × 48 pixel header area with contain sizing. The EXE, taskbar and README remain product-branded.
 
 Successful migration notices use neutral/success styling and can be dismissed for the session. Invalid-configuration recovery stays distinct. Diagnostics shows version, schema/revision, service state, selected source, last successful load and local application directory. Native actions open the fixed log file or configuration folder. Export diagnostics contains only allowlisted versions, platform, status and counts; it excludes paths, organization details, file contents, logs, rules and credentials.
 
@@ -33,7 +33,7 @@ Six editable colors define each palette:
 
 Semantic CSS tokens derive secondary surfaces, hover states, borders, foreground colors and focus rings. Success, warning, error and information colors remain semantic and choose a readable variant. Module classification colors are independent. Buttons choose a contrasting foreground rather than assuming white works on every accent.
 
-Presets: SAP Lens Default, Midnight Blue, Corporate Blue, Neutral Dark and Light. Select a preset to copy it into the draft. Save up to 20 uniquely named custom presets; remove them under Manage custom presets. Names are local user configuration, never repository defaults.
+Presets: AuthLens Default, Midnight Blue, Corporate Blue, Neutral Dark and Light. Select a preset to copy it into the draft. Save up to 20 uniquely named custom presets; remove them under Manage custom presets. Names are local user configuration, never repository defaults.
 
 All six colors appear together as a responsive grid of editable controls (five columns when the settings area is at least 62rem wide, three from 44rem, two from 28rem, otherwise one); each uses the visual picker, the six-digit HEX field and Reset for that color's default for the edited mode. Presets show their colors in the same way. Previews are available. The preview represents the header, navigation, role card, buttons and icons without changing the running dashboard. Cancel restores the saved configuration. Applying saves the complete draft, including custom presets.
 

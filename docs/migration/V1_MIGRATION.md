@@ -1,13 +1,13 @@
-# Migrating SAP Lens 1 data to SAP Lens
+# Migrating SAP Lens 1 data to AuthLens
 
-The administrator procedure for `SapLens.Api --migrate-v1`. The design, guarantees and what is imported are in
+The administrator procedure for `AuthLens.Api --migrate-v1`. The design, guarantees and what is imported are in
 [MIGRATION_STRATEGY.md](MIGRATION_STRATEGY.md#implemented-procedure---migrate-v1).
 
 **Validation status.** The PowerShell steps below were run verbatim with PowerShell 7 on Linux against the Linux build, using the synthetic fixture
-`backend/tests/SapLens.Tests/Fixtures/v1-data`. That fixture was written by the SAP Lens 1 application and backup engine and holds
+`backend/tests/AuthLens.Tests/Fixtures/v1-data`. That fixture was written by the SAP Lens 1 application and backup engine and holds
 SoD decisions, an approved review period, remediation, legacy reviews and Account Review history.
 
-- `backend/scripts/tests/v1-migration-procedure.ps1 -Exe <SapLens.Api> -Root <new folder>` repeats the procedure with 12 checks:
+- `backend/scripts/tests/v1-migration-procedure.ps1 -Exe <AuthLens.Api> -Root <new folder>` repeats the procedure with 12 checks:
   host key, preview with the recovery key file, refusal of a wrong key, run, activation at the next start, HTTP check, status, rollback.
 - The passphrase mode is covered by `V1DataMigrationTests` and a CLI run with the passphrase on standard input.
 - **Not yet run:** on Windows (PowerShell 5.1 or 7, Windows paths and ACLs), or against a copy of a real installation. Run the script on the Windows
@@ -18,32 +18,32 @@ SoD decisions, an approved review period, remediation, legacy reviews and Accoun
 | Item | Notes |
 | --- | --- |
 | The SAP Lens 1 backup | An application backup downloaded from SAP Lens 1 (Settings, Backup and restore): `SAP-Lens-backup-<id>.slbak`. A SAP Lens 1 data directory or a legacy `.tar.gz` backup works the same way. The archive is only read. |
-| Its secret | Either the **backup passphrase** chosen when the backup was created, or, for a backup created without a passphrase, the SAP Lens 1 **recovery key** file: the escrowed copy of the host key, one line of base64. SAP Lens reads the archive header and asks for the right one. |
-| SAP Lens release | `server\SapLens.Api.exe` from a verified release folder (`scripts\verify-release.ps1`). Windows 10 1903 / Server 2019 or later. |
-| A new data directory | An empty folder for SAP Lens data, outside the release folder. Migrating into a directory that already holds SAP Lens data needs `--replace-existing` and keeps the previous data for rollback. |
+| Its secret | Either the **backup passphrase** chosen when the backup was created, or, for a backup created without a passphrase, the SAP Lens 1 **recovery key** file: the escrowed copy of the host key, one line of base64. AuthLens reads the archive header and asks for the right one. |
+| AuthLens release | `server\AuthLens.Api.exe` from a verified release folder (`scripts\verify-release.ps1`). Windows 10 1903 / Server 2019 or later. |
+| A new data directory | An empty folder for AuthLens data, outside the release folder. Migrating into a directory that already holds AuthLens data needs `--replace-existing` and keeps the previous data for rollback. |
 | Disk space | About four times the size of the SAP Lens 1 data: the unpacked preview, the verified copy, the migration backup and the new database. |
 
-The SAP Lens server must **not** run on the data directory while you activate or roll back; both take effect at its next start. Preview and run
+The AuthLens server must **not** run on the data directory while you activate or roll back; both take effect at its next start. Preview and run
 can be done while it is stopped or running.
 
 ## Procedure (Windows PowerShell 5.1 or 7)
 
 ```powershell
-$Exe      = 'C:\sap-lens\releases\SAP-Lens-2.0.0-alpha.1-<build>-win-x64\server\SapLens.Api.exe'
-$DataDir  = 'C:\ProgramData\SapLens\data'
-$Work     = 'C:\sap-lens\migration'                      # reports of this procedure
-$V1Backup = 'C:\sap-lens\migration\SAP-Lens-backup-<id>.slbak'
+$Exe      = 'C:\ProgramData\AuthLens\releases\AuthLens-2.0.0-alpha.1-<build>-win-x64\server\AuthLens.Api.exe'
+$DataDir  = 'C:\ProgramData\AuthLens\data'
+$Work     = 'C:\ProgramData\AuthLens\migration'                      # reports of this procedure
+$V1Backup = 'C:\ProgramData\AuthLens\migration\SAP-Lens-backup-<id>.slbak'
 New-Item -ItemType Directory -Force $Work | Out-Null
 ```
 
-### 1. SAP Lens backup key (once per installation)
+### 1. AuthLens backup key (once per installation)
 
-The migration backup of the SAP Lens 1 data is encrypted with the SAP Lens host backup key. Without one, the preview warns and the migration
+The migration backup of the SAP Lens 1 data is encrypted with the AuthLens host backup key. Without one, the preview warns and the migration
 backup is stored unencrypted in the private data directory.
 
 ```powershell
-New-Item -ItemType Directory -Force 'C:\ProgramData\SapLens\keys' | Out-Null
-& $Exe --backup-key create 'C:\ProgramData\SapLens\keys\backup.key' --data-dir $DataDir
+New-Item -ItemType Directory -Force 'C:\ProgramData\AuthLens\keys' | Out-Null
+& $Exe --backup-key create 'C:\ProgramData\AuthLens\keys\backup.key' --data-dir $DataDir
 & $Exe --backup-key export 'D:\Escrow\sap-lens-recovery.key' --data-dir $DataDir   # store separately; verify later in Settings, Backups
 ```
 
@@ -92,7 +92,7 @@ $Run.backup                                                # migration backup fi
 
 ### 4. Activate (at the next start)
 
-Stop the SAP Lens server or service that uses `$DataDir`, then:
+Stop the AuthLens server or service that uses `$DataDir`, then:
 
 ```powershell
 & $Exe --migrate-v1 activate --id $Preview.id --approve $Preview.digest --data-dir $DataDir
@@ -117,12 +117,12 @@ Then, signed in as an administrator:
 - **Data Sources history:** the SAP Lens 1 import reports.
 
 A Server keeps using its account store. A SAP Lens 1 Desktop backup carries no accounts, so a new Server installation shows setup. Issue the first
-administrator code with `SapLens.Cli accounts-code --data <data-dir>`, from a source checkout; see [SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md).
+administrator code with `AuthLens.Cli accounts-code --data <data-dir>`, from a source checkout; see [SERVER_NETWORK_ACCESS.md](../deployment/SERVER_NETWORK_ACCESS.md).
 Retention cleanup pauses for 7 days after activation.
 
 ### 6. Roll back (if needed)
 
-Stop the server, request the rollback, start again. The previous SAP Lens files return, and the migrated files are kept in
+Stop the server, request the rollback, start again. The previous AuthLens files return, and the migrated files are kept in
 `migration/<id>/rolled-back`.
 
 ```powershell
@@ -133,12 +133,12 @@ Stop the server, request the rollback, start again. The previous SAP Lens files 
 
 ### 7. Finish
 
-Once SAP Lens has been checked over a full review cycle, confirm the upgrade in Settings, Storage. The migration backup is kept until an
+Once AuthLens has been checked over a full review cycle, confirm the upgrade in Settings, Storage. The migration backup is kept until an
 administrator deletes it there; no retention removes it. Keep the SAP Lens 1 installation stopped, not removed, until then.
 
 ## Files and privacy
 
-Everything the migration writes stays in the private SAP Lens data directory:
+Everything the migration writes stays in the private AuthLens data directory:
 
 - `migration/<id>/`: the preview, the report, the verified copy of the SAP Lens 1 data, the candidate, and after activation the previous files. It
   is owner-only on Linux and inherits the data directory ACL on Windows.
