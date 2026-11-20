@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect, request as playwrightRequest } from '@playwright/test'
 import path from 'node:path'
 import { headers, postConfiguration } from './support'
 
@@ -44,8 +44,13 @@ test('first launch, path activation, invalid CSV, persistence and private sessio
   await page.getByRole('button', { name: 'Refresh role data from CSV' }).click()
   await expect(page.getByText('All data is up to date',{exact:true})).toBeVisible()
   await expect(page.getByRole('banner').getByText(/Updated /)).toHaveCount(0)
-  expect((await request.get('/api/settings')).status()).toBe(403)
-  expect((await request.get('/api/settings', { headers: { 'X-SAP-Lens': 'browser-test-session', Origin: 'http://127.0.0.1:18743' } })).status()).toBe(403)
+  // Without the access token (the harness sends one with every request; it is cleared here): no session, and a session header from a
+  // foreign origin, are both refused with 401 before any data is read.
+  const anonymous = await playwrightRequest.newContext({ baseURL: testOrigin, extraHTTPHeaders: { 'X-SAP-Lens-Token': '' } })
+  try {
+    expect((await anonymous.get('/api/settings')).status()).toBe(401)
+    expect((await anonymous.get('/api/settings', { headers: { 'X-SAP-Lens': 'browser-test-session', Origin: 'http://127.0.0.1:18743' } })).status()).toBe(401)
+  } finally { await anonymous.dispose() }
   expect(errors).toEqual([])
   expect(external).toEqual([])
 })

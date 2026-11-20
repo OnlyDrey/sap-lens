@@ -353,37 +353,14 @@ test('floating Norwegian calendar stays outside layout, handles maximum dates, E
   ).toHaveCount(0)
 })
 
-test('source snapshot recovery persists records after removal and reload with concise diagnostics', async ({
+test('directory records persist after the source CSV is removed and the page reloads, with concise diagnostics', async ({
   page,
   request,
 }) => {
-  // Deliberately create legacy path-only settings using the existing configuration workflow.
-  const settings = await current(request)
-  settings.employee_snapshot_id = null
-  expect(
-    (
-      await postConfiguration(request, settings)
-    ).ok(),
-  ).toBeTruthy()
-  await request.get('/api/employees/status', { headers })
+  // AuthLens stores an activated directory durably in its database: removing the source CSV and reloading keeps the records.
+  const before = (await (await request.get('/api/employees/status', { headers })).json()).report.records
   unlinkSync(source)
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
-  await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
-  await page
-    .getByRole('tab', { name: 'Employee Directory', exact: true })
-    .click()
-  await page
-    .getByRole('button', {
-      name: 'Save durable directory snapshot',
-      exact: true,
-    })
-    .click()
-  await expect(
-    page.getByText('Validated directory records saved locally.', {
-      exact: false,
-    }),
-  ).toBeVisible()
   await page.reload()
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
@@ -391,8 +368,9 @@ test('source snapshot recovery persists records after removal and reload with co
     .getByRole('tab', { name: 'Employee Directory', exact: true })
     .click()
   await expect(
-    page.getByRole('region', { name: 'Directory import status', exact: true }),
-  ).toContainText('Records saved locally')
+    page.getByRole('region', { name: 'Employee Directory source management', exact: true }),
+  ).toContainText('Durable snapshot available')
+  expect((await (await request.get('/api/employees/status', { headers })).json()).report.records).toBe(before)
   await page
     .getByRole('tab', { name: 'Health & Diagnostics', exact: true })
     .click()

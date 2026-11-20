@@ -321,7 +321,9 @@ test('duplicate and missing email states remain distinct with diagnostics warnin
 })
 
 test('directory import and clear preserve independent catalogue filters, comparison and SAP generation', async ({ page, request }) => {
-  const before = (await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision
+  // data_revision is boot.sap.directory: a directory publication advances only the directory part; the SAP generation stays.
+  const sapGeneration = async () => ((await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision as string).split('.').slice(0, 2).join('.')
+  const before = await sapGeneration()
   await page.goto('/#session=browser-test-session')
   await page.getByRole('navigation',{name:'Main navigation'}).getByRole('link',{name:'Role Lookup',exact:true}).click()
   const search = page.getByPlaceholder('Search roles by name or description...')
@@ -335,7 +337,7 @@ test('directory import and clear preserve independent catalogue filters, compari
   await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
   await expect(search).toHaveValue('finance')
   await expect(page.getByRole('button', { name: 'Remove from comparison', exact: true })).toHaveCount(1)
-  expect((await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision).toBe(before)
+  expect(await sapGeneration()).toBe(before)
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   page.once('dialog', dialog => dialog.accept())
   await page.getByRole('button', { name: 'Clear source data', exact: true }).click()
@@ -343,7 +345,7 @@ test('directory import and clear preserve independent catalogue filters, compari
   await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
   await expect(search).toHaveValue('finance')
   await expect(page.getByRole('button', { name: 'Remove from comparison', exact: true })).toHaveCount(1)
-  expect((await (await request.get('/api/access/users/DEMO_EMPLOYEE', { headers })).json()).data_revision).toBe(before)
+  expect(await sapGeneration()).toBe(before)
 })
 
 test('explicit import, independent feature toggles, retained data and Diagnostics stay synchronized', async ({page,request}) => {
