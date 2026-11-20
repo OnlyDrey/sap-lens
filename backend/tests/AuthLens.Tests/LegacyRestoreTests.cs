@@ -52,16 +52,31 @@ public sealed class LegacyRestoreTests : IAsyncLifetime
         return new JsonObject { ["migrations"] = new JsonArray([.. Strings("SELECT MigrationId FROM __EFMigrationsHistory ORDER BY 1").Select(m => (JsonNode)m)]), ["tables"] = tables };
     }
 
-    /// <summary>A SAP Lens installation with a host key and three saved filters; returns its data directory, key file and an archive of it.</summary>
+    private const string Catalogue = "FUNCTION_KEY,AGR_NAME,TEXT,CHILD_AGR,CHILD_AGR_TEXT,TCODE,TTEXT\n" +
+        "FI,DEMO:FI,Synthetic finance viewer,DEMO:SHARED,Synthetic shared role,DEMO_DISPLAY,Synthetic display\n" +
+        "MM,DEMO:MM,Synthetic purchasing viewer,DEMO:MM:READ,Synthetic purchasing read,DEMO_PURCHASE,Synthetic purchase\n";
+
+    private static async Task<int> Revision(HttpClient client) => (int)JsonNode.Parse(await client.GetStringAsync("/api/configuration"))!["settings"]!["revision"]!;
+
+    private static async Task<string> Roles(HttpClient client) => await client.GetStringAsync("/api/roles");
+
+    /// <summary>A SAP Lens installation with a host key, three saved filters and a Role Catalogue imported from a CSV path that exists only on that
+    /// machine; returns its data directory, key file and an archive of it.</summary>
     private async Task<(string Data, string Key, string Archive)> SourceInstallation(string name)
     {
         var data = Path.Combine(_root, name, "data"); var key = Path.Combine(_root, name, "keys", "host.key");
         Directory.CreateDirectory(Path.GetDirectoryName(key)!);
+        var csv = Path.Combine(_root, name, "exports", "roles.csv");
+        Directory.CreateDirectory(Path.GetDirectoryName(csv)!);
+        File.WriteAllText(csv, Catalogue);
         await WithHost(data, async client =>
         {
             BackupKeys.Create(key, data);
             foreach (var filter in new[] { "Finance", "Purchasing", "Æøå review" })
                 Assert.True((await client.PostAsJsonAsync("/api/saved-filters", new { name = filter, view = "users", filters = new { search = filter } })).IsSuccessStatusCode);
+            var select = await client.PostAsJsonAsync("/api/data-sources/roles/select", new { path = csv, revision = await Revision(client), mode = "dynamic" });
+            Assert.True(select.IsSuccessStatusCode, await select.Content.ReadAsStringAsync());
+            Assert.Contains("Synthetic purchasing viewer", await Roles(client));
             return 0;
         });
         var archive = Path.Combine(_root, name, "source.slbak");
@@ -169,7 +184,41 @@ public sealed class LegacyRestoreTests : IAsyncLifetime
         Assert.True(JsonNode.DeepEquals(expected, Shape(Path.Combine(data, "authlens.sqlite3"))), Shape(Path.Combine(data, "authlens.sqlite3")).ToJsonString());
         Assert.False(File.Exists(Path.Combine(data, "sap-lens-v2.sqlite3")));
         Assert.Equal(["Finance", "Purchasing", "Æøå review"], await WithHost(data, Filters));
+        // The imported records live in the database, not at the old machine's CSV path: AuthLens starts ready with them, and a refresh that cannot
+        // read the old path reports that source as failed and keeps its data (never an empty replacement).
+        await WithHost(data, async client =>
+        {
+            Assert.Equal(System.Net.HttpStatusCode.OK, (await client.GetAsync("/health/ready")).StatusCode);
+            Assert.Contains("Synthetic purchasing viewer", await Roles(client));
+            var refresh = JsonNode.Parse(await (await client.PostAsync("/api/refresh", null)).Content.ReadAsStringAsync())!["refresh"]!;
+            var roles = refresh["sources"]!.AsArray().First(s => (string?)s!["source"] == "roles")!;
+            Assert.Equal("failed", (string?)roles["status"]);
+            Assert.Contains("Synthetic purchasing viewer", await Roles(client));
+            return 0;
+        });
         Assert.Contains("--replace-all-data", Assert.Throws<InvalidOperationException>(() => MaintenanceCommands.RestoreArchive(data, Path.Combine(machine, "SAP-Lens-manual.slbak"), false, "")).Message);
+    }
+
+    [Fact]
+    public async Task A_restore_over_an_installation_with_data_replaces_it_only_after_a_recovery_backup()
+    {
+        var (sourceData, sourceKey, archive) = await SourceInstallation("source");
+        var legacy = Path.Combine(_root, "legacy.slbak"); File.WriteAllBytes(legacy, AsSapLensArchive(archive, BackupKeys.Host(sourceData)!));
+        var data = Path.Combine(_root, "existing", "data");
+        await WithHost(data, async client =>
+        {
+            BackupKeys.Use(sourceKey, data);
+            Assert.True((await client.PostAsJsonAsync("/api/saved-filters", new { name = "Existing only", view = "users", filters = new { search = "x" } })).IsSuccessStatusCode);
+            return 0;
+        });
+        Assert.Contains("--replace-all-data", Assert.Throws<InvalidOperationException>(() => MaintenanceCommands.RestoreArchive(data, legacy, false, "")).Message);
+        Assert.Equal(["Existing only"], await WithHost(data, Filters));                                    // refused without the explicit flag: unchanged
+        MaintenanceCommands.RestoreArchive(data, legacy, true, "");
+        Assert.StartsWith("Restore ", ApplicationBackups.ApplyPending(data, DateTimeOffset.UtcNow));
+        Assert.Equal(["Finance", "Purchasing", "Æøå review"], await WithHost(data, Filters));
+        var recovery = Assert.Single(Directory.GetFiles(Path.Combine(data, "backups", "archives"), "destination-*.slbak"));
+        Assert.True(new FileInfo(recovery).Length > 0);                                                   // the replaced data is kept, encrypted
+        Assert.False(File.Exists(Path.Combine(data, "sap-lens-v2.sqlite3")));
     }
 
     [Fact]
