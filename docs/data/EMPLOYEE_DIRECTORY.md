@@ -172,7 +172,7 @@ Valid and Unlocked; absent/ambiguous directory data cannot produce it.
 For legacy path-only imports, validated in-memory records can be committed through
 **Save durable directory snapshot** without rereading the original CSV. It preserves
 the original import timestamp and validates the current settings revision/digest.
-See [Settings and persistence recovery](../legacy/v1/getting-started/CONFIGURATION.md) and
+See [Settings and persistence recovery](../archive/v1/getting-started/CONFIGURATION.md) and
 [Account Review](../features/ACCOUNT_REVIEW.md) for current behavior and privacy boundaries.
 
 ## Shared status and technical evidence

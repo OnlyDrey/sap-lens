@@ -157,7 +157,7 @@ filters for larger exports. Native Save-dialog behavior requires Windows accepta
 
 Decisions are recorded in three independent layers (activity, role assignment, risk
 acceptance); see the [SoD guide](../features/SOD.md) and
-[architecture](../legacy/v1/architecture/SOD.md). Reviewer and approver names are self-reported, not
+[architecture](../archive/v1/architecture/SOD.md). Reviewer and approver names are self-reported, not
 authenticated identities or verified signatures. SAP source data is never modified.
 Each save appends an event referencing an immutable evidence snapshot, so history keeps the
 original rationale, conditions and both supporting paths after source changes. Missing
@@ -178,7 +178,7 @@ actions and removal verification and cannot be edited or recaptured; ordinary re
 changes a snapshot. Comparisons classify new, changed, unchanged, reopened and resolved
 findings and list decision changes. Lost users, changed risks or incomplete coverage give
 "Not observed / coverage changed", never automatic resolution. Periods can be deleted only
-under the guarded rules in [architecture](../legacy/v1/architecture/SOD.md#deletion). Private backups
+under the guarded rules in [architecture](../archive/v1/architecture/SOD.md#deletion). Private backups
 must include the period and decision stores and their immutable snapshot files.
 
 ## DOCX and PDF reports

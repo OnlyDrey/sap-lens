@@ -1,7 +1,7 @@
 # AuthLens documentation
 
 Canonical documentation of **AuthLens** (the .NET backend in `backend/` with the React frontend in `frontend/`). SAP Lens 1 (Python/FastAPI)
-is archived; its documentation is under [legacy/v1](legacy/v1/README.md).
+is archived; its documentation is under [legacy/v1](archive/v1/README.md).
 
 | Topic | Guides |
 | --- | --- |
@@ -15,7 +15,7 @@ is archived; its documentation is under [legacy/v1](legacy/v1/README.md).
 | Development and testing | [Development](development/README.md) |
 | Migration tracking | [Migration index](migration/README.md), [release status](migration/RELEASE_STATUS.md), [AuthLens rename audit](migration/AUTHLENS_AUDIT.md), [promotion and remaining gates](migration/BACKEND_PROMOTION.md) |
 | Validation tracker | [Functional areas and manual validation](validation/README.md) |
-| Legacy v1 | [SAP Lens 1 documentation](legacy/v1/README.md) |
+| Legacy v1 | [SAP Lens 1 documentation](archive/v1/README.md) |
 
 ## Quick start
 

@@ -10,4 +10,4 @@
 | [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md), [COMPONENTS.md](COMPONENTS.md), [APPEARANCE.md](APPEARANCE.md), [NAVIGATION.md](NAVIGATION.md) | Frontend design system, shared components, theming and navigation (shared by AuthLens and archived v1) |
 
 Security boundary, TLS, host and origin checks, trusted proxies and authentication: [network access](../deployment/SERVER_NETWORK_ACCESS.md).
-SAP Lens 1 architecture (FastAPI runtime, desktop host, storage and revisions, SoD modules): [legacy v1 architecture](../legacy/v1/architecture/README.md).
+SAP Lens 1 architecture (FastAPI runtime, desktop host, storage and revisions, SoD modules): [legacy v1 architecture](../archive/v1/architecture/README.md).

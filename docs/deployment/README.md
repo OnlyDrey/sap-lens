@@ -23,4 +23,4 @@ The previous `experiments/dotnet-backend` path is historical. Current checkouts 
 `backend/scripts`; the deployment resolver supports older commits for compatibility. Installed services run from the deployment's release folder (`ReleasesRoot\current`) and are not affected by the
 repository layout.
 
-SAP Lens 1 deployment (WinSW service, Docker, Linux native, v1 installer): [legacy v1 deployment](../legacy/v1/deployment/README.md).
+SAP Lens 1 deployment (WinSW service, Docker, Linux native, v1 installer): [legacy v1 deployment](../archive/v1/deployment/README.md).

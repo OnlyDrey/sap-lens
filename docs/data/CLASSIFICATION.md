@@ -10,7 +10,7 @@ without changing backend area IDs; see [Role Lookup](../features/ROLE_LOOKUP.md)
 
 Role hierarchy, parent/effective-role provenance and transaction assignments are
 preserved. Old classification configuration is archived locally and never executed;
-reading older settings does not rewrite the original. See [Configuration](../legacy/v1/getting-started/CONFIGURATION.md)
+reading older settings does not rewrite the original. See [Configuration](../archive/v1/getting-started/CONFIGURATION.md)
 for schema-3 compatibility, source setup, matching and release-role behavior.
 
 Earlier behavior is available in Git history only.

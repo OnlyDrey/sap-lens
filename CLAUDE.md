@@ -6,7 +6,7 @@
 
 - Build and test (`backend/`): `docs/development/README.md`; deployment: `docs/deployment/README.md`
 - Release status and open native checks: `docs/migration/RELEASE_STATUS.md`, `docs/deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending`
-- SAP Lens 1 is archived outside the repository; its historical documentation is in `docs/legacy/v1/`
+- SAP Lens 1 is archived outside the repository; its historical documentation is in `docs/archive/v1/`
 
 ## Working rules
 

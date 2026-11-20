@@ -4,7 +4,7 @@ Decision record for making the .NET implementation the primary backend and archi
 
 **Status on 2026-11-18: structural promotion performed on `experiment/dotnet-backend`; merge gates still open.** The owner asked for the promotion
 after the SAP Lens Server ran as a Windows service behind the reverse proxy. `experiments/dotnet-backend` moved to `backend/`, the Python backend,
-desktop and v1 tooling moved to `legacy/v1/` (archived, not deleted), and the documentation moved to `docs/` (v1: `docs/legacy/v1`). Nothing of v1
+desktop and v1 tooling moved to `legacy/v1/` (archived, not deleted), and the documentation moved to `docs/` (v1: `docs/archive/v1`). Nothing of v1
 was deleted. The pre-promotion layout is commit `604f21e`. `work`, `main`, the CI workflows and installed applications were not changed.
 
 ## What the promotion did
@@ -16,7 +16,7 @@ was deleted. The pre-promotion layout is commit `604f21e`. `work`, `main`, the C
 | v1 build, packaging, test and maintenance scripts in `scripts/`, plus `check-workflows.py`, `sync-lucide-catalog.mjs`, `frontend-licenses.mjs` | `legacy/v1/scripts/` |
 | `deploy/`, `Dockerfile`, `compose.yml`, `.dockerignore` | `legacy/v1/` |
 | `docs/experiments/dotnet-backend/` | `docs/architecture`, `docs/deployment`, `docs/development`, `docs/migration` |
-| v1 documentation in `docs/` | `docs/legacy/v1/` (features, data and validation stay: shared behaviour) |
+| v1 documentation in `docs/` | `docs/archive/v1/` (features, data and validation stay: shared behaviour) |
 | `scripts/` | Active repository-wide checks only: `check-docs.py`, `check-secrets.py`, `product-version.mjs` |
 
 Kept working: the .NET build, tests, release, installer and deployment scripts (deployment finds the project under `backend/` and, for older

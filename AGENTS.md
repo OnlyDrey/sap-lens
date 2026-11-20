@@ -14,7 +14,7 @@
   explicit `--adopt-legacy-database`); never adopt, rename or change a SAP Lens service, data directory or database. Compatibility identifiers
   that keep an earlier name are listed in the naming register (docs/architecture/VERSIONING.md). SAP Lens 1 (Python/FastAPI) is archived **outside** this repository (a separate archive; the last commit with
   it in place is `604f21e`). Nothing active may depend on it: no `legacy/` paths, no Python fixtures or servers in builds and tests
-  (`scripts/check-structure.py` enforces this). Historical v1 documentation stays in `docs/legacy/v1`.
+  (`scripts/check-structure.py` enforces this). Historical v1 documentation stays in `docs/archive/v1`.
 - `.github/workflows/validate.yml` validates .NET, the frontend and focused Playwright only on push to `main`. No dispatch, PR,
   schedule or experiment/work trigger is permitted. Windows release, installer and deployment scripts are in `backend/scripts`.
 - **Documentation must evolve with the code.** Every change affecting functionality, architecture, configuration, security, deployment,
@@ -111,6 +111,21 @@ From the repository root ([development](docs/development/README.md)).
 
 ## Working efficiently (AI agents)
 
+### Documentation must evolve with the code
+
+This rule applies to every future development task, including work by Codex and other coding agents. Every change affecting functionality,
+architecture, configuration, security, deployment, operations or user-facing behavior must include corresponding documentation updates in
+the same development task.
+
+- Update existing guides when behavior changes and document new functionality when introduced.
+- Remove or correct obsolete instructions and references; keep the root README and relevant guides consistent with the implementation.
+- Update configuration examples, CLI commands and deployment procedures when they change.
+- Never describe planned, incomplete or unverified functionality as implemented or accepted.
+- Verify documentation links, referenced paths and commands where practical; include documentation verification in the definition of done.
+- Reuse existing documentation instead of creating duplicate instructions.
+
+**A development task is not complete until its relevant documentation is accurate and updated.**
+
 - Start at the [documentation index](docs/README.md) and the guide for the area; read
   only the files you change and their direct callers or tests. Prefer Grep/Glob over
   tree-wide exploration, and skip `dist/`, `node_modules/`, `test-results/` and lockfiles.
@@ -132,7 +147,7 @@ planned checkpoints, never after every correction. Commands: [development](docs/
    `dotnet test ... --filter "FullyQualifiedName~Class[.Method]"`; type/lint: `npm run check:types`, `npx eslint <files>`, `python -m ruff check <files>`.
    One browser process. After a fix, rerun only what failed or what the fix touches.
 2. **Level 2, affected functionality:** the complete affected spec files and backend modules plus direct dependents
-   (the test classes of the changed projects and their callers; for deployment scripts the focused filter of `Get-SL2TestFilter focused`
+   (the test classes of the changed projects and their callers; for deployment scripts the focused filter of `Get-ALTestFilter focused`
    plus Pester). No unrelated suites.
 3. **Level 3, stability and integration, when warranted:** repeat previously intermittent tests (`--repeat-each 3` to `5`), test the
    integration boundary, and use several browser processes only when concurrency is part of the behaviour, with the smallest group.
@@ -184,7 +199,7 @@ planned checkpoints, never after every correction. Commands: [development](docs/
   change conflict detection, snapshots and decisions are immutable private data, reports render
   from one frozen model. Browser specs share `frontend/tests/sod-fixture.ts` (unique users per
   test because reset keeps review history). Guides: [SoD workflow](docs/features/SOD.md),
-  [SoD architecture (v1 history)](docs/legacy/v1/architecture/SOD.md), [SoD matrix reference](docs/data/SOD_MATRIX.md).
+  [SoD architecture (v1 history)](docs/archive/v1/architecture/SOD.md), [SoD matrix reference](docs/data/SOD_MATRIX.md).
 - Business logic lives in the shared .NET projects; `AuthLens.Desktop` owns the Windows WebView2 lifecycle and `AuthLens.Api` the Server host
   (console or Windows service). Do not duplicate CSV import, role matching, transaction evidence or account interpretation per host.
 - Server mode must use separate mutable storage, enforce its authentication and

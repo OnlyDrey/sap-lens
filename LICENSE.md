@@ -1,10 +1,10 @@
-# SAP Lens — Proprietary License
+# AuthLens — Proprietary License
 
-SAP Lens is proprietary, closed-source software. All rights reserved by the
+AuthLens is proprietary, closed-source software. All rights reserved by the
 applicable rights holder. No open-source license is granted.
 
 No permission to use, copy, modify, redistribute, sublicense or commercially
-exploit SAP Lens is granted by this notice or by access to its source code.
+exploit AuthLens is granted by this notice or by access to its source code.
 Use or distribution requires authorization from the applicable rights holder.
 Any further permissions must also be obtained from that rights holder, except
 where applicable law provides otherwise.
@@ -22,7 +22,7 @@ required by their applicable terms.
 
 ## Warranty and liability
 
-To the extent permitted by applicable law, SAP Lens is provided "AS IS", without
+To the extent permitted by applicable law, AuthLens is provided "AS IS", without
 warranties of any kind, express or implied, including warranties of merchantability,
 fitness for a particular purpose and non-infringement. To the extent permitted by
 applicable law, the rights holders and contributors are not liable for claims,
@@ -32,6 +32,6 @@ or statutory rights that cannot lawfully be excluded or limited.
 
 ## Independence
 
-SAP Lens is an independent project and is not affiliated with, endorsed by or
+AuthLens is an independent project and is not affiliated with, endorsed by or
 sponsored by SAP SE. SAP and other referenced trademarks belong to their
 respective owners. No trademark rights are granted by this notice.

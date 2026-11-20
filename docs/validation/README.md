@@ -6,7 +6,7 @@ results are listed separately and never approve an item.
 
 - Source of truth: [`validation-items.csv`](validation-items.csv): one row per item in 22 functional areas.
 - Workbook for reviewers: [`validation-tracker.xlsx`](validation-tracker.xlsx), generated from the CSV.
-- CI: the current main-push validation is described in [CI](../development/CI.md); SAP Lens 1's workflow matrix is kept in [legacy v1](../legacy/v1/validation/WORKFLOW_MATRIX.md).
+- CI: the current main-push validation is described in [CI](../development/CI.md); SAP Lens 1's workflow matrix is kept in [legacy v1](../archive/v1/validation/WORKFLOW_MATRIX.md).
 - Tooling: the workbook generator (`validation_tracker.py`: `check`, `summary`, `export`, `merge`, `migrate`) was a SAP Lens 1 maintenance script and
   was archived with it; retrieve it with `git show 604f21e:scripts/maintenance/validation_tracker.py` to regenerate the workbook after editing the CSV.
   No active build or test reads the tracker.
@@ -33,7 +33,7 @@ is one record under Risk Matrix, so no record is duplicated.
 | Last validated date | `YYYY-MM-DD`, set when a person validates. Required for `Passed`; empty while not tested. |
 | Build/commit | The build or commit that was validated. |
 | Notes | What was seen, how, in which theme and viewport, with screenshots or test names. Required for every result status. |
-| Linked issue or finding | A finding or issue identifier, for example `SEC-02` from the [findings register](../legacy/v1/architecture/SECURITY.md#findings-register-and-verified-controls). |
+| Linked issue or finding | A finding or issue identifier, for example `SEC-02` from the [findings register](../archive/v1/architecture/SECURITY.md#findings-register-and-verified-controls). |
 | Potential future improvement | A possible improvement that is not a defect. Collected in the workbook's Future Improvements sheet. |
 | Manual validation steps | What a person must look at or try before approving (visual and subjective checks are never approved by a test run). |
 | Known limitations | Known gaps, limits and anything not covered by the automated validation. |

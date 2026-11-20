@@ -80,7 +80,7 @@ Details: [development](docs/development/README.md), [deployment](docs/deployment
 ## SAP Lens 1 (legacy)
 
 The Python/FastAPI implementation is archived outside this repository (a separate archive; commit `604f21e` is the last one that contains it).
-Its documentation stays in [`docs/legacy/v1/`](docs/legacy/v1/README.md) for reference. It receives no new features, nothing in this
+Its documentation stays in [`docs/archive/v1/`](docs/archive/v1/README.md) for reference. It receives no new features, nothing in this
 repository depends on it, and installed v1 applications are not changed by the .NET tooling.
 
 ## Licensing
