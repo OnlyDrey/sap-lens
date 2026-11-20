@@ -120,8 +120,11 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
         var users = (await Get("/api/access/users?show_expired=true"))["items"]!.AsArray().Select(i => (string)i!["username"]!).Order(StringComparer.Ordinal).ToList();
         Assert.Equal(Expected["users"]!.AsArray().Select(u => (string)u!).Order(StringComparer.Ordinal), users);
         Assert.Equal(["Økonomi brukere"], (await Get("/api/saved-filters"))["items"]!.AsArray().Select(i => (string)i!["name"]!));
-        var review = (await Get("/api/account-review"))["items"]!.AsArray().ToDictionary(i => (string)i!["username"]!, i => i);
+        // Current V1 decisions now retain completion and are hidden from the default pending queue.
+        var review = (await Get("/api/account-review?include_completed=true"))["items"]!.AsArray().ToDictionary(i => (string)i!["username"]!, i => i);
         Assert.Equal("No action required", (string)review["KARI"]!["decision"]!["state"]!);
+        Assert.False((bool)review["KARI"]!["stale"]!);
+        Assert.Equal("completed", (string)review["KARI"]!["workflow_status"]!);
         Assert.Equal("Investigating", (string)review["OLA"]!["decision"]!["state"]!);
         Assert.Equal(1, (int)(await Get("/api/account-review/history/KARI"))["total"]!);
 

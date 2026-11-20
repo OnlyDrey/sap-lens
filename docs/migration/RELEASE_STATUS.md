@@ -1,5 +1,22 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Account Review compatibility correction and isolated continuation
+
+The source correction adds a local read-only V1 schema-2 comparator; it preserves the current .NET fingerprint format and immutable decision
+history. It reproduces Python default JSON spacing, nested ASCII escaping and Unicode-scalar ordering without changing the global serializer.
+Database invalidations and V1 `absent_since` markers remain stale regardless of matching hashes; unknown/schema-1 encodings do not gain fallback.
+The real three migrated reviews are not automatically cleared or rewritten.
+
+Focused regression: **22 passed, 0 failed** across `AccountReviewCompatibilityTests`, `AccountReviewTests` and `V1DataMigrationTests`, including
+mixed formats/users, changed identity/account/assignment/group evidence, independent Python Unicode golden vectors, and exact database-history
+preservation with a verified hash chain. The first affected migration run exposed a fixture assumption: a genuinely completed V1 review was
+previously visible only because of false staleness. The fixture now requests completed reviews and explicitly asserts current/completed status;
+its original source/history assertions remain. TRX evidence is under ignored `build/test-artifacts/review-compatibility`.
+
+Isolated migrated-data/recovery validation and responsive UI work are in progress. No running Server binaries/data, original V1 artifacts,
+version or CI configuration have been changed. No installer rebuild, full regression, push or merge has occurred. The earlier failure remains
+the installed build's status; source tests do not imply deployment or production acceptance.
+
 ## Windows Server functional acceptance
 
 2026-11-20, installed **4b20cdb**, repository starting at **9b85ac6**, AuthLens **2.0.0-alpha.1**: every independent requested read area was

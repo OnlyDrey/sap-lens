@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 using AuthLens.Api;
 using AuthLens.Application;
 using AuthLens.Application.Accounts;
+using AuthLens.Persistence;
+using Microsoft.EntityFrameworkCore;
 
 namespace AuthLens.Tests;
 
@@ -14,6 +16,27 @@ namespace AuthLens.Tests;
 /// attribution from v1 accounts. Synthetic users only.</summary>
 public sealed class AccountReviewTests : IAsyncLifetime
 {
+    [Fact]
+    public async Task Compatibility_reads_preserve_mixed_history_and_the_database_hash_chain()
+    {
+        await Import("users", Users(false));
+        var snapshot = await _app.Services.GetRequiredService<SnapshotService>().GetAsync(default);
+        var service = _app.Services.GetRequiredService<ReviewService>();
+        await service.RecordAccountAsync("USER0001", "Investigating", new string('a', 64), "Legacy reviewer", "Synthetic legacy history", "{\"evidence_schema\":2}", snapshot.Ids.Users!.Value, _ => true);
+        var session = await SignIn("reviewer1");
+        var current = (string)Row(await session.Get("/api/account-review"), "USER0001")["evidence_version"]!;
+        await service.RecordAccountAsync("USER0001", "No action required", current, "reviewer1", "Synthetic modern history", "{\"evidence_schema\":2}", snapshot.Ids.Users.Value, _ => true);
+        async Task<string> Stored()
+        {
+            await using var db = await _app.Services.GetRequiredService<IDbContextFactory<AuthLensDb>>().CreateDbContextAsync();
+            return System.Text.Json.JsonSerializer.Serialize(await db.ReviewDecisions.AsNoTracking().OrderBy(d => d.Id).ToListAsync());
+        }
+        var before = await Stored();
+        Assert.False((bool)Row(await session.Get("/api/account-review?include_completed=true"), "USER0001")["stale"]!);
+        Assert.Equal(1, (int)(await session.Get("/api/account-review/history/USER0001"))["total"]!);
+        Assert.True((await service.VerifyChainAsync()).Ok);
+        Assert.Equal(before, await Stored());
+    }
     private const string Password = "Synthetic review password 123";
     private readonly string _root = Directory.CreateTempSubdirectory("saplens-review-").FullName;
     private readonly string _token = HostSettings.NewToken();

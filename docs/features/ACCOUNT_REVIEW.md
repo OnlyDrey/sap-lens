@@ -6,20 +6,21 @@ license savings or actual license entitlement is inferred.
 
 ## Sources and prerequisites
 
-**Known migration compatibility defect (installed build 4b20cdb, Windows acceptance 2026-11-20):** unchanged SAP Lens 1 schema-2 decisions can
-be displayed as Outdated because V1 hashes spaced Python JSON, while the current .NET evidence calculation uses compact canonical JSON at
-both identity and nested evidence layers. A focused synthetic in-memory reproduction retained the exact V1 decision/evidence and returned
-`stale=true` instead of `false`. History remains intact; this is a derived-status compatibility failure, not loss of decisions.
+**V1 schema-2 compatibility correction (2026-11-20):** the source now recognizes V1's spaced JSON fingerprints, including nested ASCII escaping
+and Unicode-scalar ordering, alongside existing .NET compact fingerprints. Newly issued .NET evidence/identity versions are unchanged.
+Compatibility is evaluated on reads; no historical decision, evidence or hash is rewritten. Explicit disappearance markers and database
+invalidations still take precedence. Unknown/schema-1 V1 encodings do not receive the schema-2 fallback and remain fail-closed.
+The installed acceptance Server at build 4b20cdb still has the original defect until a separately verified update is approved.
 
 The three stale decisions in the real acceptance backup do **not** by themselves prove that defect: an independent reconstruction of the V1
 algorithm from the backup's exact source commit also reports their current evidence as different from their saved evidence. Their identities
 still match under V1's encoding; their complete evidence versions do not. Do not re-approve or rewrite those histories merely to clear the UI.
 Exact history contents and hash chains were verified. See the [functional acceptance result](../migration/RELEASE_STATUS.md#windows-server-functional-acceptance).
 
-Correction is **proposed, not implemented or deployed**: compare supported V1 hash/schema encodings alongside already-written .NET encodings,
-retain disappearance/invalidation protections, and add unchanged/changed-evidence and Unicode regressions. Do not change the shared canonical
-JSON format globally or rewrite immutable decisions. Legacy schema-1 compatibility needs its own test; that format was not present in the three
-actual samples. Controlled write acceptance remains gated until this read-compatibility failure is addressed.
+Focused regressions cover unchanged/changed evidence, Unicode, mixed V1/.NET decisions, independent user invalidation and database history/hash
+chain immutability. The affected Account Review and V1 migration classes pass 22 tests. The migration fixture now explicitly includes completed
+reviews: a current migrated `No action required` decision correctly leaves the default pending queue. Real-data copy, recovery and UI acceptance
+are recorded separately in release status; unit results alone do not authorize updating the running Server.
 
 The existing User Access CSV supplies SAP identities, groups, account validity,
 locks and user types. The optional Employee Directory supplies AD state through a

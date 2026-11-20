@@ -91,7 +91,7 @@ public static class V1AccountReview
                 matchStatus, sortedGroups, valid, findings,
             });
             var stored = saved.GetValueOrDefault(Sources.AccountKey(user.Username));
-            var stale = stored is not null && (stored.Invalidated || stored.Latest.EvidenceVersion != version);
+            var stale = stored is not null && (stored.Invalidated || !AccountReviewCompatibility.Matches(stored.Latest, version, user, employee, matchStatus, groups, valid, findings));
             var decision = stored is null ? null : DecisionView(stored.Latest);
             // MIG-004: a Functional Group membership that needs review (Directory Department or Job Title changed) is a review signal.
             System.Text.Json.Nodes.JsonObject? classified = null;
