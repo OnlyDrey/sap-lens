@@ -33,9 +33,40 @@ APIs from both disposable copies; protective/post-write archives and private evi
 The original running Server installation/data and protected V1 originals remain unchanged. Version and CI configuration are unchanged; no installer
 rebuild, full regression, push or merge occurred. This does not authorize deployment or establish production readiness. Installer upgrade/binary
 rollback, interruption/power-loss recovery, cross-device TLS trust/renewal, external source review, approved-period/remediation workflows and
-schema-1 fingerprint compatibility remain separate gates. Responsive UI validation is recorded below when completed.
+schema-1 fingerprint compatibility remain separate gates. The disposable service is stopped with Manual startup, and the clean-restore host is
+stopped; their private data/backups and service registration are retained. Final original-table/document fingerprints and protected archive/key
+hashes match the baseline, and the original `AuthLens` service remains Running with its original PID.
+
+### Responsive navigation and layout continuation
+
+The development frontend now uses an accessible full-label navigation drawer below 1024 px, preserving route groups/permissions and desktop
+navigation. Shared Dialog supplies background isolation/scroll lock, keyboard trapping/restoration and Escape; drawer presentation adds outside
+dismissal and reduced-motion-aware sliding. Route selection/history and desktop resize close the drawer. Header utilities remain available as
+labelled drawer actions. A named, tooltip-equipped profile icon opens the bounded shared Popover and existing profile/session dialog and logout.
+Below 768 px Settings uses a full-text section selector; toolbars/actions wrap and readable complex tables retain internal horizontal scrolling.
+See [navigation contracts](../architecture/NAVIGATION.md) and [component APIs](../architecture/COMPONENTS.md).
+
+Development build/type checks passed. Scoped ESLint has no errors and five existing Settings hook warnings. Focused browser validation passed
+**52/52** across responsive navigation/profile, existing navigation/accessibility, Settings and reviewer identity, plus **24/24** direct dependent
+source/record navigation and shared component/dialog tests. These are selected files, not the full browser suite. Edge was used through
+`PLAYWRIGHT_EXECUTABLE_PATH` because the managed Chromium executable is unavailable. Synthetic sources and isolated browser-host storage were used;
+no migrated business records were used for write tests. Screenshots and JSON results are under ignored `build/test-artifacts/responsive-ui` and
+`build/test-artifacts/responsive-*.json`. The viewport set is 360, 375, 390, 768, 800, 1024, 1280, 1440 and 1600 px in light/dark, covering Dashboard,
+Role Lookup, User Access, comparison, Account Review, Release Roles, SoD overview/matrices/reviews/periods and Health & Diagnostics.
+
+Visual review identified an early Dashboard screenshot captured during loading; the test now waits for Review Progress and completed initial load,
+and asserts the actual active SoD route. It also caught a low-contrast hamburger in light mode: the trigger now shares the header's foreground,
+hover and focus tokens, with an explicit color-parity regression check. The final responsive spec passed **13/13** after that correction, including
+all nine widths in both themes and regenerated loaded-content screenshots (36 images retained). The 76 selected unique browser cases have passing
+focused coverage; reruns are not counted as additional unique tests. Complex matrices remain horizontally scrollable on phones; this is
+intentional preservation of complete evidence, not a claim of phone-equivalent matrix editing. Access-package dialog flows, every Settings form,
+all business-action dialogs and every possible long-data combination have not received a complete mobile acceptance pass. No production readiness
+or deployment is claimed.
 
 ## Windows Server functional acceptance
+
+This section retains the initial installed-build checkpoint. The isolated continuation above closes its compatibility and controlled-write gates
+on disposable corrected copies only; the installed Server has not been upgraded.
 
 2026-11-20, installed **4b20cdb**, repository starting at **9b85ac6**, AuthLens **2.0.0-alpha.1**: every independent requested read area was
 attempted against the authenticated Server and its migrated database. The operator's sign-in and the agent's rendered dashboard observation
@@ -89,9 +120,9 @@ original archive/key hashes remain equal, and scheduling remains disabled. Priva
 tracked files; no credentials, keys or business-record exports were committed. Only focused Account Review tests and the in-memory reproduction
 ran; no full .NET/Playwright suite, service restart, installer rebuild, upgrade confirmation, push or merge occurred.
 
-Remaining: correct/rehearse the hash compatibility defect on a private restored copy, then repeat the read-only gate before a fresh encrypted backup,
-reversible synthetic writes and restart checks. Approved-period history is NOT TESTED (the sole migrated period is In review); positive saved-filter,
-remediation-action, approval/rejection and new-history workflows remain untested. Destructive restore, interruption/power-loss, binary rollback,
+The isolated continuation above subsequently completed the compatibility/read-only gate, fresh encrypted backups, a synthetic saved filter,
+service restart and clean-directory restore. Approved-period history is NOT TESTED (the sole migrated period is In review);
+remediation-action, approval/rejection and new-history workflows remain untested. Destructive restore over existing data, interruption/power-loss, binary rollback,
 other-client TLS trust, certificate renewal, source-path review and production cutover are separate acceptance gates.
 
 ## Windows V1 migration into the installed Server
