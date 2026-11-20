@@ -165,14 +165,16 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
     [Fact]
     public async Task Single_file_server_runs_without_extraction_and_keeps_data_outside_the_application()
     {
-        // The Windows exe cannot run here; this is the same bundling mode on linux-x64 (managed code in one file, the native SQLite library beside it).
-        if (!OperatingSystem.IsLinux()) return;
-        var output = Publish("AuthLens.Api", "linux-x64", "PublishSingleFile=true", "IncludeNativeLibrariesForSelfExtract=false");
-        Assert.Equal(["AuthLens.Api", "libSkiaSharp.so", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));
+        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsWindows()) return;
+        var windows = OperatingSystem.IsWindows();
+        var executable = windows ? "AuthLens.Api.exe" : "AuthLens.Api";
+        var expected = windows ? new[] { executable, "e_sqlite3.dll", "libSkiaSharp.dll" } : [executable, "libSkiaSharp.so", "libe_sqlite3.so"];
+        var output = windows ? Publish("AuthLens.Api", "win-x64") : Publish("AuthLens.Api", "linux-x64", "PublishSingleFile=true", "IncludeNativeLibrariesForSelfExtract=false");
+        Assert.Equal(expected, Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));
         var extract = Directory.CreateDirectory(Path.Combine(_root, "extract")).FullName;
         async Task<(int Code, string Out, string Error)> Run(params string[] args)
         {
-            var info = new ProcessStartInfo(Path.Combine(output, "AuthLens.Api")) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+            var info = new ProcessStartInfo(Path.Combine(output, executable)) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
             foreach (var arg in args) info.ArgumentList.Add(arg);
             info.Environment["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = extract;
             info.Environment["AUTHLENS_TOKEN"] = HostSettings.NewToken();
@@ -192,7 +194,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
 
         var token = HostSettings.NewToken();
         var port = FreePort();
-        var info = new ProcessStartInfo(Path.Combine(output, "AuthLens.Api")) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
+        var info = new ProcessStartInfo(Path.Combine(output, executable)) { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
         foreach (var arg in new[] { "--data-dir", Path.Combine(_root, "single-file-data"), "--port", port.ToString() }) info.ArgumentList.Add(arg);
         info.Environment["AUTHLENS_TOKEN"] = token;
         info.Environment["DOTNET_BUNDLE_EXTRACT_BASE_DIR"] = extract;
@@ -215,13 +217,37 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
             Assert.Equal(HttpStatusCode.OK, (await http.SendAsync(authorized)).StatusCode);       // SQLite through the native library beside the exe
             Assert.True(File.Exists(Path.Combine(_root, "single-file-data", "authlens.sqlite3")));
             Assert.Empty(Directory.GetFileSystemEntries(extract));                                // nothing extracted
-            Assert.Equal(["AuthLens.Api", "libSkiaSharp.so", "libe_sqlite3.so"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // nothing written next to the exe
+            Assert.Equal(expected, Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // nothing written next to the exe
         }
         finally
         {
             server.Kill(entireProcessTree: true);
             server.WaitForExit(10000);
         }
+    }
+
+    [Fact]
+    public async Task Published_windows_desktop_self_check_uses_only_its_explicit_fixture()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var output = Publish("AuthLens.Desktop", "win-x64");
+        var data = Path.Combine(_root, "desktop-self-check");
+        var info = new ProcessStartInfo(Path.Combine(output, "AuthLens.exe"))
+        { WorkingDirectory = _root, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+        foreach (var arg in new[] { "--data-dir", data, "--self-check" }) info.ArgumentList.Add(arg);
+        using var process = Process.Start(info)!;
+        var stdout = process.StandardOutput.ReadToEndAsync();
+        var stderr = process.StandardError.ReadToEndAsync();
+        try
+        {
+            Assert.True(process.WaitForExit(60000), "Isolated Desktop self-check did not exit.");
+            Assert.True(process.ExitCode == 0, await stdout + await stderr);
+            Assert.True(File.Exists(Path.Combine(data, "authlens.sqlite3")));
+            Assert.False(File.Exists(Path.Combine(data, "sap-lens-v2.sqlite3")));
+            var log = Assert.Single(Directory.GetFiles(Path.Combine(data, ".desktop", "logs"), "self-check-*.log"));
+            Assert.Contains("Self-check passed", await File.ReadAllTextAsync(log));
+        }
+        finally { if (!process.HasExited) { process.Kill(entireProcessTree: true); process.WaitForExit(10000); } }
     }
 
     private async Task<(int? ExitCode, string Error)> RunServer(string output, string[] args, Func<HttpClient, Task>? whileRunning = null, Func<HttpMessageHandler>? handler = null, Uri? baseAddress = null)

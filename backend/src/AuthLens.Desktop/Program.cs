@@ -19,9 +19,23 @@ internal static class Program
     {
         var selfCheck = args.Contains("--self-check", StringComparer.OrdinalIgnoreCase);
         var index = Array.FindIndex(args, a => string.Equals(a, "--data-dir", StringComparison.OrdinalIgnoreCase));
-        var location = DesktopLocation.Resolve(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+        if (index >= 0 && (index + 1 >= args.Length || string.IsNullOrWhiteSpace(args[index + 1]) || args[index + 1].StartsWith("--", StringComparison.Ordinal) || !Path.IsPathFullyQualified(args[index + 1])))
+        { Console.Error.WriteLine("--data-dir requires an explicit absolute data directory."); return 2; }
+        DesktopLocation.Location location;
+        string dataDirectory;
+        try
+        {
+            location = DesktopLocation.Resolve(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData));
+            dataDirectory = index >= 0 ? Path.GetFullPath(args[index + 1]) : Path.Combine(location.Root, "data");
+            if (index >= 0) location = DesktopLocation.ResolveForDataDirectory(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), dataDirectory);
+        }
+        catch (Exception error) when (error is InvalidOperationException or IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            Console.Error.WriteLine("Desktop data directory refused: " + error.Message);
+            if (!selfCheck) MessageBox.Show(error.Message, Title);
+            return 2;
+        }
         var root = location.Root;
-        var dataDirectory = index >= 0 && index + 1 < args.Length ? Path.GetFullPath(args[index + 1]) : Path.Combine(root, "data");
         using var logs = new FileLoggerProvider(Path.Combine(root, "logs"), selfCheck ? "self-check" : "desktop");
         using var factory = LoggerFactory.Create(b => b.AddProvider(logs));
         var log = factory.CreateLogger("AuthLens.Desktop");

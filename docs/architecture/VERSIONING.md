@@ -8,7 +8,7 @@ former placeholder `0.0.0-experiment`.
 `--version`, window title, installers, OpenAPI title, reports and export file names). The product version stays `2.0.0-alpha.1`; the repository
 keeps its name `sap-lens`. Executables: `AuthLens.Api.exe` (Server), `AuthLens.exe` (Desktop); installers `AuthLens-<version>-Setup.exe` and
 `AuthLens-Server-<version>-Setup.exe` (new AppIds: they install beside SAP Lens, never over it); release folders `AuthLens-<version>-<UTC>-<commit>-<platform>`.
-Implemented and tested on Linux; native Windows acceptance is pending ([release status](../migration/RELEASE_STATUS.md)).
+Implemented; Linux and Windows automated results and remaining native acceptance gates are tracked separately ([release status](../migration/RELEASE_STATUS.md)).
 
 ## Naming register
 
@@ -65,17 +65,14 @@ The Windows file version follows the v1 contract: `MAJOR.MINOR.PATCH.N` with the
 | Assemblies (Server, Desktop and all libraries; `Directory.Build.props`) | `AssemblyInformationalVersion` `2.0.0-alpha.1+<commit>`, `FileVersion` `2.0.0.1`, `AssemblyVersion` `2.0.0.0`, product `AuthLens` |
 | `AuthLens.Api --version` | `AuthLens server 2.0.0-alpha.1`, then channel, commit (or "not recorded (local build)"), file version and runtime |
 | `GET /api/version`, `/api/application-info`, `/api/diagnostics` | `version` = product version; application-info also `channel`, `file_version`, `source_sha` |
-| `GET /product-version.json` | The .NET host's identity (`product`, `version`, `base_version`, `channel`, `file_version`, `source_sha`). The file the React build emits carries v1's identity and is not served by the .NET host |
-| Desktop log | `Desktop starting (SAP Lens 2.0.0-alpha.1, commit …, file version 2.0.0.1, …)` |
+| `GET /product-version.json` | The .NET host's identity (`product`, `version`, `base_version`, `channel`, `file_version`, `source_sha`). The React build emits the same canonical product/version and commit; the host serves its runtime identity at this path |
+| Desktop log | `Desktop starting (AuthLens 2.0.0-alpha.1, commit …, file version 2.0.0.1, …)` |
 | Release folder | `AuthLens-2.0.0-alpha.1-<UTC time>-<commit>-win-x64` |
-| `build-manifest.json` | `product`, `version`, `channel`, `file_version`, `ui_source_version` (v1's version the embedded UI was built with, recorded only), `source_sha`, `source_dirty`, build time |
+| `build-manifest.json` | `product`, `version`, `channel`, `file_version`, `ui_source_version` (the canonical product version used by the embedded UI), `source_sha`, `source_dirty`, build time |
 
-## SAP Lens v1 is unchanged
+## Historical SAP Lens versions
 
-v1 keeps `backend/resources/product-version.json` (`1.0.0-beta.2` at this time), its CI-generated build identity
-(`backend/build/build-version.json`) and the mirror in `frontend/package.json` (`scripts/product-version.mjs`). The React sources are shared, so the
-UI bundle is built with v1's version; the .NET host reports its own version wherever the UI asks the backend (`/api/version`,
-`/api/application-info`). Changing v1's version follows v1's release process, not this document.
+SAP Lens 1 and its version resources are archived outside this repository. Active frontend builds use `backend/product-version.json`, not an archived v1 resource. Historical backup product labels, cryptographic identifiers and schema migration IDs remain unchanged for compatibility; they do not control the current product version.
 
 ## Release policy
 
@@ -87,8 +84,7 @@ UI bundle is built with v1's version; the .NET host reports its own version wher
 
 ## Tests
 
-`VersioningTests` (the file is the only source, assemblies and file version follow it, `--version` content, every HTTP identity equal, v1
-independence and v1's own mirror, release scripts read the file and check `<version>+<commit>` in every executable); Pester `Release verification`
+`VersioningTests` (the file is the only source, assemblies and file version follow it, `--version` content, every HTTP identity equal, canonical frontend mirrors and historical-data independence, release scripts read the file and check `<version>+<commit>` in every executable); Pester `Release verification`
 (folder name, file version and version format); the release scripts refuse an invalid version and executables without `<version>+<commit>`.
 
 ## Active frontend and build metadata

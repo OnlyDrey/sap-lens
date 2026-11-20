@@ -81,9 +81,12 @@ public sealed partial class InstallerTests
         // Desktop: per user, and Setup waits for a running Desktop (current or earlier folder) instead of closing it.
         Assert.Equal("lowest", Setting(Desktop, "PrivilegesRequired"));
         Assert.Equal(DesktopLocation.MutexName, Setting(Desktop, "AppMutex"));
-        // Server: machine-wide; stops only its own service through the SCM and never creates or deletes a service.
+        // Server: machine-wide; refuse unaccepted in-place updates before touching any service or program file.
         Assert.Equal("admin", Setting(Server, "PrivilegesRequired"));
-        Assert.Contains("'stop ' + Names[I]", Server);
+        Assert.Contains("RegKeyExists(HKLM, ServicesKey + Names[I])", Server);
+        Assert.Contains("installer-managed updates are not yet accepted", Server);
+        Assert.Contains("In-place installer updates are refused", Server);
+        Assert.DoesNotContain("net.exe", Server);
         Assert.DoesNotMatch(@"Exec\([^)]*sc\.exe", Server);
         Assert.Contains("Result[0] := 'AuthLens';", Server);
         Assert.Contains("SetArrayLength(Result, 1);", Server);                               // services of earlier products are never touched

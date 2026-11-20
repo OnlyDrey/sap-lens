@@ -13,4 +13,29 @@ public static class DesktopLocation
     public static Location Resolve(string localApplicationData) =>
         new(Path.Combine(localApplicationData, FolderName), MutexName,
             [.. EarlierProductFolders.Select(f => Path.Combine(localApplicationData, f)).Where(Directory.Exists)]);
+
+    /// <summary>An explicit data folder isolates logs, WebView2 and the mutex as well as SQLite. The normal Desktop profile is untouched.</summary>
+    public static Location ResolveForDataDirectory(string localApplicationData, string dataDirectory)
+    {
+        AuthLens.Persistence.DatabaseOptions.ValidateLocal(dataDirectory);
+        var data = Path.GetFullPath(dataDirectory).TrimEnd(Path.DirectorySeparatorChar);
+        if (data.Length < Path.GetPathRoot(Path.GetFullPath(dataDirectory))!.Length)
+            throw new InvalidOperationException("Desktop data must not be a drive root.");
+        for (string? item = data; item is not null; item = Path.GetDirectoryName(item))
+            if ((File.Exists(item) || Directory.Exists(item)) && (File.GetAttributes(item) & FileAttributes.ReparsePoint) != 0)
+                throw new InvalidOperationException("Desktop data paths must not traverse links.");
+        var normal = Resolve(localApplicationData);
+        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        foreach (var folder in EarlierProductFolders)
+        {
+            var earlier = Path.GetFullPath(Path.Combine(localApplicationData, folder));
+            if (data.Equals(earlier, comparison) || data.StartsWith(earlier + Path.DirectorySeparatorChar, comparison))
+                throw new InvalidOperationException("Desktop never writes into an earlier product's profile. Restore a backup into a separate AuthLens folder.");
+        }
+        AuthLens.Persistence.DatabaseOptions.RefuseUnadoptedLegacy(data);
+        if (data.Equals(Path.Combine(normal.Root, "data"), comparison)) return normal;
+        var identity = OperatingSystem.IsWindows() ? data.ToUpperInvariant() : data;
+        var hash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(identity)))[..16];
+        return new Location(Path.Combine(data, ".desktop"), MutexName + "-" + hash, normal.EarlierProductData);
+    }
 }

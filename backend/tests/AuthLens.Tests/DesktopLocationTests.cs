@@ -19,6 +19,24 @@ public sealed class DesktopLocationTests : IDisposable
     }
 
     [Fact]
+    public void An_explicit_fixture_isolates_its_logs_profile_and_mutex_and_refuses_earlier_product_folders()
+    {
+        var data = Path.Combine(_root, "isolated", "data");
+        var first = DesktopLocation.ResolveForDataDirectory(_root, data);
+        Assert.Equal(Path.Combine(data, ".desktop"), first.Root);
+        Assert.NotEqual(DesktopLocation.MutexName, first.Mutex);
+        var repeated = DesktopLocation.ResolveForDataDirectory(_root, data);
+        Assert.Equal((first.Root, first.Mutex), (repeated.Root, repeated.Mutex));
+        Assert.NotEqual(first.Mutex, DesktopLocation.ResolveForDataDirectory(_root, Path.Combine(_root, "second", "data")).Mutex);
+        Assert.False(Directory.Exists(first.Root));
+        var normal = DesktopLocation.Resolve(_root);
+        Assert.Equal(normal.Mutex, DesktopLocation.ResolveForDataDirectory(_root, Path.Combine(normal.Root, "data")).Mutex);
+        Assert.Throws<InvalidOperationException>(() => DesktopLocation.ResolveForDataDirectory(_root, Path.Combine(_root, "SAP Lens Desktop", "data")));
+        Assert.Throws<InvalidOperationException>(() => DesktopLocation.ResolveForDataDirectory(_root, "relative"));
+        Assert.Throws<InvalidOperationException>(() => DesktopLocation.ResolveForDataDirectory(_root, Path.GetPathRoot(_root)!));
+    }
+
+    [Fact]
     public void Earlier_product_folders_are_reported_and_never_used()
     {
         foreach (var folder in new[] { "SAP Lens Desktop", "SAP Lens 2 Prototype", "SAP Lens" }) Directory.CreateDirectory(Path.Combine(_root, folder, "data"));

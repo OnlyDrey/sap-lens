@@ -8,6 +8,8 @@ namespace AuthLens.Tests;
 
 /// <summary>The Desktop start sequence (LocalStartup), exercised on any OS: ready only when the database is ready AND the UI entry point is served; every
 /// failure stops the host, returns one actionable message and never logs the token.</summary>
+// These wall-clock startup probes clear process-wide SQLite pools; keep them outside concurrent host/build fixtures.
+[Collection("process-concurrency")]
 public sealed class StartupTests : IDisposable
 {
     private readonly string _root = Directory.CreateTempSubdirectory("saplens-startup-").FullName;

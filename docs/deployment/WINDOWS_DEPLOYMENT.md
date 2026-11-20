@@ -440,11 +440,10 @@ powershell -NoProfile -File .\scripts\build-installers.ps1 -ReleasePath $release
 | Installer | Scope and folder | Behavior |
 | --- | --- | --- |
 | `AuthLens-<version>-Setup.exe` (Desktop) | Per user, `%LOCALAPPDATA%\Programs\AuthLens Desktop`; data `%LOCALAPPDATA%\AuthLens` | New AppId; SAP Lens 1 and the SAP Lens Desktop are detected and left untouched (their data comes over by restoring a backup) |
-| `AuthLens-Server-<version>-Setup.exe` | Machine, `C:\ProgramData\AuthLens\app\server` | New AppId; installs beside SAP Lens. Stops and restarts only the `AuthLens` service when it runs from `{app}`; never creates or deletes a service |
+| `AuthLens-Server-<version>-Setup.exe` | Machine, `C:\ProgramData\AuthLens\app\server` | New AppId; installs beside SAP Lens. Fresh program-file installation only; refuses an existing AuthLens service or existing Server files before any change. Installer-managed updates/rollback remain unaccepted; use versioned deployment |
 
 Silent: `AuthLens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=C:\ProgramData\AuthLens\install.log`. Installers are unsigned; signing,
-publishing and tagging are separate, authorized release steps. Upgrades replace executables only: the server and Desktop back the database up
-themselves before any schema migration.
+publishing and tagging are separate, authorized release steps. The Server installer no longer performs unverified in-place upgrades: it cannot promise a readiness-verified rollback and refuses that path. The existing versioned deployment remains the controlled manual update procedure. Installer-managed updates, first service registration and full installer acceptance remain release blockers until validated. The server and Desktop protect the database before schema migration.
 
 ## Local Service Manager
 
@@ -648,3 +647,10 @@ These checks do not certify native service restart, Desktop/WebView2, installer,
 ACL/firewall, backup recovery or real-data migration acceptance. Those remain the
 separate existing checklist above, and must use disposable installations/data.
 The running service and all existing release/backup directories must stay untouched.
+
+
+### Isolated Desktop acceptance resources
+
+An explicit `AuthLens.exe --data-dir <absolute fresh fixture> --self-check` now places logs and WebView2 runtime files under `<fixture>/.desktop` and derives its mutex from that data directory. It neither shares the normal Desktop mutex/profile nor writes into earlier product folders. The default Desktop path and mutex stay unchanged, including when that exact default data path is passed explicitly. Relative/empty/drive-root/linked paths and earlier product profiles are refused before log creation. Use a new GUID fixture, never a directory selected because its name sounds disposable. Self-check verifies the private loopback host and embedded UI without a window; it does not prove WebView2 interactions, downloads or installer acceptance.
+
+The publish acceptance tests now run the single-file Server smoke workflow on Windows as well as Linux, and a Windows-only Desktop `--self-check` against a fresh temporary data directory. These checks never register an SCM service. Startup deadline tests run in the existing nonparallel process collection because they clear global SQLite pools and must not compete with unrelated host/build fixtures; their deadlines are unchanged. Final execution results are recorded in [release status](../migration/RELEASE_STATUS.md).

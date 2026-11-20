@@ -1,9 +1,9 @@
 ; AuthLens Server (.NET) machine-wide installer. Built by scripts/build-installers.ps1 from a verified release folder (build-release.ps1):
 ;   ISCC /DFullVersion=2.0.0-alpha.1 /DNumericVersion=2.0.0.1 /DReleaseDir=<release folder> AuthLens-Server.iss
 ; Installs the server files into {app}\server. It never creates, reconfigures or deletes a Windows service and never touches a data directory (the
-; server's --data-dir is always outside {app}). On upgrade, the AuthLens service is stopped through the Service Control Manager if its executable is in {app},
-; Service Control Manager before the files are replaced and started again afterwards; no process is ever killed. A service that runs a managed
-; release elsewhere (scripts/deploy) is left alone. Uninstall is refused while a service still runs from {app}.
+; server's --data-dir is always outside {app}). In-place updates are refused before any service/file change because native installer rollback
+; acceptance is not complete. Use the existing versioned deployment procedure for controlled updates. No process is killed.
+; Uninstall is refused while a service still runs from {app}.
 ; Silent: AuthLens-Server-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART [/LOG=<file>]
 #ifndef FullVersion
   #error FullVersion is required
@@ -69,8 +69,6 @@ Root: HKLM; Subkey: "{#VersionKey}"; ValueType: string; ValueName: "FileVersion"
 [Code]
 const
   ServicesKey = 'SYSTEM\CurrentControlSet\Services\';
-var
-  StoppedServices: TArrayOfString;
 
 function ServiceNames(): TArrayOfString;
 begin
@@ -100,38 +98,20 @@ begin
   end;
 end;
 
-// Stops (graceful, through the Service Control Manager; net stop waits for the stop) every AuthLens service that runs from {app}.
+// An in-place overwrite cannot promise verified database rollback. Refuse it before any service or program file changes.
+// Versioned deployments provide the existing backup/readiness/rollback procedure until installer update acceptance is implemented.
 function PrepareToInstall(var NeedsRestart: Boolean): String;
-var Names: TArrayOfString; I, ExitCode: Integer;
+var Names: TArrayOfString; I: Integer;
 begin
   Result := '';
-  SetArrayLength(StoppedServices, 0);
   Names := ServiceNames();
   for I := 0 to GetArrayLength(Names) - 1 do
-    if ServiceRunsFrom(Names[I], ExpandConstant('{app}')) then begin
-      Log('Service ' + Names[I] + ' runs from ' + ExpandConstant('{app}') + '; stopping it before the upgrade.');
-      if not Exec(ExpandConstant('{sys}\net.exe'), 'stop ' + Names[I], '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then ExitCode := -1;
-      // 0 stopped now; 2 it was not running. Anything else: leave every file as it is.
-      if ExitCode = 0 then begin
-        SetArrayLength(StoppedServices, GetArrayLength(StoppedServices) + 1);
-        StoppedServices[GetArrayLength(StoppedServices) - 1] := Names[I];
-      end else if ExitCode <> 2 then begin
-        Result := 'Service ' + Names[I] + ' could not be stopped (net stop exit ' + IntToStr(ExitCode) + '). Nothing was changed; it was not terminated. Stop it yourself, then run Setup again.';
-        Exit;
-      end;
-    end else if ServiceRunsFrom(Names[I], 'C:\') then
-      Log('Service ' + Names[I] + ' runs from another folder (for example a managed release); it is left unchanged.');
-end;
-
-procedure CurStepChanged(CurStep: TSetupStep);
-var I, ExitCode: Integer;
-begin
-  if CurStep <> ssPostInstall then Exit;
-  for I := 0 to GetArrayLength(StoppedServices) - 1 do begin
-    if not Exec(ExpandConstant('{sys}\net.exe'), 'start ' + StoppedServices[I], '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then ExitCode := -1;
-    if ExitCode = 0 then Log('Service ' + StoppedServices[I] + ' started again.')
-    else SuppressibleMsgBox('Service ' + StoppedServices[I] + ' did not start again (net start exit ' + IntToStr(ExitCode) + '). Its data is unchanged; see <data-dir>\logs\server-*.log and the Windows event log.', mbError, MB_OK, IDOK);
-  end;
+    if RegKeyExists(HKLM, ServicesKey + Names[I]) then begin
+      Result := 'An AuthLens service already exists. This installer will not stop it or overwrite its files. Use the verified versioned deployment and rollback procedure; installer-managed updates are not yet accepted.';
+      Exit;
+    end;
+  if FileExists(ExpandConstant('{app}\server\AuthLens.Api.exe')) then
+    Result := 'AuthLens Server program files already exist. In-place installer updates are refused until verified backup, readiness and rollback acceptance is implemented. Keep the existing installation and use versioned deployment.';
 end;
 
 function InitializeUninstall(): Boolean;
