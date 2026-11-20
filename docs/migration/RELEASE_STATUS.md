@@ -28,7 +28,28 @@ A subsequent native different-build fixture passed bfa7226-to-8d05990 atomic rep
 rollback/probe, successful update and explicit interrupted recovery (1 Pester case, 237.79 seconds). This is adapter evidence, not compiled Setup acceptance. PowerShell 5.1 parsed all 26 scripts without errors;
 documentation links passed (100 Markdown files). The complete Pester checkpoint passed **193, failed 0, skipped 11** (204 discovered, zero failed containers, 362.28 seconds). Nine skips are Linux
 launcher cases and two need elevated ACL restoration. A final retained-installation guard is in `7b789df`; its three focused cases passed after that
-checkpoint. Two additional packaged-entry integrity tests passed. Complete .NET/browser regression is pending and will be recorded here.
+checkpoint. Two additional packaged-entry integrity tests passed. The real packaged entry point also passed a fresh private Desktop installation
+with its hashed helpers, full package verification, readiness and canonical database (1 stage, 21.93 seconds).
+
+The complete .NET checkpoint passed **473, failed 0, skipped 0** in 587.30 seconds. It includes native Windows publish/Desktop self-check;
+Linux-only publish methods are platform-gated and do not establish Linux execution here. Frontend types passed; units **46/46**; lint passed
+with 66 existing warnings and zero errors. Repository structure/workflow contracts, Python **7/7**, Node **5/5**, Lucide and Ruff passed.
+The tracked secret scan and the new package scan found zero findings; no repeated full scan is required for these documentation updates.
+
+**Browser checkpoint: DEFERRED.** The single attempt was interrupted by explicit instruction after its log reached case 52/865. No full summary
+was produced and no complete pass/fail/skip counts are claimed. Its partial log and artifacts remain unchanged under ignored
+`build/test-artifacts/installer-final-browser*`; the deferred marker is separate. No equivalent full browser run will substitute for it.
+Focused checks remain the development policy; another consolidated full regression requires completed implementation and explicit approval.
+
+The additional clean unsigned package is `AuthLens-2.0.0-alpha.1-20261120-132006-8d05990-win-x64`, source_dirty=false, **17 artifacts verified**.
+It is indexed by `build/test-artifacts/installer-stabilization-release-result.json`; the earlier bfa7226 package/index was preserved. This package
+predates the retained-installation Server guard in `7b789df` and later test/documentation commits. No compiled installer exists. Build a new clean
+release and helper inventory from the final approved commit before compiling Setup; do not mix helper commits or edit historical manifests.
+
+Local implementation commits after 798d3d0: `fddf6f6` (manual installer transaction), `8d05990` (portable governance recovery/parity),
+`7b789df` (retained-installation rollback guard), `94f74fb` (helper integrity/native evidence). Final documentation is a subsequent local commit.
+The branch remains `experiment/dotnet-backend`; all original seven unpushed commits, the stash and ignored recovery artifacts are retained.
+No push, merge, tag, release, CI trigger or protected installation operation occurred.
 
 Operator gates: provide approved Inno Setup 6; build a clean release and helper inventory at the same commit; compile into a new empty output;
 then execute fresh install, same-schema different-build update, induced readiness failure and interrupted recovery in a disposable elevated VM

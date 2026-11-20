@@ -662,17 +662,43 @@ Pass: data kept across update and rollback; the SAP Lens services are identical 
 
 ### 7. Installers and Desktop
 
-Run `AuthLens-Server-2.0.0-alpha.1-Setup.exe` only on a VM without the canonical installation from step 3 (it installs to
-`C:\ProgramData\AuthLens\app`), and `AuthLens-2.0.0-alpha.1-Setup.exe` for the current user.
+Use a disposable VM/user without an existing AuthLens installer registration. Compile approved packages first; the following is an operator
+acceptance procedure, **not executed compiled-Setup evidence**. Use new fixture paths and an explicitly isolated service name/account/port.
+The Server configuration must already specify the fixture root, private data/TLS/key locations and equivalent service arguments; never use a
+legacy configuration or production service. Root security preparation does not create or replace certificates, keys or credentials.
 
 ```powershell
-& "$env:LOCALAPPDATA\Programs\AuthLens Desktop\AuthLens.exe" --self-check; "exit $LASTEXITCODE"
-Get-ChildItem "$env:LOCALAPPDATA\AuthLens" -Recurse -Depth 1 | Select-Object FullName
+$fixture = 'C:\AuthLens-Acceptance\installer-' + [guid]::NewGuid().ToString('N')
+$program = Join-Path $fixture 'desktop-program'
+$data = Join-Path $fixture 'desktop-data'
+$serverRoot = Join-Path $fixture 'server'
+# Substitute the reviewed private configuration and freshly compiled Setup executable paths.
+$serverConfig = '<absolute isolated deployment config>'
+$desktopSetup = '<absolute Desktop Setup.exe>'
+$serverSetup = '<absolute Server Setup.exe>'
+$desktopArgs = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="{0}"' -f $program),('/DATADIR="{0}"' -f $data))
+(Start-Process -FilePath $desktopSetup -ArgumentList $desktopArgs -WindowStyle Hidden -Wait -PassThru).ExitCode
+$serverArgs = @('/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART',('/DIR="{0}\app"' -f $serverRoot),('/CONFIGFILE="{0}"' -f $serverConfig))
+(Start-Process -FilePath $serverSetup -ArgumentList $serverArgs -WindowStyle Hidden -Wait -PassThru).ExitCode
+# Read the exact selected fixture; Desktop GUI readiness was already checked by Setup's owned probe.
+Get-Content (Join-Path $program '.setup-state\journal.json') -Raw
+Get-ChildItem $data -Force
 ```
 
-Pass: both setups install beside SAP Lens (own AppIds, SAP Lens entries unchanged in Apps & features); self-check exit 0 and a log under
-`%LOCALAPPDATA%\AuthLens\logs`; the Desktop window opens, imports a synthetic CSV, and exports (CSV, PDF, DOCX, backup) arrive as normal downloads.
-Uninstall removes the programs and keeps data.
+Pass: both Setup exit codes are 0; Desktop journal is complete; the configured isolated service is ready with the expected identity and listener
+PID. SAP Lens services, folders and installer registrations are unchanged. Launch the fixture Desktop shortcut and verify its selected data
+directory, window, synthetic imports and CSV/PDF/DOCX/backup downloads. Explicit data profiles log under `<data>\.desktop\logs`.
+
+Provision a synthetic private host key/recovery copy before testing updates. Use a **different verified build/package name** with the same schema;
+repeat Setup against the same fixture and configuration. Verify the protective archive, retained old executable/release, unchanged configuration,
+key/TLS hashes and business records. Exercise controlled candidate readiness failure and interrupted recovery in this disposable fixture only;
+verify the old version actually becomes ready, and test refusal for corrupt recovery proof or a changed schema. Use the
+[recorded recovery procedure](#interrupted-setup-and-recovery), never overwrite the old payload or recovery artifacts to retry. Schema-changing
+updates are refused before replacement/service stop. Re-running the identical Setup payload is also refused, preserving incomplete evidence.
+
+Uninstall removes tracked Setup payloads, shortcuts and registry entries; Desktop executable/recovery files, Server releases/state/services and
+all persistent data remain for separate reviewed cleanup. Do not use uninstall as rollback. Compiled Setup execution, native SCM and interactive
+WebView2 acceptance remain pending until the operator records those results.
 
 ## Post-promotion infrastructure verification
 
@@ -703,6 +729,10 @@ These checks do not certify native service restart, Desktop/WebView2, installer,
 ACL/firewall, backup recovery or real-data migration acceptance. Those remain the
 separate existing checklist above, and must use disposable installations/data.
 The running service and all existing release/backup directories must stay untouched.
+
+The complete browser checkpoint for this development round is **DEFERRED** by explicit instruction. Preserve its interrupted partial log; it
+does not establish a pass. Continue with focused checks only. A new consolidated full regression requires implementation completion and explicit
+approval; CI configuration and the browser tests remain unchanged.
 
 
 ### Isolated Desktop acceptance resources
