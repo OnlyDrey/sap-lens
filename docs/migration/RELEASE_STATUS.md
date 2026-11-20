@@ -1,5 +1,39 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Windows V1 migration into the installed Server
+
+2026-11-20: the existing verified **4b20cdb** win-x64 release (17 artifacts) and matching Server Setup were used without rebuilding. Initial
+inspection found no `AuthLens` service, Server installer registration or canonical Server data directory. A new private acceptance root received
+copied V1 inputs, a new AuthLens backup key, a new TLS certificate and explicit deployment configuration. No Desktop or legacy installation was
+changed. The protected original archive and recovery key remained byte-identical by SHA-256.
+
+The supported `--migrate-v1 preview → run → activate` path authenticated all 1,209 members, reported zero blockers, and imported **332,348 records
+across 38 revisions**. Independent post-service-restart comparison matched every record, all eight source documents and the 24 original settings
+fields except the deliberate scheduling isolation. Counts: 112,400 user/assignment records, 182,846 role records, 36,550 directory records and 552
+SoD matrix records; 1,086 SoD events, 1,023 evidence snapshots, three Account Review events and four SoD report-log entries. SQLite integrity,
+foreign keys and both event chains passed. All six known schema migrations are applied, with none pending. The encrypted migration backup and
+activation audit remain retained; no upgrade confirmation or irreversible cleanup was performed.
+
+Before installation, an isolated no-worker console host applied activation and provisioned a new administrator using the standard one-time
+activation and account-login APIs. A request missing its same-origin signal was correctly refused with 403; supplying the required Origin fixed
+the acceptance client without changing product safeguards. Scheduled refresh was disabled through the revision-checked configuration API before
+the service started. Original external paths remain for explicit operator review; no automatic source refresh was enabled.
+
+**Native Server installation and restart verified:** the Server installer ran with normal UAC elevation and explicit `/CONFIGFILE`, exited **0**,
+and created `AuthLens` as `NT SERVICE\AuthLens`. It is **Running**, startup **Auto**, and passed the packaged NTFS ACL audit. A supported graceful
+service restart changed its PID and retained migrated data and authentication. Independent HTTPS checks used normal certificate validation and
+no proxy: health **200**, anonymous dashboard **401**, wrong password **401**, administrator login/dashboard **200**, and frontend HTML **200**.
+The service created and fully verified a new encrypted SLBAK3 application backup, proving access to its private data and backup key.
+
+**Frontend sign-in verification pending:** the real browser renders the Server sign-in page over trusted HTTPS; observation of the signed-in
+migrated dashboard awaits the operator's sign-in handoff, so end-to-end Server acceptance is not yet claimed complete. New administrator
+credentials are held only in private operator escrow outside Git. The new acceptance certificate is trusted in the current user's store only;
+no machine-wide trust or firewall rule was added. It expires **2027-02-18**. A new private AuthLens recovery copy was exported and verified without
+printing key material; separate/offline custody remains an operator requirement. Other-client certificate trust, reviewed source paths, renewal
+and detailed business workflows remain operator requirements. Product code, version and CI are unchanged;
+no rebuild, full regression, push or merge was performed. This supersedes the earlier statement that no Server migration had been exercised,
+without certifying production deployment or cross-device access.
+
 ## Isolated Windows V1 backup migration acceptance
 
 2026-11-20, installed AuthLens **2.0.0-alpha.1**, clean build **4b20cdb**, Windows PowerShell 5.1: **PASS for actual isolated migration,
