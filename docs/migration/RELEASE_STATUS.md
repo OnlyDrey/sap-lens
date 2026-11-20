@@ -95,13 +95,16 @@ Next, in order, each a validated commit:
 2. Installer compilation and acceptance on Windows (`scripts/build-installers.ps1`); code signing as an authorized release step.
 3. v1 migration rehearsal on a copy of real data.
 4. Owner decision on Desktop identity (beside v1 or replacing it), then the promotion in [BACKEND_PROMOTION.md](BACKEND_PROMOTION.md).
-5. Browser regression of the v1 Playwright suite against the .NET server. Complete run on 2026-11-18 (Linux, one worker, 25 min):
-   **532 passed, 327 failed**. 307 failures are the harness gap in [development](../development/README.md#browser-tests) (the spec sets
-   source files through `POST /api/configuration`, a SAP Lens 1 contract the .NET host refuses with HTTP 400). The other 20 are not yet
-   classified: `navigation-modules` (9: focus, data-warning text, two timeouts), session region still visible after sign-in (`desktop`,
-   `enterprise`, `settings-refinement`), `role-visuals` (3), and one each in `functional-groups-members`, `settings-runtime-theme`,
-   `startup-recovery`, `sod-governance`, `sod-integration`, `sod-metadata` and `ui-polish-actions` (contrast). None touches code changed by
-   the repository cleanup of the same day.
+5. Browser regression against the .NET server. Complete run on 2026-11-20 (Linux, one worker, 36 min): **836 passed, 17 failed** of 853
+   (2026-11-18: 532 passed, 327 failed). The specs now set source files through Data Sources activation ([browser tests](../development/README.md#browser-tests)),
+   and the run found two application defects, both fixed: `/api/access/*` ignored a disabled User–Role Mapping, and every source activation
+   left Settings with phantom unsaved changes. Two of the 17 were test defects, fixed and re-run afterwards (`desktop` app information,
+   `ui-polish-actions` locator). Remaining 15, classified and open:
+   - **.NET behaviour differences:** `sod-integration` (a SoD-only refresh advances the SAP part of `data_revision`), `csv-lifecycle` (3:
+     refresh result counts, and the Employee Directory import check holds a 48 % drop the spec expects to pass).
+   - **Missing functionality:** `functional-groups-members` (confirmation attribution shows the seeding actor, not the acting reviewer).
+   - **Not yet investigated:** `navigation-modules` (6: first-run data-source alert text, two focus checks, two timeouts), `sod-metadata` (timeout),
+     `startup-recovery` (session-token replacement navigation count).
 
 ## Next commands
 

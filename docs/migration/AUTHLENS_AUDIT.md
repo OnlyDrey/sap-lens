@@ -129,9 +129,6 @@ Not run: the complete browser suite, and anything native on Windows (service, in
 ## 9. Technical debt found and not changed
 
 - `LICENSE.md` names SAP Lens (owner decision).
-- Feature documents `ACCOUNT_REVIEW.md`, `EMPLOYEE_DIRECTORY.md` and `IMPORT_AND_REFRESH.md` still describe SAP Lens 1 file storage under
-  `%LOCALAPPDATA%\SAP Lens`; AuthLens keeps that data in SQLite. They predate the rename and need a separate rewrite.
 - Logo file names `sap-lens.png`/`sap-lens.ico` and the `saplens_session` cookie keep the earlier name (renaming gains nothing visible and the
   cookie change signs users out).
-- 9 Pester ACL remediation tests fail on Linux because they call the Windows ACL API; they fail identically at the baseline.
-- 307 browser specs use the SAP Lens 1 `POST /api/configuration` contract the .NET host refuses ([browser tests](../development/README.md#browser-tests)).
+- 15 browser tests remain open after the 2026-11-20 full run, classified in [release status](RELEASE_STATUS.md).
