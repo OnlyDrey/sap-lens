@@ -476,6 +476,7 @@ Server Setup requires `/CONFIGFILE="absolute reviewed deployment config"` and `/
 extraction; configuration, TLS, credentials and host keys must already be provisioned securely. No inferred or legacy service is adopted.
 An existing service must use the managed link and identical configured arguments/account, its previous release must verify and open the data,
 and the new release must have no pending migration. Its **previous executable** creates and verifies the predeployment backup before any stop.
+Retained managed releases require the same rollback proof even if the service registration is missing; `FirstInstall` does not bypass it.
 The existing deployment journal, lock, graceful stop, expected listener PID/version/commit readiness and rollback/recovery rules then apply.
 Installer updates involving schema changes fail before stopping; they require a separately reviewed migration/recovery procedure.
 

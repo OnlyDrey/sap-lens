@@ -216,6 +216,14 @@ Describe 'Deployment' {
         Should -Invoke -ModuleName $M Invoke-ALMaintenance -Times 1 -ParameterFilter { $Arguments[0] -eq '--backup-local' -and $ExePath -like '*old*' }
         $script:Calls | Should -Not -Contain 'binary:managed'
     }
+    It 'requires rollback proof for a retained installation even when its service registration is missing' {
+        Use-FakeHost $script:Config $script:Previous
+        Mock -ModuleName $M Get-ALService { $script:Missing }
+        Mock -ModuleName $M Test-ALPublishedRelease { [pscustomobject]@{Verified=$false} }
+        { Invoke-ALDeploy $script:Config $script:Target $script:New -FirstInstall -RequireRollback } | Should -Throw '*previous managed release must verify*'
+        $script:Calls | Should -Not -Contain 'backup'
+        $script:Calls | Should -Not -Contain 'stop'
+    }
 
     It 'stops nothing when the data was written by a newer build, the backup cannot be verified, or an earlier run was interrupted' {
         Use-FakeHost $script:Config $script:Previous @{ NewerData = $true }
