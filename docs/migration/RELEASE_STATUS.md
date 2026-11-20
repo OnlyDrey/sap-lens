@@ -1,30 +1,79 @@
 # Release status and checkpoint (Phases 3 to 6)
 
-## Windows continuation: current assessment (2026-11-20)
+## Windows continuation: final assessment (2026-11-20)
 
-**NOT READY.** Implementation and final validation are in progress. This section supersedes older dated status claims below; those sections remain historical evidence.
+**NOT READY.** The independent implementation and local validation work is complete. Installer-managed update/rollback remains incomplete, and critical VM acceptance needs prerequisites that are unavailable here. The dated sections below are historical evidence and do not override this assessment.
 
-The checkout safely fast-forwarded from 814c88d to the expected origin 50bed6d. Pre-existing edits were preserved in a retained stash, reconciled through the AuthLens renames, and useful import-policy/test fixes retained. Six obsolete untracked drafts/helpers are preserved byte-for-byte with a hash manifest in ignored test artifacts. No push, merge, workflow dispatch, product-version or visual-identity change is authorized or performed.
+### Repository and implementation
 
-Implemented corrections: managed immutable CSV copies bound to dataset metadata and the existing encrypted backup engine; portable restore with verified local source paths and cleared historical host paths; per-job import checks and empty-import protection; stable Desktop/profile reviewer attribution; SAP revisions independent of SoD; safe shared download filename parsing and Windows workbook paths; isolated Desktop data/log/profile/mutex overrides. The Server installer refuses unsafe in-place updates before touching services/files. Installer-managed update/rollback remains incomplete, not certified.
+Starting HEAD was 814c88d; the checkout safely fast-forwarded to the expected origin 50bed6d. Pre-existing edits were preserved in a retained named stash, reconciled through the AuthLens renames, and useful import-policy/test fixes retained. Six superseded untracked drafts/helpers remain byte-for-byte in ignored preservation storage with a hash manifest. No private exports, configuration, logs, keys or test artifacts were committed.
 
-| Check | Windows continuation result |
+The [repository assessment](AUTHLENS_AUDIT.md#windows-continuation-assessment-2026-11-20-baseline-50bed6d) classifies the reviewed areas and the [naming register](../architecture/VERSIONING.md#naming-register) explains required compatibility identifiers. Product version 2.0.0-alpha.1, logo, colors and main-only CI policy are unchanged.
+
+Implemented corrections:
+
+- [Managed source files](../../backend/src/AuthLens.Application/ManagedSourceFiles.cs) retain immutable, deduplicated CSV copies for active/held datasets, reject unsafe paths and corrupted copies, and collect unreferenced generated copies under the backup lock order. [ImportService](../../backend/src/AuthLens.Application/ImportService.cs) freezes each job's import-check policy and preserves active data on invalid/empty imports.
+- The existing [backup engine](../../backend/src/AuthLens.Application/Backups/ApplicationBackups.cs) includes referenced raw files with hashes and validates them before replacement. Restore rebinds managed paths locally, clears historical machine-specific source paths, retains observations, and preserves protective backup/rollback behavior. No new schema or backup engine was introduced. Imports made before managed copies cannot retroactively recover exact raw bytes; a successful reimport supplies them.
+- Functional Groups and Desktop Account Review use the stable profile/authenticated actor rather than request aliases. SAP revisions exclude independent SoD changes. Export filename parsing accepts safe quoted, unquoted and UTF-8 headers; Windows workbook fixtures use fileURLToPath.
+- Explicit Desktop data overrides also isolate logs, WebView2 profile and mutex; invalid/linked/earlier-product paths are refused. Native published Server coverage now executes on Windows instead of returning early. Startup deadline tests use the existing nonparallel process collection; deadlines are unchanged.
+- The Server installer refuses existing service/program-file updates before changing anything because the old overwrite path provided no verified rollback. The existing versioned deployment procedure remains available; installer-managed updates are not complete or accepted.
+- V1 documentation moved intact to [docs/archive/v1](../archive/v1/README.md). Required legacy backup readers, schema IDs, golden fixtures and optional reference generators remain. Unused local Python helpers were preserved outside the tracked tree, not published or destroyed. LICENSE differs only by five product-reference replacements; legal terms, ownership and attribution requirements are unchanged.
+
+### Executed validation
+
+Windows host: Windows 11 Enterprise build 26200, Windows PowerShell 5.1.26100.9711, .NET SDK 10.0.204, Node 25.8.0. The packaged Server reports .NET runtime 10.0.8. This workstation has no elevated token, protected SAP Lens services, or the supplied VM installation directories. It is not production-VM acceptance.
+
+| Check | Actual result |
 | --- | --- |
-| Native solution build (Windows 11 Enterprise, .NET SDK 10.0.204) | Passed, zero warnings/errors |
-| Complete .NET checkpoint | 470 total: 468 passed, 2 failed; startup deadline under concurrent fixtures and obsolete duplicate-file expectation. Corrected complete Startup/DataSources classes: 13 passed. Affected import/backup/review/Desktop/installer selection: 75 passed. Final native publish/portable-restore group: 22 passed, including Windows Server and Desktop executable checks |
-| Pester 5.9.1 on Windows PowerShell 5.1 | 182 total: 171 passed, 0 failed, 11 skipped; zero failed containers. Nine Linux-only launcher cases, two elevated native restore cases |
+| Native solution and clean release builds | Passed, zero warnings/errors; frontend production/type build passed |
+| Complete .NET checkpoint | 470 total: 468 passed, 2 failed. Causes: startup deadline competing with concurrent fixtures and obsolete duplicate-file expectation. Corrected complete Startup/DataSources classes: 13/13. Affected import/backup/review/Desktop/installer group: 75/75. Final native publish/portable-restore group: 22/22, including an added Windows Desktop executable case. No clean single full rerun is claimed; Linux-only publish methods remain platform-gated |
+| Pester 5.9.1 on Windows PowerShell 5.1 | 182 total: 171 passed, 0 failed, 11 skipped, zero failed containers. Nine Linux-only launcher cases and two elevated native ACL restoration cases |
 | PowerShell 5.1 parser | 23 active scripts, zero errors; PowerShell 7 unavailable |
-| Frontend unit/type/lint | 46 unit tests passed; type check passed; lint passed with 66 existing warnings, zero errors |
-| Complete browser checkpoint | 865 total: 862 passed, 3 failed, 0 skipped (73.24 minutes), one worker, isolated loopback host/storage. All three are identified fixture defects. First complete six-spec correction run: 45 passed, 1 failed; directory persistence and confirmation race fixed. CSV source-count fixture depended on retained optional-source history; explicit source seeding fixed it. Final complete CSV spec: 8 passed. The formerly state-dependent CSV case also passed 3/3 repeated checks. All original browser failures have passing scoped verification; this is not a claimed clean single full run. |
-| Repository checks | Docs: 100 files/zero failures; Python contracts 7/7; Node contracts 5/5; structure/workflow/Ruff/Lucide/whitespace pass; secret scan zero findings |
-| Dependency audit | NuGet and production npm: zero reported vulnerabilities |
+| Frontend units/type/lint | 46/46 unit tests; type checks pass; full lint passes with 66 existing warnings and zero errors; changed fixtures pass scoped lint |
+| Complete Windows browser checkpoint | 865 total: 862 passed, 3 failed, 0 skipped, one worker, 73.24 minutes. Failures were fixture defects: missing snapshot variables, optional-source counts dependent on retained lifecycle history, and reading confirmation metadata before the save response completed |
+| Browser correction/dependent checks | Six complete specs: 45 passed, 1 failed while identifying the remaining history-dependent fixture setup. Explicit optional-source seeding then passed the complete CSV spec 8/8 and its formerly failing case 3/3 repeats. All three original failures now have passing scoped verification; no clean single full rerun is claimed |
+| Packaged Desktop | Clean package self-check passed with canonical fixture database and isolated log; no window was opened |
+| Packaged Server | Five isolated stages passed: ephemeral loopback startup and anonymous API rejection; synthetic data saved; encrypted online backup created/verified while running; owned console restart preserved data; fresh restore reproduced data and stable-copy SQLite inspection returned ok=true |
+| Repository checks | Docs: 100 files/zero failures; Python contracts 7/7; Node contracts 5/5; structure, workflow, Ruff, Lucide and whitespace checks pass; final tracked secret scan and release secret scan: zero findings |
+| Dependency audit | NuGet and production npm: zero reported vulnerable package references |
 | Bash deployment harness | Syntax passed; execution refused with infrastructure exit 2 because PowerShell 7 is unavailable |
-| Native release verification/installers | Pending release build; Inno Setup 6 compiler not installed |
+| Installer compilation | Release verification passed first, then the builder refused because Inno Setup 6/ISCC.exe was not found. No installer was built or installed |
 
-Release gates still open: compiled installer fresh/update/rollback acceptance; elevated SCM registration/start/restart and privileged ACL restore; explicit reboot authorization; native WebView2 interactions/downloads; a supplied copy of a real private SAP Lens backup and its recovery key. This Windows 11 Enterprise workstation (build 26200) has no elevated token and no protected SAP Lens service registered; it is not the production VM acceptance result. No legacy service, installation, database, certificate, backup, key or junction was modified. A synthetic backup pass cannot replace real-data acceptance.
+Full-run failures, scoped corrections, TRX/XML/JSON reports, traces, logs and synthetic fixtures remain under ignored `build/test-artifacts`. Machine-readable aggregate: `authlens-windows-checkpoint-summary.json`. The first packaged-backup probe correctly refused a missing private key directory; the corrected fixture provisions protected directories before key creation and passed all five stages.
 
-Local commits: 679897f (archive/product references), 33cdfb8 (Windows repository checks), 26ee870 (managed imports/portable restore/reviewer correctness); d9735eb (isolated native executable checks and safe installer refusal); 63fb450 (download parsing and deterministic browser fixtures); package/evidence checkpoint pending. No push has occurred. The historical per-file rename inventory describes the upstream checkpoint, not final Windows counts. License changes are exactly SAP Lens -> AuthLens product references; legal terms and ownership wording are unchanged. V1 documents moved intact to docs/archive/v1; required backup readers, migration IDs, golden fixtures and optional reference generators remain.
+### Verified local package and Git
 
+The clean unsigned Windows package is `AuthLens-2.0.0-alpha.1-20261120-121637-bfa7226-win-x64`, built from **bfa7226567524f72493bcdde25d691c61225deca**, source_dirty=false. All **17 artifacts** verified. Server executable: 116.9 MiB; Desktop: 169.6 MiB. No historical release manifest was edited. The local output is indexed by ignored `build/test-artifacts/authlens-native-release-result.json`; it is a verified build, not an accepted installer or published release.
+
+Logical local commits through that package: 679897f (archive/product references), 33cdfb8 (Windows repository checks), 26ee870 (managed imports/portable restore/reviewer correctness), d9735eb (Desktop isolation/native executable coverage/installer refusal), 63fb450 (download parsing/browser fixtures), bfa7226 (validation checkpoint). Final evidence is a subsequent documentation-only commit. Origin was rechecked and remains 50bed6d. No push, merge, tag, release publication or workflow dispatch occurred; pushing still requires explicit authorization.
+
+### Remaining gates and operator validation
+
+1. Provide an approved Inno Setup 6 compiler. Implement and validate installer-managed updates, readiness and rollback; the current Server installer deliberately refuses in-place updates.
+2. Use an elevated, disposable Windows acceptance environment for SCM registration/start/restart, service-account ACLs, privileged ACL restoration, TLS/network behavior and installer recovery. Reboot requires separate explicit authorization. Workstation tests cannot certify the production VM.
+3. Complete native WebView2 window interactions/downloads and Desktop installer acceptance. Self-check and Chromium tests do not cover that integration.
+4. Supply an approved copy of a real SAP Lens .NET backup and its recovery key for isolated restore/integrity acceptance. Do not copy a live main SQLite file alone, repeat an already completed v1 migration, or operate on existing services/data/keys/TLS/recovery directories.
+5. PowerShell 7 is needed to execute the documented Linux fake-SSH harness and to add a separate PowerShell 7 checkpoint. Production cutover and Git push remain separately authorized actions.
+
+Read-only checks from this checkout (the local result index exists only on this acceptance workstation):
+
+```powershell
+$package = Get-Content .\build\test-artifacts\authlens-native-release-result.json -Raw -Encoding UTF8 | ConvertFrom-Json
+powershell -NoProfile -File .\backend\scripts\verify-release.ps1 -ReleasePath $package.ReleasePath
+& (Join-Path $package.ReleasePath 'server\AuthLens.Api.exe') --version
+Get-CimInstance Win32_Service -Filter "Name='SapLens2' OR Name='sap-lens' OR Name='SapLens' OR Name='AuthLens'" | Select-Object Name, State, StartName
+```
+
+| Working phase | Final state |
+| --- | --- |
+| 1 Synchronization and assessment | Completed; retained local recovery stash/drafts |
+| 2 Identity, paths and database contracts | Completed; canonical AuthLens defaults and explicit legacy safeguards |
+| 3 Managed imports, backup and installers | Partial: imports/backup completed; installer update/rollback remains blocked |
+| 4 Functional and browser defects | Completed with full checkpoint plus passing scoped corrections |
+| 5 Windows acceptance and final validation | Partial: builds, native console/Desktop self-check, synthetic recovery and local suites completed; critical external/native gates above remain open |
+| 6 Documentation, local commits and assessment | Completed; no push authorized |
+
+Four of six phases are complete; two remain partial with explicit blockers. No production service, ACL, database, certificate, key, backup, release junction or global Windows directory permission was modified.
 
 Durable checkpoint for the next session. Evidence tags as in [README](README.md). Branch `experiment/dotnet-backend`; `work` and `main` are not
 touched; CI runs only on pushes to `main` (`validate.yml`), so experiment pushes trigger nothing.
