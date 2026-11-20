@@ -5,8 +5,13 @@ using AuthLens.Persistence;
 
 namespace AuthLens.Tests;
 
+[CollectionDefinition("process-concurrency", DisableParallelization = true)]
+public sealed class ProcessConcurrencyCollection;
+
 /// <summary>Several OS processes against one SQLite file: the single-writer guarantee must not depend on the in-process semaphore.</summary>
-public sealed class ConcurrencyTests
+// The latency bound measures writer admission, not competition with unrelated publish/build fixtures.
+[Collection("process-concurrency")]
+public sealed class ConcurrencyTests(Xunit.Abstractions.ITestOutputHelper output)
 {
     private static Process Cli(params string[] args)
     {
@@ -76,6 +81,7 @@ public sealed class ConcurrencyTests
         }
         await import;
         Assert.NotEmpty(latencies);
+        output.WriteLine($"{latencies.Count} review writes; maximum latency {latencies.Max():0} ms while staging 24,000 rows.");
         Assert.True(latencies.Max() < 5000, $"a review waited {latencies.Max():0} ms behind the import");
     }
 }

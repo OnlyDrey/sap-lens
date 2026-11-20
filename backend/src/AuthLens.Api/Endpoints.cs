@@ -124,7 +124,8 @@ public static class Endpoints
                 var name = Path.GetFileName(http.Request.Headers["X-File-Name"].ToString());
                 var key = http.Request.Headers["Idempotency-Key"].ToString();
                 if (key.Length > 128) throw new DomainValidationException("Idempotency-Key is too long.");
-                var payload = JsonSerializer.Serialize(new ImportPayload(source, path, name.Length == 0 ? $"{source}.csv" : name[..Math.Min(name.Length, 200)]), Sources.Json);
+                var policy = V1DataSources.ImportPolicy(await http.RequestServices.GetRequiredService<V1Settings>().GetAsync(ct));
+                var payload = JsonSerializer.Serialize(new ImportPayload(source, path, name.Length == 0 ? $"{source}.csv" : name[..Math.Min(name.Length, 200)], Checks: policy), Sources.Json);
                 var job = await queue.EnqueueAsync(ImportService.JobKind, payload, key.Length == 0 ? null : $"import:{source}:{key}", ct);
                 if (!job.PayloadJson.Contains(Path.GetFileName(path), StringComparison.Ordinal)) File.Delete(path); // idempotent replay: the first upload is used
                 return Results.Accepted($"/api/v1/jobs/{job.Id}", JobView(job));

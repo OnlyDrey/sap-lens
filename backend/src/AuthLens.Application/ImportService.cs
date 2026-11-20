@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Microsoft.EntityFrameworkCore;
 using AuthLens.Domain.Catalogue;
 using AuthLens.Domain.Imports;
@@ -10,7 +11,7 @@ using AuthLens.Persistence;
 namespace AuthLens.Application;
 
 /// <summary>An import request. Profile carries the v1 import profile (column mapping, delimiter, encoding); null means the documented defaults.</summary>
-public sealed record ImportPayload(string Source, string UploadPath, string FileName, AuthLens.Domain.Csv.CsvProfile? Profile = null);
+public sealed record ImportPayload(string Source, string UploadPath, string FileName, AuthLens.Domain.Csv.CsvProfile? Profile = null, ImportCheckSettings? Checks = null);
 
 public sealed class ImportConflictException(string message) : Exception(message);
 
@@ -52,13 +53,26 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Aut
 {
     public const string JobKind = "import";
     public const int BatchSize = 5000;
-    public static ImportCheckSettings Checks { get; set; } = new();
     public string Kind => JobKind;
 
     public void Finished(Job job)
     {
         var payload = JsonSerializer.Deserialize<ImportPayload>(job.PayloadJson, Sources.Json);
         if (payload is not null && File.Exists(payload.UploadPath)) File.Delete(payload.UploadPath);
+        PruneManagedCopies();
+    }
+
+    private void PruneManagedCopies()
+    {
+        try
+        {
+            using var db = factory.CreateDbContext();
+            ManagedSourceFiles.Prune(db.Database.GetDbConnection().DataSource);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+        {
+            if (logger is not null) Microsoft.Extensions.Logging.LoggerExtensions.LogWarning(logger, "Managed source cleanup deferred ({ErrorType}).", error.GetType().Name);
+        }
     }
 
     public async Task<JobOutcome> RunAsync(JobContext context)
@@ -120,7 +134,8 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Aut
         await using var read = await factory.CreateDbContextAsync(ct);
         var active = await read.Datasets.AsNoTracking().FirstOrDefaultAsync(d => d.Source == payload.Source && d.Status == DatasetStatus.Active, ct);
         var previous = await SnapshotService.RecordsAsync(read, active?.Id, ct);
-        var evaluation = ImportChecks.Evaluate(payload.Source, previous, staged, Checks);
+        // Freeze the operator's policy with the durable job; never share mutable policy across hosts or queued imports.
+        var evaluation = ImportChecks.Evaluate(payload.Source, previous, staged, payload.Checks ?? new ImportCheckSettings());
         var diff = ImportChecks.Diff(payload.Source, previous, staged);
         var held = evaluation.Suspicious;
         var removed = newKeys is null ? [] : Sources.ReviewKeys(current.Users).Where(k => !newKeys.Contains(k)).Order(StringComparer.Ordinal).ToList();
@@ -132,6 +147,9 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Aut
         {
             var target = await db.Datasets.FirstAsync(d => d.Id == dataset.Id, c);
             (target.ContentHash, target.RecordCount, target.ReportJson, target.EvaluationJson) = (contentHash, staged.Count, reportJson, evaluationJson);
+            var managed = ManagedSourceFiles.Capture(Path.GetDirectoryName(db.Database.GetDbConnection().DataSource)!, payload.Source, payload.UploadPath, payload.FileName);
+            var storedReport = JsonNode.Parse(reportJson)!.AsObject(); storedReport["managed_source"] = managed;
+            target.ReportJson = storedReport.ToJsonString();
             if (held) { target.Status = DatasetStatus.Held; return; }
             await ActivateAsync(db, target, active?.Id, removed, c);
         });
@@ -155,6 +173,7 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Aut
         await using var read = await factory.CreateDbContextAsync(cancellation);
         var held = await read.Datasets.AsNoTracking().FirstOrDefaultAsync(d => d.Id == datasetId, cancellation) ?? throw new Domain.Analysis.NotFoundException("Dataset not found.");
         if (held.Status != DatasetStatus.Held) throw new ImportConflictException("Only a held import can be confirmed.");
+        if (held.RecordCount == 0) throw new ImportConflictException("An empty source cannot be confirmed. Previous data is retained.");
         var evaluatedAgainst = JsonDocument.Parse(held.EvaluationJson ?? "{}").RootElement.TryGetProperty("evaluated_against", out var e) && e.ValueKind == JsonValueKind.Number ? e.GetInt64() : (long?)null;
         IReadOnlyList<string> removed = [];
         if (held.Source == Sources.Users)
@@ -171,6 +190,7 @@ public sealed class ImportService(WriteCoordinator writer, IDbContextFactory<Aut
             return target;
         }, cancellation);
         await NotifyCommittedAsync(committed ?? [], logger);
+        PruneManagedCopies();
         return confirmed;
     }
 

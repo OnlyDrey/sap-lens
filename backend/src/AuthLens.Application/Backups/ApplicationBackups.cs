@@ -168,6 +168,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
             OnlineCopy(database, Path.Combine(work, DatabaseEntry));
             Integrity(Path.Combine(work, DatabaseEntry));
             Add(DatabaseEntry);
+            ManagedSourceFiles.CopyForBackup(data, Path.Combine(work, DatabaseEntry), work, Add);
             if (File.Exists(accountStore))
             {
                 var copy = Path.Combine(work, AccountsEntry);
@@ -410,7 +411,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
                 {
                     ["source_mode"] = LegacyManifestProducts.Contains((string?)manifest["product"]) ? "SAP Lens" : "AuthLens", ["source_product"] = manifest["product"]?.DeepClone(), ["source_version"] = manifest["version"]?.DeepClone(), ["created_at"] = manifest["created"]?.DeepClone(),
                     ["files"] = manifest["files"]!.AsArray().Count, ["snapshots"] = 0,
-                    ["categories"] = new JsonArray([.. new[] { "application database", manifest["accounts"] is JsonObject ? "accounts" : null, manifest["files"]!.AsArray().Any(f => ((string)f!["path"]!).StartsWith("branding/", StringComparison.Ordinal)) ? "branding" : null }
+                    ["categories"] = new JsonArray([.. new[] { "application database", manifest["accounts"] is JsonObject ? "accounts" : null, manifest["files"]!.AsArray().Any(f => ManagedSourceFiles.EntryPattern().IsMatch((string)f!["path"]!)) ? "managed import files" : null, manifest["files"]!.AsArray().Any(f => ((string)f!["path"]!).StartsWith("branding/", StringComparison.Ordinal)) ? "branding" : null }
                         .Where(c => c is not null).Select(c => (JsonNode?)c)]),
                     ["warning"] = "Restore replaces all application data, review history and settings after the next restart. Histories are not merged. An encrypted recovery backup of the current data is created first.",
                     ["encrypted"] = true, ["accounts"] = manifest["accounts"]?.DeepClone(),
@@ -437,7 +438,7 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         foreach (var entry in archive.Entries)
         {
             var name = entry.FullName;
-            if (name != DatabaseEntry && name != LegacyDatabaseEntry && name != AccountsEntry && name != ManifestEntry && !BrandingEntry().IsMatch(name)) throw new BackupException("The archive contains unexpected files.", 422);
+            if (name != DatabaseEntry && name != LegacyDatabaseEntry && name != AccountsEntry && name != ManifestEntry && !BrandingEntry().IsMatch(name) && !ManagedSourceFiles.EntryPattern().IsMatch(name)) throw new BackupException("The archive contains unexpected files.", 422);
             total += entry.Length;
             if (entry.Length > BackupArchive.MaxArchive || total > BackupArchive.MaxArchive) throw new BackupException("The archive content is too large.", 422);
             var path = Path.GetFullPath(StagedPath(target, name));
@@ -457,6 +458,11 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
         foreach (var file in files)
             if (Sha(StagedPath(target, (string)file!["path"]!)) != (string?)file["sha256"]) throw new BackupException("A file in the archive does not match its checksum.", 422);
         Integrity(Path.Combine(target, DatabaseEntry));
+        var sourceReferences = ManagedSourceFiles.References(Path.Combine(target, DatabaseEntry));
+        if (!listed.Where(entry => ManagedSourceFiles.EntryPattern().IsMatch(entry)).ToHashSet(StringComparer.Ordinal).SetEquals(sourceReferences.Keys))
+            throw new BackupException("The archive's managed sources do not match its database.", 422);
+        foreach (var (entry, hash) in sourceReferences)
+            if (Sha(ManagedSourceFiles.Resolve(target, entry)) != hash) throw new BackupException("A managed source differs from its database metadata.", 422);
         var known = knownMigrations.ToHashSet(StringComparer.Ordinal);
         if (Migrations(Path.Combine(target, DatabaseEntry)).Any(m => !known.Contains(m)))
             throw new BackupException("The archive was written by a newer AuthLens version and cannot be restored here.", 422);
@@ -549,10 +555,13 @@ public sealed partial class ApplicationBackups(DatabaseOptions options, IDbConte
             foreach (var suffix in Sidecars)
                 if (File.Exists(Path.Combine(data, AccountsEntry + suffix))) Move(Path.Combine(data, AccountsEntry + suffix), Path.Combine(previous, AccountsEntry + suffix));
             if (Directory.Exists(Path.Combine(data, "branding"))) Move(Path.Combine(data, "branding"), Path.Combine(previous, "branding"));
+            if (Directory.Exists(Path.Combine(data, "sources"))) Move(Path.Combine(data, "sources"), Path.Combine(previous, "sources"));
             Move(Path.Combine(staged, DatabaseEntry), Path.Combine(data, DatabaseEntry));
             if (File.Exists(Path.Combine(staged, AccountsEntry))) Move(Path.Combine(staged, AccountsEntry), Path.Combine(data, AccountsEntry));
             else if (File.Exists(Path.Combine(previous, AccountsEntry))) { File.Copy(Path.Combine(previous, AccountsEntry), Path.Combine(data, AccountsEntry)); Execute(Path.Combine(data, AccountsEntry), "DELETE FROM sessions;"); }
             if (Directory.Exists(Path.Combine(staged, "branding"))) Move(Path.Combine(staged, "branding"), Path.Combine(data, "branding"));
+            if (Directory.Exists(Path.Combine(staged, "sources"))) Move(Path.Combine(staged, "sources"), Path.Combine(data, "sources"));
+            ManagedSourceFiles.RestorePaths(data);
             Integrity(Path.Combine(data, DatabaseEntry));
             File.Delete(pendingPath);
             WriteOperation(data, new JsonObject

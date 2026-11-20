@@ -454,7 +454,8 @@ public static class V1Access
         return report;
     }
 
-    internal static string Revision(Snapshot snapshot) => $"{V1Compatibility.Boot}.{(snapshot.Ids.Roles ?? 0) + (snapshot.Ids.Users ?? 0) + (snapshot.Ids.Sod ?? 0)}.{(snapshot.Ids.Employees ?? 0)}";
+    internal static string Revision(Snapshot snapshot) => Revision(snapshot.Ids);
+    internal static string Revision(ActiveIds ids) => $"{V1Compatibility.Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0)}.{(ids.Employees ?? 0)}";
     internal static bool Flag(IQueryCollection q, string name) => q[name].FirstOrDefault() is "true" or "True" or "1";
 
     private static bool NonNegative(IQueryCollection q, string name, out int value)

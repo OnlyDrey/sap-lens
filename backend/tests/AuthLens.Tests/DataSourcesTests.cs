@@ -68,6 +68,22 @@ public sealed class DataSourcesTests : IAsyncLifetime
 
     private string[] StoredSources() => Directory.Exists(Path.Combine(_root, "data", "sources")) ? Directory.GetFiles(Path.Combine(_root, "data", "sources")) : [];
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Empty_uploads_are_not_activations_or_confirmable_replacements(bool confirm)
+    {
+        Assert.Equal(HttpStatusCode.OK, (await Upload("roles", Csv.Roles(3), await Revision())).Item1);
+        var before = (await Configuration())["settings"]!.ToJsonString();
+        var files = StoredSources();
+        var (status, body) = await Upload("roles", Csv.RolesHeader + "\n", await Revision(), confirm);
+        Assert.Equal(HttpStatusCode.BadRequest, status);
+        Assert.Contains("no usable records", (string)body["detail"]!);
+        Assert.Equal(before, (await Configuration())["settings"]!.ToJsonString());
+        Assert.Equal(files, StoredSources());
+        Assert.Equal(3, JsonNode.Parse(await _client.GetStringAsync("/api/roles"))!.AsArray().Count);
+    }
+
     [Fact]
     public async Task Settings_saves_are_revisioned_validated_and_persist_across_restart()
     {
@@ -135,13 +151,13 @@ public sealed class DataSourcesTests : IAsyncLifetime
         Assert.Equal(5, preview["items"]!.AsArray().Count);
         Assert.Equal("ZC:FI:ROLE_0000", (string)preview["items"]![0]!["AGR_NAME"]!);
 
-        // Same content again: unchanged, a new private copy, the previous copy removed.
+        // Identical content reuses the immutable managed copy rather than growing storage.
         var first = StoredSources().Single();
         (status, body) = await Upload("roles", Csv.Roles(30), await Revision());
         Assert.Equal(HttpStatusCode.OK, status);
         Assert.Equal("unchanged", (string)body["refresh"]!["status"]!);
-        Assert.DoesNotContain(first, StoredSources());
-        Assert.Single(StoredSources());
+        Assert.Equal(first, Assert.Single(StoredSources()));
+        Assert.Equal(Csv.Roles(30), await File.ReadAllTextAsync(first));
     }
 
     [Fact]
@@ -158,7 +174,7 @@ public sealed class DataSourcesTests : IAsyncLifetime
         Assert.False(anomaly.ContainsKey("group")); // v1 omits fields that do not apply
         Assert.Equal(180, (int)detail["old"]!["records"]!);
         Assert.Equal(60, JsonNode.Parse(await _client.GetStringAsync("/api/roles"))!.AsArray().Count); // previous data retained
-        Assert.Single(StoredSources());
+        Assert.Equal(2, StoredSources().Length); // active CSV plus the held candidate needed for explicit confirmation
 
         (status, body) = await Upload("roles", Csv.Roles(5), await Revision(), confirm: true);
         Assert.True(status == HttpStatusCode.OK, body.ToJsonString());

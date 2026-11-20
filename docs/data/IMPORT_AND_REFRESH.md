@@ -197,3 +197,12 @@ A held import keeps the active data, settings revision and snapshots untouched. 
 Settings dialog shows the same report. Importing again with confirmation (`confirm_anomalies`, upload form field of the same name) activates it through the normal atomic path and appends an entry
 (source, time, actor, triggered checks, old and new record counts; last 100) to `data_lifecycle.confirmations`. A scheduled or startup refresh that finds a suspicious file reports the source as
 failed with `previous_preserved: true` and never activates it.
+
+
+## Managed source copies and import policy
+
+Each durable import job captures the chosen import-check policy, rather than reading mutable process-wide policy at execution time. Header-only or otherwise unusable sources cannot replace valid data, including by confirming a historical empty held revision. The default holds a drop over 30 percent when the previous source has at least 20 records; the saved policy can be changed explicitly without allowing malformed input.
+
+Successful and held imports retain a private immutable CSV addressed by its byte SHA-256 and linked from the dataset report. Files and canonical records have distinct hashes: raw formatting changes need not alter the business observations. Failed imports retain the last valid copy. Copies are included in the existing encrypted backup and rebound to the restored data root on another machine; see [managed imports and portability](../operations/BACKUP_AND_RECOVERY.md#managed-imports-and-portability). Old archives without copies still restore their durable observations.
+
+SAP `data_revision` depends on catalogue/user revisions and the independent Employee Directory component. An SoD-only change updates its own generation, not the SAP revision. Functional Group and Account Review confirmations use the authenticated account or stable Desktop reviewer profile; request aliases never change attribution or rewrite prior history.

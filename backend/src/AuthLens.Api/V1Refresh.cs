@@ -150,7 +150,7 @@ public static class V1Refresh
                     successful++;
                     continue;
                 }
-                var finished = await V1DataSources.RunImportJobAsync(services, source, path, Path.GetFileName(path), profile, ct);
+                var finished = await V1DataSources.RunImportJobAsync(services, source, path, Path.GetFileName(path), profile, ct, settings);
                 if (finished.Status == JobStatus.Cancelled) throw new OperationCanceledException("Data load canceled. Previous data and settings were retained.");
                 if (finished.Status != JobStatus.Completed) throw new DomainValidationException(finished.Error ?? "The CSV could not be imported.");
                 var (dataset, evaluation) = await V1DataSources.DatasetOfAsync(db, finished, ct);

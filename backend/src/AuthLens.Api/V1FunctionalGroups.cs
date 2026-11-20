@@ -149,9 +149,9 @@ public static class V1FunctionalGroups
         {
             var (bulk, invalid) = await BulkBody(http, assign: true, ct);
             if (invalid is not null) return invalid;
-            var (who, refused) = Reviewer(http, (string?)bulk!["reviewer"]);
+            var (who, refused) = await Reviewer(http, ct);
             if (refused is not null) return refused;
-            if ((bool?)bulk["replace_existing"] == true) return Detail(422, "Replacing memberships is not supported: assignment adds groups. Remove a membership on the user instead.");
+            if ((bool?)bulk!["replace_existing"] == true) return Detail(422, "Replacing memberships is not supported: assignment adds groups. Remove a membership on the user instead.");
             var groups = Targets(bulk);
             var (snapshot, _) = await StateAsync(http, ct);
             var (known, missing, stale) = Resolve(snapshot, bulk);
@@ -255,7 +255,7 @@ public static class V1FunctionalGroups
             var (snapshot, _) = await StateAsync(http, ct);
             var known = Known(snapshot, username);
             if (known is null) return Detail(404, "SAP user not found.");
-            var (who, refused) = Reviewer(http, fields.Reviewer);
+            var (who, refused) = await Reviewer(http, ct);
             if (refused is not null) return refused;
             if (fields.Group is null && fields.Rationale.Trim().Length == 0) return Detail(422, "A rationale is required to clear a Functional Group.");
             return Json(await store.ClassifyAsync(known.Username, fields.Group, fields.Rationale, fields.Expected, who!, fields.ChangeId, ct));
@@ -284,7 +284,7 @@ public static class V1FunctionalGroups
         var (snapshot, _) = await StateAsync(http, ct);
         var known = Known(snapshot, fields.Username!);
         if (known is null) return Detail(404, "SAP user not found.");
-        var (who, refused) = Reviewer(http, fields.Reviewer);
+        var (who, refused) = await Reviewer(http, ct);
         if (refused is not null) return refused;
         if (remove)
         {
@@ -312,12 +312,12 @@ public static class V1FunctionalGroups
     }
 
     /// <summary>Who records a confirmation: the signed-in account, or the local Desktop user with the name from the reviewer profile. Never a shared token.</summary>
-    private static (string? Reviewer, IResult? Refused) Reviewer(HttpContext http, string? fallback)
+    private static async Task<(string? Reviewer, IResult? Refused)> Reviewer(HttpContext http, CancellationToken ct)
     {
         var actor = Actors.Current(http);
         if (actor.Provenance is not ("server-session" or "desktop"))
             return (null, Detail(403, "Functional Group classifications need an individual sign-in. Enable Accounts mode for this server; a shared access token is not a reviewer identity."));
-        var who = (actor.Provenance == "server-session" ? actor.Username : fallback ?? "").Trim();
+        var who = actor.Provenance == "server-session" ? actor.Username : (string)(await V1Configuration.EnsureProfileAsync(http.RequestServices.GetRequiredService<AuthLens.Persistence.WriteCoordinator>(), http.RequestServices.GetRequiredService<TimeProvider>(), null, null, ct))["identity"]!["display_name"]!;
         return who.Length == 0 ? (null, Detail(422, "A reviewer is required.")) : (who, null);
     }
 

@@ -82,7 +82,7 @@ public static class V1Compatibility
             await using (var db = await factory.CreateDbContextAsync(context.HttpContext.RequestAborted))
             {
                 var ids = await SnapshotService.ActiveAsync(db, context.HttpContext.RequestAborted);
-                context.HttpContext.Response.Headers["X-Data-Revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.{(ids.Employees ?? 0)}";
+                context.HttpContext.Response.Headers["X-Data-Revision"] = V1Access.Revision(ids);
             }
             return await next(context);
         }).AddEndpointFilter(async (context, next) =>
@@ -215,7 +215,7 @@ public static class V1Compatibility
             ["settings"] = await store.GetAsync(ct),
             ["notice"] = null,
             ["error"] = null, ["loading"] = false, ["progress"] = null, ["analysis"] = new JsonObject(),
-            ["data_revision"] = $"{Boot}.{(ids.Roles ?? 0) + (ids.Users ?? 0) + (ids.Sod ?? 0)}.{(ids.Employees ?? 0)}", ["instance_id"] = Boot,
+            ["data_revision"] = V1Access.Revision(ids), ["instance_id"] = Boot,
         };
     }
 

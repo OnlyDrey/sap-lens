@@ -7,6 +7,46 @@ namespace AuthLens.Tests;
 
 public sealed class ImportAndJobTests
 {
+    [Theory]
+    [InlineData("roles", "no usable records")]
+    [InlineData("users", "no usable records")]
+    [InlineData("sod", "no usable records")]
+    [InlineData("employees", "no employee records")]
+    public async Task Header_only_replacements_fail_permanently_without_retiring_the_active_source(string source, string message)
+    {
+        await using var env = await CoreEnv.StartAsync();
+        var headers = AuthLens.Domain.Directory.EmployeeDirectory.Headers;
+        var csv = source switch
+        {
+            "roles" => Csv.Roles(5), "users" => Csv.Users([("SYNTHETIC", "ZC:SYN")]), "sod" => Csv.Sod(),
+            _ => string.Join(';', headers) + "\n" + string.Join(';', headers.Select(h => h == "Name" ? "Synthetic" : h == "Mail" ? "synthetic@example.test" : "")) + "\n",
+        };
+        var good = await env.RunImportAsync(source, csv);
+        var job = await env.EnqueueImportAsync(source, csv.Split('\n')[0] + "\n");
+        var claimed = (await env.Queue.ClaimAsync("empty-check"))!;
+        var error = await Assert.ThrowsAnyAsync<Exception>(() => env.Imports.RunAsync(new JobContext(claimed, "empty-check", env.Queue, CancellationToken.None)));
+        Assert.Contains(message, error.Message); Assert.False(JobWorker.IsTransient(error));
+        await env.Queue.FailAsync(job.Id, "empty-check", JobWorker.Describe(error), false);
+        Assert.Equal(JobStatus.Failed, (await env.Queue.GetAsync(job.Id))!.Status);
+        Assert.Equal(good.DatasetId, await env.QueryAsync(db => db.Datasets.Where(d => d.Source == source && d.Status == DatasetStatus.Active).Select(d => d.Id).SingleAsync()));
+        Assert.Equal(good.Records, await env.QueryAsync(db => db.DatasetRecords.CountAsync(r => r.DatasetId == good.DatasetId)));
+        Assert.Equal(0, await env.QueryAsync(db => db.Datasets.CountAsync(d => d.Status == DatasetStatus.Staged)));
+    }
+
+    [Fact]
+    public async Task A_previously_held_empty_revision_cannot_bypass_empty_source_protection()
+    {
+        await using var env = await CoreEnv.StartAsync();
+        var good = await env.RunImportAsync("roles", Csv.Roles(5));
+        var empty = await env.Writer.WriteAsync(async (db, ct) =>
+        {
+            var dataset = new Dataset { Source = "roles", Revision = 2, Status = DatasetStatus.Held, FileName = "empty.csv", CreatedUtc = env.Clock.GetUtcNow().UtcDateTime };
+            db.Datasets.Add(dataset); await db.SaveChangesAsync(ct); return dataset.Id;
+        });
+        await Assert.ThrowsAsync<ImportConflictException>(() => env.Imports.ConfirmAsync(empty, "synthetic admin"));
+        Assert.Equal(good.DatasetId, (await env.Snapshots.GetAsync()).Ids.Roles);
+    }
+
     [Fact]
     public async Task Import_stages_validates_and_activates_atomically_with_job_completion()
     {

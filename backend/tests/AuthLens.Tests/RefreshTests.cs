@@ -121,6 +121,54 @@ public sealed class RefreshTests : IAsyncLifetime
 
     private static JsonObject Result(JsonObject body, string source) => body["refresh"]!["sources"]!.AsArray().OfType<JsonObject>().Single(r => (string)r["source"]! == source);
 
+    [Theory]
+    [InlineData(true, 30, 20, true, true)]
+    [InlineData(false, 30, 20, true, false)]
+    [InlineData(true, 60, 20, true, false)]
+    [InlineData(true, 30, 121, true, false)]
+    [InlineData(true, 30, 20, false, true)]
+    [InlineData(false, 30, 20, false, false)]
+    [InlineData(true, 60, 20, false, false)]
+    [InlineData(true, 30, 121, false, false)]
+    public async Task Saved_import_policy_controls_refresh_and_explicit_selection(bool enabled, int percent, int minimum, bool refresh, bool held)
+    {
+        var file = Path.Combine(_root, "policy-roles.csv");
+        await File.WriteAllTextAsync(file, Csv.Roles(40));
+        await Select("roles", file);
+        var settings = JsonNode.Parse(await _client.GetStringAsync("/api/configuration"))!["settings"]!.AsObject();
+        settings["import_checks"] = new JsonObject { ["enabled"] = enabled, ["max_drop_percent"] = percent, ["min_previous_records"] = minimum };
+        Assert.Equal(HttpStatusCode.OK, (await _client.PostAsJsonAsync("/api/configuration", settings)).StatusCode);
+        await File.WriteAllTextAsync(file, Csv.Roles(20));
+        if (refresh)
+        {
+            var result = Result(await Refresh(), "roles");
+            Assert.Equal(held ? "failed" : "updated", (string)result["status"]!);
+            if (held) Assert.Equal("needs_confirmation", (string)result["category"]!);
+        }
+        else
+        {
+            var revision = (int)JsonNode.Parse(await _client.GetStringAsync("/api/configuration"))!["settings"]!["revision"]!;
+            var response = await _client.PostAsJsonAsync("/api/data-sources/roles/select", new { path = file, revision, mode = "dynamic" });
+            Assert.Equal(held ? HttpStatusCode.Conflict : HttpStatusCode.OK, response.StatusCode);
+            if (held) Assert.Contains("import_needs_confirmation", await response.Content.ReadAsStringAsync());
+        }
+        var catalogue = await _app.Services.GetRequiredService<AuthLens.Application.SnapshotService>().GetAsync();
+        Assert.Equal(held ? 40 : 20, catalogue.Catalogue.Roles.Count);
+    }
+
+    [Theory]
+    [InlineData("{\"enabled\":false,\"max_drop_percent\":0,\"min_previous_records\":20}")]
+    [InlineData("{\"enabled\":true,\"max_drop_percent\":96,\"min_previous_records\":20}")]
+    [InlineData("{\"enabled\":true,\"max_drop_percent\":30,\"min_previous_records\":-1}")]
+    [InlineData("{\"enabled\":\"false\",\"max_drop_percent\":30,\"min_previous_records\":20}")]
+    public async Task Invalid_import_policy_is_refused_without_saving(string policy)
+    {
+        var before = JsonNode.Parse(await _client.GetStringAsync("/api/configuration"))!["settings"]!.AsObject();
+        var candidate = before.DeepClone().AsObject(); candidate["import_checks"] = JsonNode.Parse(policy);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await _client.PostAsJsonAsync("/api/configuration", candidate)).StatusCode);
+        Assert.True(JsonNode.DeepEquals(before, JsonNode.Parse(await _client.GetStringAsync("/api/configuration"))!["settings"]));
+    }
+
     [Fact]
     public async Task A_dynamic_source_whose_export_became_empty_keeps_its_data_on_refresh()
     {

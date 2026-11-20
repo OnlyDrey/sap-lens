@@ -298,12 +298,12 @@ public static class V1AccountReview
             if (actor.Provenance is not ("server-session" or "desktop"))
                 return Detail(403, "Account Review decisions need an individual sign-in. Enable Accounts mode for this server; a shared access token is not a reviewer identity.");
             var sessionUser = actor.Provenance == "server-session";
-            var reviewer = sessionUser ? actor.Username : reviewerText.Trim();
             var identity = sessionUser
                 ? new Dictionary<string, object?> { ["id"] = actor.Id, ["username"] = actor.Username, ["display_name"] = actor.DisplayName, ["provenance"] = "server-session" }
                 : (await V1Configuration.EnsureProfileAsync(services.GetRequiredService<WriteCoordinator>(), services.GetRequiredService<TimeProvider>(), null, null, ct))["identity"]!
                     .AsObject().ToDictionary(p => p.Key, p => (object?)(string?)p.Value);
 
+            var reviewer = sessionUser ? actor.Username : (string)identity["display_name"]!;
             var (snapshot, _, items, _, _) = await CurrentAsync(services, ct);
             var row = items.FirstOrDefault(r => ((string)r["username"]!).Trim().PyUpper() == username.Trim().PyUpper());
             if (row is null) return Detail(404, "SAP user not found.");

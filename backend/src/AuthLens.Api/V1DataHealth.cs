@@ -147,7 +147,7 @@ public static class V1DataHealth
                 },
                 findings, items = rows.Skip(offset).Take(limit).ToList(), total = rows.Count, offset, limit,
                 directory_coverage_reason = (string)directory["coverage_reason"]!,
-                data_revision = $"{V1Compatibility.Boot}.{(state.Ids.Roles ?? 0) + (state.Ids.Users ?? 0) + (state.Ids.Sod ?? 0)}.{(state.Ids.Employees ?? 0)}",
+                data_revision = V1Access.Revision(state.Ids),
                 import_totals = new { roles = Totals("roles"), users = Totals("users") },
                 validation_note = "Only validated published snapshots are counted. Invalid headers, missing usernames, invalid dates and reversed intervals reject the replacement atomically. Identical duplicate rows are deduplicated at import; import totals below count raw rows, not duplicate role definitions.",
             });

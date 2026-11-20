@@ -123,6 +123,7 @@ public sealed class FunctionalGroupTests : IAsyncLifetime
     [Fact]
     public async Task Catalogue_memberships_bulk_and_filters_follow_the_v1_contract()
     {
+        Assert.True((await _client.PostAsJsonAsync("/api/reviewer-profile", new { display_name = "Ada Reviewer", expected_revision = 0 })).IsSuccessStatusCode);
         await ImportAsync();
         var (status, finance) = await Send(HttpMethod.Post, "/api/functional-groups", new { name = "  Finance   Operations ", description = "AP and AR" });
         Assert.Equal(HttpStatusCode.OK, status);
@@ -135,7 +136,7 @@ public sealed class FunctionalGroupTests : IAsyncLifetime
         var bid = (string)buyers["id"]!;
 
         // Memberships: add, idempotent repeat, optimistic revision, removal needs a rationale; history records each change.
-        var (s1, added) = await Send(HttpMethod.Post, "/api/functional-groups/memberships", new { username = "user00152", group_id = gid, rationale = "Owns AP", reviewer = "Ada Reviewer", expected_revision = 0 });
+        var (s1, added) = await Send(HttpMethod.Post, "/api/functional-groups/memberships", new { username = "user00152", group_id = gid, rationale = "Owns AP", reviewer = "Spoofed request alias", expected_revision = 0 });
         Assert.Equal(HttpStatusCode.OK, s1);
         Assert.Equal("added", (string)added["outcome"]!);
         Assert.Equal("Confirmed", (string)added["classification"]!["status"]!);

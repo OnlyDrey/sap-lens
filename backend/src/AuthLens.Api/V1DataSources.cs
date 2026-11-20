@@ -13,7 +13,7 @@ namespace AuthLens.Api;
 
 /// <summary>v1 Data Sources contract (Phase 2A): source selection, browser upload activation, held-import confirmation, import history, previews and
 /// settings saves. Every import runs through the staged ImportService (bounded batches, validation by construction, suspicious-change gate, atomic
-/// activation), synchronously from the caller's point of view, like v1's loader. Employee Directory sources are not migrated yet (501).</summary>
+/// activation), synchronously from the caller's point of view. All four sources use this boundary.</summary>
 public static partial class V1DataSources
 {
     public static readonly Dictionary<string, string> Names = new()
@@ -151,14 +151,16 @@ public static partial class V1DataSources
             var file = form.Files[0];
             var name = Path.GetFileName(file.FileName);
             if (name.Length is 0 or > 200 || !name.EndsWith(".csv", StringComparison.OrdinalIgnoreCase)) return Detail(400, "Choose one .csv file.");
-            // The uploaded file is kept as this source's private copy (like v1's uploads directory); the previous copy is removed after activation.
-            var stored = Path.Combine(database.DataDirectory, "sources");
+            // Staging is disposable. The import transaction captures the immutable managed copy before publishing the dataset.
+            var stored = Path.Combine(database.DataDirectory, "uploads");
             Directory.CreateDirectory(stored);
             var target = Path.Combine(stored, $"{source}-{Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(8))}.csv");
-            await using (var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true)) await file.CopyToAsync(output, ct);
-            var result = await ActivateAsync(services, http, source, target, target, name, "static", profile, form["confirm_anomalies"] == "true", revision, ct);
-            if (http.Response.StatusCode >= 400 || result is not IStatusCodeHttpResult { StatusCode: null or 200 }) TryDelete(target);
-            return result;
+            try
+            {
+                await using (var output = new FileStream(target, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true)) await file.CopyToAsync(output, ct);
+                return await ActivateAsync(services, http, source, target, target, name, "static", profile, form["confirm_anomalies"] == "true", revision, ct);
+            }
+            finally { TryDelete(target); }
         });
     }
 
@@ -213,7 +215,7 @@ public static partial class V1DataSources
             if (csvProfile is null) return Detail(400, "The source import profile is invalid. Review its column mapping and format.");
 
             Job finished;
-            try { finished = await RunImportJobAsync(services, source, importPath, fileName, csvProfile, ct); }
+            try { finished = await RunImportJobAsync(services, source, importPath, fileName, csvProfile, ct, settings); }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)
             { return Detail(400, error is UnauthorizedAccessException ? "Cannot read the CSV. Check your account permissions and network-share access." : "CSV file not found. Choose an existing file or reconnect the network share."); }
             if (finished.Status == JobStatus.Cancelled) return Detail(409, "Data load canceled. Previous data and settings were retained.");
@@ -260,10 +262,11 @@ public static partial class V1DataSources
                 return Task.CompletedTask;
             }, ct);
 
-            string? previousPath = null;
+            var uploadDirectory = Path.GetFullPath(Path.Combine(database.DataDirectory, "uploads")) + Path.DirectorySeparatorChar;
+            if (Path.GetFullPath(recordedPath).StartsWith(uploadDirectory, StringComparison.OrdinalIgnoreCase))
+                recordedPath = ManagedSourceFiles.Resolve(database.DataDirectory, (string)JsonNode.Parse(dataset.ReportJson!)!["managed_source"]!["path"]!);
             var saved = await store.UpdateAsync(null, s =>
             {
-                previousPath = (string?)s[PathField[source]];
                 s[PathField[source]] = recordedPath;
                 s["source_modes"]![source] = mode;
                 if (source == "employees") s["employee_snapshot_id"] = dataset.ContentHash;
@@ -292,13 +295,11 @@ public static partial class V1DataSources
                     while (confirmations.Count > 100) confirmations.RemoveAt(0);
                 }
             }, Actors.Name(http), ct);
-            // Only a previous private upload copy of this source is removed, never a file the user chose on disk.
-            try
-            {
-                var sourcesDirectory = Path.GetFullPath(Path.Combine(database.DataDirectory, "sources")) + Path.DirectorySeparatorChar;
-                if (!string.IsNullOrEmpty(previousPath) && previousPath != recordedPath && Path.GetFullPath(previousPath).StartsWith(sourcesDirectory, StringComparison.Ordinal)) TryDelete(previousPath);
-            }
-            catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException) { /* cleanup only; the import is complete */ }
+            try { ManagedSourceFiles.Prune(database.DatabasePath); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
+            { services.GetRequiredService<ILoggerFactory>().CreateLogger("AuthLens.Sources").LogWarning("Managed source cleanup deferred ({ErrorType}).", error.GetType().Name); }
+            // Content-addressed copies are pruned only through dataset references. Older/unrecognized files are preserved;
+            // a pathname inside sources is not proof that an operator-chosen file is disposable.
             return Results.Content(new JsonObject
             {
                 ["settings"] = saved, ["refresh"] = refresh, ["source"] = source, ["records"] = dataset.RecordCount, ["file_name"] = fileName,
@@ -355,7 +356,13 @@ public static partial class V1DataSources
 
     /// <summary>Imports a private copy of the file through the job queue (the job removes its input; the source file stays) and waits for the job.
     /// File errors (missing, unreadable) surface as IOException / UnauthorizedAccessException before anything is queued.</summary>
-    internal static async Task<Job> RunImportJobAsync(IServiceProvider services, string source, string importPath, string fileName, CsvProfile profile, CancellationToken ct)
+    internal static ImportCheckSettings ImportPolicy(JsonObject settings)
+    {
+        var checks = settings["import_checks"] as JsonObject;
+        return new((bool?)checks?["enabled"] ?? true, (int?)checks?["max_drop_percent"] ?? 30, (int?)checks?["min_previous_records"] ?? 20);
+    }
+
+    internal static async Task<Job> RunImportJobAsync(IServiceProvider services, string source, string importPath, string fileName, CsvProfile profile, CancellationToken ct, JsonObject? settings = null)
     {
         var queue = services.GetRequiredService<JobQueue>();
         var gate = services.GetRequiredService<DataLoadGate>();
@@ -363,7 +370,8 @@ public static partial class V1DataSources
         Directory.CreateDirectory(uploads);
         var working = Path.Combine(uploads, $"{Guid.NewGuid():N}.csv");
         File.Copy(importPath, working);
-        var job = await queue.EnqueueAsync(ImportService.JobKind, JsonSerializer.Serialize(new ImportPayload(source, working, fileName, profile), Sources.Json), null, ct);
+        settings ??= await services.GetRequiredService<V1Settings>().GetAsync(ct);
+        var job = await queue.EnqueueAsync(ImportService.JobKind, JsonSerializer.Serialize(new ImportPayload(source, working, fileName, profile, ImportPolicy(settings)), Sources.Json), null, ct);
         gate.CurrentJob = job.Id;
         try { return await WaitAsync(queue, job.Id, ct); }
         finally { gate.CurrentJob = 0; }

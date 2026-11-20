@@ -17,6 +17,8 @@ public sealed class DatabaseMaintenance(DatabaseOptions options, IDbContextFacto
     {
         DatabaseOptions.ValidateLocal(options.DataDirectory);
         DatabaseOptions.RefuseUnadoptedLegacy(options.DataDirectory);
+        if (File.Exists(options.DatabasePath) && File.Exists(options.LegacyDatabasePath))
+            logger.LogWarning("Both AuthLens and SAP Lens database files exist. The existing authlens.sqlite3 is selected; the legacy file is preserved. Verify the explicit adoption/recovery record before removing anything.");
         Directory.CreateDirectory(options.DataDirectory);
         var existed = File.Exists(options.DatabasePath);
         await using var db = await factory.CreateDbContextAsync(cancellation);

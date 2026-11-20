@@ -135,6 +135,37 @@ public sealed class AccountReviewTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task Desktop_decisions_use_the_stable_profile_and_ignore_a_submitted_alias()
+    {
+        var data = Path.Combine(_root, "isolated-desktop");
+        await using var desktop = AuthLensHost.Build(new HostSettings { DataDirectory = data, Port = 0, AccessToken = _token, Mode = HostMode.Desktop, JsonConsoleLogging = false });
+        await desktop.StartAsync();
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(desktop.Urls.First()) };
+            client.DefaultRequestHeaders.Add(RequestBoundary.TokenHeader, _token);
+            client.DefaultRequestHeaders.Add("Origin", client.BaseAddress.GetLeftPart(UriPartial.Authority));
+            foreach (var (source, csv) in new[] { ("roles", Csv.Roles(3)), ("users", Users()) })
+            {
+                var file = Path.Combine(_root, "desktop-" + source + ".csv"); File.WriteAllText(file, csv);
+                var revision = (int)JsonNode.Parse(await client.GetStringAsync("/api/configuration"))!["settings"]!["revision"]!;
+                var imported = await client.PostAsJsonAsync($"/api/data-sources/{source}/select", new { path=file, revision, mode="static" });
+                Assert.True(imported.IsSuccessStatusCode, await imported.Content.ReadAsStringAsync());
+            }
+            Assert.True((await client.PostAsJsonAsync("/api/reviewer-profile", new {display_name="Actual local reviewer",expected_revision=0})).IsSuccessStatusCode);
+            var profile = JsonNode.Parse(await client.GetStringAsync("/api/reviewer-profile"))!;
+            var row = Row(JsonNode.Parse(await client.GetStringAsync("/api/account-review"))!, "SVC0001");
+            var response = await client.PostAsJsonAsync("/api/account-review/decision/SVC0001", new {state="Investigating",reviewer="Forged alias",rationale="Synthetic review",evidence_version=(string)row["evidence_version"]!,expected_decision=""});
+            Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+            var decision = Row(JsonNode.Parse(await client.GetStringAsync("/api/account-review"))!, "SVC0001")["decision"]!;
+            Assert.Equal("Actual local reviewer", (string)decision["reviewer"]!);
+            Assert.Equal((string)profile["identity"]!["id"]!, (string)decision["actor_identity"]!["id"]!);
+            Assert.Equal("desktop-local", (string)decision["actor_identity"]!["provenance"]!);
+        }
+        finally { await desktop.StopAsync(); }
+    }
+
+    [Fact]
     public async Task A_shared_access_token_is_not_a_reviewer_identity()
     {
         await Import("roles", Csv.Roles(3));

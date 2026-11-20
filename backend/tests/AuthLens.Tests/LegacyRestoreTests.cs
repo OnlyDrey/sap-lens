@@ -95,6 +95,14 @@ public sealed class LegacyRestoreTests : IAsyncLifetime
             var database = zip.GetEntry(ApplicationBackups.DatabaseEntry)!;
             var scratch = Path.GetTempFileName();
             using (var s = database.Open()) using (var f = File.Create(scratch)) s.CopyTo(f);
+            // A historical SAP Lens archive predates managed source copies. Keep testing that actual older format.
+            using (var connection = new SqliteConnection($"Data Source={scratch};Pooling=False"))
+            {
+                connection.Open(); using var command = connection.CreateCommand();
+                command.CommandText = "UPDATE Datasets SET ReportJson=json_remove(ReportJson,'$.managed_source') WHERE ReportJson IS NOT NULL";
+                command.ExecuteNonQuery();
+            }
+            foreach (var entry in zip.Entries.Where(entry => entry.FullName.StartsWith("sources/", StringComparison.Ordinal)).ToArray()) entry.Delete();
             changeDatabase?.Invoke(scratch);
             database.Delete();
             using (var s = zip.CreateEntry(ApplicationBackups.LegacyDatabaseEntry).Open()) using (var f = File.OpenRead(scratch)) f.CopyTo(s);
@@ -103,6 +111,7 @@ public sealed class LegacyRestoreTests : IAsyncLifetime
             using (var reader = new StreamReader(manifestEntry.Open())) manifest = JsonNode.Parse(reader.ReadToEnd())!.AsObject();
             manifestEntry.Delete();
             manifest["product"] = product;
+            foreach (var file in manifest["files"]!.AsArray().Where(file => ((string)file!["path"]!).StartsWith("sources/", StringComparison.Ordinal)).ToArray()) manifest["files"]!.AsArray().Remove(file);
             foreach (var file in manifest["files"]!.AsArray().OfType<JsonObject>().Where(f => (string)f["path"]! == ApplicationBackups.DatabaseEntry))
             {
                 file["path"] = ApplicationBackups.LegacyDatabaseEntry;
@@ -117,6 +126,32 @@ public sealed class LegacyRestoreTests : IAsyncLifetime
         using var sealedArchive = new MemoryStream();
         BackupArchive.Seal(plain, sealedArchive, "", host);
         return sealedArchive.ToArray();
+    }
+
+    [Fact]
+    public async Task Managed_source_copies_restore_on_a_new_machine_without_the_original_export()
+    {
+        var (sourceData, sourceKey, archive) = await SourceInstallation("managed-source-machine");
+        var machine = Path.Combine(_root, "portable-managed"); Directory.CreateDirectory(machine);
+        var received = Path.Combine(machine, "portable.slbak"); File.Copy(archive, received);
+        var key = Path.Combine(machine, "recovery.key"); File.Copy(sourceKey, key);
+        Directory.Delete(Path.Combine(_root, "managed-source-machine"), true); // only this test's isolated source fixture
+        var data = Path.Combine(machine, "data"); Directory.CreateDirectory(data); BackupKeys.Use(key, data);
+        MaintenanceCommands.RestoreArchive(data, received, replaceAll: true, passphrase: "");
+        Assert.StartsWith("Restore ", ApplicationBackups.ApplyPending(data, DateTimeOffset.UtcNow));
+        await WithHost(data, async client =>
+        {
+            var settings = JsonNode.Parse(await client.GetStringAsync("/api/configuration"))!["settings"]!;
+            var copy = (string)settings["data_csv_path"]!;
+            Assert.StartsWith(Path.Combine(data, "sources") + Path.DirectorySeparatorChar, copy);
+            Assert.Equal(Catalogue, File.ReadAllText(copy));
+            Assert.Equal("static", (string)settings["source_modes"]!["roles"]!);
+            var response = await client.PostAsJsonAsync("/api/data-sources/roles/select", new { path = copy, revision = await Revision(client), mode = "static" });
+            Assert.True(response.IsSuccessStatusCode, await response.Content.ReadAsStringAsync());
+            Assert.Contains("Synthetic purchasing viewer", await Roles(client));
+            return 0;
+        });
+        Assert.Single(Directory.GetFiles(Path.Combine(data, "sources"), "*.csv"));
     }
 
     [Fact]
@@ -184,15 +219,17 @@ public sealed class LegacyRestoreTests : IAsyncLifetime
         Assert.True(JsonNode.DeepEquals(expected, Shape(Path.Combine(data, "authlens.sqlite3"))), Shape(Path.Combine(data, "authlens.sqlite3")).ToJsonString());
         Assert.False(File.Exists(Path.Combine(data, "sap-lens-v2.sqlite3")));
         Assert.Equal(["Finance", "Purchasing", "Æøå review"], await WithHost(data, Filters));
-        // The imported records live in the database, not at the old machine's CSV path: AuthLens starts ready with them, and a refresh that cannot
-        // read the old path reports that source as failed and keeps its data (never an empty replacement).
+        // Durable observations remain available; historical host paths are cleared rather than read on the restored machine.
         await WithHost(data, async client =>
         {
             Assert.Equal(System.Net.HttpStatusCode.OK, (await client.GetAsync("/health/ready")).StatusCode);
             Assert.Contains("Synthetic purchasing viewer", await Roles(client));
+            var settings = JsonNode.Parse(await client.GetStringAsync("/api/configuration"))!["settings"]!;
+            Assert.Equal("", (string?)settings["data_csv_path"]);
+            Assert.Equal("static", (string?)settings["source_modes"]!["roles"]);
             var refresh = JsonNode.Parse(await (await client.PostAsync("/api/refresh", null)).Content.ReadAsStringAsync())!["refresh"]!;
             var roles = refresh["sources"]!.AsArray().First(s => (string?)s!["source"] == "roles")!;
-            Assert.Equal("failed", (string?)roles["status"]);
+            Assert.Equal("skipped", (string?)roles["status"]);
             Assert.Contains("Synthetic purchasing viewer", await Roles(client));
             return 0;
         });

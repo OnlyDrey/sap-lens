@@ -66,6 +66,15 @@ public sealed class V1Settings(WriteCoordinator writer, IDbContextFactory<AuthLe
         if (candidate["refresh_schedule"] is JsonObject schedule && V1RefreshSchedule.Parse(schedule.DeepClone().AsObject()).Error is { } scheduleError)
             return $"refresh_schedule: {scheduleError}";
         if (candidate["module_overrides"] is JsonObject overrides && ValidateModuleOverrides(overrides) is { } moduleError) return moduleError;
+        if (candidate.ContainsKey("import_checks"))
+        {
+            if (candidate["import_checks"] is not JsonObject checks || checks.Any(p => p.Key is not ("enabled" or "max_drop_percent" or "min_previous_records")))
+                return "import_checks: only enabled, max_drop_percent and min_previous_records are supported.";
+            if (checks["enabled"] is not JsonValue enabled || !enabled.TryGetValue<bool>(out _)
+                || checks["max_drop_percent"] is not JsonValue drop || !drop.TryGetValue<int>(out var percent) || percent is < 1 or > 95
+                || checks["min_previous_records"] is not JsonValue minimum || !minimum.TryGetValue<int>(out var records) || records is < 0 or > 1_000_000)
+                return "import_checks: enabled must be boolean, reduction 1-95 percent and minimum 0-1000000 records.";
+        }
         foreach (var field in PathFields)
             if (candidate.ContainsKey(field) && (string?)candidate[field] != (string?)current[field])
                 return "Source files change through Data Sources (choose or upload a file), not through a settings save.";

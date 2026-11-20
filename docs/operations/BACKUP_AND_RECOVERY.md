@@ -4,8 +4,16 @@ How AuthLens protects its data: encrypted application backups, the host recovery
 confirmation that releases migration backups. Implementation: `backend/src/AuthLens.Application/Backups` and `backend/src/AuthLens.Api/V1Backups.cs`;
 storage model: [database design](../architecture/DATABASE_DESIGN.md#backups-and-retention).
 
-Status legend: **Verified** (automated tests on Linux), **Awaiting Windows acceptance** (implemented and tested with mocks or on Linux; the native
+Status legend: **Verified** (automated tests; Linux historical results and Windows continuation results are recorded separately in [release status](../migration/RELEASE_STATUS.md)), **Awaiting Windows acceptance** (implemented and tested with mocks or on Linux; the native
 Windows run in the [acceptance checklist](../deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending) is still open).
+
+## Managed imports and portability
+
+Successful imports now keep an immutable, content-addressed CSV under `data/sources/<source>-<SHA-256>.csv`. The dataset report stores its relative path, original display filename and checksum in the existing database; no schema or migration identifier changes. A valid held candidate keeps its own copy for confirmation, while invalid/cancelled imports never replace the active copy. Repeated identical bytes reuse the same file. Cleanup retains active/held references and removes unreferenced generated copies under the same database write-reservation order used by backups; cleanup failures are logged without changing a completed import's result.
+
+The existing encrypted backup engine includes those referenced files from the same database snapshot, verifies their hashes and rejects traversal, links, missing copies, unreferenced archive source entries and mismatched metadata. Restore moves the source directory with the rest of the staged data and preserves it in rollback. Active source paths are rebound to the restored machine's own copies and made static. For sources without an archived managed copy, restore clears the old machine's absolute path and makes the source static while preserving its durable observations; external connections must be configured explicitly. TLS, host keys, service configuration and browser profiles do not travel in the archive. Historical SAP Lens archives without raw source copies remain restorable through their durable observations. Exact raw files cannot be reconstructed for imports made before this feature: a successful reimport is needed to add their managed copy.
+
+Synthetic Windows tests cover portable restore after deleting the entire source fixture, wrong/corrupted archives and protective restore over existing data. A real private backup/recovery key and elevated installer/service acceptance remain separate prerequisites; synthetic passes are not real-data acceptance.
 
 ## Who may do what
 
