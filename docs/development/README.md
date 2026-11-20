@@ -100,10 +100,11 @@ SAP Lens 1 server are involved; fixtures are versioned files in `frontend/tests/
 CI runs the focused smoke: `npm --prefix frontend run test:browser -- tests/dotnet-host.spec.ts tests/component-library.spec.ts`.
 
 Tests that exercised SAP Lens 1 itself were removed with it: its Python server process and identity codes, its desktop startup document, and its
-backup format. The remaining suite is kept and run in full at checkpoints. **Known gap:** many older specs still configure source files through
-a settings save (`POST /api/configuration` with `*_csv_path`), which SAP Lens 1 accepted and the .NET host deliberately refuses ("Source files
-change through Data Sources"); those specs fail until they use `POST /api/data-sources/{source}/select` or an upload. Their results are reported
-separately and never counted as passing .NET acceptance ([release status](../migration/RELEASE_STATUS.md)).
+backup format. The remaining suite is kept and run in full at checkpoints. Specs never change a source file through a settings save (AuthLens refuses
+`*_csv_path` in `POST /api/configuration`: "Source files change through Data Sources"): they call `postConfiguration` in
+`frontend/tests/support.ts`, which saves ordinary settings and activates each changed source through `POST /api/data-sources/{source}/select`,
+the call the UI makes. In the UI, specs use the browser picker, the source location field (`activateSourcePath`, `activateCSV`) or real
+downloads; the SAP Lens 1 desktop bridge no longer exists.
 
 ## Backend layout
 
