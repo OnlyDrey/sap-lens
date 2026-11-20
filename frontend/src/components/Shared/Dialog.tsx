@@ -31,6 +31,7 @@ export function Dialog({
   footer,
   size = 'wide',
   description,
+  presentation = 'dialog',
 }: {
   title: string
   children: ReactNode
@@ -40,6 +41,8 @@ export function Dialog({
   size?: 'wide' | 'medium' | 'narrow'
   /** One line under the title, linked as the dialog's description. */
   description?: string
+  /** Drawer shares modal isolation, focus restoration and Escape handling; only its backdrop dismisses it. */
+  presentation?: 'dialog' | 'drawer'
 }) {
   const id = useId(),
     descriptionId = `${id}-description`,
@@ -104,7 +107,7 @@ export function Dialog({
   }, [])
   useEffect(()=>{dialog.current?.focus()},[title])
   return createPortal(
-    <div className="ui-dialog-backdrop">
+    <div className="ui-dialog-backdrop" data-presentation={presentation} onClick={event=>{if(presentation==='drawer'&&event.target===event.currentTarget)close.current()}}>
       <div
         role="dialog"
         aria-modal="true"
@@ -114,6 +117,7 @@ export function Dialog({
         ref={dialog}
         className="ui-dialog"
         data-size={size}
+        data-presentation={presentation}
       >
         <header>
           <div className="ui-dialog-heading"><h2 id={id}>{title}</h2>{description && <p id={descriptionId} className="ui-description">{description}</p>}</div>

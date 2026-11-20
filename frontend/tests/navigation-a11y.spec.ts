@@ -117,6 +117,7 @@ test.describe('User Directory keyboard order', () => {
     const order = width >= 1024 ? wide : narrow
     await page.setViewportSize({ width, height: 900 })
     await page.goto('/#session=browser-test-session')
+    if(width<1024)await page.getByRole('button',{name:'Open navigation',exact:true}).click()
     await main(page).getByRole('link', { name: 'User Access', exact: true }).click()
     await page.getByLabel('Search users', { exact: true }).fill('DEMO')
     await expect(page.getByLabel('Search users', { exact: true })).toHaveValue('DEMO')

@@ -94,8 +94,15 @@ export const goTo = (page: Page, name: string) => mainNavigation(page).getByRole
 
 export async function openSettings(page: Page, tab?: string) {
   await page.goto(sessionUrl)
-  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
-  if (tab) await page.getByRole('tab', { name: tab, exact: true }).click()
+  const width=page.viewportSize()?.width??1280
+  if(width<1024){
+    await page.getByRole('button',{name:'Open navigation',exact:true}).click()
+    await page.getByRole('dialog',{name:'Navigation',exact:true}).getByRole('button',{name:'Settings',exact:true}).click()
+  }else await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  if(tab){
+    if(width<768)await page.getByRole('combobox',{name:'Settings section',exact:true}).selectOption({label:tab})
+    else await page.getByRole('tab', { name: tab, exact: true }).click()
+  }
 }
 
 export interface SeededSources { directory: string; cleanup: () => Promise<void> }

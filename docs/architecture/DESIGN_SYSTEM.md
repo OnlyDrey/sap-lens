@@ -81,6 +81,12 @@ Desktop navbar utilities are compact icons on one row where space permits. At na
 
 Prefer shared responsive classes before adding another page-specific breakpoint. Validate labels, chevrons, focus rings, floating panels and table scrolling at 375, 800, 1280 and 1600 px in both themes.
 
+The application header uses a full-label modal navigation drawer below 1024 px and retains desktop navigation above that boundary. Its compact
+profile icon keeps a tooltip and accessible name; viewport-bounded menus open the existing profile/session controls. Settings switches to a labelled
+section Select below 768 px. Toolbars wrap rather than hiding actions, and dense matrices/tables keep deliberate internal scrolling. A phone view
+does not replace the full matrix with a reduced data subset. Responsive acceptance also checks 360, 390, 768, 1024 and 1440 px, both themes,
+drawer focus/scroll isolation, Escape/outside/route dismissal, profile keyboard interaction and horizontal page overflow.
+
 See [Component Library](COMPONENTS.md), [Navigation patterns](NAVIGATION.md) and [validation tracker](../validation/README.md).
 
 ## Refresh evidence surfaces

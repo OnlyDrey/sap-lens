@@ -56,10 +56,10 @@
 .ui-loading { display:flex; align-items:center; gap:var(--space-2); font-size:var(--font-body); }
 .app-header-row { gap:var(--space-3);  }
 .app-utilities { display:flex; gap:var(--space-1); align-items:center; }
-.app-utilities .ui-button { color:var(--on-primary); background:transparent; border-color:transparent; }
-.app-utilities .ui-button:hover:not(:disabled) { background:color-mix(in srgb,var(--on-primary) 15%,transparent); }
-.app-utilities .ui-button:focus-visible { outline-color:var(--on-primary); }
-header[role=banner] .app-header-row>div:first-child img { height:40px; }
+.app-utilities .ui-button,.app-navigation-trigger .ui-button { color:var(--on-primary); background:transparent; border-color:transparent; }
+.app-utilities .ui-button:hover:not(:disabled),.app-navigation-trigger .ui-button:hover:not(:disabled) { background:color-mix(in srgb,var(--on-primary) 15%,transparent); }
+.app-utilities .ui-button:focus-visible,.app-navigation-trigger .ui-button:focus-visible { outline-color:var(--on-primary); }
+header[role=banner] .app-brand img { height:40px; }
 .comparison-user-panels { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:var(--space-3); }
 .comparison-user-panels .ui-card { display:grid; gap:var(--space-2); }
 .comparison-metrics { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:var(--space-2); }
@@ -1556,3 +1556,32 @@ summary:focus-visible,div[tabindex="0"]:focus-visible,a.role-identifier-link:foc
 .user-admin-table td.col-actions, .user-admin-table th.col-actions { width:1%; white-space:nowrap; text-align:right; }
 .security-audit .access-table { max-height:22rem; }
 @media(max-width:640px){ .account-form-grid { grid-template-columns:minmax(0,1fr); } .user-admin-toolbar > .ui-field { flex:1 1 100%; } }
+/* Modal navigation uses the same focus/isolation owner as other dialogs. */
+.ui-dialog-backdrop[data-presentation="drawer"] { align-items:stretch; justify-content:flex-start; padding:0; }
+.ui-dialog[data-presentation="drawer"] { width:min(22rem,calc(100vw - 2rem)); height:100dvh; max-height:100dvh; border-radius:0; animation:navigation-enter 160ms ease-out; }
+@keyframes navigation-enter { from { transform:translateX(-100%); } to { transform:translateX(0); } }
+@media(prefers-reduced-motion:reduce) { .ui-dialog[data-presentation="drawer"] { animation:none; } }
+.mobile-navigation .primary-navigation { flex-direction:column; align-items:stretch; gap:var(--space-2); }
+.mobile-navigation .primary-nav-group { display:flex; flex-direction:column; align-items:stretch; }
+.mobile-navigation .primary-nav-button { display:flex; flex-direction:row; justify-content:flex-start; min-height:44px; width:100%; gap:var(--space-3); padding:10px 12px; color:var(--text); font-size:var(--font-body); text-align:left; white-space:normal; }
+.mobile-navigation .primary-nav-button[aria-current="page"] { color:var(--accent2); background:color-mix(in srgb,var(--accent2) 12%,var(--surface)); }
+.mobile-navigation .primary-nav-button:focus-visible { outline-color:var(--focus); }
+.mobile-navigation .primary-submenu { padding-left:var(--space-4); }
+.mobile-navigation .primary-nav-button span { display:inline; }
+@media(max-width:1023px) {
+ header[role="banner"] .app-header-row { flex-wrap:nowrap; padding-block:var(--space-2); }
+ .app-header-row .app-brand { flex:1 1 auto; gap:var(--space-2); }
+ header[role=banner] .app-brand img { height:28px; max-width:48px; }
+ .app-header-row .app-brand p { overflow-wrap:anywhere; }
+ .app-header-row .app-utilities .ui-button,.app-header-row>div:first-child .ui-button { min-width:44px; min-height:44px; }
+}
+@media(max-width:767px) {
+ .settings-workspace { flex-direction:column; }
+ .settings-workspace>.settings-sidebar { display:none; }
+ .settings-workspace .settings-content { padding:16px 12px; }
+ .settings-workspace .settings-actions { flex-wrap:wrap; padding:12px; }
+ .settings-workspace .settings-actions .ui-button { min-height:44px; }
+ .page-toolbar-actions,.page-toolbar-end { flex-wrap:wrap; min-width:0; }
+ .page-toolbar-end { max-width:100%; }
+ .page-toolbar-actions .ui-button { min-height:44px; }
+}

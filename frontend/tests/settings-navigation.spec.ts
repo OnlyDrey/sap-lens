@@ -13,8 +13,10 @@ const order = [...groups.flatMap(([, tabs]) => tabs), 'About AuthLens']
 const open = async (page: Page, width = 1280, height = 900) => {
   await page.setViewportSize({ width, height })
   await page.goto('/#session=browser-test-session')
-  await page.getByRole('button', { name: 'Open settings', exact: true }).click()
-  await expect(page.getByRole('tablist', { name: 'Settings sections' })).toBeVisible()
+  if(width<1024){await page.getByRole('button',{name:'Open navigation',exact:true}).click();await page.getByRole('dialog',{name:'Navigation',exact:true}).getByRole('button',{name:'Settings',exact:true}).click()}
+  else await page.getByRole('button', { name: 'Open settings', exact: true }).click()
+  if(width<768)await expect(page.getByRole('combobox',{name:'Settings section',exact:true})).toBeVisible()
+  else await expect(page.getByRole('tablist', { name: 'Settings sections' })).toBeVisible()
 }
 
 test('settings navigation is grouped, ordered, and every section opens with its heading @workflow', async ({ page }) => {
@@ -60,6 +62,13 @@ test('arrow keys follow the visual order and wrap through the About footer @comp
 for (const [width, height] of [[1280, 900], [1280, 520], [800, 600], [375, 700]]) {
   test(`About stays at the bottom and only the groups scroll at ${width}x${height} @visual`, async ({ page }) => {
     await open(page, width, height)
+    if(width<768){
+      await expect(page.locator('.settings-sidebar')).toBeHidden()
+      await page.getByRole('combobox',{name:'Settings section',exact:true}).selectOption({label:'About AuthLens'})
+      await expect(page.locator('#settings-heading')).toHaveText('About AuthLens')
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+      return
+    }
     const sidebar = page.locator('.settings-sidebar')
     const scroll = page.locator('.settings-nav-scroll')
     const about = page.getByRole('tab', { name: 'About AuthLens', exact: true })

@@ -97,6 +97,14 @@ See [Design system](DESIGN_SYSTEM.md), [Navigation patterns](NAVIGATION.md) and 
 
 `Shared/Dialog.tsx` is the canonical modal (sizes: `wide`, the default, for tables and evidence; `medium`, about 720px, for forms and account settings such as My Profile and user editing; `narrow`, about 520px, used by ConfirmDialog and one-time codes; an optional `description` line is linked with `aria-describedby`) used by refresh change/error viewers and the isolated Component Library preview. It portals outside overflow boundaries, makes the app root inert, traps Tab focus, supports Escape, and restores the originating control. `Shared/RefreshReport.tsx` shares the result banner, bounded report viewer and history presentation between Data Sources and Diagnostics. `Settings/DirectoryPreview.tsx` reuses the shared fields, table, status and pagination controls. These components introduce no external service or UI dependency.
 
+The optional `presentation="drawer"` reuses that modal focus/scroll isolation for the application navigation below 1024 px. Drawer presentation
+adds outside dismissal and a reduced-motion-aware slide-in surface; ordinary dialogs retain their existing dismissal behavior. The compact header
+opens the same permission-filtered route groups with full labels and current-route indication. Navigation, Escape, backdrop interaction and a
+desktop resize close it. Settings, theme and refresh utilities remain available inside the drawer. Desktop navigation remains in the header.
+The profile icon uses the shared tooltip/Popover, an accessible profile name and the existing profile/session dialog and sign-out flow.
+Below 768 px Settings uses a labelled full-text section Select rather than a permanent icon-only rail; returning restores focus to a visible
+header control. Tables and matrices retain readable content in intentional horizontal scroll regions.
+
 ## Import and evidence refinement
 
 `Settings/ImportControls.tsx` owns SourceFileField, MappingField and ImportPreview.

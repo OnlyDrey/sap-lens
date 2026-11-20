@@ -500,6 +500,10 @@ export function SettingsView({
       aria-label="AuthLens settings"
       className={open ? 'settings-workspace' : 'hidden'}
     >
+      <div className="flex shrink-0 flex-wrap items-center gap-2 border-b border-line bg-surface p-3 md:hidden">
+        <Button disabled={busy} onClick={()=>show(false)}><ArrowLeft size={16} aria-hidden="true"/>Back to AuthLens</Button>
+        <FormField label="Settings section"><SettingsSelect value={String(section)} disabled={busy} onChange={event=>setSection(Number(event.target.value))}>{navigationOrder.map(index=><option key={index} value={index}>{sections[index]}</option>)}</SettingsSelect></FormField>
+      </div>
       <aside className="settings-sidebar">
         <button
           className={`${buttonClass} settings-back`}

@@ -46,7 +46,15 @@ Modules with pages (User Access: User directory, Account Review, Compare users; 
 
 ## Compact navbar and metadata
 
-Theme, Settings and Refresh are icon actions with independent accessible names, focus tooltips and shared hit targets. Refresh retains application-scoped loading, request suppression and atomic publication; completion/error feedback is explicit. Destination text remains visible at narrow widths on a wrapped navigation row.
+At desktop widths (1024 px and above), Theme, Settings and Refresh are icon actions with independent accessible names, focus tooltips and shared
+hit targets. Below 1024 px a hamburger opens a modal slide-out drawer with all permitted route groups, icons and full text labels; the desktop
+navigation is hidden. Theme, Settings and Refresh remain available as labelled drawer actions. Active-route indication, Escape/outside/route
+dismissal, background scroll lock and focus isolation/restoration reuse the shared Dialog contract. Desktop resize closes the drawer.
+Refresh retains application-scoped loading, request suppression and atomic publication; completion/error feedback is explicit.
+
+The profile icon has an accessible name and pointer tooltip. Its bounded popover opens the existing profile/session dialog and retains sign-out;
+it does not navigate to a separate profile page. Below 768 px Settings replaces its permanent sidebar with a labelled section selector containing
+the same permitted destinations. Closing Settings returns focus to the visible Settings or navigation trigger.
 
 The navbar no longer displays the full updated timestamp. Dashboard and Data Sources already show the backend's actual successful publication/import metadata. A redundant frontend `new Date()` refresh clock was removed rather than relabeled as source time.
 
