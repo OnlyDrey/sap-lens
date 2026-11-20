@@ -15,19 +15,19 @@ reference a classification and reason.
   searched for `SAP Lens`, `SapLens`, `sap-lens`, `SAP_LENS`, `saplens`; binaries were listed by name only.
 - **Not a global replace:** names were changed per category (identifiers, product text, file names, environment variables, paths), each with
   exclusions for persisted, cryptographic, API-contract and historical identifiers. Every exclusion is listed in the naming register.
-- **Result at the end of the work** (excluding the inventory file itself): 922 tracked files: 359 unchanged, 359 renamed, 194 changed in place,
-  10 added, 10 removed. 218 files still contain an earlier name; all of them are classified below. Only `LICENSE.md` needs an owner decision.
+- **Result at the end of the work** (including the inventory file): 917 tracked files: 366 unchanged, 359 renamed, 181 changed in place,
+  11 added; 16 removed. 237 files still contain an earlier name; all of them are classified below. Only `LICENSE.md` needs an owner decision.
 
 ## 2. Remaining earlier names by class
 
 | Class | Files | Why they stay |
 | --- | --- | --- |
-| Compatibility | 58 | Read SAP Lens backups, configuration exports, release folders and manifests; refuse or adopt `sap-lens-v2.sqlite3`; leave earlier services and folders untouched; warn about `SAP_LENS_*`; keep browser storage keys, cookies and `X-SAP-Lens-*` headers |
+| Compatibility | 57 | Read SAP Lens backups, configuration exports, release folders and manifests; refuse or adopt `sap-lens-v2.sqlite3`; leave earlier services and folders untouched; warn about `SAP_LENS_*`; keep browser storage keys, cookies and `X-SAP-Lens-*` headers |
 | Historical | 54 | Dated migration records, ported SAP Lens 1 behaviour, deployment text that names earlier services in order to never touch them |
 | Test | 51 | Assert the compatibility above, or rename v1 reference text through `ProductRename` |
-| Documentation | 30 | Name the earlier product, the repository `sap-lens`, or the migration path |
-| Tooling | 15 | `backend/tools` regenerate v1 fixtures from an external SAP Lens 1 checkout (`SAP_LENS_V1_BACKEND`) |
-| Fixture | 5 | Recorded v1 evidence; regenerated, never edited by hand |
+| Documentation | 31 | Name the earlier product, the repository `sap-lens`, or the migration path |
+| Tooling | 33 | `backend/tools` regenerate v1 fixtures from an external SAP Lens 1 checkout (`SAP_LENS_V1_BACKEND`) and set the `SAP_LENS_*` variables SAP Lens 1 reads |
+| Fixture | 6 | Recorded v1 evidence; regenerated, never edited by hand |
 | Asset | 4 | Logo and icon file names (`assets/sap-lens.ico`, `sap-lens.png`); the logo is unchanged by request |
 | Owner decision | 1 | `LICENSE.md` names the product in legal text; AGENTS.md keeps licensing intact, so the owner changes it |
 
@@ -111,8 +111,20 @@ Schema: unchanged (same EF migrations); only the file name differs. Encryption: 
 
 ## 8. Validation
 
-See the final report of this task and [release status](RELEASE_STATUS.md). Native Windows (service, installers, ACLs, WebView2) has not run;
-the [AuthLens acceptance checklist](../deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending) is pending.
+Linux only, 2026-11-20, on commit `bb33ea1` plus this documentation:
+
+| Check | Result |
+| --- | --- |
+| .NET build and whole suite (`AuthLens.Tests`) | 0 warnings; 444/444 passed |
+| Pester (`backend/scripts/tests`) | 144 passed, 9 failed, 30 skipped; the 9 are ACL remediation tests that call the Windows ACL API and fail identically at the baseline `814c88d`; skips are Windows-only |
+| Bash SSH orchestrator test, PowerShell parser | 18/18; 23/23 files |
+| Frontend type check, lint, unit tests, build | 0 errors; 0 errors; 43/43; built |
+| Browser specs touched by the cleanup (20 files, one worker) | 43 passed, 140 failed; every test that passed at the baseline still passes; the failures fail at the baseline too (the `POST /api/configuration` harness gap, and `desktop.spec` at the same step) |
+| Repository checks (docs, secrets, structure, workflows, Python and Node tests, Lucide catalogue, ruff, `git diff --check`) | All pass |
+| Linux release build and `verify-release.ps1` | Verified: `AuthLens-2.0.0-alpha.1-…-win-x64` (17 files) and `-linux-x64` (8); `AuthLens.Api.exe`, `AuthLens.exe`, manifest product AuthLens |
+
+Not run: the complete browser suite, and anything native on Windows (service, installers, ACLs, WebView2 downloads). The
+[AuthLens acceptance checklist](../deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending) is pending.
 
 ## 9. Technical debt found and not changed
 
