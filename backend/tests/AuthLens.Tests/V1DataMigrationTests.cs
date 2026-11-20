@@ -25,7 +25,8 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
     private WebApplication? _app;
     private HttpClient _client = null!;
     private string Source => Path.Combine(_root, "v1");
-    private string Data => Path.Combine(_root, "v2");
+    private string? _restoredData;
+    private string Data => _restoredData ?? Path.Combine(_root, "v2");
     private static string RecoveryKey => (string)Expected["recovery_key"]!;
     private static string Passphrase => (string)Expected["passphrase"]!;
     private static readonly DateTimeOffset Now = new(2026, 11, 17, 15, 0, 0, TimeSpan.Zero);
@@ -191,6 +192,32 @@ public sealed class V1DataMigrationTests : IAsyncLifetime
         Assert.Equal(before, Hashes(Source));                                                                // the v1 directory was only read
         await AssertMigratedAsync(report);
         Assert.True((bool)(await Get("/api/storage/status"))["requires_confirmation"]!);
+    }
+
+    [Fact]
+    public async Task A_portable_backup_restores_migrated_review_history_and_frozen_SoD_evidence_into_fresh_canonical_storage()
+    {
+        HostKey();
+        var (_, report) = await MigrateAsync(Source, "");
+        await AssertMigratedAsync(report);
+        await Stop();
+        var original = Data;
+        var archive = Path.Combine(_root, "portable.slbak");
+        const string passphrase = "Synthetic portable review recovery 2026";
+        ApplicationBackups.WriteArchive(original, archive, passphrase, null, "manual", Now);
+
+        _restoredData = Path.Combine(_root, "fresh-authlens", "data");
+        var destinationKeys = Path.Combine(_root, "fresh-authlens", "keys");
+        Directory.CreateDirectory(destinationKeys);
+        BackupKeys.Create(Path.Combine(destinationKeys, "host.key"), Data);
+        MaintenanceCommands.RestoreArchive(Data, archive, replaceAll: true, passphrase);
+        Assert.StartsWith("Restore ", ApplicationBackups.ApplyPending(Data, Now));
+        Assert.True(File.Exists(Path.Combine(Data, "authlens.sqlite3")));
+        Assert.False(File.Exists(Path.Combine(Data, "sap-lens-v2.sqlite3")));
+        // Read the restored records through the same public routes and compare every fixture decision,
+        // review history, remediation event, period state and content-addressed evidence snapshot again.
+        await Start();
+        await AssertMigratedAsync(report);
     }
 
     [Theory]

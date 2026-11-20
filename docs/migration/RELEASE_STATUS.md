@@ -1,5 +1,38 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Installer stabilization continuation (2026-11-20, starting 798d3d0)
+
+**NOT READY for release.** Manual installer transactions are implemented using the existing Inno/deployment/backup approach, with focused Windows
+and native isolated Desktop evidence. Inno compilation, different-build installer rollback, elevated SCM and interactive WebView2 acceptance
+remain open. The dated continuation below records the previous checkpoint; this section supersedes its installer implementation status.
+
+Local installer commit: `fddf6f6`. The existing stash and ignored recovery artifacts remain preserved. No push, merge, tag, release or CI was
+requested or performed. Product version, AuthLens identity and main-only CI policy are unchanged.
+
+- Desktop: closed-instance check, private directories before writes, verified full package and previous executable, encrypted protective backup,
+  schema-change/downgrade refusal, atomic replacement, readiness probe and verified compatible rollback. Durable checkpoints and retained recovery
+  tools support explicit interrupted recovery. Custom data-directory selection persists through shortcuts and subsequent updates.
+- Server: explicit configuration, secure root before extraction, immutable versioned package, existing deployment lock/journal/SCM/readiness and
+  recovery engine. Installer updates require a verified compatible previous release and unchanged service account/arguments; its executable makes
+  the verified backup before stopping. Packaged recovery needs no Git/SDK. No native SCM operation ran here.
+- UI and CLI still share `ApplicationBackups`. A new regression round-trips the application-written synthetic v1 fixture through a portable
+  AuthLens archive into fresh canonical storage, rechecking review history, SoD decisions/remediation/periods and frozen evidence. Managed CSV,
+  branding and account payload coverage remains in the existing backup/legacy restore classes. No existing migration was repeated.
+- The [current parity inventory](MIGRATION_MATRIX.md#release-stabilization-inventory-2026-11-20) explicitly classifies COMPLETE/PARTIAL/MISSING/BLOCKED;
+  native tray/start-at-login controls remain missing, and private real-backup acceptance needs an approved copy and recovery key.
+
+Focused evidence: installer/deployment/helper/release Pester **108 passed, 0 failed**, plus subsequently added Server delegation/recovery and native
+junction cases passed separately; installer/backup/legacy/governance .NET **32 passed, 0 failed**. Native adapter acceptance using the verified
+`bfa7226` package passed five stages (fresh/readiness, isolated key, update/verified backup/readiness, interrupted recovery, preserved database).
+The recovery was same-build; it is not different-build or compiled Setup acceptance. PowerShell 5.1 parsed all 26 scripts without errors;
+documentation links passed (100 Markdown files). Final consolidated regression is pending and will be recorded here.
+
+Operator gates: provide approved Inno Setup 6; build a clean release and helper inventory at the same commit; compile into a new empty output;
+then execute fresh install, same-schema different-build update, induced readiness failure and interrupted recovery in a disposable elevated VM
+with an explicitly isolated service/root/data/TLS/key/port. Verify all old hashes, data, service identity and readiness after rollback, and complete
+WebView2 window/download and approved real-backup restoration acceptance. Do not use protected SAP Lens services or paths. The exact recovery
+commands and prerequisites are in [Windows installers](../deployment/WINDOWS_DEPLOYMENT.md#installers).
+
 ## Windows continuation: final assessment (2026-11-20)
 
 **NOT READY.** The independent implementation and local validation work is complete. Installer-managed update/rollback remains incomplete, and critical VM acceptance needs prerequisites that are unavailable here. The dated sections below are historical evidence and do not override this assessment.

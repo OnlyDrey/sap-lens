@@ -15,6 +15,25 @@ The existing encrypted backup engine includes those referenced files from the sa
 
 Synthetic Windows tests cover portable restore after deleting the entire source fixture, wrong/corrupted archives and protective restore over existing data. A real private backup/recovery key and elevated installer/service acceptance remain separate prerequisites; synthetic passes are not real-data acceptance.
 
+## Shared engine and update recovery
+
+Administrative UI create/restore and CLI `--backup-local`, `--backup-verify` and `--restore` use `ApplicationBackups`, not separate archive
+implementations. Its online SQLite snapshot includes persistent settings, all dataset revisions, Account Review history, immutable SoD decisions,
+remediation history, periods and content-addressed evidence. Required external payloads are the referenced managed CSV copies, validated branding
+PNG files and the account database with active sessions removed. Arbitrary unreferenced files next to the database are deliberately excluded.
+Machine TLS, service arguments/credentials, host/recovery keys and WebView2 profiles remain outside the portable archive and must be preserved
+separately. A passphrase archive still requires a protected destination host key before restore confirmation; this prerequisite is unchanged.
+
+`V1DataMigrationTests` now round-trips the existing application-written synthetic v1 fixture through an AuthLens portable archive into fresh
+canonical storage and rechecks its review history, SoD chain IDs, periods, remediation and frozen evidence through public routes. This is an
+isolated fixture test, not another migration of an existing installation. `LegacyRestoreTests` verifies SAP Lens .NET archives and cross-machine
+managed files without activating obsolete absolute source paths. Application backup route tests verify archives with the CLI maintenance engine.
+
+Manual installer updates use this same engine before replacing programs. They preserve all private configuration and refuse schema-changing
+updates because an older executable may not open migrated data. Failed readiness restores and probes the previous executable only when schema
+history and recovery hashes still agree; it never automatically rewinds business data. Keep every incomplete journal, previous program and
+verified archive until recovery is resolved. See [manual installer recovery](../deployment/WINDOWS_DEPLOYMENT.md#interrupted-setup-and-recovery).
+
 ## Who may do what
 
 On a **Server**, backups, restore, storage, retention and key administration need a signed-in **administrator account**; a shared access token is

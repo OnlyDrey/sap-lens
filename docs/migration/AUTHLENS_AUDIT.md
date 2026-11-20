@@ -157,3 +157,22 @@ The checkout fast-forwarded from 814c88d to 50bed6d (18 commits; no divergent hi
 The lack of native acceptance is a release blocker, not a reason to skip independent implementation or testing. Final counts and the release recommendation are recorded in [release status](RELEASE_STATUS.md). No push is authorized by this mission.
 
 Windows continuation root causes: raw CSV copies were missing from the backup boundary; reviewer aliases came from request bodies instead of the stable actor; SAP revisions included the independent SoD publication; export filenames accepted only quoted headers; Windows file URLs were treated as POSIX paths; explicit Desktop data overrides shared normal profile resources; Server installer updates overwrote files without verified rollback. Browser fixtures also read settings before a confirmed save completed, assumed a fixed optional-source count despite reset retaining lifecycle history (the fixture now explicitly seeds disabled SoD plus a static directory), and omitted the captured directory snapshot variables. These corrections preserve the state, identity, history and data-retention assertions. The complete checkpoint and scoped corrections are reported separately, not combined into a claimed clean single full run.
+
+## Installer stabilization continuation (baseline 798d3d0)
+
+Local implementation now adds an Inno transaction adapter over the existing verified release/deployment/backup engine. Previously, Desktop
+copied its executable without verified rollback and Server deliberately refused updates. Both stage unique immutable packages and hashed helper
+inventories; Desktop uses private atomic checkpoints and backup/readiness/binary recovery, and Server delegates to the existing versioned state
+machine with mandatory previous-release/schema/account proof. Windows PowerShell 5.1 needs nonempty backup paths for File.Replace; unique retained
+checkpoint paths fix that native incompatibility. Child PowerShell selection is explicit under PSHOME, with no PATH dependency or PowerShell 7
+requirement. Custom Desktop data profiles are retained in shortcuts, launch and updates. No schema, product version, UI identity or CI change.
+
+Native isolated Desktop fresh install, update with an encrypted verified backup, interrupted recovery and preserved canonical data passed using
+the previously verified bfa7226 package. SCM remains mocked, Inno remains uncompiled, and same-build native recovery is not different-build
+installer acceptance. Protective backup, schema compatibility and recovery hash guards are unchanged or stricter. No existing service/data/TLS/key
+was selected. New portable governance coverage restores the application-written v1 fixture's review history and frozen SoD evidence into fresh
+canonical storage through the shared backup engine; the former SoD-fixture gap in the matrix was stale and is corrected.
+
+The [current inventory](MIGRATION_MATRIX.md#release-stabilization-inventory-2026-11-20) distinguishes COMPLETE/PARTIAL/MISSING/BLOCKED. Native tray
+and start-at-login are missing capabilities, not silently enabled by restoring an obsolete bridge. Final counts, local commits and remaining
+acceptance gates are in [release status](RELEASE_STATUS.md). No push, publication or production operation is authorized.
