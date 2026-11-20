@@ -1,5 +1,25 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Installer Pascal include correction (after fdb7e87)
+
+Native acceptance reported .NET SDK 10.0.404, Node 24.22.3 and Windows PowerShell 5.1: solution build, all 473 .NET tests, Server/Desktop publish,
+zero secret findings and 17 verified artifacts passed. Inno Setup 6 then refused Desktop compilation at line 1 of `AuthLens-Transaction.iss` with
+`'BEGIN' expected`. These are operator-reported acceptance results, separate from execution on this development workstation.
+
+Root cause: two Setup-style `;` header comments were inserted into Pascal Script because both callers already include the shared file under
+`[Code]`. They are now Pascal `//` comments; no installer event, integrity gate, rollback behavior or service/data operation changed. The focused
+regression failed against the original include for **both** variants and checks expanded code-section comments plus include context. A separate
+fixture check distinguishes legal Setup comments from invalid Pascal headers. Native ISCC is unavailable on this workstation (PATH and the
+standard machine/per-user Inno Setup 6 locations); neither corrected installer is claimed compiled. Rebuild a clean release and matching helpers
+from the fixed commit, compile both variants into a fresh output directory, then continue isolated installer/SCM acceptance.
+
+Focused local validation: the new regression failed before the comment fix (one test, reporting both callers); after the fix the complete
+`InstallerTests` class passed **11, failed 0, skipped 0** using .NET SDK 10.0.204. Documentation links passed (100 files, zero failures), and
+`git diff --check` passed. Original/fixed TRX evidence is preserved under ignored `build/test-artifacts/installer-include-fix`.
+
+Release recommendation remains **NOT READY**. Browser regression remains **DEFERRED**; no full .NET/browser suite or full secret scan is rerun for
+this focused correction. Product version 2.0.0-alpha.1, CI, protected installations, stash and recovery artifacts are unchanged. No push is authorized.
+
 ## Installer stabilization continuation (2026-11-20, starting 798d3d0)
 
 **NOT READY for release.** Manual installer transactions are implemented using the existing Inno/deployment/backup approach, with focused Windows

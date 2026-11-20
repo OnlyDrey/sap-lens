@@ -1,5 +1,5 @@
-; Shared Inno integration. Every Setup embeds a full verified release and immutable, hashed deployment helpers.
-; Application replacement is performed by the existing deployment/backup adapters after payload extraction.
+// Shared Pascal Script include: both installers include this inside their [Code] section.
+// Application replacement uses the existing verified deployment/backup adapters after payload extraction.
 #if InstallerMode == "Desktop"
 function DesktopData(Param: String): String;
 begin

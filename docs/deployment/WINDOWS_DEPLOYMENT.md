@@ -449,6 +449,13 @@ Installer compilation and privileged service acceptance are **not verified here*
 the Inno definitions have contract tests only. Installers are unsigned; approved transport, signing, publication and deployment are separate steps.
 Do not run the examples against an existing installation during development.
 
+The shared `AuthLens-Transaction.iss` is included inside each installer's [Pascal Script `[Code]` section](https://jrsoftware.org/ishelp/topic_scriptcreating.htm). Its comments must use Pascal syntax (`//` or block
+comments), not Setup-section `;` comments. Native acceptance of fdb7e87 exposed a `'BEGIN' expected` error at the include's first `;` header.
+The headers now use `//`; the include placement and all transaction/security logic are unchanged. Focused installer contracts expand the include
+in both callers, check that its context is `[Code]`, and reject Setup-style comments there. This guard detects the reported defect but is not a
+Pascal compiler. Recompile **both** variants with Inno Setup 6 using a newly verified release and helpers from the same fixed commit; preserve the
+failed build and use a new empty installer output directory. Local ISCC compilation remains unavailable on the development workstation.
+
 ### Manual installer transaction
 
 The builder requires a clean release and helper sources at the **same Git commit**, plus an empty output directory. It copies only the seven

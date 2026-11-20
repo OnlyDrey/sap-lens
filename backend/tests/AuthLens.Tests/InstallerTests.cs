@@ -81,6 +81,44 @@ public sealed partial class InstallerTests
     }
 
     [Fact]
+    public void Both_installer_code_sections_and_the_shared_include_use_Pascal_comments()
+    {
+        const string include = "#include \"AuthLens-Transaction.iss\"";
+        Assert.All([Desktop, Server], script =>
+        {
+            // Inno inserts an include at its call site. Setup-section ';' comments become invalid
+            // Pascal tokens here and produced "'BEGIN' expected" at line 1 of the shared include.
+            var call = script.IndexOf(include, StringComparison.Ordinal);
+            Assert.True(call >= 0);
+            var sections = Regex.Matches(script[..call], @"^\s*\[([^\]\r\n]+)\]\s*$", RegexOptions.Multiline);
+            Assert.Equal("Code", sections[^1].Groups[1].Value);
+            Assert.Empty(SetupCommentsInCode(script.Replace(include, Transaction, StringComparison.Ordinal)));
+        });
+    }
+
+    [Theory]
+    [InlineData("[Setup]\n; setup comment\n[Code]\n// Pascal comment\n", 0)]
+    [InlineData("[Code]\n; invalid included header\n", 1)]
+    [InlineData("[Code]\n  ; invalid indented header\n", 1)]
+    public void The_code_comment_guard_distinguishes_Setup_comments_from_Pascal_comments(string script, int expected)
+        => Assert.Equal(expected, SetupCommentsInCode(script).Count);
+
+    private static List<int> SetupCommentsInCode(string script)
+    {
+        var result = new List<int>();
+        var inCode = false;
+        var number = 0;
+        foreach (var line in script.Split('\n'))
+        {
+            number++;
+            var section = Regex.Match(line, @"^\s*\[([^\]\r\n]+)\]\s*$");
+            if (section.Success) inCode = section.Groups[1].Value.Equals("Code", StringComparison.OrdinalIgnoreCase);
+            else if (inCode && Regex.IsMatch(line, @"^\s*;\s*\S")) result.Add(number);
+        }
+        return result;
+    }
+
+    [Fact]
     public void Desktop_shortcuts_and_updates_keep_the_explicit_data_profile()
     {
         Assert.Contains("ValueName: \"DataDirectory\"; ValueData: \"{code:DesktopData}\"", Desktop);
