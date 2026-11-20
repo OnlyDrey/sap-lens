@@ -11,7 +11,7 @@ import { ContentTabs } from '@/components/Shared/Navigation'
 import { DisclosureChevron } from '@/components/Shared/DisclosureChevron'
 import { useQuery } from '@tanstack/react-query'
 import { Activity, BookUser, Database, Download, FileText, FolderOpen, Library, RotateCcw, ShieldCheck, UsersRound, Eye } from 'lucide-react'
-import { apiRequest, applicationToken } from '@/api/client'
+import { apiRequest } from '@/api/client'
 const SOURCE_ICONS: Record<string, React.ReactNode> = { roles: <Library size={18} aria-hidden="true"/>, users: <UsersRound size={18} aria-hidden="true"/>, employees: <BookUser size={18} aria-hidden="true"/>, sod: <ShieldCheck size={18} aria-hidden="true"/> }
 interface DataSource {
   last_checked?: string|null
@@ -68,7 +68,6 @@ const availabilityLabel = (value: string) =>
     }) as Record<string, string>
   )[value] || value.replace(/_/g, ' ')
 export function Diagnostics({
-  native,
   onEmployeeSettings,
   onEmployeeFeatures,
   onSource,
@@ -77,7 +76,6 @@ export function Diagnostics({
   /** Configuration export, import and reset, owned by Settings (it holds the saved configuration). */
   recovery?: ReactNode
   onSource?: (source: 'roles' | 'users' | 'employees' | 'sod') => void
-  native: boolean
   onEmployeeFeatures?: () => void
   onEmployeeSettings?: () => void
 }) {
@@ -109,13 +107,6 @@ export function Diagnostics({
   }
   const exportReport = () =>
     act(async () => {
-      if (window.pywebview?.api.export_diagnostics) {
-        if (await window.pywebview.api.export_diagnostics(applicationToken()))
-          setFeedback(
-            'Diagnostics exported without source paths, organization details or file contents.',
-          )
-        return
-      }
       const report = await apiRequest('/api/diagnostics/export')
       const url = URL.createObjectURL(
         new Blob([JSON.stringify(report, null, 2)], {
@@ -200,47 +191,15 @@ export function Diagnostics({
             <dt>Local application data</dt>
             <dd>{query.data?.application_directory || 'Checking…'}</dd>
           </dl>
-          <Button
-            className="settings-secondary-button"
-            disabled={
-              !native ||
-              busy ||
-              !window.pywebview?.api.open_configuration_folder
-            }
-            onClick={() =>
-              void act(async () => {
-                await window.pywebview?.api.open_configuration_folder?.(
-                  applicationToken(),
-                )
-              })
-            }
-          >
-            <FolderOpen size={16} /> Open configuration folder
-          </Button>
-          <p className="text-xs text-[var(--muted)]">
-            Open the per-user folder containing settings, backups and
-            application logs.
-          </p>
         </details>
       </section>
       <section className="settings-card space-y-3">
         <h2 className="settings-subheading">Troubleshooting</h2>
         <p className="text-sm text-[var(--text2)]">
-          View local logs for detailed errors, or export a redacted status
-          report to share with support.
+          Export a redacted status report to share with support. Server and
+          Desktop logs are in the data directory.
         </p>
         <div className="flex flex-wrap gap-3">
-          <button
-            disabled={!native || busy || !window.pywebview?.api.open_logs}
-            onClick={() =>
-              void act(async () => {
-                await window.pywebview?.api.open_logs?.(applicationToken())
-              })
-            }
-            className="border border-[var(--border)] rounded-lg px-3 py-2 text-sm flex items-center gap-2 disabled:opacity-50"
-          >
-            <FileText size={16} /> Open logs
-          </button>
           <button
             disabled={busy}
             onClick={() => void exportReport()}

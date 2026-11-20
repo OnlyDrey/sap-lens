@@ -92,7 +92,7 @@ const apiClient = {
     if (seen === 'newer') for (const listener of [...revisionListeners]) listener()
     if (!response.ok) {
       const reference=response.headers.get('X-Request-ID')||''
-      if(response.status===401 && sessionRole) window.dispatchEvent(new Event('sap-lens-sign-in-required'))
+      if(response.status===401 && sessionRole) window.dispatchEvent(new Event('authlens-sign-in-required'))
       if(response.status===403&&(data as {code?:string}|undefined)?.code==='stale_session'){recordSession('stale');throw new ApiError(STALE_MESSAGE,'session',403)}
       throw new ApiError(problemDetail(parsed ? data : undefined, response.status)+(/^[a-f0-9]{32}$/.test(reference)?` Reference: ${reference}`:''), response.status===401?'authentication':response.status===403?'permission':response.status >= 500 ? 'server' : 'client', response.status, parsed ? (data as { detail?: unknown } | undefined)?.detail : undefined)
     }

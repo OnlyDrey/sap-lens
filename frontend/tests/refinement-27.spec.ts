@@ -83,7 +83,6 @@ test('library categories remain isolated and anchored controls are measured befo
  await page.keyboard.press('Escape');await expect(trigger).toBeFocused();expect((await config(request)).revision).toBe(before.revision)
 })
 for(const theme of ['light','dark'])for(const width of [375,800,1280,1600])test(`refinement visual ${theme} ${width}`,{ tag: '@visual' }, async({page,request},info)=>{
- await page.addInitScript(()=>{(window as any).pywebview={api:{choose_csv:async()=>null,desktop_runtime:async()=>({windows:true,startup_supported:true,tray_available:false,warning:null})}}})
  const value=await config(request);value.theme=theme;await request.post('/api/configuration',{headers,data:value});await page.setViewportSize({width,height:1000});await page.goto('/#session=browser-test-session')
  const capture=async(name:string)=>{expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBeTruthy();await page.screenshot({path:info.outputPath(name+'.png'),fullPage:true})}
  const distribution=(await page.getByRole('region',{name:'Role Distribution',exact:true}).boundingBox())!,sources=(await page.getByRole('region',{name:'Data Sources & Configuration',exact:true}).boundingBox())!;expect(sources.y).toBeGreaterThan(distribution.y)
@@ -106,18 +105,4 @@ test('release fields align and Data Health reuses canonical source state',async(
   for(const box of visible)expect(box!.height).toBe(42)
  }
  await settings(page,'Data Sources');await page.getByText('Data Health & Coverage',{exact:true}).click();await expect(page.locator('.health-source-grid .source-compact')).toHaveCount(4);await expect(page.locator('.health-source-grid').getByText('Loaded',{exact:true})).toHaveCount(2)
-})
-
-test('Windows tray settings use the parent draft, persist and respond to native settings navigation',async({page,request})=>{
- await page.addInitScript(()=>{(window as any).pywebview={api:{choose_csv:async()=>null,desktop_runtime:async(token:string)=>{if(token!=='browser-test-session')throw Error('Wrong capability');return {windows:true,startup_supported:true,tray_available:false,warning:null}}}}})
- await page.goto('/#session=browser-test-session');await expect.poll(()=>page.evaluate(()=>window.__sapLensSettingsReady)).toBe(true);await page.evaluate(()=>window.dispatchEvent(new Event('sap-lens-open-settings')));await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeVisible();await page.getByRole('tab',{name:'Features',exact:true}).click();await expect(page.getByRole('region',{name:'Windows Desktop background operation',exact:true})).toHaveCount(0);await page.getByRole('tab',{name:'Runtime & Scheduling',exact:true}).click()
- const area=page.getByRole('region',{name:'Windows Desktop background operation',exact:true}),toggle=area.getByRole('switch',{name:'Minimize to System Tray on Close',exact:true})
- await expect(toggle).toHaveAttribute('aria-checked','false');await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).toBeDisabled()
- await toggle.click();await area.getByLabel('Start minimized to the system tray',{exact:true}).check();await area.getByLabel('Start AuthLens at Windows sign-in',{exact:true}).check();expect((await config(request)).desktop.close_to_tray).toBe(false)
- await page.getByRole('button',{name:'Apply settings',exact:true}).click();await expect(page.getByRole('status').filter({ hasText: 'Settings saved successfully.' })).toBeVisible();expect((await config(request)).desktop).toEqual({close_to_tray:true,run_at_signin:true,start_minimized:true})
- await page.reload();await settings(page,'Runtime & Scheduling');await expect(toggle).toHaveAttribute('aria-checked','true');await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).toBeChecked();await toggle.click();await expect(area.getByLabel('Start minimized to the system tray',{exact:true})).not.toBeChecked()
-})
-test('Windows tray controls are unavailable without the native Windows capability',async({page})=>{
- await page.goto('/#session=browser-test-session');await settings(page,'Runtime & Scheduling');await expect(page.getByRole('region',{name:'Windows Desktop background operation',exact:true})).toHaveCount(0)
- await page.evaluate(()=>{(window as any).pywebview={api:{choose_csv:async()=>null,desktop_runtime:async()=>({windows:false,startup_supported:false,tray_available:false,warning:null})}}});await page.getByRole('tab',{name:'Runtime & Scheduling',exact:true}).click();await page.getByRole('tab',{name:'Runtime & Scheduling',exact:true}).click();await expect(page.getByRole('region',{name:'Windows Desktop background operation',exact:true})).toHaveCount(0)
 })

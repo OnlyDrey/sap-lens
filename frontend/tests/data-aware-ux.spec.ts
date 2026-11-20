@@ -175,7 +175,7 @@ test('first-launch setup retains an app history boundary before configuration is
   await page.goBack()
   await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeHidden()
   await page.goBack()
-  await expect.poll(()=>page.evaluate(()=>Boolean(history.state?.sapLensView && !history.state?.sapLensBoundary))).toBeTruthy()
+  await expect.poll(()=>page.evaluate(()=>Boolean(history.state?.authLensView && !history.state?.authLensBoundary))).toBeTruthy()
   await expect(page.getByRole('navigation',{name:'Main navigation'})).toBeVisible()
   await page.goForward()
   await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeVisible()
@@ -185,7 +185,7 @@ test('first-launch setup retains an app history boundary before configuration is
 test('stale desktop session recovers through a trusted document without replaying failed writes',async({page})=>{
  await page.goto('/#session=browser-test-session')
  await navigate(page,'Role Lookup')
- await page.evaluate(()=>history.replaceState({...history.state,sapLensView:{...history.state.sapLensView,sodFilters:{shared:{groups:['SYN_GROUP']}}}},''))
+ await page.evaluate(()=>history.replaceState({...history.state,authLensView:{...history.state.authLensView,sodFilters:{shared:{groups:['SYN_GROUP']}}}},''))
  let changed=true,posts=0,newReads=0
  await page.route('**/api/**',async route=>{
   const request=route.request(),offered=request.headers()['x-sap-lens']
@@ -205,7 +205,7 @@ test('stale desktop session recovers through a trusted document without replayin
  // button (covered by session-recovery.spec.ts) is only offered when that is not safe. The failed write is never replayed.
  await expect(page.getByRole('heading',{name:'Role Lookup',exact:true})).toBeVisible()
   await expect(page.getByRole('button',{name:'Reconnect session',exact:true})).toHaveCount(0)
- expect(await page.evaluate(()=>history.state.sapLensView.sodFilters.shared.groups)).toEqual(['SYN_GROUP'])
+ expect(await page.evaluate(()=>history.state.authLensView.sodFilters.shared.groups)).toEqual(['SYN_GROUP'])
  expect(newReads).toBeGreaterThan(0)
  expect(posts).toBe(1)
  await expect(page).toHaveURL(/#\/role-lookup/)

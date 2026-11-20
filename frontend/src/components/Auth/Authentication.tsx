@@ -37,8 +37,8 @@ export function AuthenticationGate({children}:{children:ReactNode}) {
    setError(authMessage(error))
   })
   const expired=()=>{void qc.cancelQueries();qc.clear();setUser(null);setSessionRole(null)}
-  window.addEventListener('sap-lens-sign-in-required',expired)
-  return()=>{mounted=false;window.removeEventListener('sap-lens-sign-in-required',expired)}
+  window.addEventListener('authlens-sign-in-required',expired)
+  return()=>{mounted=false;window.removeEventListener('authlens-sign-in-required',expired)}
  },[qc])
  const logout=async()=>{try{await apiRequest('/api/auth/logout','POST')}catch(error){if(!(error instanceof ApiError&&error.status===401))throw error}void qc.cancelQueries();qc.clear();setUser(null);setSessionRole(null)}
  if(!ready)return <div className="startup-screen"><div className="startup-card">{error?<><p role="alert">{error}</p><Button onClick={()=>location.reload()}>Retry connection</Button></>:<LoadingState/>}</div></div>

@@ -150,8 +150,8 @@ test('review findings, license filter, local decision persistence and spreadshee
   await page.evaluate(() => {
     const state = {
       ...history.state,
-      sapLensView: {
-        ...history.state.sapLensView,
+      authLensView: {
+        ...history.state.authLensView,
         userContext: { role: 'ZC:FI:VIEW' },
       },
     }
@@ -215,33 +215,9 @@ test('review findings, license filter, local decision persistence and spreadshee
   expect(text).toContain('DEMO_OPEN')
   expect(text).toContain("'=Synthetic note")
   expect(text).not.toContain('DEMO_LOCKED')
-  await page.evaluate(() => {
-    ;(window as any).nativeReview = null
-    ;(window as any).pywebview = {
-      api: {
-        save_user_access_csv: async (
-          token: string,
-          filename: string,
-          content: string,
-        ) => {
-          ;(window as any).nativeReview = { token, filename, content }
-          return true
-        },
-      },
-    }
-  })
-  await page
-    .getByRole('button', { name: 'Export review CSV', exact: true })
-    .click()
-  await expect(
-    page.getByText('Review CSV saved.', { exact: true }),
-  ).toBeVisible()
-  const native = await page.evaluate(() => (window as any).nativeReview)
-  expect(native.token).toBe('browser-test-session')
-  expect(native.filename).toMatch(
+  expect(file.suggestedFilename()).toMatch(
     /^authlens-account-review-review-\d{4}-\d{2}-\d{2}\.csv$/,
   )
-  expect(native.content).toContain('DEMO_OPEN')
   await table.getByRole('link', { name: 'DEMO_OPEN', exact: true }).click()
   await expect(
     page.getByRole('region', { name: 'SAP Identity', exact: true }),

@@ -39,7 +39,8 @@ reference a classification and reason.
 | `45b3875` | Product text AuthLens (UI, reports, OpenAPI, installers, `--version`); export file names `authlens-*`; `AUTHLENS_*` environment variables (old names warn); release folders `AuthLens-*`; new installer AppIds; `verify-release.ps1` still accepts earlier products |
 | `44f6ea7` | Database `authlens.sqlite3`; a directory with only `sap-lens-v2.sqlite3` is refused; explicit `--adopt-legacy-database`; backups write `authlens.sqlite3`/product AuthLens and restore SAP Lens archives; offline `--restore --replace-all-data`; fresh installs skip the recovery backup |
 | `d93035f` | One service `AuthLens`, one root `C:\ProgramData\AuthLens` with a private ACL created before staging; actions Install, Deploy, Restore; the `SapLens2` to `sap-lens` service migration, earlier-service detection and earlier configuration lookups removed; `AL` function prefix; Desktop folder `%LOCALAPPDATA%\AuthLens` with no earlier-folder fallback |
-| this commit | Documentation consolidated to the AuthLens model; `.gitignore` covers `*.authlens.json`, `AuthLens-diagnostics*.json` and `*.slbak` (synthetic fixtures excepted); test launcher identity file `authlens-test-server.json`; stale Windows-only junction test of the removed migration copy deleted; this audit |
+| `94858d1` | Documentation consolidated to the AuthLens model; `.gitignore` covers `*.authlens.json`, `AuthLens-diagnostics*.json` and `*.slbak` (synthetic fixtures excepted); test launcher identity file `authlens-test-server.json`; stale Windows-only junction test of the removed migration copy deleted; this audit |
+| next commit | Expanded audit: SAP Lens 1 desktop bridge removed from the frontend; ad-hoc browser check scripts removed; v1 reference tools set `SAP_LENS_*` again (they drive SAP Lens 1, which reads those names); internal frontend identifiers renamed; script inventory and entry points below |
 
 ## 4. Cleanup report
 
@@ -53,12 +54,47 @@ Removed, each with its purpose established first:
 | Earlier-service detection, `SAPLENS_DEPLOY_CONFIG`/`SAPLENS2_DEPLOY_CONFIG`, `C:\sap-lens`/`C:\saplens2` lookups | Found an earlier installation automatically | Automatic adoption is forbidden |
 | Prototype Desktop folder fallback, startup refusal of the earlier .NET variable prefix | Used `SAP Lens 2 Prototype` data; refused renamed variables | Earlier folders are now only reported; old variables warn |
 | Junction test `keeps migration copying strict` | Covered the removed migration copy | Function removed; strict traversal is covered by the remaining junction tests |
+| Frontend SAP Lens 1 desktop bridge (`window.pywebview`: native open/save dialogs, logo and CSV pickers, open-folder/open-logs buttons, `DesktopOptions` tray and sign-in settings, settings-ready handshake) and the specs that stubbed it | The SAP Lens 1 (pywebview) Desktop | The .NET Desktop never injects it, so every branch was unreachable and its controls were permanently disabled or hidden. Exports are browser downloads; sources use the browser picker or a server-visible path. Specs now exercise those real paths (downloads, path activation, logo preview) |
+| `backend/tools/browser_check.js`, `refresh_report_check.js`, `import_preview_check.js`, `refresh_schedule_check.js`, `functional_groups_check.js` | One-off Playwright checks during the migration | No caller; superseded by the Playwright specs (`automatic-import`, `import-checks`, `scheduled-refresh`, `functional-groups*`, `dotnet-host`) |
 
 Kept although they look legacy: SAP Lens 1 `SLBAK2` reading and the v1 data migration (the supported v1 import path), the HKDF labels
 (cryptographic input), legacy archive entry and manifest products (restore of SAP Lens backups), historical migration documents and
 `backend/tools` (fixture provenance), EF migration identifiers (schema history).
 
-## 5. Compatibility matrix
+## 5. Script inventory and supported entry points
+
+Every executable script was traced to its callers (`git grep` on its file name, CI, installers, tests, docs).
+
+| Entry point | Purpose | Notes |
+| --- | --- | --- |
+| `backend/scripts/build-release.ps1` / `.sh` | Build, test and publish a release folder | One per platform, same contract |
+| `backend/scripts/verify-release.ps1` | Verify a release folder against its manifest | Called by both build scripts, installers and deployment |
+| `backend/scripts/build-installers.ps1` | Desktop and Server installers from a verified release | Windows only |
+| `backend/scripts/deploy/Deploy-AuthLens.ps1` | The only deployment entry: Status, Health, Build, Deploy, InstallService, Restore, Rollback, Recover, AuditAcl, ProtectAcl, RestoreAcl | Module `AuthLens.Deploy.psm1` with `AuthLens.Acl.ps1` and `AuthLens.Paths.ps1` |
+| `backend/scripts/deploy/deploy-windows.sh` | Runs `Deploy-AuthLens.ps1` over SSH from Linux | Thin wrapper, no own logic |
+| `backend/scripts/Service-Manager.ps1` | Shipped in releases: host key, recovery copy, activation codes | Local administration without the SDK |
+| `backend/scripts/start-server-test.ps1` | Isolated acceptance server on Windows | Refuses production paths |
+| `AuthLens.Api` maintenance options | `--backup-key`, `--restore`, `--adopt-legacy-database`, `--migrate-v1`, schema and backup commands | The executable itself; scripts call it |
+| `scripts/check-*.py`, `scripts/product-version.mjs`, `scripts/sync-lucide-catalog.mjs`, `scripts/browser-server.mjs` | Repository checks, version mirror, icon catalogue, Playwright test host | Called by CI, npm scripts and AGENTS.md commands |
+
+Development-only: `backend/scripts/check-powershell.ps1` (parser check, CI), the Pester and Bash tests under `backend/scripts/tests`,
+`backend/scripts/tests/v1-migration-procedure.ps1` (scripted run of the documented v1 import), `Measure-AclPerformance.ps1` (benchmark),
+and `backend/tools` (v1 fixture generators and benchmarks; each `*_reference.py` is the provenance of a committed fixture and needs an external
+SAP Lens 1 checkout). No two scripts perform the same operation.
+
+## 6. Naming review
+
+- **Backend:** projects, assemblies, namespaces and executables are `AuthLens.*`. The `V1*` classes in `AuthLens.Api` (for example
+  `V1Access`, `V1SodDecisions`) are kept: `V1` names the HTTP contract the React UI calls (the API shape inherited from SAP Lens 1), as
+  opposed to the native `/api/v1` endpoints in `Endpoints.cs`. Renaming 35 classes in 89 files would change no behaviour. `V1DataMigration`
+  and `SLBAK2`/`IsV2` name SAP Lens 1 import and archive format versions. "Legacy reviews" (`SodLegacyReview`, `/api/sod/reviews`) is a
+  SoD review type, not a product name.
+- **Frontend:** components, hooks and files carry no product name. Internal identifiers were renamed (`authLensView` history state,
+  `authlens-sign-in-required` event, test helper `__authLensCopied`). Persisted browser keys (`sap-lens-session`, `sap-lens-reviewer`,
+  `sap-lens-filter-sidebar` and others), cookies and `X-SAP-Lens-*` headers stay so existing sessions and preferences keep working
+  ([naming register](../architecture/VERSIONING.md#naming-register)). The private npm package is `authlens-frontend` (previously `sap-role-checker`).
+
+## 7. Compatibility matrix
 
 | From | To AuthLens | Status |
 | --- | --- | --- |
@@ -73,14 +109,17 @@ Kept although they look legacy: SAP Lens 1 `SLBAK2` reading and the v1 data migr
 
 Schema: unchanged (same EF migrations); only the file name differs. Encryption: unchanged (same algorithms and labels).
 
-## 6. Validation
+## 8. Validation
 
 See the final report of this task and [release status](RELEASE_STATUS.md). Native Windows (service, installers, ACLs, WebView2) has not run;
 the [AuthLens acceptance checklist](../deployment/WINDOWS_DEPLOYMENT.md#acceptance-checklist-windows-pending) is pending.
 
-## 7. Technical debt found and not changed
+## 9. Technical debt found and not changed
 
 - `LICENSE.md` names SAP Lens (owner decision).
+- `AuthLens.Acl.ps1` still builds a source/target plan; since the service migration was removed every entry point passes no target, so
+  the target branch (target parents, provisioning) is reachable only from `AuthLens.Acl.Tests.ps1`. Its fixtures model the reported SAP Lens
+  VM layout (`C:\saplens2`, `SapLens2`). Simplify both once the ACL tests can run on Windows; on Linux they cannot verify an ACL change.
 - Feature documents `ACCOUNT_REVIEW.md`, `EMPLOYEE_DIRECTORY.md` and `IMPORT_AND_REFRESH.md` still describe SAP Lens 1 file storage under
   `%LOCALAPPDATA%\SAP Lens`; AuthLens keeps that data in SQLite. They predate the rename and need a separate rewrite.
 - Logo file names `sap-lens.png`/`sap-lens.ico` and the `saplens_session` cookie keep the earlier name (renaming gains nothing visible and the

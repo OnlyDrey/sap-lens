@@ -18,11 +18,11 @@ work = Path(tempfile.mkdtemp())
 private = work / 'private'
 keys = work / 'keys'
 keys.mkdir()
-os.environ['AUTHLENS_CONFIG_DIR'] = str(private)
-os.environ['AUTHLENS_DATA_DIR'] = str(private)
-os.environ['AUTHLENS_DEPLOYMENT_MODE'] = 'desktop'
+os.environ['SAP_LENS_CONFIG_DIR'] = str(private)
+os.environ['SAP_LENS_DATA_DIR'] = str(private)
+os.environ['SAP_LENS_DEPLOYMENT_MODE'] = 'desktop'
 os.environ['DATA_CSV_PATH'] = ''
-os.environ['AUTHLENS_BACKUP_KEY_FILE'] = str(keys / 'host.key')
+os.environ['SAP_LENS_BACKUP_KEY_FILE'] = str(keys / 'host.key')
 sys.path.insert(0, backend)
 import cache, config  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

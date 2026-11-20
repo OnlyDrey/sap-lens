@@ -1,5 +1,4 @@
 import { accessQuery, type UserDetail, type Assignment } from '@/api/access'
-import { applicationToken } from '@/api/client'
 
 // Quote every field; neutralise spreadsheet formulas without changing normal SAP identifiers.
 export function csvField(value: unknown): string {
@@ -32,10 +31,6 @@ export async function exportAssignments(user: UserDetail, scope: string, status:
   if (seen.size !== user.total || !current()) throw new Error('Export cancelled or incomplete.')
   const content = chunks.join('')
   const filename = `authlens-${user.username.replace(/[^a-z0-9_-]/gi, '_').slice(0, 80)}-${scope}-${user.as_of}.csv`
-  if (window.pywebview) {
-    if (!window.pywebview.api.save_user_access_csv) throw new Error('This desktop version does not support CSV export. Update the desktop application.')
-    return window.pywebview.api.save_user_access_csv(applicationToken(), filename, content)
-  }
   const url = URL.createObjectURL(new Blob([content], { type: 'text/csv;charset=utf-8' }))
   const link = document.createElement('a'); link.href = url; link.download = filename
   document.body.append(link); link.click(); link.remove()

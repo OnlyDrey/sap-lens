@@ -4,7 +4,6 @@ import type { ReactNode } from 'react'
 import {Button} from '@/components/Shared/Button'
 import {BackupRestore} from './BackupRestore'
 import {useApplicationData} from '@/state/ApplicationData'
-import {DesktopOptions} from './DesktopOptions'
 import {ScheduledRefresh} from './ScheduledRefresh'
 import { FormField, controlClass } from '@/components/Shared/Controls'
 import { ContentTabList } from '@/components/Shared/Navigation'
@@ -50,7 +49,7 @@ import { ThemeEditor } from './ThemeEditor'
 import { paletteErrors, defaultThemeColors } from '@/lib/theme'
 import { Diagnostics } from './Diagnostics'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { apiRequest, applicationToken } from '@/api/client'
+import { apiRequest } from '@/api/client'
 import {
   fetchConfiguration,
   fetchRegistry,
@@ -148,7 +147,6 @@ export function SettingsView({
   }, [section, open])
   const [draft, setDraft] = useState<Configuration | null>(null)
   const [busy, setBusy] = useState(false)
-  const [native, setNative] = useState(Boolean(window.pywebview?.api))
   const [error, setError] = useState<string | null>(null)
   const [settingsTarget] = useHistoryValue('settingsTarget')
   const {change: changeSettingsTarget} = useViewHistory()
@@ -213,11 +211,6 @@ export function SettingsView({
     staleTime: Infinity
   })
 
-  useEffect(() => {
-    const ready = () => setNative(true)
-    window.addEventListener('pywebviewready', ready)
-    return () => window.removeEventListener('pywebviewready', ready)
-  }, [])
   useEffect(() => {
     if (config.data)
       setDraft((previous) => previous || structuredClone(config.data.settings))
@@ -457,32 +450,21 @@ export function SettingsView({
     })
   const exportConfig = () =>
     run(async () => {
-      if (window.pywebview?.api.export_configuration) {
-        const saved = await window.pywebview.api.export_configuration(
-          applicationToken(),
-          includePrivate
-        )
-        if (saved)
-          setMessage(
-            'Configuration exported. The package never contains CSV records or a file path.'
-          )
-      } else {
-        const packageData = await apiRequest(
-          `/api/configuration/export?include_private=${includePrivate}`,
-          'POST'
-        )
-        const url = URL.createObjectURL(
-          new Blob([JSON.stringify(packageData, null, 2)], {
-            type: 'application/json'
-          })
-        )
-        const link = document.createElement('a')
-        link.href = url
-        link.download = 'AuthLens.authlens.json'
-        link.click()
-        URL.revokeObjectURL(url)
-        setMessage('Configuration exported; keep private packages secure.')
-      }
+      const packageData = await apiRequest(
+        `/api/configuration/export?include_private=${includePrivate}`,
+        'POST'
+      )
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(packageData, null, 2)], {
+          type: 'application/json'
+        })
+      )
+      const link = document.createElement('a')
+      link.href = url
+      link.download = 'AuthLens.authlens.json'
+      link.click()
+      URL.revokeObjectURL(url)
+      setMessage('Configuration exported; keep private packages secure.')
     })
 
   const renderTab=(index:number)=>{
@@ -948,32 +930,6 @@ export function SettingsView({
                       <div className="branding-actions">
                       <button
                         className={buttonClass}
-                        disabled={
-                          !native || busy || !window.pywebview?.api.choose_logo
-                        }
-                        onClick={() =>
-                          void run(async () => {
-                            const path =
-                              await window.pywebview?.api.choose_logo?.(
-                                applicationToken()
-                              )
-                            if (path) {
-                              setLogoPath(path)
-                              const result = await apiRequest<{
-                                logo_id: string
-                                data_url: string
-                              }>('/api/branding/preview', 'POST', { path })
-                              update('logo_id', result.logo_id)
-                              setLogoPreview(result.data_url)
-                            }
-                          })
-                        }
-                      >
-                        <Image size={16} aria-hidden="true" /> Select custom
-                        logo…
-                      </button>
-                      <button
-                        className={buttonClass}
                         disabled={!logoPath || busy}
                         onClick={() => void previewLogo(logoPath)}
                       >
@@ -1002,14 +958,14 @@ export function SettingsView({
                   }
 
                   {section === 6 && <About/>}
-                  {section === 9 && <><ScheduledRefresh draft={draft} onChange={setDraft}/><DesktopOptions draft={draft} onChange={setDraft}/></>}
+                  {section === 9 && <ScheduledRefresh draft={draft} onChange={setDraft}/>}
                   {section === 8 && <SodRiskSettings/>}
                   {section === 11 && <FunctionalGroupSettings/>}
                   {section === 7 && <Suspense fallback={<p role="status">Loading component previews…</p>}><ComponentLibrary/></Suspense>}
                   {section === 5 && <><FeatureSettings draft={draft} onChange={setDraft} onConfigure={source => { setSection(1); setImportSource(source) }}/></>}
                   {section === 4 && (
                     <>
-                      <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} native={native} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }} recovery={<>
+                      <Diagnostics onSource={source=>{setSection(1);setImportSource(source)}} onEmployeeFeatures={() => setSection(5)} onEmployeeSettings={() => { setSection(1); setImportSource('employees') }} recovery={<>
                       <h2 className="settings-subheading">Configuration export & recovery</h2>
                       <p className="text-sm text-[var(--text2)]">
                         Export saved settings before an update, or restore a

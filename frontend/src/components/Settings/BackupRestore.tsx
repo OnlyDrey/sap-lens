@@ -6,7 +6,7 @@ import {useRef,useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
 import {Archive,CalendarClock,DatabaseBackup,Download,History,RotateCcw,RefreshCw} from 'lucide-react'
 import {ContentTabs} from '@/components/Shared/Navigation'
-import {apiRequest,applicationToken,applicationHeaders} from '@/api/client'
+import {apiRequest,applicationHeaders} from '@/api/client'
 import {formatTimestamp} from '@/lib/dateFormat'
 import {backupDownloadFilename} from '@/lib/backupDownload'
 import {Button} from '@/components/Shared/Button'
@@ -32,7 +32,6 @@ export function BackupRestore(){
  const labels:Record<string,string>={idle:'Idle',pending:'Waiting for restart',waiting_for_restart:'Waiting for restart',preparing:'Preparing',creating:'Creating',ready:'Ready',completed:'Completed',failed:'Failed',cancelled:'Cancelled'}
  const lastBackup=history.data?.items.find(item=>item.verified)?.created_at||(current?.kind==='backup'&&current.archive_sha256?current.completed_at:undefined)
  const download=async(kind:string,identity=current?.id)=>{if(!identity)return
-  if(window.pywebview){if(!window.pywebview.api.save_application_backup)throw Error('Update the desktop application for backup downloads.');await window.pywebview.api.save_application_backup(applicationToken(),identity,kind);return}
   const response=await fetch(`/api/backups/${encodeURIComponent(identity)}/download?kind=${encodeURIComponent(kind)}`,{headers:applicationHeaders(),cache:'no-store'})
   if(!response.ok){const problem=await response.json().catch(()=>null);throw Error(typeof problem?.detail==='string'?problem.detail:'Backup download is unavailable. Check the operation status.')}
   const name=backupDownloadFilename(response.headers.get('Content-Disposition'),kind,identity)

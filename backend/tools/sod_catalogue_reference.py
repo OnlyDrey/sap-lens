@@ -1,6 +1,6 @@
 """Python v1 catalogue/activity catalogue/lookup for a SoD CSV and a v1 sod-catalogue.json (stdin args: csv storage out)."""
 import json, os, sys, tempfile
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from v1_location import v1_backend; sys.path.insert(0, v1_backend())  # SAP Lens 1 backend of an external checkout (v1_location.py)
 from types import SimpleNamespace
 from sod_import import parse_sod

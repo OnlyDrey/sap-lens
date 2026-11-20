@@ -1,4 +1,4 @@
-import { apiRequest, applicationHeaders, applicationToken } from './client'
+import { apiRequest, applicationHeaders } from './client'
 
 export type Filters = Record<string, string | boolean | number | string[]>
 export type Lifecycle = 'Pending' | 'Approved' | 'Keep' | 'Accepted' | 'Conditional' | 'Removal required' | 'Investigate' | 'Rejected' | 'Outdated' | 'Historical' | 'Resolved'
@@ -185,7 +185,7 @@ async function readLimited(response: Response, limit: number): Promise<Uint8Arra
 }
 
 /** Fetch a server-generated file and save it through the browser or the guarded native dialog. Returns the saved name, or '' when cancelled. */
-export async function downloadFile(path: string, options: { method?: 'GET' | 'POST'; body?: unknown; params?: URLSearchParams; namePattern: RegExp; kind: 'csv' | 'document'; nativeCsv?: 'save_sod_csv' | 'save_role_package_csv' }): Promise<string> {
+export async function downloadFile(path: string, options: { method?: 'GET' | 'POST'; body?: unknown; params?: URLSearchParams; namePattern: RegExp }): Promise<string> {
   const response = await fetch(options.params ? `${path}?${options.params}` : path, {
     method: options.method || 'GET',
     headers: { 'Content-Type': 'application/json', ...applicationHeaders() },
@@ -200,25 +200,6 @@ export async function downloadFile(path: string, options: { method?: 'GET' | 'PO
   const name = response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]
   if (!name || !options.namePattern.test(name)) throw Error('Invalid export filename.')
   const blocks = await readLimited(response, 32 * 1024 * 1024)
-  if (window.pywebview) {
-    const api = window.pywebview.api
-    if (options.kind === 'csv') {
-      const save = api[options.nativeCsv || 'save_sod_csv']
-      if (!save) throw Error('Update the desktop application for CSV export.')
-      const text = new TextDecoder('utf-8', { fatal: true })
-      const content = blocks.map((block, index) => text.decode(block, { stream: index < blocks.length - 1 })).join('')
-      return (await save(applicationToken(), name, '\uFEFF' + content.replace(/^\uFEFF/, ''))) ? name : ''
-    }
-    if (!api.save_sod_document) throw Error('Update the desktop application for SoD document export.')
-    const blob = new Blob(blocks as BlobPart[])
-    const encoded = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => resolve(String(reader.result).split(',')[1])
-      reader.onerror = reject
-      reader.readAsDataURL(blob)
-    })
-    return (await api.save_sod_document(applicationToken(), name, encoded)) ? name : ''
-  }
   const type = response.headers.get('content-type') || 'application/octet-stream'
   const url = URL.createObjectURL(new Blob(blocks as BlobPart[], { type }))
   const link = document.createElement('a')

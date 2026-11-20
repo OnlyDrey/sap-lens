@@ -84,7 +84,7 @@ function MatrixPage({ kind }: { kind: 'risk' | 'activity' }) {
     setBusy(true)
     try {
       const table = risk ? 'user_risk' : 'user_activity'
-      const name = await downloadFile(`/api/sod/explorer/${table}/export`, { params: scopeParams(context, filters), namePattern: EXPORT_NAME, kind: 'csv' })
+      const name = await downloadFile(`/api/sod/explorer/${table}/export`, { params: scopeParams(context, filters), namePattern: EXPORT_NAME })
       announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (error) {
       announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'Export failed.' })

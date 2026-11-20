@@ -363,7 +363,7 @@ test('restored user detail waits for the startup publication instead of flashing
   await page.addInitScript(() => {
     sessionStorage.setItem('sap-lens-session', 'browser-test-session')
     history.replaceState(
-      { sapLensView: { page: 'users', user: 'DEMO_ONE' } },
+      { authLensView: { page: 'users', user: 'DEMO_ONE' } },
       '',
       '#/user-access/user/DEMO_ONE',
     )

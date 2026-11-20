@@ -212,7 +212,7 @@ public static class MaintenanceCommands
             throw new InvalidOperationException($"The active AuthLens database is missing: {application}. Historical and security databases are not substitutes.");
         // Explicit authoritative stores only. Completed v1 migrations/backups stay untouched, not opened as active databases.
         var databases = new[] { application, accounts }.Where(File.Exists).ToArray();
-        var scratch = Directory.CreateTempSubdirectory("saplens-inspect-").FullName;
+        var scratch = Directory.CreateTempSubdirectory("authlens-inspect-").FullName;
         static string SharedHash(string path)
         {
             using var input = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);

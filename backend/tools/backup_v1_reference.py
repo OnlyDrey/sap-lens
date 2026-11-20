@@ -3,7 +3,7 @@ Usage: python -I tools/backup_v1_reference.py BACKEND_DIR OUT_DIR. Writes v1-hos
 import json, os, sys, tempfile
 backend, out = sys.argv[1:3]
 sys.path.insert(0, backend)
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 import backup_crypto as c
 payload = os.urandom(100_017)
 with open(os.path.join(out, 'payload.bin'), 'wb') as s: s.write(payload)

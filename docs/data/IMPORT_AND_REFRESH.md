@@ -64,7 +64,7 @@ Reports contain personal data and stay local. Diagnostic exports contain only al
 
 | Deployment | When scheduled refresh runs |
 | --- | --- |
-| Windows Desktop | Only while AuthLens is running, in its window or in the system tray |
+| Windows Desktop | Only while the AuthLens window is open |
 | Windows Service | Continuously while the service runs; no sign-in or browser needed |
 | Linux server / systemd | Continuously while the unit runs |
 
@@ -127,8 +127,8 @@ Settings → Data Sources → SoD Matrix has the same **Advanced import format a
 
 In Settings → Data Sources, **Browse / Upload file** opens the browser's file picker
 for Role Catalogue, User Access, Employee Directory and SoD Matrix CSVs. No server
-filesystem path is required. Desktop WebView2 uses the same primary action with its native file dialog;
-a browser connected to the desktop backend can also upload using its authenticated session.
+filesystem path is required. Desktop WebView2 uses the same browser file picker; a path the server can read can
+also be entered under *Advanced server source path* and committed with Enter. A browser connected to the desktop backend can also upload using its authenticated session.
 
 The authenticated multipart request (`POST /api/server/uploads/{source}/activate`)
 carries one CSV, the current settings revision and optional existing import profile.

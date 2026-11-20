@@ -53,9 +53,9 @@ export function ConflictView({kind}:{kind:'users'|'roles'}){
    const reader=response.body?.getReader();if(!reader)throw Error('Export stream unavailable.');const parts:string[]=[],decoder=new TextDecoder('utf-8',{fatal:true});let bytes=0
    try{while(true){const {done,value}=await reader.read();if(done)break;bytes+=value.byteLength;if(bytes>32*1024*1024){await reader.cancel();throw Error('Export exceeds 32 MiB. Narrow the filters.')}parts.push(decoder.decode(value,{stream:true}))}parts.push(decoder.decode())}finally{reader.releaseLock()}
    if(current.current!==started||currentGeneration.current!==captured.generation||request.signal.aborted)throw Error('Export cancelled because filters or evidence changed.')
-   const content='\ufeff'+parts.join('').replace(/^\ufeff/,'');let saved=true
-   if(window.pywebview){if(!window.pywebview.api.save_sod_csv)throw Error('Update the desktop application for SoD CSV export.');saved=await window.pywebview.api.save_sod_csv(applicationToken(),filename,content)}else{const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}
-   announceExport(saved?{kind:'success',message:`${captured.total} findings exported with supporting evidence.`}:{kind:'info',message:'Export cancelled.'})
+   const content='\ufeff'+parts.join('').replace(/^\ufeff/,'')
+   const url=URL.createObjectURL(new Blob([content],{type:'text/csv;charset=utf-8'})),link=document.createElement('a');link.href=url;link.download=filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+   announceExport({kind:'success',message:`${captured.total} findings exported with supporting evidence.`})
   }catch(cause){setFailed(true);announceExport({kind:'error',message:request.signal.aborted?'Export cancelled because the view changed.':cause instanceof Error?cause.message:'Export failed.'})}finally{if(controller.current===request){controller.current=null;setBusy(false)}}
  }
  const openUser=(username:string)=>change({page:'users',accessMode:'directory',user:username,userContext:{},detailRole:null,settings:false})

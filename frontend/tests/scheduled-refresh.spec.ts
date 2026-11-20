@@ -50,23 +50,10 @@ test('cron expressions are validated with readable reasons and invalid schedules
   expect((await config(request)).refresh_schedule.enabled).toBe(false)
 })
 
-test('Windows tray settings live in the runtime section, only for the Windows Desktop application', async ({ page }) => {
-  await page.addInitScript(() => { (window as unknown as { pywebview: unknown }).pywebview = { api: { choose_csv: async () => null, desktop_runtime: async () => ({ windows: true, startup_supported: true, tray_available: true, warning: null }) } } })
-  const section = await open(page)
-  const tray = page.getByRole('region', { name: 'Windows Desktop background operation', exact: true })
-  await expect(tray).toContainText('apply only to the Windows Desktop application')
-  const heading = tray.getByRole('heading', { name: 'Windows Desktop', exact: true })
-  await expect(heading.locator('svg[aria-hidden="true"]')).toHaveCount(1) // four-pane mark beside the heading; decorative
-  expect(await heading.locator('svg path').count()).toBe(4)
-  await expect(section.getByText('Where it runs')).toBeVisible()
-  await page.getByRole('tab', { name: 'About AuthLens', exact: true }).click()
-  await expect(tray).toHaveCount(0)
-})
-
 test('the runtime note says what each deployment needs', async ({ page }) => {
   const section = await open(page)
   await section.getByText('Where it runs').click()
-  await expect(section).toContainText('Windows Desktop: only while AuthLens is running')
+  await expect(section).toContainText('Windows Desktop: only while the AuthLens window is open')
   await expect(section).toContainText('Windows service, Linux server or systemd')
 })
 

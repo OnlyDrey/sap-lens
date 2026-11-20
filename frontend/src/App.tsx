@@ -1,11 +1,10 @@
 import {useSodSubject,useSodContext} from '@/components/Sod/SodShared'
-import {applicationToken} from '@/api/client'
 import { MainNavigation, MainNavigationGroup, MainNavigationItem } from '@/components/Shared/Navigation'
 import { SOD_VIEWS, USER_ACCESS_VIEWS } from '@/lib/navigationItems'
 import { pageHref, sodHref, useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { userAccessHref } from '@/hooks/useViewHistory'
 import { DISCARD_PROMPT, settingsDirty } from '@/lib/settingsGuard'
-import { lazy, Suspense, useState, useCallback, useRef, useLayoutEffect, useEffect } from 'react'
+import { lazy, Suspense, useState, useCallback, useRef, useLayoutEffect } from 'react'
 import { LoadingState } from '@/components/Shared/Presentation'
 import { AppLayout } from '@/components/Layout/AppLayout'
 import { RoleList } from '@/components/RoleList/RoleList'
@@ -35,13 +34,6 @@ export function App() {
   const configuration = useQuery({ queryKey: ['configuration'], queryFn: fetchConfiguration })
   // Unknown (still loading or unreadable) keeps the entry; only an explicit saved "off" hides it.
   const sodEnabled = configuration.data?.settings.features?.sod !== false
-  useEffect(()=>{
-    const open=()=>{if(window.pywebview?.api.desktop_runtime)change({settings:true})}
-    const ready=()=>{void window.pywebview?.api.desktop_frontend_ready?.(applicationToken()).catch(()=>{})}
-    window.addEventListener('sap-lens-open-settings',open);window.addEventListener('pywebviewready',ready)
-    window.__sapLensSettingsReady=true;ready()
-    return()=>{window.__sapLensSettingsReady=false;window.removeEventListener('sap-lens-open-settings',open);window.removeEventListener('pywebviewready',ready)}
-  },[change])
   const [visited, setVisited] = useState(() => new Set([page]))
   const scrollPositions = useRef<Record<string, number>>({})
   const navigate = (next: 'dashboard'|'roles'|'users'|'releases'|'sod') => { scrollPositions.current[page] = window.scrollY; setVisited(previous => new Set([...previous, next])); change({page:next, detailRole:null, settings:false}) }

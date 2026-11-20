@@ -5,7 +5,7 @@ import {
   type Page,
   type APIRequestContext,
 } from '@playwright/test'
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers } from './support'
@@ -251,7 +251,7 @@ test('snapshot preview is paginated and filters quality warnings after automatic
 
 })
 
-test('change CSV export uses the authenticated native save bridge without browser downloads', async ({
+test('change CSV export downloads the change report with its header and changed records', async ({
   page,
   request,
 }) => {
@@ -262,38 +262,18 @@ test('change CSV export uses the authenticated native save bridge without browse
   writeFileSync(directory, directoryCsv(30))
   await refresh(page)
   await page.getByRole('button', { name: 'View Changes', exact: true }).click()
-  await page.evaluate(() => {
-    ;(window as any).__savedChanges = []
-    window.pywebview = {
-      api: {
-        choose_csv: async () => null,
-        save_refresh_changes_csv: async (token, filename, content) => {
-          ;(window as any).__savedChanges.push({ token, filename, content })
-          return true
-        },
-      },
-    }
-  })
-  let downloads = 0
-  page.on('download', () => downloads++)
+  const download = page.waitForEvent('download')
   await page
     .getByRole('dialog', { name: 'CSV data changes', exact: true })
     .getByRole('button', { name: 'Export changes CSV', exact: true })
     .click()
-  await expect(
-    page.getByText('Changes CSV saved locally.', { exact: true }),
-  ).toBeVisible()
-  const calls = await page.evaluate(() => (window as any).__savedChanges)
-  expect(calls).toHaveLength(1)
-  expect(calls[0].token).toBe('browser-test-session')
-  expect(calls[0].filename).toMatch(
-    /^authlens-refresh-changes-report-\d{4}-\d{2}-\d{2}\.csv$/,
-  )
-  expect(calls[0].content).toContain(
+  const file = await download
+  expect(file.suggestedFilename()).toBe('AuthLens-refresh-changes.csv')
+  const content = readFileSync((await file.path())!, 'utf8')
+  expect(content).toContain(
     '\ufeff"Timestamp","Source","Change","Identifier","Field","Before","After"\r\n',
   )
-  expect(calls[0].content).toContain('CN=DEMO_30')
-  expect(downloads).toBe(0)
+  expect(content).toContain('CN=DEMO_30')
 })
 
 for (const { theme, width } of layoutMatrix([375, 800, 1280]))

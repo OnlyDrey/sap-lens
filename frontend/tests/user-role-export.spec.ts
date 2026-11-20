@@ -82,16 +82,6 @@ test('CSV includes every filtered page, exact identifiers, dates, UTF-8 and safe
   const expired = readFileSync((await (await expiredPromise).path())!, 'utf8')
   expect(expired).toContain('ZC:EXPIRED'); expect(expired).not.toContain(business)
 })
-test('desktop CSV uses authenticated native save instead of a blocked browser download', async ({ page }) => {
-  await openUser(page)
-  await page.evaluate(() => {
-    window.pywebview = { api: { choose_csv: async () => null, save_user_access_csv: async (token, filename, content) => { (window as unknown as { saved: unknown }).saved = { token, filename, content }; return true } } }
-  })
-  await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'CSV exported.' })).toBeVisible()
-  const saved = await page.evaluate(() => (window as unknown as { saved: { token: string; content: string } }).saved)
-  expect(saved.token).toBe('browser-test-session'); expect(saved.content).toContain(business)
-})
 for (const theme of ['light', 'dark']) for (const width of [800, 1280]) test(`separate validity and lock indicators ${theme} ${width}`, { tag: '@visual' }, async ({ page, request }, info) => {
   const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
   settings.theme = theme; await request.post('/api/configuration', { headers, data: settings })
@@ -148,17 +138,4 @@ test('changed source generation aborts export rather than downloading mixed page
   await page.getByRole('textbox', { name: 'Find roles by transaction' }).fill('NO_SUCH_TRANSACTION')
   await expect(page.getByRole('button', { name: 'Search', exact: true })).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Export CSV', exact: true })).toBeDisabled()
-})
-
-test('desktop cancellation and unavailable bridge provide feedback without browser fallback', async ({ page }) => {
-  await openUser(page)
-  let downloaded = false
-  page.on('download', () => { downloaded = true })
-  await page.evaluate(() => { window.pywebview = { api: { choose_csv: async () => null, save_user_access_csv: async () => false } } })
-  await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
-  await expect(page.getByRole('status').filter({ hasText: 'Export cancelled.' })).toBeVisible()
-  await page.evaluate(() => { delete window.pywebview!.api.save_user_access_csv })
-  await page.getByRole('button', { name: 'Export CSV', exact: true }).click()
-  await expect(page.getByRole('alert').filter({ hasText: 'Update the desktop application.' })).toBeVisible()
-  expect(downloaded).toBe(false)
 })

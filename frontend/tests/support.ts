@@ -48,6 +48,12 @@ export async function saveConfiguration(request: APIRequestContext, settings: Re
 }
 
 export const headers = { 'X-SAP-Lens': 'browser-test-session' }
+/** Activates a CSV the server can read by its absolute path (the "location" field of a source, committed with Enter). */
+export const activateSourcePath = async (area: Locator, file: string) => {
+  const field = area.getByRole('textbox', { name: /location$/ })
+  await field.fill(file)
+  await field.press('Enter')
+}
 export const sessionUrl = '/#session=browser-test-session'
 
 /** Return the test server to first-run defaults (the server and its storage are per Playwright process). */
@@ -118,10 +124,10 @@ export async function pickMulti(scope: Page | Locator, label: string, option: st
  *  recorder keeps the real `navigator.clipboard.writeText` call (permissions, failures) and stores each value that was written successfully in
  *  this page; `copiedText` returns the latest one and is polled with `expect.poll`. Install it before the copy, ideally before navigating. */
 const installClipboardRecorder = () => {
-  const target = window as Window & { __sapLensCopied?: string[] }, clipboard = navigator.clipboard
-  if (!clipboard || target.__sapLensCopied) return
+  const target = window as Window & { __authLensCopied?: string[] }, clipboard = navigator.clipboard
+  if (!clipboard || target.__authLensCopied) return
   const write = clipboard.writeText.bind(clipboard), copied: string[] = []
-  target.__sapLensCopied = copied
+  target.__authLensCopied = copied
   clipboard.writeText = async (text: string) => { await write(text); copied.push(text) }
 }
 export async function recordClipboard(page: Page) {
@@ -129,4 +135,4 @@ export async function recordClipboard(page: Page) {
   await page.addInitScript(installClipboardRecorder)
   await page.evaluate(installClipboardRecorder)
 }
-export const copiedText = (page: Page) => page.evaluate(() => (window as Window & { __sapLensCopied?: string[] }).__sapLensCopied?.at(-1) ?? null)
+export const copiedText = (page: Page) => page.evaluate(() => (window as Window & { __authLensCopied?: string[] }).__authLensCopied?.at(-1) ?? null)

@@ -4,7 +4,7 @@ autumn hour), readable descriptions, parse and validation errors, and the previe
 Usage: python -I tools/cron_reference.py BACKEND_DIR OUT_JSON"""
 import json, os, sys, tempfile
 from datetime import datetime, timezone
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, target = sys.argv[1:3]
 sys.path.insert(0, backend)
 import cron_schedule as schedule

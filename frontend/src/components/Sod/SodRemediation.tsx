@@ -129,7 +129,7 @@ export function RemediationView() {
     try {
       const exportParams = scopeParams(context, filters, { recommended })
       if (format === 'role-assignments') exportParams.set('format', format) // detailed keeps the original request unchanged
-      const name = await downloadFile('/api/sod/remediation/export', { params: exportParams, namePattern: EXPORT_NAME, kind: 'csv' })
+      const name = await downloadFile('/api/sod/remediation/export', { params: exportParams, namePattern: EXPORT_NAME })
       announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (cause) {
       announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })

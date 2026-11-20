@@ -54,7 +54,7 @@ function useExport() {
   const run = async (path: string, body: unknown, kind: 'csv' | 'document', label: string) => {
     setBusy(true)
     try {
-      const name = await downloadFile(path, { method: 'POST', body, namePattern: kind === 'csv' ? /^authlens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/ : REPORT_NAME, kind })
+      const name = await downloadFile(path, { method: 'POST', body, namePattern: kind === 'csv' ? /^authlens-sod-access-remediation-\d{4}-\d{2}-\d{2}\.csv$/ : REPORT_NAME })
       announceExport(name ? { kind: 'success', message: `${label} exported as ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (error) {
       announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'Report export failed.' })

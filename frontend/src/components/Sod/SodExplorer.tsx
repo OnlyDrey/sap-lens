@@ -173,7 +173,7 @@ function ExplorerTable({ table, onTable }: { table: TableName; onTable: (value: 
   const download = async (path: string, namePattern: RegExp, extra: Record<string, string> = {}) => {
     setBusy(true)
     try {
-      const name = await downloadFile(path, { params: scopeParams(context, filters, { ...queue, ...extra }), namePattern, kind: 'csv' })
+      const name = await downloadFile(path, { params: scopeParams(context, filters, { ...queue, ...extra }), namePattern })
       announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (cause) {
       announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })

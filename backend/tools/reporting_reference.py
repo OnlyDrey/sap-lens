@@ -3,7 +3,7 @@ render_docx, extracts them with independent parsers (poppler pdftotext/pdfinfo, 
 images (PNG, JPEG with EXIF, WebP, animated GIF/WebP, corrupt, truncated, oversized, tiny, SVG). Writes everything to OUT_DIR.
 Usage: python -I tools/reporting_reference.py BACKEND_DIR OUT_DIR"""
 import io, json, os, subprocess, sys, tempfile
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, out = sys.argv[1:3]
 sys.path.insert(0, backend)
 from pathlib import Path

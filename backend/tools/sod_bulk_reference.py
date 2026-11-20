@@ -3,7 +3,7 @@ functions on the synthetic small dataset (Fixtures/sod/analysis). Items are name
 Usage: python -I tools/sod_bulk_reference.py BACKEND_DIR FIXTURE_DIR OUT.json"""
 import json, os, shutil, sys, tempfile
 from datetime import datetime, timezone
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, fixtures, out = sys.argv[1:4]
 sys.path.insert(0, backend)
 from fastapi import HTTPException

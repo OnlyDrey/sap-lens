@@ -46,7 +46,7 @@ function Queue() {
   const exportCsv = async () => {
     setBusy(true)
     try {
-      const name = await downloadFile('/api/sod/queue/export', { params: scopeParams(context, filters), namePattern: EXPORT_NAME, kind: 'csv' })
+      const name = await downloadFile('/api/sod/queue/export', { params: scopeParams(context, filters), namePattern: EXPORT_NAME })
       announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (cause) {
       announceExport({ kind: 'error', message: cause instanceof Error ? cause.message : 'Export failed.' })

@@ -23,7 +23,7 @@ import {
 import { useEffect, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { ArrowLeftRight, Download, ArrowUpRight } from 'lucide-react'
-import { apiRequest, applicationToken } from '@/api/client'
+import { apiRequest } from '@/api/client'
 import {
   accessQuery,
   type Assignment,
@@ -455,26 +455,15 @@ export function UserComparison({
         throw Error('Source changed; export cancelled.')
       const filename = `authlens-user-comparison-review-${data.as_of}.csv`,
         content = chunks.join('')
-      if (window.pywebview) {
-        if (!window.pywebview.api.save_user_access_csv)
-          throw Error('Update the desktop application for CSV export.')
-        const saved = await window.pywebview.api.save_user_access_csv(
-          applicationToken(),
-          filename,
-          content,
-        )
-        announceExport(saved ? { kind: 'success', message: 'Comparison CSV saved.' } : { kind: 'info', message: 'Export cancelled.' })
-      } else {
-        const url = URL.createObjectURL(
-            new Blob([content], { type: 'text/csv;charset=utf-8' }),
-          ),
-          link = document.createElement('a')
-        link.href = url
-        link.download = filename
-        link.click()
-        setTimeout(() => URL.revokeObjectURL(url), 1000)
-        announceExport({ kind: 'success', message: 'Comparison CSV exported.' })
-      }
+      const url = URL.createObjectURL(
+          new Blob([content], { type: 'text/csv;charset=utf-8' }),
+        ),
+        link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+      announceExport({ kind: 'success', message: 'Comparison CSV exported.' })
     } catch (e) {
       announceExport({ kind: 'error', message: (e as Error).message })
     } finally {

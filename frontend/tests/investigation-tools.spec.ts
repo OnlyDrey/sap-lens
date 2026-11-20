@@ -506,24 +506,15 @@ test('transaction investigation and browser Back retain comparison users and fil
   ).toHaveValue('transactions')
 })
 
-test('leaving comparison cancels a pending CSV before the native save dialog', async ({
+test('leaving comparison cancels a pending CSV export before it downloads', async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
   await comparison(page)
   await choose(page, 'User A', 'DEMO_A')
   await choose(page, 'User B', 'DEMO_B')
-  await page.evaluate(() => {
-    ;(window as any).exportCalls = 0
-    ;(window as any).pywebview = {
-      api: {
-        save_user_access_csv: async () => {
-          ;(window as any).exportCalls++
-          return true
-        },
-      },
-    }
-  })
+  let downloads = 0
+  page.on('download', () => downloads++)
   let release!: () => void, started!: () => void
   const gate = new Promise<void>((resolve) => {
       release = resolve
@@ -553,39 +544,25 @@ test('leaving comparison cancels a pending CSV before the native save dialog', a
         requestAnimationFrame(() => requestAnimationFrame(resolve)),
       ),
   )
-  expect(await page.evaluate(() => (window as any).exportCalls)).toBe(0)
+  expect(downloads).toBe(0)
 })
 
-test('comparison export uses guarded native bridge and retains distinct assignment intervals', async ({
+test('comparison export downloads a CSV that retains distinct assignment intervals', async ({
   page,
 }) => {
   await page.goto('/#session=browser-test-session')
   await comparison(page)
   await choose(page, 'User A', 'DEMO_A')
   await choose(page, 'User B', 'DEMO_B')
-  await page.evaluate(() => {
-    ;(window as any).comparisonExport = null
-    ;(window as any).pywebview = {
-      api: {
-        save_user_access_csv: async (
-          token: string,
-          filename: string,
-          content: string,
-        ) => {
-          ;(window as any).comparisonExport = { token, filename, content }
-          return true
-        },
-      },
-    }
-  })
+  const download = page.waitForEvent('download')
   await page
     .getByRole('button', { name: 'Export comparison CSV', exact: true })
     .click()
+  const file = await download
   await expect(
-    page.getByText('Comparison CSV saved.', { exact: true }),
+    page.getByText('Comparison CSV exported.', { exact: true }),
   ).toBeVisible()
-  const exported = await page.evaluate(() => (window as any).comparisonExport)
-  expect(exported.token).toBe('browser-test-session')
+  const exported = { filename: file.suggestedFilename(), content: readFileSync((await file.path())!, 'utf8') }
   expect(exported.filename).toMatch(
     /^authlens-user-comparison-review-\d{4}-\d{2}-\d{2}\.csv$/,
   )

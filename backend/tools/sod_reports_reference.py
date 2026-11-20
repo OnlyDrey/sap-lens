@@ -4,7 +4,7 @@ and builds report models for several option sets. Output: the period, its frozen
 Usage: python -I tools/sod_reports_reference.py BACKEND_DIR DATA_DIR(roles.csv users.csv sod.csv) OUT.json"""
 import json, os, sys, tempfile
 from datetime import date
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, data, out = sys.argv[1:4]
 sys.path.insert(0, backend)
 import cache, config

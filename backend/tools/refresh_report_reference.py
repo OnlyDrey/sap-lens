@@ -5,7 +5,7 @@ result of csv_lifecycle.diff_records over the records v1 itself parses (cache._b
 routers/data_sources.py `details` page and `export` CSV for a set of filters, over a report holding that result.
 Usage: python -I tools/refresh_report_reference.py BACKEND_DIR FIXTURE_DIR"""
 import asyncio, json, os, shutil, sys, tempfile
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, fixtures = sys.argv[1:3]
 sys.path.insert(0, backend)
 from pathlib import Path

@@ -126,7 +126,7 @@ loading, search, privacy, manager navigation and light/dark layouts. Existing SA
 CSV and package integrity tests remain required.
 
 Before distribution, run the canonical Windows build and packaged EXE smoke tests,
-then manually test WebView2, the native file dialog, Unicode paths and a real
+then manually test WebView2, the browser file picker, Unicode paths and a real
 permitted UNC share. Linux browser and unit tests do not validate those native
 Windows behaviors. No real employee data should enter test logs or build inputs.
 

@@ -16,7 +16,7 @@ import { useApplicationData } from '@/state/ApplicationData'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ArrowRightLeft, ArrowUpRight, ClipboardCheck, ClipboardList, Download, History, Save, SearchX, UserMinus } from 'lucide-react'
-import { apiRequest, applicationToken } from '@/api/client'
+import { apiRequest } from '@/api/client'
 import { useHistoryValue, useViewHistory } from '@/hooks/useViewHistory'
 import { AccountStatus } from '@/components/Shared/AccountStatus'
 import { FilterChip } from '@/components/Shared/FilterChip'
@@ -359,17 +359,6 @@ export function AccountReview({ onUser }: { onUser: (name: string) => void }) {
         throw Error('Review evidence changed. Refresh before exporting.')
       const content = lines.join(''),
         filename = `authlens-account-review-review-${new Date().toISOString().slice(0, 10)}.csv`
-      if (window.pywebview) {
-        if (!window.pywebview.api.save_user_access_csv)
-          throw Error('Update the desktop application to export CSV.')
-        const saved = await window.pywebview.api.save_user_access_csv(
-          applicationToken(),
-          filename,
-          content,
-        )
-        setFeedback(saved ? 'Review CSV saved.' : 'CSV export cancelled.')
-        return
-      }
       const url = URL.createObjectURL(
           new Blob([content], { type: 'text/csv;charset=utf-8' }),
         ),

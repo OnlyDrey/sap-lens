@@ -7,7 +7,7 @@ acceptance, risk review, an assignment that reappeared after its decision) and w
 review item, so the .NET port is compared with v1 on the same events."""
 import json, os, sys, tempfile
 from datetime import date
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, data, out = sys.argv[1:4]
 sys.path.insert(0, backend)
 import cache

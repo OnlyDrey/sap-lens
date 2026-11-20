@@ -2,6 +2,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { cleanup, headers, seedGovernance } from './sod-fixture'
+import { activateSourcePath } from './support'
 
 let directory = ''
 test.beforeEach(async ({ request }) => { directory = await seedGovernance(request, 'static') })
@@ -26,7 +27,7 @@ test('Browse / Upload file is always available, with one label, even when a sour
   }
 })
 
-test('without native browsing the single primary action opens the browser file picker', async ({ page }) => {
+test('the single primary action opens the browser file picker', async ({ page }) => {
   const area = await openSource(page, 'Role Catalogue')
   await expect(area.getByRole('button', { name: 'Browse / Upload file', exact: true })).toHaveCount(1)
   const chooser = page.waitForEvent('filechooser')
@@ -35,8 +36,7 @@ test('without native browsing the single primary action opens the browser file p
   await expect(area.locator('details button').filter({hasText:'Browse'})).toHaveCount(0)
 })
 
-test.describe('with the desktop file dialog', () => {
-  test.beforeEach(async ({ page }) => { await page.addInitScript(() => { (window as any).selectedCSV = ''; (window as any).pywebview = { api: { choose_csv: async () => (window as any).selectedCSV, desktop_runtime: async () => ({ windows: true, startup_supported: true, tray_available: false, warning: null }) } } }) })
+test.describe('by server-visible path', () => {
 
   test('an invalid or empty replacement leaves the configured file and data untouched; a valid one is confirmed by name', async ({ page, request }) => {
     const area = await openSource(page, 'Role Catalogue')
@@ -45,8 +45,7 @@ test.describe('with the desktop file dialog', () => {
     const bad = path.join(directory, 'bad-replacement.csv'); writeFileSync(bad, 'NOT_A_ROLE_COLUMN\nx\n')
     const empty = path.join(directory, 'empty-replacement.csv'); writeFileSync(empty, 'AGR_NAME,TEXT,CHILD_AGR,TCODE\n')
     for (const file of [bad, empty]) {
-      await page.evaluate((value) => { (window as any).selectedCSV = value }, file)
-      await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
+      await activateSourcePath(area, file)
       await expect(area.getByRole('alert')).toContainText('No source data was replaced')
       await expect(area.getByRole('alert')).toContainText('The active file is unchanged')
       await expect(field).toHaveValue(file) // the attempted file stays visible for correction, the configured file stays active
@@ -55,16 +54,14 @@ test.describe('with the desktop file dialog', () => {
     const after = await settings(request)
     expect([after.data_csv_path, after.data_lifecycle.sources.roles?.snapshot, after.revision]).toEqual([before.data_csv_path, before.data_lifecycle.sources.roles?.snapshot, before.revision])
     const good = path.join(directory, 'good-replacement.csv'); writeFileSync(good, 'AGR_NAME,TEXT,CHILD_AGR,TCODE\nROLE_NEW,Synthetic ROLE_NEW,ZS:ROLE_NEW,X1\n')
-    await page.evaluate((value) => { (window as any).selectedCSV = value }, good)
-    await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
+    await activateSourcePath(area, good)
     await expect(area.getByRole('status').filter({ hasText: /Completed · 1 source records from good-replacement\.csv/ })).toBeVisible()
     await expect(field).toHaveValue(good)
     expect((await settings(request)).data_csv_path).toBe(good)
   })
 })
 
-test.describe('SoD Matrix replacement with the desktop file dialog', () => {
-  test.beforeEach(async ({ page }) => { await page.addInitScript(() => { (window as any).selectedCSV = ''; (window as any).pywebview = { api: { choose_csv: async () => (window as any).selectedCSV, desktop_runtime: async () => ({ windows: true, startup_supported: true, tray_available: false, warning: null }) } } }) })
+test.describe('SoD Matrix replacement by server-visible path', () => {
   const HEADER = 'RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT\n'
 
   test('a failed SoD import keeps the last valid matrix and its inspection', async ({ page, request }) => {
@@ -73,8 +70,7 @@ test.describe('SoD Matrix replacement with the desktop file dialog', () => {
     const bad = path.join(directory, 'sod-bad.csv'); writeFileSync(bad, 'RISK,TYPE\nR1,S\n')
     const empty = path.join(directory, 'sod-empty.csv'); writeFileSync(empty, HEADER)
     for (const file of [bad, empty]) {
-      await page.evaluate((value) => { (window as any).selectedCSV = value }, file)
-      await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
+      await activateSourcePath(area, file)
       await expect(area.getByRole('alert')).toContainText('No source data was replaced')
       await expect(area.getByRole('button', { name: 'Browse / Upload file', exact: true })).toBeEnabled()
     }
@@ -88,8 +84,7 @@ test.describe('SoD Matrix replacement with the desktop file dialog', () => {
     const area = await openSource(page, 'SoD Matrix')
     const rows = [['R9', 'H', 'S', 'Synthetic', 'A', 'B', 'ACTVT1', 'A', 'X1', ''], ['R9', 'H', 'S', 'Synthetic', 'A', 'B', 'ACTVT2', 'B', 'X1', ''], ['R8', 'M', 'X', 'Other type', 'C', 'D', 'ACTVT1', 'C', 'X2', 'Described'], ['R8', 'M', 'X', 'Other type', 'C', 'D', 'ACTVT2', 'D', 'X3', 'Described']]
     const file = path.join(directory, 'sod-warnings.csv'); writeFileSync(file, HEADER + rows.map((row) => row.join(',')).join('\n') + '\n')
-    await page.evaluate((value) => { (window as any).selectedCSV = value }, file)
-    await area.getByRole('button', { name: 'Browse / Upload file', exact: true }).click()
+    await activateSourcePath(area, file)
     await expect(area.getByRole('status').filter({ hasText: /Completed · 4 source records from sod-warnings\.csv/ })).toBeVisible()
     await area.getByRole('button', { name: 'Preview data', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'SoD Matrix source inspection', exact: true })

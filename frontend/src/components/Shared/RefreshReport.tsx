@@ -139,29 +139,14 @@ export function RefreshReportDialog({
         reader.releaseLock()
       }
       const content = '\ufeff' + parts.join('').replace(/^\ufeff/, '')
-      if (window.pywebview) {
-        if (!window.pywebview.api.save_refresh_changes_csv)
-          throw Error(
-            'Update the desktop application for change-report export.',
-          )
-        const saved = await window.pywebview.api.save_refresh_changes_csv(
-          applicationToken(),
-          `authlens-refresh-changes-report-${(data?.timestamp || report.timestamp).slice(0, 10)}.csv`,
-          content,
-        )
-        setExportFeedback(
-          saved ? 'Changes CSV saved locally.' : 'Export cancelled.',
-        )
-      } else {
-        const url = URL.createObjectURL(
-            new Blob([content], { type: 'text/csv;charset=utf-8' }),
-          ),
-          link = document.createElement('a')
-        link.href = url
-        link.download = 'AuthLens-refresh-changes.csv'
-        link.click()
-        setTimeout(() => URL.revokeObjectURL(url), 1000)
-      }
+      const url = URL.createObjectURL(
+          new Blob([content], { type: 'text/csv;charset=utf-8' }),
+        ),
+        link = document.createElement('a')
+      link.href = url
+      link.download = 'AuthLens-refresh-changes.csv'
+      link.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
     } catch (e) {
       setExportError(e instanceof Error ? e.message : 'Export failed.')
     }

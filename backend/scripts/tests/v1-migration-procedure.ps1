@@ -6,7 +6,7 @@
   installation. Steps: host key, preview with the recovery key file, refusal of a wrong key, run, activation at the next start, HTTP check, status,
   rollback at the next start. Exits 0 when every step behaves as documented, 1 otherwise.
 .EXAMPLE
-  pwsh -File scripts/tests/v1-migration-procedure.ps1 -Exe C:\sap-lens\release\server\AuthLens.Api.exe -Root C:\sap-lens\procedure-test
+  pwsh -File scripts/tests/v1-migration-procedure.ps1 -Exe C:\AuthLens-Test\release\server\AuthLens.Api.exe -Root C:\AuthLens-Test\procedure-test
 #>
 param(
     [Parameter(Mandatory)] [string] $Exe,

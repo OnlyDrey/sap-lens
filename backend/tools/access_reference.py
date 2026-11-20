@@ -2,7 +2,7 @@
 (Fixtures/sod/analysis roles/users). Usage: python -I tools/access_reference.py BACKEND_DIR DATA_DIR QUERIES.json OUT.json
 Each query: {name, ...directory filters}; output per name: {total, usernames, count, csv_sha256 (UTF-8 of the exact export body), csv_head (first 3 lines)}."""
 import asyncio, hashlib, json, os, sys, tempfile
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, data, queries_path, out = sys.argv[1:5]
 sys.path.insert(0, backend)
 import cache

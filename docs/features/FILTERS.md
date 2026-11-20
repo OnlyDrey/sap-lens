@@ -231,8 +231,8 @@ that pattern and still clears only comparison selections.
 User Details searches only the selected user's supported ZC/ZO assignments, with
 its current role-family and validity filters. CSV export waits until live filters
 have settled and exports all matching pages, including active uncommitted text.
-Generation/count/date checks, formula protection and the native save contract are
-unchanged. Source dates in CSV remain ISO, including `9999-12-31`.
+Generation/count/date checks and formula protection are unchanged; every export is a
+browser download (Desktop included). Source dates in CSV remain ISO, including `9999-12-31`.
 
 Sidebar filters examine all single-role transaction mappings, including collapsed
 sections. Every matching section is shown and opened; matching rows are highlighted.

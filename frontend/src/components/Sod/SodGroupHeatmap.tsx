@@ -60,7 +60,7 @@ export function SodGroupHeatmap() {
   const exportCsv = async () => {
     setBusy(true)
     try {
-      const name = await downloadFile(`/api/sod/matrix/${kind}/group-export`, { params: scopeParams(context, emptyFilters), namePattern: EXPORT_NAME, kind: 'csv' })
+      const name = await downloadFile(`/api/sod/matrix/${kind}/group-export`, { params: scopeParams(context, emptyFilters), namePattern: EXPORT_NAME })
       announceExport(name ? { kind: 'success', message: `Exported ${name}.` } : { kind: 'info', message: 'Export cancelled.' })
     } catch (error) {
       announceExport({ kind: 'error', message: error instanceof Error ? error.message : 'Export failed.' })

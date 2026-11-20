@@ -4,34 +4,28 @@ import { headers } from './support'
 
 const testOrigin = `http://127.0.0.1:${process.env.AUTHLENS_BROWSER_TEST_PORT || 18745}`
 
-// This exercises the bridge contract with a stub; Windows verifies the real window,
-// and the native picker itself remains on the manual Windows checklist.
-test('first launch, native picker contract, invalid CSV, persistence and private session reload', { tag: '@smoke' }, async ({ page, request }) => {
+// Windows verifies the real WebView2 window on the manual checklist.
+test('first launch, path activation, invalid CSV, persistence and private session reload', { tag: '@smoke' }, async ({ page, request }) => {
   expect((await request.post('/api/configuration/reset', {headers: {'X-SAP-Lens': 'browser-test-session'}})).ok()).toBeTruthy()
   const file = path.resolve('tests/fixtures/role-catalogue-minimal.csv')
   const errors: string[] = []
   const external: string[] = []
   page.on('pageerror', error => errors.push(error.message))
   page.on('request', request => { if (!request.url().startsWith(`${testOrigin}/`)) external.push(request.url()) })
-  await page.addInitScript(({ file }) => {
-    window.pywebview = { api: { choose_csv: async token => {
-      if (token !== 'browser-test-session') throw new Error('Wrong desktop session')
-      return file
-    } } }
-  }, { file })
   await page.goto('/#session=browser-test-session')
   await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeVisible()
   expect(new URL(page.url()).hash).toBe('#/dashboard')
   expect(page.url()).not.toContain('browser-test-session')
   expect(await page.evaluate(()=>JSON.stringify(history.state))).not.toContain('browser-test-session')
   await expect(page.getByRole('button', { name: 'Browse / Upload file' })).toBeEnabled()
-  await page.getByRole('button', { name: 'Browse / Upload file' }).click()
-  await expect(page.getByLabel('CSV file location', {exact:true})).toHaveValue(file)
+  await page.getByLabel('CSV file location', {exact:true}).fill(file)
+  await page.getByLabel('CSV file location', {exact:true}).press('Enter')
   await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
   await page.getByLabel('CSV file location', {exact:true}).fill(path.resolve('tests/fixtures/missing.csv'))
   await page.getByLabel('CSV file location',{exact:true}).press('Enter')
   await expect(page.getByRole('alert')).toContainText('CSV file not found')
-  await page.getByRole('button', { name: 'Browse / Upload file' }).click()
+  await page.getByLabel('CSV file location', {exact:true}).fill(file)
+  await page.getByLabel('CSV file location', {exact:true}).press('Enter')
   await expect(page.getByRole('status').filter({hasText:'Completed ·'})).toBeVisible()
   await page.getByRole('button', { name: 'Back to AuthLens',exact:true }).click()
   await expect(page.getByRole('region',{name:'AuthLens settings',exact:true})).toBeHidden()
@@ -45,8 +39,6 @@ test('first launch, native picker contract, invalid CSV, persistence and private
   await page.getByRole('tabpanel',{name:'Role Catalogue',exact:true}).getByRole('button',{name:'Technical source details',exact:true}).click()
   await expect(page.getByRole('dialog').locator('.ui-metadata-list>div').filter({has:page.getByText('Configured file',{exact:true})}).locator('dd')).toHaveText(file)
   await page.keyboard.press('Escape')
-  await page.evaluate(() => { window.pywebview!.api.choose_csv = async () => null })
-  await page.getByRole('button', { name: 'Browse / Upload file' }).click()
   await expect(page.getByLabel('CSV file location', {exact:true})).toHaveValue(file)
   await page.getByRole('button', { name: 'Back to AuthLens' }).click()
   await page.getByRole('button', { name: 'Refresh role data from CSV' }).click()

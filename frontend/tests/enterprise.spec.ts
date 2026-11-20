@@ -12,7 +12,6 @@ test('system identity, private logo storage, persisted theme and portable backup
   const logoData=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=320;canvas.height=80;const context=canvas.getContext('2d')!;context.fillStyle='#123456';context.fillRect(0,0,320,80);return canvas.toDataURL('image/png').split(',')[1]})
   writeFileSync(logoPath,Buffer.from(logoData,'base64'))
   page.on('dialog',dialog=>void dialog.accept())
-  await page.addInitScript(({logoPath})=>{window.pywebview={api:{choose_csv:async()=>null,choose_logo:async()=>logoPath}}},{logoPath})
   try {
     await page.goto('/#session=browser-test-session')
     await page.getByRole('tab',{name:'Organization & SAP System'}).click()
@@ -26,7 +25,8 @@ test('system identity, private logo storage, persisted theme and portable backup
     await page.getByRole('button',{name:'Open settings'}).click()
     await page.getByRole('tab',{name:'Appearance & Branding'}).click()
     await page.getByRole('combobox',{name:'Theme',exact:true}).selectOption('dark')
-    await page.getByRole('button',{name:'Select custom logo…'}).click()
+    await page.getByLabel('Logo file location',{exact:true}).fill(logoPath)
+    await page.getByRole('button',{name:'Preview logo'}).click()
     await expect(page.getByRole('img',{name:'Header logo preview',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
     await expect(page.getByRole('img',{name:'Selected header logo preview',exact:true})).toHaveAttribute('src',/^data:image\/png;base64,/)
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()

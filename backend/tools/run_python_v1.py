@@ -14,8 +14,8 @@ parser.add_argument('--config-dir', required=True)
 parser.add_argument('--roles', default='')
 parser.add_argument('--users', default='')
 args = parser.parse_args()
-os.environ['AUTHLENS_CONFIG_DIR'] = args.config_dir
-for name in ('AUTHLENS_DATA_DIR', 'AUTHLENS_DEPLOYMENT_MODE'):
+os.environ['SAP_LENS_CONFIG_DIR'] = args.config_dir
+for name in ('SAP_LENS_DATA_DIR', 'SAP_LENS_DEPLOYMENT_MODE'):
     os.environ.pop(name, None)
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # with -I the tool's own folder is not on sys.path
 from v1_location import v1_backend  # noqa: E402

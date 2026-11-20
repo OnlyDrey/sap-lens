@@ -15,6 +15,7 @@ export function About() {
       }>('/api/application-info'),
   })
   const info = query.data
+  const runtime = useQuery({ queryKey: ['runtime-capabilities'], queryFn: () => apiRequest<{ deployment_mode: string; browser_upload: boolean }>('/api/runtime'), staleTime: Infinity })
   return (
     <section className="settings-card space-y-4" aria-label="About AuthLens">
       <h2 className="settings-subheading">
@@ -32,9 +33,11 @@ export function About() {
         <dd>{info?.mode || 'Loading…'}</dd>
         <dt>Interface</dt>
         <dd>
-          {window.pywebview
-            ? 'Windows desktop / WebView2'
-            : 'Browser development session'}
+          {!runtime.data
+            ? 'Loading…'
+            : runtime.data.deployment_mode === 'server'
+              ? 'Server (browser access)'
+              : 'Desktop (WebView2) or local browser'}
         </dd>
       </dl>
       <details className="settings-advanced">

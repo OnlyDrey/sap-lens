@@ -3,7 +3,7 @@ Usage: python -I tools/release_reference.py BACKEND_DIR DATA_DIR QUERIES.json OU
 Each query: {name, route, ...query parameters}; JSON routes give the response without as_of/data_revision, CSV routes {csv_sha256, csv_head, count}."""
 import asyncio, hashlib, json, os, sys, tempfile
 from datetime import date
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, data, queries_path, out = sys.argv[1:5]
 sys.path.insert(0, backend)
 import cache

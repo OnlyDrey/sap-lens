@@ -26,15 +26,14 @@ test.beforeEach(async({request})=>{
 })
 test.afterEach(async({request})=>{await request.post('/api/configuration/reset',{headers});rmSync(root,{recursive:true,force:true})})
 test('tasks 15–16: assignment AND/OR and export use the same scope without repeated evidence',async({page})=>{
- await page.addInitScript(()=>{(window as any).exported='';(window as any).pywebview={api:{save_user_access_csv:async(_token:string,_name:string,text:string)=>{(window as any).exported=text;return true}}}})
  await page.goto('/#session=browser-test-session');const detail=await openUser(page)
  const input=detail.getByRole('textbox',{name:'Find roles by transaction',exact:true});await input.fill('MIGO');await input.press('Enter');await input.fill('ME23N');await input.press('Enter')
  await expect(detail.getByText('1 matching assignments',{exact:true})).toBeVisible();await expect(detail.getByRole('button',{name:'ALL',exact:true})).toHaveAttribute('aria-pressed','true')
  await detail.getByRole('button',{name:'ANY',exact:true}).click();await expect(detail.getByText('2 matching assignments',{exact:true})).toBeVisible()
  await detail.getByLabel('Assignment status',{exact:true}).selectOption('all');await expect(detail.getByText('3 matching assignments',{exact:true})).toBeVisible()
  await expect(detail.getByRole('region',{name:'Transaction search evidence',exact:true})).toHaveCount(0);await expect(detail.getByText('Catalogue coverage may be incomplete',{exact:true})).toBeVisible()
- await detail.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).exported)).toContain('Ålpha')
- const text=await page.evaluate(()=>(window as any).exported as string);expect(text.split('\r\n').filter(Boolean)).toHaveLength(4);expect(text.match(/ZC:SYN:B/g)).toHaveLength(2)
+ const download=page.waitForEvent('download');await detail.getByRole('button',{name:'Export CSV',exact:true}).click()
+ const text=readFileSync((await (await download).path())!,'utf8');expect(text).toContain('Ålpha');expect(text.split('\r\n').filter(Boolean)).toHaveLength(4);expect(text.match(/ZC:SYN:B/g)).toHaveLength(2)
 })
 test('tasks 17–18: directory evidence opens in a labeled modal and restores focus',{ tag: '@a11y' }, async({page})=>{
  await page.goto('/#session=browser-test-session');const detail=await openUser(page),trigger=detail.getByRole('button',{name:'Directory matching details · Matched',exact:true});await trigger.click()
@@ -155,16 +154,9 @@ test('task 31 export includes users beyond visible pagination',async({page,reque
  await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await page.getByLabel('Search users',{exact:true}).fill('PAGE_');await expect(page.locator('.user-directory-table tbody tr')).toHaveCount(50)
  const file=await downloadAssignments(page);expect(file.rows).toHaveLength(125);expect(new Set(file.rows.map(row=>row.USERNAME)).size).toBe(125)
 })
-test('task 31 desktop save uses existing capability and semicolon contract',async({page,request})=>{
- await prepareAssignmentExport(request);await page.addInitScript(()=>{(window as any).assignmentExports=[];(window as any).pywebview={api:{save_user_access_csv:async(token:string,filename:string,content:string)=>{(window as any).assignmentExports.push({token,filename,content});return true}}}})
- await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).assignmentExports.length)).toBe(1)
- await goTo(page,'Release Roles');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect.poll(()=>page.evaluate(()=>(window as any).assignmentExports.length)).toBe(2)
- const calls=await page.evaluate(()=>(window as any).assignmentExports);expect(calls.every((item:any)=>item.token==='browser-test-session'&&item.content.startsWith('\ufeff"USERNAME";"FIRST_NAME";'))).toBeTruthy();expect(calls[0].filename).toContain('user-directory');expect(calls[1].filename).toContain('release-roles')
-})
-
 test('task 31 stale export metadata is rejected before a download',async({page})=>{
  let downloads=0;page.on('download',()=>downloads++)
- await page.route('**/api/access/exports/users?**',async route=>{const response=await route.fetch();await route.fulfill({response,headers:{...response.headers(),'x-authlens-data-revision':'synthetic-stale'}})})
+ await page.route('**/api/access/exports/users?**',async route=>{const response=await route.fetch();await route.fulfill({response,headers:{...response.headers(),'x-sap-lens-data-revision':'synthetic-stale'}})})
  await page.goto('/#session=browser-test-session');await goTo(page,'User Access');await page.getByRole('button',{name:'Export CSV',exact:true}).click();await expect(page.getByRole('alert')).toContainText('Source data changed');expect(downloads).toBe(0)
 })
 test('task 31 filter changes cancel an in-flight export',async({page})=>{

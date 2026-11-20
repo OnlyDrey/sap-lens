@@ -1,7 +1,7 @@
 """Python v1 reference for POST /api/compare on the synthetic small dataset (Fixtures/sod/analysis roles).
 Usage: python -I tools/compare_reference.py BACKEND_DIR DATA_DIR QUERIES.json OUT.json  (each query: {name, roles}); output per name: the response."""
 import json, os, sys, tempfile
-os.environ['AUTHLENS_CONFIG_DIR'] = tempfile.mkdtemp()
+os.environ['SAP_LENS_CONFIG_DIR'] = tempfile.mkdtemp()
 backend, data, queries_path, out = sys.argv[1:5]
 sys.path.insert(0, backend)
 import cache
