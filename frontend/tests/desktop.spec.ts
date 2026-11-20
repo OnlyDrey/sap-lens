@@ -64,7 +64,8 @@ test('application information displays the resolved API identity for beta stable
   const health = await (await request.get('/health')).json()
   expect(actual.version).toBe(health.version)
   expect(actual.app).toBe('AuthLens')
-  expect((await request.get('/api/version')).status()).toBe(403)
+  const anonymous = await playwrightRequest.newContext({ baseURL: testOrigin, extraHTTPHeaders: { 'X-SAP-Lens-Token': '' } })
+  try { expect((await anonymous.get('/api/version')).status()).toBe(401) } finally { await anonymous.dispose() }   // no token: refused
   let identity = {app:'AuthLens',version:'0.1.0-beta-1',mode:'beta'}
   await page.route('**/api/version', route => route.fulfill({json:identity}))
   const footerVersion = page.getByRole('contentinfo').getByLabel('Application version', {exact:true}) // the footer; Settings also shows the version

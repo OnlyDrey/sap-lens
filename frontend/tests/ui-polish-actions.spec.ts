@@ -77,7 +77,8 @@ test('Settings navigation: keyboard focus is a separate outline and arrow keys m
   await expect(active).toBeFocused()
   expect(await active.evaluate(el => getComputedStyle(el).outlineStyle)).toBe('solid')
   await page.keyboard.press('ArrowDown')
-  const next = page.getByRole('tab', { selected: true })
+  // The Settings section list only: the next section (Component Library) renders tablists of its own.
+  const next = page.getByRole('tablist', { name: 'Settings sections', exact: true }).getByRole('tab', { selected: true })
   await expect(next).toBeFocused()
   await expect(next).not.toHaveText(/^Features$/)
   expect(await next.evaluate(el => getComputedStyle(el).borderBottomWidth)).toBe('0px')
