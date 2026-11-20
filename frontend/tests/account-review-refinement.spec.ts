@@ -359,9 +359,14 @@ test('directory records persist after the source CSV is removed and the page rel
 }) => {
   // AuthLens stores an activated directory durably in its database: removing the source CSV and reloading keeps the records.
   const before = (await (await request.get('/api/employees/status', { headers })).json()).report.records
+  const records = await (await request.get('/api/employees', { headers })).json()
+  const snapshot = (await current(request)).employee_snapshot_id
+  expect(snapshot).toMatch(/^[a-f0-9]{64}$/)
   unlinkSync(source)
   await page.goto('/#session=browser-test-session')
   await page.reload()
+  expect(await (await request.get('/api/employees', {headers})).json()).toEqual(records)
+  expect((await current(request)).employee_snapshot_id).toBe(snapshot)
   await page.getByRole('button', { name: 'Open settings', exact: true }).click()
   await page.getByRole('tab', { name: 'Data Sources', exact: true }).click()
   await page
@@ -476,6 +481,10 @@ for (const theme of ['light', 'dark'])
         animations: 'disabled',
       })
       await page.keyboard.press('Escape')
+      await expect(calendar).toBeHidden()
+      // Escape closes the nested calendar first, then its date-controls popover.
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('dialog', {name: 'Assignment date controls', exact: true})).toBeHidden()
       await closeFilters(page)
       await page
         .getByRole('button', { name: 'Open settings', exact: true })
@@ -496,9 +505,14 @@ test('unlicensed group policy can be edited, cleared and reloaded without suppre
   await page
     .getByLabel('Unlicensed SAP User Groups', { exact: false })
     .fill('EXEMPT, TECH REVIEW')
-  await page
-    .getByRole('button', { name: 'Apply settings', exact: true })
-    .click()
+  const apply = async () => {
+    const [saved] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname === '/api/configuration' && response.request().method() === 'POST'),
+      page.getByRole('button', {name: 'Apply settings', exact: true}).click(),
+    ])
+    expect(saved.ok(), await saved.text()).toBeTruthy()
+  }
+  await apply()
   expect((await current(request)).unlicensed_user_groups).toEqual([
     'EXEMPT',
     'TECH REVIEW',
@@ -515,9 +529,7 @@ test('unlicensed group policy can be edited, cleared and reloaded without suppre
     page.getByLabel('Unlicensed SAP User Groups', { exact: false }),
   ).toHaveValue('EXEMPT, TECH REVIEW')
   await page.getByLabel('Unlicensed SAP User Groups', { exact: false }).fill('')
-  await page
-    .getByRole('button', { name: 'Apply settings', exact: true })
-    .click()
+  await apply()
   expect((await current(request)).unlicensed_user_groups).toEqual([])
 })
 

@@ -1,6 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {backupDownloadFilename} from '../../src/lib/backupDownload.ts'
+import {attachmentFilename,backupDownloadFilename} from '../../src/lib/backupDownload.ts'
+
+test('report and workbook downloads share safe unquoted, quoted and UTF-8 filename parsing', () => {
+  const file = 'authlens-sod-reference-template.xlsx'
+  for (const header of [`attachment; filename=${file}`, `attachment; filename="${file}"`, `attachment; filename*=UTF-8''${file}`]) assert.equal(attachmentFilename(header), file)
+  for (const header of ['attachment; filename=../secret.xlsx', "attachment; filename*=UTF-8''..%2Fsecret.xlsx", 'attachment; filename*=UTF-8\'\'%zz']) assert.equal(attachmentFilename(header), undefined)
+})
 
 const id = 'a'.repeat(32)
 const name = `AuthLens-backup-${id}.slbak`

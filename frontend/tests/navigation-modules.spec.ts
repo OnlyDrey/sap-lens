@@ -4,12 +4,21 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers, postConfiguration } from './support'
+// Exercise the actual source-error banner independently of the Dashboard's first-run guidance.
+async function sourceWarning(page: import('@playwright/test').Page) {
+  await page.route('**/api/configuration', async route => {
+    if (route.request().method() !== 'GET') return route.continue()
+    const response = await route.fetch()
+    await route.fulfill({response, json: {...await response.json(), error: 'Choose a SAP role catalogue or user access CSV in Settings.'}})
+  })
+}
 const sections = ['Organization & SAP System', 'Data Sources', 'SAP Modules', 'Appearance & Branding', 'Health & Diagnostics']
 test.beforeEach(async ({ request }) => {
   expect((await request.post('/api/configuration/reset', { headers })).ok()).toBeTruthy()
 })
 
 test('data-source actions override every previous section while normal opening keeps navigation history', async ({ page }) => {
+  await sourceWarning(page)
   await page.goto('/#session=browser-test-session')
   for (const section of sections) {
     await page.getByRole('tab', { name: section, exact: true }).click()
@@ -34,6 +43,7 @@ test('data-source actions override every previous section while normal opening k
 })
 
 test('data warning follows the content container at wide and narrow desktop widths', async ({ page }) => {
+  await sourceWarning(page)
   await page.goto('/#session=browser-test-session')
   await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
   for (const width of [1920, 1280, 768]) {
@@ -57,7 +67,9 @@ for (const theme of ['light', 'dark'] as const) {
     await expect(tab).toHaveCSS('box-shadow', 'none')
     await expect(tab).toHaveCSS('border-left-width', '0px')
     await tab.press('ArrowDown')
-    await page.getByRole('tab', { name: 'SoD Risk Configuration', exact: true }).press('ArrowUp')
+    const next = page.getByRole('tab', { name: 'Runtime & Scheduling', exact: true })
+    await expect(next).toBeFocused()
+    await next.press('ArrowUp')
     await expect(tab).toBeFocused()
     await expect(tab).toHaveCSS('outline-style', 'solid')
     const colors = await page.locator('.module-list-row').evaluateAll((rows) => {
@@ -133,6 +145,7 @@ for (const theme of ['light', 'dark'] as const) for (const width of [1280, 390])
   test(`import source controls and review action are accessible in ${theme} at ${width}px`, { tag: ['@visual', '@a11y'] }, async ({ page, request }, info) => {
     expect((await request.post('/api/configuration/theme', { headers, data: { theme } })).ok()).toBeTruthy()
     await page.setViewportSize({ width, height: 900 })
+    await sourceWarning(page)
     await page.goto('/#session=browser-test-session')
     await page.getByRole('button', { name: 'Back to AuthLens', exact: true }).click()
     const action = page.getByRole('button', { name: 'Review data source', exact: true })

@@ -21,14 +21,15 @@ test('a clean start opens the application without any recovery screen', async ({
   await expect(card(page)).toHaveCount(0)
 })
 
-test('a session token from an earlier run is replaced automatically through the guarded document', async ({ page }) => {
+test('an obsolete legacy fragment does not invalidate the current native Desktop capability', async ({ page }) => {
   const documents = documentRequests(page)
   await page.goto('/#session=token-of-a-previous-run')
   await expect(appVisible(page)).toBeVisible()                                               // no click needed
   await expect(page.getByRole('button', { name: 'Reload trusted session' })).toHaveCount(0)
   await expect(page.getByRole('alert').filter({ hasText: 'no longer valid' })).toHaveCount(0)
-  expect(documents).toHaveLength(2)                                                          // the first load and exactly one restore
-  expect(await page.evaluate(() => sessionStorage.getItem('sap-lens-session'))).toBe('browser-test-session')
+  expect(documents).toHaveLength(1) // native WebView2 injects the current capability; the legacy fragment does not authorize API requests
+  expect((await (await page.request.get('/api/v1/session')).json()).authentication).toBe('token')
+  expect(await page.evaluate(() => Object.values(sessionStorage).includes('synthetic-browser-capability-0000000000000000'))).toBe(false)
   expect(page.url()).not.toContain('session=')                                               // the capability never stays in the address
 })
 

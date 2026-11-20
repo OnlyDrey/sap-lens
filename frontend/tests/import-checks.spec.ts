@@ -37,10 +37,11 @@ test('a sharply smaller valid file is held, shows the change report and activate
   await expect(dialog).toHaveCount(0)
   expect(await activeUsers(request)).toBe(40)
   await selectUsersFile(page)
+  const confirmed = page.waitForResponse(response => response.url().endsWith('/api/data-sources/users/select') && response.request().method() === 'POST' && response.status() === 200)
   await page.getByRole('dialog', { name: 'Confirm a much smaller import' }).getByRole('button', { name: 'Import anyway' }).click()
+  const confirmation = await (await confirmed).json()
   await expect.poll(() => activeUsers(request)).toBe(12)
-  const settings = (await (await request.get('/api/configuration', { headers })).json()).settings
-  expect(settings.data_lifecycle.confirmations.at(-1)).toMatchObject({ source: 'users', old_records: 80, new_records: 24 })
+  expect(confirmation.settings.data_lifecycle.confirmations.at(-1)).toMatchObject({ source: 'users', old_records: 80, new_records: 24 })
 })
 
 test('an invalid file is rejected without an option to confirm, and thresholds are editable in Settings', async ({ page, request }) => {

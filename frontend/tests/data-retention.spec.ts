@@ -105,7 +105,7 @@ test('restore holds keep previews available, block approval and retain expandabl
   await expect(panel.getByText(/Hold applied; previous approvals are void/)).toBeVisible()
 })
 
-for(const [width,theme] of [[375,'dark'],[1280,'light']] as const){
+for(const width of [375,800,1280,1600] as const) for(const theme of ['light','dark'] as const){
  test(`retention policies stay compact at ${width}px in ${theme}`,async({page,request},testInfo)=>{
   await request.post('/api/configuration/theme',{data:{theme}})
   try{

@@ -5,9 +5,9 @@ rules that came out of it live in the [naming register](../architecture/VERSIONI
 [installation layout](../deployment/WINDOWS_DEPLOYMENT.md#installation-layout) and
 [migrating from SAP Lens](../deployment/WINDOWS_DEPLOYMENT.md#migrating-from-sap-lens); this file is the audit trail, not a procedure.
 
-The per-file inventory is [authlens-inventory.json](authlens-inventory.json): every tracked file at the baseline and now, with status
+The per-file inventory is [authlens-inventory.json](authlens-inventory.json): the upstream rename checkpoint compared with 814c88d, with status
 (unchanged, changed, renamed with its previous path, added, removed), the naming references before and after, and for each remaining
-reference a classification and reason.
+reference a classification and reason. Its counts are historical; the Windows continuation below records subsequent changes. Its original documentation paths and license classification describe that checkpoint, before the approved archive move and product-reference update.
 
 ## 1. Scope and method
 
@@ -15,10 +15,10 @@ reference a classification and reason.
   searched for `SAP Lens`, `SapLens`, `sap-lens`, `SAP_LENS`, `saplens`; binaries were listed by name only.
 - **Not a global replace:** names were changed per category (identifiers, product text, file names, environment variables, paths), each with
   exclusions for persisted, cryptographic, API-contract and historical identifiers. Every exclusion is listed in the naming register.
-- **Result at the end of the work** (including the inventory file): 917 tracked files: 366 unchanged, 359 renamed, 181 changed in place,
-  11 added; 16 removed. 237 files still contain an earlier name; all of them are classified below. Only `LICENSE.md` needs an owner decision.
+- **Upstream rename checkpoint** (including the inventory file): 917 tracked files: 366 unchanged, 359 renamed, 181 changed in place,
+  11 added; 16 removed. 237 files still contain an earlier name; all of them are classified below. The licensing continuation changes product references only and leaves ownership and legal terms unchanged.
 
-## 2. Remaining earlier names by class
+## 2. Remaining earlier names at the upstream rename checkpoint
 
 | Class | Files | Why they stay |
 | --- | --- | --- |
@@ -128,7 +128,32 @@ Not run: the complete browser suite, and anything native on Windows (service, in
 
 ## 9. Technical debt found and not changed
 
-- `LICENSE.md` names SAP Lens (owner decision).
+- License product references were updated to AuthLens with explicit approval in the Windows continuation; legal clauses and ownership wording are unchanged.
 - Logo file names `sap-lens.png`/`sap-lens.ico` and the `saplens_session` cookie keep the earlier name (renaming gains nothing visible and the
   cookie change signs users out).
-- 15 browser tests remain open after the 2026-11-20 full run, classified in [release status](RELEASE_STATUS.md).
+- 15 browser tests remained open at the Linux checkpoint; current Windows results supersede them in [release status](RELEASE_STATUS.md).
+
+## Windows continuation assessment (2026-11-20, baseline 50bed6d)
+
+The checkout fast-forwarded from 814c88d to 50bed6d (18 commits; no divergent history). Pre-existing local work was retained in a named Git stash, reconciled through the AuthLens renames, and left available for recovery. Six superseded untracked drafts/helpers were moved byte-for-byte into an ignored preservation directory under build/test-artifacts, with SHA-256 manifest; they were not published or destroyed.
+
+| Area reviewed | Classification and disposition |
+| --- | --- |
+| Product metadata, namespaces, React identity, executables, logos | Correct at upstream baseline; keep version 2.0.0-alpha.1 and original assets. Historical protocol/storage names remain compatibility identifiers. |
+| Server paths and Desktop defaults | Correct canonical Server root; Desktop explicit data override was defective because logs/mutex still used the real profile. Explicit overrides now isolate data, logs, profile and mutex; native published Desktop self-check and location contracts passed. |
+| SQLite naming, schema identifiers, legacy adoption | Correct canonical database and explicit legacy-only refusal; preserve historical schema IDs and legacy readers. |
+| Import checks and activation | Local fixes preserve per-job policy, header-only rejection and existing data. They are reconciled rather than discarded. |
+| Managed source files and portable backup | Incomplete: observations persisted, raw CSV copies were missing from backups. Extended the existing import transaction/report metadata and backup engine, without schema changes. |
+| Accounts, roles, reviews, SoD evidence | SQLite holds immutable records and snapshots; source inspection confirms no extra evidence-file engine. Functional Groups and Desktop Account Review request aliases were defective attribution inputs; use the existing stable profile/account. |
+| Refresh revision/reporting | Defective SAP revision included the unrelated SoD source. Share the existing revision helper across responses; retain SoD's own generation. |
+| Browser failures | Mixed outdated fixtures/navigation/auth assumptions and actual attribution/download defects. Reproduce and fix by category, without timeout increases or assertion removal. |
+| Report/download paths | Defective quoted-only export filename parsing; reuse the existing strict RFC 6266 parser and retain per-export patterns. Windows fixture paths use fileURLToPath. |
+| Backup encryption, retention, restore safety | Existing engine and policy retained; extend archive whitelist/checksums and staged validation for database-referenced managed copies. Old archives lacking copies remain supported. |
+| Installer/update and Windows acceptance | Incomplete/unverified. Compiler and elevated SCM prerequisites are absent; do not claim native installer, service, rollback or reboot acceptance. |
+| Optional Python reference generators | Required fixture provenance, not runtime dependencies. Proposed local deletions were not applied because the upstream audit records their callers/purpose. Versioned browser workbooks remove the obsolete local Python helper. |
+| Historical documentation | Necessary evidence belongs under docs/archive; preserve contents and update links. Active release status must identify current results separately from old Linux evidence. |
+| Licensing | Product references updated only. Proprietary license type, ownership wording, legal terms, liability and third-party attribution requirements are unchanged; no rights or owner were invented. |
+
+The lack of native acceptance is a release blocker, not a reason to skip independent implementation or testing. Final counts and the release recommendation are recorded in [release status](RELEASE_STATUS.md). No push is authorized by this mission.
+
+Windows continuation root causes: raw CSV copies were missing from the backup boundary; reviewer aliases came from request bodies instead of the stable actor; SAP revisions included the independent SoD publication; export filenames accepted only quoted headers; Windows file URLs were treated as POSIX paths; explicit Desktop data overrides shared normal profile resources; Server installer updates overwrote files without verified rollback. Browser fixtures also read settings before a confirmed save completed, assumed a fixed optional-source count despite reset retaining lifecycle history (the fixture now explicitly seeds disabled SoD plus a static directory), and omitted the captured directory snapshot variables. These corrections preserve the state, identity, history and data-retention assertions. The complete checkpoint and scoped corrections are reported separately, not combined into a claimed clean single full run.

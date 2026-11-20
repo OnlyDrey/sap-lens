@@ -8,7 +8,7 @@ async function fixtures(page: Page) {
   await page.route('**/api/backups/schedule', route => route.fulfill({json: {revision: 0, schedule: {enabled: false, mode: 'daily', time: '06:00', timezone: 'UTC', cron: '0 6 * * *', keep: 7}, next_runs: [], description: 'Daily backup', encryption_ready: true, last_success: null, last_failure: null}}))
 }
 
-for (const [width, theme] of [[375, 'dark'], [1280, 'light']] as const) {
+for (const width of [375, 800, 1280, 1600] as const) for (const theme of ['light', 'dark'] as const) {
   test(`backup overview is compact and accessible at ${width}px in ${theme}`, async ({page, request}, testInfo) => {
     await request.post('/api/configuration/theme', {data: {theme}})
     try {

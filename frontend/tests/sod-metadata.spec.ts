@@ -1,11 +1,12 @@
 import { test, expect, type Page } from '@playwright/test'
 import { readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { cleanup, enableSod, headers, openSod, seedGovernance } from './sod-fixture'
 import { openSettings } from './support'
 
 // Synthetic SoD reference workbooks (tests/fixtures/sod-reference): Risks and Activities sheets with exact IDs, generated once and versioned.
-const fixture = (name: string) => readFileSync(path.join(path.dirname(new URL(import.meta.url).pathname), 'fixtures', 'sod-reference', name))
+const fixture = (name: string) => readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'sod-reference', name))
 
 const HEAD = 'RISK,CRITICITY,TYPE,TEXT,ACTVT1,ACTVT2,ACTIVITY_SLOT,ACTIVITY,TCODE,TTEXT'
 const rowsFor = (extra: (risk: string, activity: string) => string[] = () => []) => {

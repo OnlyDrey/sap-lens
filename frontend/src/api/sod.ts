@@ -1,4 +1,5 @@
 import { apiRequest, applicationHeaders } from './client'
+import { attachmentFilename } from '../lib/backupDownload'
 
 export type Filters = Record<string, string | boolean | number | string[]>
 export type Lifecycle = 'Pending' | 'Approved' | 'Keep' | 'Accepted' | 'Conditional' | 'Removal required' | 'Investigate' | 'Rejected' | 'Outdated' | 'Historical' | 'Resolved'
@@ -197,7 +198,7 @@ export async function downloadFile(path: string, options: { method?: 'GET' | 'PO
     try { const error = await response.json(); if (typeof error.detail === 'string') detail = error.detail } catch { /* keep the generic message */ }
     throw Error(detail)
   }
-  const name = response.headers.get('Content-Disposition')?.match(/filename="([^"]+)"/)?.[1]
+  const name = attachmentFilename(response.headers.get('Content-Disposition'))
   if (!name || !options.namePattern.test(name)) throw Error('Invalid export filename.')
   const blocks = await readLimited(response, 32 * 1024 * 1024)
   const type = response.headers.get('content-type') || 'application/octet-stream'

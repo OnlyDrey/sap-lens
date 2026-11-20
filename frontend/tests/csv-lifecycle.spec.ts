@@ -10,6 +10,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { headers, postConfiguration } from './support'
 import { layoutMatrix } from './matrix'
+import { matrix as sodMatrix } from './sod-fixture'
 const columns =
   'Site;Name;SamAccountName;UserPrincipalName;Mail;Department;Title;Enabled;DistinguishedName;ManagerDN;ManagerName;ManagerSamAccountName;ManagerMail;ManagerDepartment;ManagerTitle;ManagerLookupStatus'
 let root: string, roles: string, users: string, directory: string
@@ -47,6 +48,8 @@ test.beforeEach(async ({ request }) => {
   roles = path.join(root, 'roles.csv')
   users = path.join(root, 'users.csv')
   directory = path.join(root, 'Employees ø.csv')
+  const sod = path.join(root, 'sod.csv')
+  writeFileSync(sod, sodMatrix) // reset preserves lifecycle history; establish the optional source explicitly
   writeFileSync(
     roles,
     'FUNCTION_KEY,AGR_NAME,TEXT,TCODE\nMM,ZC:DEMO,Example role,MIGO\n',
@@ -59,7 +62,9 @@ test.beforeEach(async ({ request }) => {
   await save(request, (c) => {
     c.data_csv_path = roles
     c.user_csv_path = users
+    c.sod_csv_path = sod
     c.features.employee_directory = true
+    c.features.sod = false
   })
   const config = await settings(request),
     preview = await (
@@ -176,7 +181,9 @@ test('unchanged and skipped sources are neutral, while partial errors preserve s
   await refresh(page)
   let banner = page.getByLabel('Refresh result', { exact: true })
   await expect(banner).toContainText('All data is up to date')
-  await expect(banner).toContainText('1 skipped')
+  await expect(banner).toContainText('2 CSV sources checked')
+  await expect(banner).toContainText('2 unchanged')
+  await expect(banner).toContainText('2 skipped') // disabled SoD and static Employee Directory; both remain outside the refresh
   await expect(
     banner.getByRole('button', { name: 'View Changes' }),
   ).toHaveCount(0)
