@@ -1,5 +1,31 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Windows continuation: current assessment (2026-11-20)
+
+**NOT READY.** Implementation and final validation are in progress. This section supersedes older dated status claims below; those sections remain historical evidence.
+
+The checkout safely fast-forwarded from 814c88d to the expected origin 50bed6d. Pre-existing edits were preserved in a retained stash, reconciled through the AuthLens renames, and useful import-policy/test fixes retained. Six obsolete untracked drafts/helpers are preserved byte-for-byte with a hash manifest in ignored test artifacts. No push, merge, workflow dispatch, product-version or visual-identity change is authorized or performed.
+
+Implemented corrections: managed immutable CSV copies bound to dataset metadata and the existing encrypted backup engine; portable restore with verified local source paths and cleared historical host paths; per-job import checks and empty-import protection; stable Desktop/profile reviewer attribution; SAP revisions independent of SoD; safe shared download filename parsing and Windows workbook paths; isolated Desktop data/log/profile/mutex overrides. The Server installer refuses unsafe in-place updates before touching services/files. Installer-managed update/rollback remains incomplete, not certified.
+
+| Check | Windows continuation result |
+| --- | --- |
+| Native solution build (Windows 11 Enterprise, .NET SDK 10.0.204) | Passed, zero warnings/errors |
+| Complete .NET checkpoint | 470 total: 468 passed, 2 failed; startup deadline under concurrent fixtures and obsolete duplicate-file expectation. Corrected complete Startup/DataSources classes: 13 passed. Affected import/backup/review/Desktop/installer selection: 75 passed. Final native publish/portable-restore group: 22 passed, including Windows Server and Desktop executable checks |
+| Pester 5.9.1 on Windows PowerShell 5.1 | 182 total: 171 passed, 0 failed, 11 skipped; zero failed containers. Nine Linux-only launcher cases, two elevated native restore cases |
+| PowerShell 5.1 parser | 23 active scripts, zero errors; PowerShell 7 unavailable |
+| Frontend unit/type/lint | 46 unit tests passed; type check passed; lint passed with 66 existing warnings, zero errors |
+| Complete browser checkpoint | 865 total: 862 passed, 3 failed, 0 skipped (73.24 minutes), one worker, isolated loopback host/storage. All three are identified fixture defects. First complete six-spec correction run: 45 passed, 1 failed; directory persistence and confirmation race fixed. CSV source-count fixture depended on retained optional-source history; explicit source seeding fixed it. Final complete CSV spec: 8 passed. The formerly state-dependent CSV case also passed 3/3 repeated checks. All original browser failures have passing scoped verification; this is not a claimed clean single full run. |
+| Repository checks | Docs: 100 files/zero failures; Python contracts 7/7; Node contracts 5/5; structure/workflow/Ruff/Lucide/whitespace pass; secret scan zero findings |
+| Dependency audit | NuGet and production npm: zero reported vulnerabilities |
+| Bash deployment harness | Syntax passed; execution refused with infrastructure exit 2 because PowerShell 7 is unavailable |
+| Native release verification/installers | Pending release build; Inno Setup 6 compiler not installed |
+
+Release gates still open: compiled installer fresh/update/rollback acceptance; elevated SCM registration/start/restart and privileged ACL restore; explicit reboot authorization; native WebView2 interactions/downloads; a supplied copy of a real private SAP Lens backup and its recovery key. This Windows 11 Enterprise workstation (build 26200) has no elevated token and no protected SAP Lens service registered; it is not the production VM acceptance result. No legacy service, installation, database, certificate, backup, key or junction was modified. A synthetic backup pass cannot replace real-data acceptance.
+
+Local commits: 679897f (archive/product references), 33cdfb8 (Windows repository checks), 26ee870 (managed imports/portable restore/reviewer correctness); d9735eb (isolated native executable checks and safe installer refusal); 63fb450 (download parsing and deterministic browser fixtures); package/evidence checkpoint pending. No push has occurred. The historical per-file rename inventory describes the upstream checkpoint, not final Windows counts. License changes are exactly SAP Lens -> AuthLens product references; legal terms and ownership wording are unchanged. V1 documents moved intact to docs/archive/v1; required backup readers, migration IDs, golden fixtures and optional reference generators remain.
+
+
 Durable checkpoint for the next session. Evidence tags as in [README](README.md). Branch `experiment/dotnet-backend`; `work` and `main` are not
 touched; CI runs only on pushes to `main` (`validate.yml`), so experiment pushes trigger nothing.
 

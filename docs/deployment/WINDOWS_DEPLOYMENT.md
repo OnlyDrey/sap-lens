@@ -635,12 +635,12 @@ git switch experiment/dotnet-backend
 git pull --ff-only origin experiment/dotnet-backend
 node scripts/product-version.mjs
 powershell -NoProfile -File .\backend\scripts\check-powershell.ps1
-pwsh -NoProfile -Command "Invoke-Pester -Path backend/scripts/tests -CI"
+powershell -NoProfile -Command "Import-Module Pester -MinimumVersion 5.7.1; Invoke-Pester -Path backend/scripts/tests -CI"
 dotnet build backend/AuthLens.slnx -c Release
 dotnet test backend/tests/AuthLens.Tests -c Release --no-build --filter "FullyQualifiedName~StartupTests|FullyQualifiedName~NetworkTests|FullyQualifiedName~ReverseProxyTests|FullyQualifiedName~DesktopLocationTests|FullyQualifiedName~InstallerTests|FullyQualifiedName~VersioningTests"
 ```
 
-Pester requires version 5.7.1 (`Install-Module Pester -RequiredVersion 5.7.1 -Scope
+Pester requires version 5.7.1 or newer (Windows continuation used 5.9.1; `Install-Module Pester -RequiredVersion 5.9.1 -Scope
 CurrentUser` through the approved repository, if not already available). Respect
 corporate signing/execution policy; do not disable WDAC or bypass script policy.
 These checks do not certify native service restart, Desktop/WebView2, installer,
