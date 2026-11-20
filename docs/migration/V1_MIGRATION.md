@@ -10,8 +10,37 @@ SoD decisions, an approved review period, remediation, legacy reviews and Accoun
 - `backend/scripts/tests/v1-migration-procedure.ps1 -Exe <AuthLens.Api> -Root <new folder>` repeats the procedure with 12 checks:
   host key, preview with the recovery key file, refusal of a wrong key, run, activation at the next start, HTTP check, status, rollback.
 - The passphrase mode is covered by `V1DataMigrationTests` and a CLI run with the passphrase on standard input.
-- **Not yet run:** on Windows (PowerShell 5.1 or 7, Windows paths and ACLs), or against a copy of a real installation. Run the script on the Windows
-  test VM and rehearse on a copy before any production migration.
+- **Windows private-backup acceptance (2026-11-20): PASS for isolated migration, basic Desktop rendering and restart**, using the installed
+  `4b20cdb` release and Windows PowerShell 5.1. A copied real Desktop SLBAK2 host-key backup authenticated, passed member hashes and migrated into
+  fresh private storage. All 332,348 records across 38 source revisions matched; SQLite integrity, foreign keys, six schema migrations, both decision
+  chains and original-file hashes verified after Desktop use/restart. This does not certify production or Server migration, power-loss recovery,
+  approved-period workflows, or detailed interactive SoD navigation. See [release status](RELEASE_STATUS.md#isolated-windows-v1-backup-migration-acceptance).
+
+## Desktop compatibility and isolated rehearsal
+
+The ordinary Desktop **Backup & Restore upload rejects Python SAP Lens 1 SLBAK2 archives** and directs the operator to `--migrate-v1`.
+Use the packaged `server/AuthLens.Api.exe` from the same verified release as Desktop for the procedure below. After activation, open
+`AuthLens.exe --data-dir <absolute isolated data directory>`. The target database is `<data-dir>/authlens.sqlite3`; explicit Desktop storage also
+isolates logs, WebView2 and the mutex under `<data-dir>/.desktop`. Normal installed Desktop data remains `%LOCALAPPDATA%\AuthLens\data`.
+
+Create a new private rehearsal root before copying the archive/key or unpacking anything: Windows migration work inherits its parent ACL.
+Keep copies, the new AuthLens host key and private reports there; never publish the source settings, decrypted stores or keys. Verify original
+archive/key hashes before and after the rehearsal without printing the key. Do not use `--replace-existing` for a fresh acceptance target.
+
+V1 migration preserves source configuration, including external source paths and refresh scheduling. **Inspect these before starting Desktop.**
+For the Windows rehearsal, activation first used an isolated loopback console host with `--no-worker --auth shared-token` and a fresh selected
+port (no SCM service). The normal revision-checked configuration API then disabled only `refresh_schedule.enabled` in the migrated copy before
+Desktop started. Source settings were compared before this deliberate isolation change. Do not activate old file/UNC/network sources until their
+new locations and permissions have been reviewed; do not click Refresh during a read-only migration comparison.
+
+The candidate build uses a database transaction; preview/run do not replace active data. Activation verifies the candidate, retains previous files
+and undoes completed moves on handled failures. This is **not a claim of atomic filesystem replacement across power loss**; interruption/recovery
+must be rehearsed separately. The accepted real-backup run used a fresh target, so no existing Desktop data was at risk.
+
+After UI reads, assignment lifecycle may update `observed_source` and its integrity seal to the migrated datasets' content hashes. Compare the
+items, baseline, revision and seal independently rather than treating every byte change as data loss. In this rehearsal all 539 items, baseline
+and revision stayed equal; only that marker/seal changed. Decision events remained immutable. The three retained account reviews appeared outdated
+on the dashboard; historical contents matched, but old/new derived-status parity was not established.
 
 ## What you need
 

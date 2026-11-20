@@ -1,5 +1,46 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Isolated Windows V1 backup migration acceptance
+
+2026-11-20, installed AuthLens **2.0.0-alpha.1**, clean build **4b20cdb**, Windows PowerShell 5.1: **PASS for actual isolated migration,
+basic Desktop UI accessibility and restart persistence**. No product code changed. This result does not certify production or Server migration.
+
+The real input was a copied SAP Lens 1 **1.0.0-beta.2+local.b1fd924a6610** Desktop backup: SLBAK2, AES-256-GCM, HKDF-SHA256 host-key mode.
+Its recovery key authenticated it; all **1,209 members** passed manifest validation. Preview had **0 blockers**, with **3 files preserved only in
+the encrypted migration backup**. Normal Desktop upload intentionally refuses this format; the packaged `--migrate-v1` path was used instead.
+The installed Desktop and migration executables matched their release manifest hashes.
+
+Source versus restored, including independent post-restart read-only comparison:
+
+| Data | Source / restored |
+| --- | --- |
+| User/assignment revisions and records | 13 / 13 revisions; 112,400 / 112,400 records |
+| Role revisions and records | 3 / 3 revisions; 182,846 / 182,846 records |
+| SoD matrix revisions and records | 1 / 1 revision; 552 / 552 records |
+| Directory revisions and records | 21 / 21 revisions; 36,550 / 36,550 records |
+| Settings and source documents | 24 fields matched before isolation; 8 documents matched at activation |
+| Account Review | 3 / 3 decisions/events; full event contents and chain verified; no unmatched decisions |
+| SoD | 1,086 / 1,086 immutable events; 1,023 evidence snapshots; 4 / 4 report-log entries |
+| Review periods | 1 / 1, state `In review`; document content preserved |
+| Saved filters / remediation actions / Server accounts | Absent in source; not positive acceptance coverage |
+
+The migration backup was encrypted and recorded; activation audit status was `activated`. SQLite integrity and foreign keys passed; all **6**
+known migrations were applied with **0** pending/unknown migrations. All **332,348 records** matched field by field. Desktop self-check passed
+before UI use and after restart; the real WebView2 dashboard rendered restored data and directory matching. UI reads changed only assignment
+lifecycle's source marker/seal; all **539** items, baseline and revision stayed equal, the marker matched active dataset hashes, and its seal
+verified. Both review hash chains and Account Review contents verified after restart. The dashboard showed three retained account reviews as
+outdated; parity with the old application's derived review status remains unverified.
+
+Safety: a fresh protected-ACL acceptance root held copied inputs, private reports, candidate and destination key. Scheduling was enabled in the
+source with four external source paths: the isolated console activation used `--no-worker`, then the normal configuration API disabled scheduling
+only in that copy before Desktop use. No existing service or Desktop data was changed. Protected originals remained byte-identical by SHA-256;
+no key/decrypted records were printed or committed. Acceptance processes were stopped; private data and recovery evidence were retained outside Git.
+
+Focused `V1DataMigrationTests` and `BackupCryptoTests`: **20 passed**, no full .NET or Playwright suite. Detailed SoD UI navigation was unverified
+because the computer-use approval timed out; no workaround was used. Approved-period behavior, absent data categories, service identities/ACLs,
+Server accounts/TLS, interruption/power-loss recovery and production cutover remain separate gates. See the updated
+[Desktop rehearsal procedure](V1_MIGRATION.md#desktop-compatibility-and-isolated-rehearsal). Release recommendation remains **NOT READY**.
+
 ## Installer callback isolation (after e16b9d3)
 
 Operator-reported Windows release evidence: **477/477 .NET tests**, **17 verified artifacts**, both Inno installers compiled, and no secret
