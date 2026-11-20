@@ -4,13 +4,27 @@
 # deployment scripts and the Windows entry script (Status and DryRun paths) run for real. Nothing connects anywhere; no service is touched.
 # Run: bash backend/scripts/tests/deploy-windows.test.sh   (needs git and pwsh)
 set -uo pipefail
+for tool in git pwsh iconv base64; do
+  command -v "$tool" >/dev/null || { echo "Infrastructure: missing $tool (run this Linux harness with its documented prerequisites)"; exit 2; }
+done
 here=$(cd "$(dirname "$0")" && pwd)
 script="$here/../deploy/deploy-windows.sh"
 repo_root=$(cd "$here/../../.." && pwd)
 work=$(mktemp -d)
-trap 'rm -rf "$work"' EXIT
 failures=0; count=0
-check() { count=$((count + 1)); if eval "$2"; then echo "ok    $1"; else echo "FAIL  $1"; failures=$((failures + 1)); fi; }
+cleanup() {
+  if [ "$failures" -gt 0 ]; then
+    artifacts="$repo_root/build/test-artifacts/ssh-$(basename "$work")"
+    mkdir -p "$artifacts"
+    for name in out command.ps1 ssh-args state; do
+      [ ! -e "$work/$name" ] || cp -R "$work/$name" "$artifacts/"
+    done
+    echo "Failed SSH diagnostics retained: $artifacts"
+  fi
+  rm -rf "$work"
+}
+trap cleanup EXIT
+check() { count=$((count + 1)); if eval "$2"; then echo "ok    $1"; else echo "FAIL  $1"; [ ! -f "$work/out" ] || cat "$work/out"; failures=$((failures + 1)); fi; }
 
 # Fake ssh: FAKE_SSH=record writes the decoded command and exits with FAKE_EXIT; FAKE_SSH=run executes it with pwsh.
 mkdir -p "$work/bin"

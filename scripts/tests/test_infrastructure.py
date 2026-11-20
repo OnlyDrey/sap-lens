@@ -14,6 +14,15 @@ def module(name):
 
 
 class WorkflowContracts(unittest.TestCase):
+    def test_workflow_loader_refuses_python_object_tags(self):
+        import yaml
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / '.github/workflows'
+            target.mkdir(parents=True)
+            (target / 'validate.yml').write_text('!!python/object:builtins.object {}')
+            with self.assertRaises(yaml.constructor.ConstructorError):
+                module('check-workflows').check(Path(directory))
+
     def test_actual_main_only_workflow(self):
         module('check-workflows').check()
 

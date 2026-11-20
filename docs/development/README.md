@@ -1,7 +1,7 @@
 # Development and testing (AuthLens .NET)
 
 How to build and test AuthLens. Deployment: [deployment](../deployment/README.md). Architecture: [architecture](../architecture/README.md).
-SAP Lens 1 (Python) is archived outside the repository; its historical development guide is in [legacy v1 development](../legacy/v1/development/README.md).
+SAP Lens 1 (Python) is archived outside the repository; its historical development guide is in [legacy v1 development](../archive/v1/development/README.md).
 
 ## Everyday commands
 
@@ -204,3 +204,5 @@ A fixture expecting UTC must explicitly supply a TimeProvider whose LocalTimeZon
 actual local zone; hardcoding UTC hides timezone/DST defects on a Paris Windows development PC. Test gaps and repeated wall times with synthetic clocks,
 never by changing a host clock. PowerShell 5.1 native stderr becomes ErrorRecords: negative subprocess tests must preserve exit code and raw ToString()
 lines instead of letting ErrorActionPreference=Stop or formatted Out-String terminate/wrap the expected refusal.
+
+Windows repository checks read source files as UTF-8 explicitly, independent of the console code page. The workflow contract loader preserves the YAML `on` key as text and rejects custom object tags before checking the main-only trigger; this does not change the workflow itself.

@@ -6,10 +6,19 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class WorkflowLoader(yaml.BaseLoader):
+    """Keep `on` a string while refusing application-specific YAML tags."""
+
+    def construct_object(self, node, deep=False):
+        if node.tag not in {'tag:yaml.org,2002:str', 'tag:yaml.org,2002:seq', 'tag:yaml.org,2002:map'}:
+            raise yaml.constructor.ConstructorError(None, None, 'Unsupported workflow YAML tag', node.start_mark)
+        return super().construct_object(node, deep=deep)
+
+
 def check(root=ROOT):
     workflows = sorted((root / '.github/workflows').glob('*.y*ml'))
     assert [p.name for p in workflows] == ['validate.yml'], 'Only the main-push validation workflow may be active'
-    data = yaml.load(workflows[0].read_text(), Loader=yaml.BaseLoader)  # noqa: S506 BaseLoader builds only str/list/dict (keeps the key 'on' a string)
+    data = yaml.load(workflows[0].read_text(encoding='utf-8'), Loader=WorkflowLoader)  # noqa: S506 restricted BaseLoader constructs only str/list/dict
     assert data['on'] == {'push': {'branches': ['main']}}, 'CI must run only on push to main'
     assert data['permissions'] == {'contents': 'read'}, 'CI must not publish or deploy'
     assert set(data['jobs']) == {'frontend', 'backend', 'browser'}
