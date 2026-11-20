@@ -41,8 +41,9 @@ Source-versus-restored comparison uses the authenticated staged backup itself, n
 | Saved filters / refresh reports | 0 / 5 |
 | Enabled administrator accounts | 1 |
 
-Every business table and stored document matched, both event chains and all evidence content addresses verified, SQLite integrity/foreign keys
-passed, and all six known schema migrations are applied with none pending. Account credentials/roles remain unchanged; normal sign-in updates
+Every business table and historical document matched. Reads advanced only the assignment lifecycle's observed-source marker and integrity seal;
+its items, baseline, revision and all other fields remain equal, and the new seal verifies. Both event chains and all evidence content addresses
+verified, SQLite integrity/foreign keys passed, and all six known schema migrations are applied with none pending. Account credentials/roles remain unchanged; normal sign-in updates
 last-login/audit/session state. Restore deliberately cleared four unavailable external source paths, made modes static and rebound lifecycle paths;
 other settings matched. Scheduling was already disabled and stays disabled; background refresh remains off. No records were imported or edited.
 
