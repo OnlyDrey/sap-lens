@@ -12,10 +12,11 @@ Compatibility is evaluated on reads; no historical decision, evidence or hash is
 invalidations still take precedence. Unknown/schema-1 V1 encodings do not receive the schema-2 fallback and remain fail-closed.
 The installed acceptance Server at build 4b20cdb still has the original defect until a separately verified update is approved.
 
-The three stale decisions in the real acceptance backup do **not** by themselves prove that defect: an independent reconstruction of the V1
-algorithm from the backup's exact source commit also reports their current evidence as different from their saved evidence. Their identities
-still match under V1's encoding; their complete evidence versions do not. Do not re-approve or rewrite those histories merely to clear the UI.
-Exact history contents and hash chains were verified. See the [functional acceptance result](../migration/RELEASE_STATUS.md#windows-server-functional-acceptance).
+The exact archived V1 algorithm from the backup's source commit reports all three real decisions as **current/completed**, matching the corrected
+isolated Server copy. An earlier reconstruction incorrectly used a user-detail API that truncates assignment transaction lists to 100 entries;
+the complete lists contain 255, 649 and 387 entries. That earlier stale-status conclusion is superseded. The correction changes derived status,
+never historical decisions or saved hashes. Do not re-save histories to clear the UI. Exact contents and hash chains were verified.
+See the [isolated acceptance result](../migration/RELEASE_STATUS.md#account-review-compatibility-correction-and-isolated-continuation).
 
 Focused regressions cover unchanged/changed evidence, Unicode, mixed V1/.NET decisions, independent user invalidation and database history/hash
 chain immutability. The affected Account Review and V1 migration classes pass 22 tests. The migration fixture now explicitly includes completed

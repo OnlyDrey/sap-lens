@@ -40,7 +40,9 @@ must be rehearsed separately. The accepted real-backup run used a fresh target, 
 After UI reads, assignment lifecycle may update `observed_source` and its integrity seal to the migrated datasets' content hashes. Compare the
 items, baseline, revision and seal independently rather than treating every byte change as data loss. In this rehearsal all 539 items, baseline
 and revision stayed equal; only that marker/seal changed. Decision events remained immutable. The three retained account reviews appeared outdated
-on the dashboard; historical contents matched, but old/new derived-status parity was not established.
+on the old dashboard. Subsequent exact V1-oracle verification and the schema-2 compatibility correction establish that all three are current;
+the corrected private Server copy agrees without rewriting any decisions. See
+[isolated compatibility acceptance](RELEASE_STATUS.md#account-review-compatibility-correction-and-isolated-continuation).
 
 ## What you need
 

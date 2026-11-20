@@ -13,9 +13,27 @@ preservation with a verified hash chain. The first affected migration run expose
 previously visible only because of false staleness. The fixture now requests completed reviews and explicitly asserts current/completed status;
 its original source/history assertions remain. TRX evidence is under ignored `build/test-artifacts/review-compatibility`.
 
-Isolated migrated-data/recovery validation and responsive UI work are in progress. No running Server binaries/data, original V1 artifacts,
-version or CI configuration have been changed. No installer rebuild, full regression, push or merge has occurred. The earlier failure remains
-the installed build's status; source tests do not imply deployment or production acceptance.
+**Isolated Windows compatibility and recovery acceptance: PASS for the exercised paths.** An online SQLite copy of the migrated Server was
+placed in a new ACL-protected acceptance root and run using the corrected API, separate accounts-mode loopback endpoints and `--no-worker`.
+The exact archived V1 `rows`/`digest`/`validity` implementation was evaluated against complete source observations: all three decisions are
+current/completed, matching the corrected API (0 outdated, 3 reviewed, 262 pending). Earlier reconstruction used a detail API capped at 100
+transaction codes per assignment; the complete assignment sizes are 255, 649 and 387. Its contrary conclusion was an acceptance-oracle error,
+not changed evidence. Original decision/evidence rows and hashes were never rewritten.
+
+All 332,348 source records/38 revisions matched, SQLite integrity/foreign keys and both history chains passed, and all 539 assignment-lifecycle
+items/baseline/revision remained equal with a valid seal. Health, anonymous/wrong-password rejection, authenticated dashboard/database access,
+source counts and disabled scheduling passed on the copy. A fresh encrypted backup was created and verified before a unique synthetic saved
+filter was written. A dedicated manual-start virtual-account Windows service successfully restarted with a new PID and retained the filter.
+A second verified encrypted backup restored through the supported CLI into a separate clean directory; authenticated restored API access passed.
+Datasets, all 332,348 records, 3 Account Review events, 1,086 SoD events, 1,023 evidence snapshots, 5 refresh reports, saved filter and every stored
+document matched exactly. Portable restore intentionally cleared four absolute source paths, made source modes static and rebound only lifecycle
+source paths; other settings matched and scheduling remained disabled. The owned synthetic filter was then removed through optimistic-concurrency
+APIs from both disposable copies; protective/post-write archives and private evidence remain retained.
+
+The original running Server installation/data and protected V1 originals remain unchanged. Version and CI configuration are unchanged; no installer
+rebuild, full regression, push or merge occurred. This does not authorize deployment or establish production readiness. Installer upgrade/binary
+rollback, interruption/power-loss recovery, cross-device TLS trust/renewal, external source review, approved-period/remediation workflows and
+schema-1 fingerprint compatibility remain separate gates. Responsive UI validation is recorded below when completed.
 
 ## Windows Server functional acceptance
 
@@ -60,10 +78,10 @@ loss and no authorization grant were observed. Proposed correction: schema-aware
 rewriting immutable history, preserving absence/invalidation behavior, with explicit unchanged, changed, Unicode and schema-1 tests. No fix or
 replacement package was deployed during acceptance. The separate [Account Review guide](../features/ACCOUNT_REVIEW.md) records the limitation.
 
-For the three **actual** migrated decisions, independent V1 reconstruction gives `stale=true` as well: stored identity hashes match current
-identities under V1 encoding, but full current evidence hashes differ from the saved versions. Their present stale status is therefore not proof
-of false staleness. All three current decisions remain accessible; each has zero earlier events, matching the source. No reviewer was asked to
-re-save them. Legacy source files were not found in the protected installed release; the exact archived Git source was inspected read-only instead.
+**Superseded oracle finding:** this initial phase incorrectly classified the three actual decisions as stale using transaction lists truncated by
+the detail API. The exact full-observation V1 oracle now proves all three current; see the isolated continuation above. All three decisions remain
+accessible, each with zero earlier events as in the source. No reviewer was asked to re-save them. Archived Git source was inspected read-only;
+no legacy installation was changed.
 
 Safety evidence: before/after fingerprints matched for all eight audited tables (38 datasets, 332,348 records, 3 review events, 1,086 SoD events,
 1,023 evidence snapshots, settings, 0 saved filters, 5 refresh reports) and **every stored document**. Service remains Running as `NT SERVICE\AuthLens`;
