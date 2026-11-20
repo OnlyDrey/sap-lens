@@ -1,5 +1,5 @@
 # Part of AuthLens.Deploy, dot-sourced into the same module. No operations run on import.
-# NTFS policy for AuthLens private state, release binaries and the parents of migration targets. Principals are compared by well-known SID, never
+# NTFS policy for AuthLens private state and release binaries. Principals are compared by well-known SID, never
 # by (localized) account name. Audit is read-only; Invoke-ALProtectAcl changes ACLs only after an explicit, approved call (Deploy-AuthLens.ps1
 # -Action ProtectAcl -Yes), saves every affected DACL first (icacls-compatible inventories, restorable with -Action RestoreAcl) and never touches system roots.
 
@@ -38,7 +38,7 @@ function Get-ALAclRules([string]$Path) {
     }
 }
 
-# Pure policy. Class 'private' (data, backups, keys, TLS, deployment state and the parents of new private targets): no broad read or write.
+# Pure policy. Class 'private' (data, backups, keys, TLS, deployment state): no broad read or write.
 # Class 'binaries' (release folders, configuration files and the parents of new release roots): broad read and execute are legitimate, write is not.
 # A rule counts when it applies to the object itself, or (for a folder) when new children inherit it: inherit-only rules on a parent are exactly
 # what a directory created by the migration would receive.
@@ -83,60 +83,37 @@ function Get-ALAclAudit([string]$Path, [string]$Class, [string]$Role, [switch]$R
     [pscustomobject]@{ path = $Path; role = $Role; class = $Class; exists = $true; findings = $findings.ToArray() }
 }
 
-# The paths a migration (or a protected deployment) depends on, each with its class. Descendant findings that only repeat an inherited rule of the
-# audited root are folded into the root's finding.
-function Get-ALAclPlan($Source, $Target, [string]$KeyPath = '') {
-    $plan = [System.Collections.Generic.List[object]]::new()
-    if ($Source) {
-        if (-not $KeyPath) {
-            $pointer = Join-AL $Source.DataDirectory 'backup-key-location.json'
-            if (Test-Path -LiteralPath $pointer) { $KeyPath = "$((Get-Content -LiteralPath $pointer -Raw | ConvertFrom-Json).path)" }
-        }
-        $plan.Add([pscustomobject]@{ Path = $Source.DataDirectory; Class = 'private'; Role = 'source data'; Recurse = $true; Grant = 'M' })
-        $plan.Add([pscustomobject]@{ Path = $Source.BackupRoot; Class = 'private'; Role = 'source pre-deployment backups'; Recurse = $true; Grant = '' })
-        $plan.Add([pscustomobject]@{ Path = (Split-Path $Source.CertificatePath); Class = 'private'; Role = 'source TLS'; Recurse = $true; Grant = 'R' })
-        if ($KeyPath) { $plan.Add([pscustomobject]@{ Path = (Split-Path $KeyPath); Class = 'private'; Role = 'source backup key'; Recurse = $true; Grant = 'R' }) }
-        $plan.Add([pscustomobject]@{ Path = $Source.WorkRoot; Class = 'private'; Role = 'source deployment state'; Recurse = $false; Grant = '' })
-        $plan.Add([pscustomobject]@{ Path = $Source.ReleasesRoot; Class = 'binaries'; Role = 'source releases'; Recurse = $false; Grant = 'RX' })
-        $plan.Add([pscustomobject]@{ Path = $Source.ConfigFile; Class = 'binaries'; Role = 'source configuration'; Recurse = $false; Grant = '' })
-        # The installation folder that holds the configuration (for example C:\ProgramData\AuthLens\config): no broad write, so nobody can plant files or folders there.
-        $plan.Add([pscustomobject]@{ Path = (Split-Path $Source.ConfigFile); Class = 'binaries'; Role = 'source installation folder'; Recurse = $false; Grant = '' })
+# The paths an installation depends on, each with its class and the access its service needs: data (database, logs, backups, accounts) modify;
+# TLS and the backup key read; release binaries read/execute; pre-deployment backups, deployment state and configuration nothing beyond
+# SYSTEM/Administrators. Descendant findings that only repeat an inherited rule of the audited root are folded into the root's finding.
+function Get-ALAclPlan($Config, [string]$KeyPath = '') {
+    if (-not $KeyPath) {
+        $pointer = Join-AL $Config.DataDirectory 'backup-key-location.json'
+        if (Test-Path -LiteralPath $pointer) { $KeyPath = "$((Get-Content -LiteralPath $pointer -Raw | ConvertFrom-Json).path)" }
     }
-    if ($Target) {
-        # A new target root inherits from its parent. Audit the parent that will hold it (or, while that parent is missing, the nearest existing
-        # ancestor): private targets need a private parent, the release root only a parent without broad write.
-        $roots = @(
-            @($Target.DataDirectory, 'private'), @($Target.BackupRoot, 'private'), @((Split-Path $Target.CertificatePath), 'private'),
-            @((Join-AL (Split-Path $Target.DataDirectory) 'backup'), 'private'), @($Target.WorkRoot, 'private'), @($Target.ReleasesRoot, 'binaries'))
-        $parents = [ordered]@{}
-        foreach ($root in $roots) {
-            $parent = Split-Path $root[0]
-            if ($parents.Contains($parent)) { if ($root[1] -eq 'private') { $parents[$parent] = 'private' } } else { $parents[$parent] = $root[1] }
-        }
-        foreach ($parent in $parents.Keys) {
-            $existing = $parent
-            while ($existing -and -not (Test-Path -LiteralPath $existing)) { $existing = Split-Path $existing }
-            $plan.Add([pscustomobject]@{ Path = $parent; Class = $parents[$parent]; Role = 'target parent'; Recurse = $false; Grant = ''; Existing = $existing })
-        }
-        $plan.Add([pscustomobject]@{ Path = $Target.ConfigFile; Class = 'binaries'; Role = 'target configuration'; Recurse = $false; Grant = '' })
-    }
-    $plan.ToArray()
+    @(
+        [pscustomobject]@{ Path = $Config.DataDirectory; Class = 'private'; Role = 'data'; Recurse = $true; Grant = 'M' }
+        [pscustomobject]@{ Path = $Config.BackupRoot; Class = 'private'; Role = 'pre-deployment backups'; Recurse = $true; Grant = '' }
+        [pscustomobject]@{ Path = (Split-Path $Config.CertificatePath); Class = 'private'; Role = 'TLS'; Recurse = $true; Grant = 'R' }
+        if ($KeyPath) { [pscustomobject]@{ Path = (Split-Path $KeyPath); Class = 'private'; Role = 'backup key'; Recurse = $true; Grant = 'R' } }
+        [pscustomobject]@{ Path = $Config.WorkRoot; Class = 'private'; Role = 'deployment state'; Recurse = $false; Grant = '' }
+        [pscustomobject]@{ Path = $Config.ReleasesRoot; Class = 'binaries'; Role = 'releases'; Recurse = $false; Grant = 'RX' }
+        [pscustomobject]@{ Path = $Config.ConfigFile; Class = 'binaries'; Role = 'configuration'; Recurse = $false; Grant = '' }
+        # The folder that holds the configuration (C:\ProgramData\AuthLens\config): no broad write, so nobody can plant files or folders there.
+        [pscustomobject]@{ Path = (Split-Path $Config.ConfigFile); Class = 'binaries'; Role = 'configuration folder'; Recurse = $false; Grant = '' }
+    )
 }
 
 function Get-ALAclReport($Plan) {
     $entries = foreach ($entry in @($Plan)) {
-        $audited = if ($entry.PSObject.Properties['Existing'] -and $entry.Existing -ne $entry.Path) { $entry.Existing } else { $entry.Path }
-        $audit = if ($audited) { Get-ALAclAudit $audited $entry.Class $entry.Role -Recurse:$entry.Recurse } else { [pscustomobject]@{ path = ''; findings = @(); exists = $false } }
-        $provision = $entry.Role -eq 'target parent' -and -not (Test-Path -LiteralPath $entry.Path) -and
-            -not (Test-ALAclForbidden $entry.Path) -and $audited -and (Test-ALProvisioningAncestor $audited)
+        $audit = Get-ALAclAudit $entry.Path $entry.Class $entry.Role -Recurse:$entry.Recurse
         $required = $true
         if (Test-Path -LiteralPath $entry.Path) { try { Assert-ALAclRequiredAccess $entry.Path } catch { $required = $false } }
-        [pscustomobject]@{ path = $entry.Path; audited = $audited; role = $entry.Role; class = $entry.Class; exists = (Test-Path -LiteralPath $entry.Path)
-            provisioning_required = $provision; blocking = -not $provision; required_access_verified = $required; findings = @($audit.findings) }
+        [pscustomobject]@{ path = $entry.Path; role = $entry.Role; class = $entry.Class; exists = (Test-Path -LiteralPath $entry.Path)
+            required_access_verified = $required; findings = @($audit.findings) }
     }
     $entries = @($entries)
-    [pscustomobject]@{ safe = (@($entries | Where-Object { $_.blocking -and ($_.findings.Count -gt 0 -or -not $_.required_access_verified) }).Count -eq 0); entries = $entries
-        provisioning_required = @($entries | Where-Object provisioning_required | ForEach-Object path) }
+    [pscustomobject]@{ safe = (@($entries | Where-Object { $_.findings.Count -gt 0 -or -not $_.required_access_verified }).Count -eq 0); entries = $entries }
 }
 
 function Format-ALAclFindings($Report, [int]$Limit = 6) {
@@ -149,14 +126,14 @@ function Format-ALAclFindings($Report, [int]$Limit = 6) {
     (@($lines | Select-Object -First $Limit) + $(if ($lines.Count -gt $Limit) { @("... and $($lines.Count - $Limit) more (run -Action AuditAcl)") } else { @() })) -join '; '
 }
 
-# Throws a refusal that names every unsafe path, principal and right (used by the migration preflight).
+# Throws a refusal that names every unsafe path, principal and right.
 function Assert-ALAclPlan($Plan, [string]$What) {
     $report = Get-ALAclReport $Plan
     if (-not $report.safe) { Stop-AL "$What has broad NTFS access; review it with -Action AuditAcl and prepare it with -Action ProtectAcl: $(Format-ALAclFindings $report)" }
     $report
 }
 
-# ---- remediation (explicit, approved; never run by the preflight or a deployment)
+# ---- remediation (explicit, approved; never run by a deployment)
 
 # System locations whose ACLs AuthLens never changes, however a configuration names them.
 function Test-ALAclForbidden([string]$Path) {
@@ -434,7 +411,7 @@ function Test-ALDaclEqual([string]$Expected, [string]$Actual) {
     [Convert]::ToBase64String($left) -ceq [Convert]::ToBase64String($right)
 }
 
-function New-ALDirectoryWithAcl([string]$Path, [Security.AccessControl.DirectorySecurity]$Security) {
+function New-ALDirectoryWithAcl([string]$Path, $Security) {
     if ([IO.Path]::DirectorySeparatorChar -ne '\') { Stop-AL 'Secure provisioning requires Windows NTFS.' }
     if (-not $Security.AreAccessRulesProtected) { Stop-AL 'Secure creation requires a protected DACL.' }
     Test-ALPathTree $Path
@@ -472,6 +449,17 @@ namespace AuthLens {
     }
 }
 
+# A protected DACL: inheritance removed, SYSTEM and Administrators full control (Windows only; tests replace it).
+function New-ALProtectedDirectorySecurity {
+    $security = [Security.AccessControl.DirectorySecurity]::new()
+    $security.SetAccessRuleProtection($true, $false)
+    foreach ($sid in $script:AclSystem, $script:AclAdministrators) {
+        $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid), 'FullControl',
+            [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit', [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
+    }
+    $security
+}
+
 function New-ALSecureDirectory([string]$Path, [string[]]$ApprovedRoots, [switch]$Exclusive) {
     Assert-ALAclApproved $Path $ApprovedRoots
     if (Test-Path -LiteralPath $Path) {
@@ -483,27 +471,21 @@ function New-ALSecureDirectory([string]$Path, [string[]]$ApprovedRoots, [switch]
     }
     $parent = Split-Path $Path
     if (-not (Test-Path -LiteralPath $parent)) { New-ALSecureDirectory $parent $ApprovedRoots }
-    $security = [Security.AccessControl.DirectorySecurity]::new()
-    $security.SetAccessRuleProtection($true, $false)
-    foreach ($sid in $script:AclSystem, $script:AclAdministrators) {
-        $security.AddAccessRule([Security.AccessControl.FileSystemAccessRule]::new([Security.Principal.SecurityIdentifier]::new($sid), 'FullControl',
-            [Security.AccessControl.InheritanceFlags]'ContainerInherit, ObjectInherit', [Security.AccessControl.PropagationFlags]::None, [Security.AccessControl.AccessControlType]::Allow))
-    }
-    New-ALDirectoryWithAcl $Path $security
+    New-ALDirectoryWithAcl $Path (New-ALProtectedDirectorySecurity)
     Assert-ALAclRequiredAccess $Path
     if ((Get-ALAclAudit $Path 'private' 'secure provisioning').findings.Count) { Stop-AL 'Secure provisioning verification failed; no sensitive file may be written.' }
 }
 
 # Saves the ACLs (with descendants) of every path that will change into a new protected backup folder, then applies protected DACLs: inheritance
 # removed, explicit broad grants removed, SYSTEM/Administrators/service grants set, and descendants reset to inherit (their explicit grants are in
-# the backup). Missing target parents are created protected. ProgramData, Program Files, the Windows folder, user roots and drive roots are
-# refused. The running service keeps its access (SYSTEM, or its own grant), so nothing is stopped.
-function Invoke-ALProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$ApprovedRoots) {
+# the backup). Missing paths are left to Initialize-ALInstallation. ProgramData, Program Files, the Windows folder, user roots and drive roots
+# are refused. The running service keeps its access (SYSTEM, or its own grant), so nothing is stopped.
+function Invoke-ALProtectAcl($Config, [string]$BackupRoot, [string[]]$ApprovedRoots) {
     Start-ALAclProgress
     try {
     Write-ALAclProgress 'validate' -Stage 'approved roots and physical inventory'
-    $serviceAccount = if ($Source) { $Source.ServiceAccount } else { $Target.ServiceAccount }
-    $plan = @(Get-ALAclPlan $Source $Target)
+    $serviceAccount = $Config.ServiceAccount
+    $plan = @(Get-ALAclPlan $Config)
     # Validate the entire scope before creating even the ACL backup folder.
     Assert-ALAclApproved $BackupRoot $ApprovedRoots
     foreach ($entry in $plan) {
@@ -513,7 +495,7 @@ function Invoke-ALProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$A
     foreach ($entry in $plan) {
         if (Test-Path -LiteralPath $entry.Path) {
             Write-ALAclProgress 'validate' -Stage $entry.Path
-            $context = if ($Source -and $entry.Role -in @('source releases', 'source installation folder')) { $Source.ReleasesRoot } else { '' }
+            $context = if ($entry.Role -in @('releases', 'configuration folder')) { $Config.ReleasesRoot } else { '' }
             if ($context) { $null = Get-ALReleaseJunction $context $ApprovedRoots }
             $null = @(Get-ALAclItems $entry.Path $context)
         }
@@ -522,11 +504,10 @@ function Invoke-ALProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$A
     $report = Get-ALAclReport $plan
     $changes = @(foreach ($entry in $plan) {
         $row = @($report.entries | Where-Object { $_.path -eq $entry.Path -and $_.role -eq $entry.Role })[0]
-        $create = $entry.Role -eq 'target parent' -and -not (Test-Path -LiteralPath $entry.Path)
-        if ($row.findings.Count -eq 0 -and $row.required_access_verified -and -not $create) { continue }
-        [pscustomobject]@{ Entry = $entry; Create = $create; BroadSids = @($row.findings | ForEach-Object sid | Sort-Object -Unique) }
+        if (-not $row.exists -or ($row.findings.Count -eq 0 -and $row.required_access_verified)) { continue }
+        [pscustomobject]@{ Entry = $entry; BroadSids = @($row.findings | ForEach-Object sid | Sort-Object -Unique) }
     })
-    if (-not $changes.Count) { Write-ALAclProgress 'complete' -Stage 'no changes required'; return [pscustomobject]@{ changed = @(); created = @(); backup = $null; after = $report } }
+    if (-not $changes.Count) { Write-ALAclProgress 'complete' -Stage 'no changes required'; return [pscustomobject]@{ changed = @(); backup = $null; after = $report } }
     $backup = Join-AL $BackupRoot ([DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ') + '-' + [guid]::NewGuid().ToString('N'))
     New-ALSecureDirectory $backup $ApprovedRoots
     $script:AclProgress.journal = Join-AL $backup 'acl-operation.jsonl'
@@ -536,8 +517,7 @@ function Invoke-ALProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$A
     $records = [Collections.Generic.List[object]]::new(); $index = 0
     foreach ($change in $changes) {
         $path = $change.Entry.Path
-        if ($change.Create) { $records.Add([pscustomobject]@{ path = $path; created = $true; file = ''; parent = ''; sha256 = ''; snapshot = @() }); continue }
-        $context = if ($Source -and $change.Entry.Role -in @('source releases', 'source installation folder')) { $Source.ReleasesRoot } else { '' }
+        $context = if ($change.Entry.Role -in @('releases', 'configuration folder')) { $Config.ReleasesRoot } else { '' }
         $junction = if ($context) { Get-ALReleaseJunction $context $ApprovedRoots } else { $null }
         $snapshot = @(Get-ALAclSnapshot $path $context)
         # The root is approved above; inventory walks only physical descendants of that root.
@@ -560,14 +540,13 @@ function Invoke-ALProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$A
     Write-ALAclProgress 'remediation' -Stage 'before first application ACL change' -Force
     foreach ($change in $changes) {
         $path = $change.Entry.Path
-        if ($change.Create) { New-ALSecureDirectory $path $ApprovedRoots; continue }
         $record = @($records | Where-Object path -eq $path)[0]
         Assert-ALAclRecordTree $record $ApprovedRoots
         $isContainer = (Get-Item -LiteralPath $path -Force).PSIsContainer
         Invoke-ALIcacls (@($path, '/L', '/inheritance:r', '/grant:r') + @(Get-ALAclGrants $change.Entry $serviceAccount $isContainer))
         $broad = @(@($script:BroadSids.Keys) + @($change.BroadSids) | Sort-Object -Unique | ForEach-Object { "*$_" })
         Invoke-ALIcacls (@($path, '/L', '/remove:g') + $broad)
-        if ($change.Entry.Class -eq 'binaries' -and $change.Entry.Role -notin @('source configuration', 'target configuration')) {
+        if ($change.Entry.Class -eq 'binaries' -and $change.Entry.Role -ne 'configuration') {
             Invoke-ALIcacls @($path, '/L', '/grant:r', "*S-1-5-11:$(if ($isContainer) { '(OI)(CI)' })RX")
         }
         if ($isContainer -and $change.Entry.Recurse) {
@@ -588,11 +567,10 @@ function Invoke-ALProtectAcl($Source, $Target, [string]$BackupRoot, [string[]]$A
         foreach ($record in $records) { if (-not $record.created) { Assert-ALAclRecordTree $record $ApprovedRoots } }
     } catch { Stop-AL "ACL verification detected changed tree/junction state; retain $backup for manual review." 4 }
     Write-ALAclProgress 'verification' -Stage 'final policy and physical tree'
-    $after = Get-ALAclReport (Get-ALAclPlan $Source $Target)
+    $after = Get-ALAclReport (Get-ALAclPlan $Config)
     if (-not $after.safe) { Stop-AL "ACL remediation verification failed; retain $backup for reviewed restoration." 1 }
     Write-ALAclProgress 'complete' -Stage 'verified' -Force
-    [pscustomobject]@{ changed = @($changes | ForEach-Object { $_.Entry.Path }); created = @($changes | Where-Object Create | ForEach-Object { $_.Entry.Path })
-        backup = $backup; after = $after }
+    [pscustomobject]@{ changed = @($changes | ForEach-Object { $_.Entry.Path }); backup = $backup; after = $after }
     } catch {
         try { Write-ALAclProgress 'failed' -Stage 'retain recovery artifacts; manual review required' -Force } catch { Write-Warning 'ACL journal update failed; retain the operation directory for manual review.' }
         throw

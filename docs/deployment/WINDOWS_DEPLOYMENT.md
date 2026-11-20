@@ -118,7 +118,7 @@ Implemented and tested on Linux (Pester `verify-release.Tests.ps1`); awaiting Wi
 - Publication (`Build` and `Deploy`) assembles the package in `ReleasesRoot\.staging\<name>`, verifies it there and only then moves it into
   place. A package that fails verification is never published; its staging copy is kept for inspection and blocks the next attempt until an
   operator removes it. An existing folder of the same commit is reused only if it verifies; it is never overwritten or repaired.
-- `Deploy -Release <folder>` and the migration preflight (`source_release`) verify with `-Scope Server` before anything else.
+- `Deploy -Release <folder>` verifies with `-Scope Server` before anything else.
 - **Packages published before this contract** (for example the `SapLens2` release of commit `5096382`) contain `server\`, `README.txt`,
   `build-manifest.json` and `SHA256SUMS` only. They verify with `-Scope Server` as *undeclared*: every server artifact and the manifest still
   have to match the recorded checksums, and the absent Desktop and symbol files are listed by name. The default full scope correctly reports them
@@ -195,8 +195,9 @@ it becomes `authlens.sqlite3`. AuthLens refuses to start on a directory that hol
 
 ## NTFS permissions
 
-Implemented and tested on Linux with synthetic ACLs (Pester `AuthLens.Acl.Tests.ps1`, `AuthLens.Deploy.Tests.ps1`); **awaiting Windows
-acceptance** (no real ACL was read or changed from this environment).
+Implemented and tested on Linux with synthetic ACLs (Pester `AuthLens.Acl.Tests.ps1`, including ProtectAcl/RestoreAcl with Windows-only
+descriptor types replaced, and `AuthLens.Deploy.Tests.ps1`); **awaiting Windows acceptance** (no real ACL was read or changed from this
+environment; `AuthLens.Acl.Native.Tests.ps1` and `AuthLens.Junction.Tests.ps1` run only on Windows).
 
 **Broad principals** (matched by well-known SID, so localized account names do not matter): Everyone `S-1-1-0`, Authenticated Users
 `S-1-5-11`, Users `S-1-5-32-545`, Interactive `S-1-5-4`, Network `S-1-5-2`, Anonymous Logon `S-1-5-7`, Guests `S-1-5-32-546`, Domain Users and
@@ -205,16 +206,15 @@ Domain Guests (`S-1-5-21-…-513`/`-514`). An allow rule counts when it applies 
 *Read* is ReadData/ListDirectory, GENERIC_READ or GENERIC_ALL; *write* is any of WriteData/CreateFiles, AppendData/CreateDirectories, WriteEA,
 WriteAttributes, DeleteSubdirectoriesAndFiles, Delete, ChangePermissions, TakeOwnership, GENERIC_WRITE or GENERIC_ALL.
 
-| Class | Paths (source configuration, then migration target) | Broad read | Broad write | Required identities |
+| Class | Paths of the installation (role) | Broad read | Broad write | Required identities |
 | --- | --- | --- | --- | --- |
-| Private | Data directory and every descendant; pre-deployment backups; TLS folder (certificate, password file); the folder of the host backup key; deployment state (`WorkRoot`) | refused | refused | SYSTEM and Administrators full control; the service's virtual account modify on data, read on TLS and key (an `NT SERVICE\…` account only: `LocalSystem` is SYSTEM) |
-| Binaries | `ReleasesRoot`, the configuration file, the folder that holds it (`C:\ProgramData\AuthLens\config`) | allowed (read and execute) | refused | SYSTEM and Administrators full control; service read and execute on `ReleasesRoot` |
-| Target parent | Existing application parent, or a missing application parent with its ancestor findings reported separately | refused when it holds a private target | refused | SYSTEM and Administrators |
+| Private | `data` and every descendant (database, logs, application backups, accounts); `backups\predeploy`; `tls` (certificate, password file); the folder of the host backup key (`keys`); `deployment` | refused | refused | SYSTEM and Administrators full control; the service's virtual account modify on `data`, read on `tls` and `keys`, nothing on the others (an `NT SERVICE\…` account only: `LocalSystem` is SYSTEM) |
+| Binaries | `releases`; the configuration file and its folder (`config`) | allowed on `releases` (read and execute), refused on configuration | refused | SYSTEM and Administrators full control; service read and execute on `releases` |
 
-`C:\ProgramData` normally grants Users read and inherited create rights. It is **never changed**. Missing application parents are marked
-`provisioning_required`, retaining ancestor findings for review without treating normal read/create rights as blockers. Existing insecure application
-parents remain blocking. Secure provisioning refuses a parent with broad delete/replacement or DACL/owner rights. The preflight reports every finding with path, role, principal, access, rights mask,
-inherited or explicit, and what it applies to.
+`C:\ProgramData` normally grants Users read and inherited create rights. It is **never changed**; `Initialize-ALInstallation` creates
+`C:\ProgramData\AuthLens` with a protected DACL instead. A path that does not exist yet is reported (`exists: false`) without findings.
+Secure provisioning refuses a parent with broad delete/replacement or DACL/owner rights. `AuditAcl` reports every finding with path, role,
+principal, access, rights mask, inherited or explicit, and what it applies to.
 
 This is a conservative allow-rule policy audit, not a Windows Authz effective-access calculation for every possible token. A broad allow remains
 a finding even when a deny might cancel it for a particular user; individual account membership is not expanded. Native fixtures verify the SID
@@ -236,17 +236,18 @@ $aclBackupRoot = 'C:\ProgramData\AuthLens-acl-recovery'   # dedicated, outside a
 & $entry -Action RestoreAcl -ConfigFile $config -AclBackup <printed-backup-folder> -ApprovedAclRoot $approvedRoots -Yes
 ```
 
-`ProtectAcl` changes only paths with broad grants or missing required access, and missing target parents:
+`ProtectAcl` changes only existing paths with broad grants or missing required access:
 
 1. Requires explicit `-ApprovedAclRoot` application-owned roots and a disjoint `-AclBackupRoot` outside every affected tree. It rejects system
    roots, unapproved paths and reparse points before any change. Creates the backup storage with a protected DACL (SYSTEM, Administrators) and saves every affected ACL with its
-   descendants into verified, icacls-compatible UTF-16 path/DACL inventories using in-process ACL reads, without recursive native traversal or per-object backup processes. Schema-2 `acl-backup.json` retains file checksums, original DACL inventories and created-parent records. All inventories and the manifest are flushed before application ACL changes.
+   descendants into verified, icacls-compatible UTF-16 path/DACL inventories using in-process ACL reads, without recursive native traversal or per-object backup processes. Schema-2 `acl-backup.json` retains file checksums and original DACL inventories. All inventories and the manifest are flushed before application ACL changes.
 2. For each path: `icacls /inheritance:r` with SYSTEM and Administrators full control (and the service's virtual account where the table says
    so), removes explicit grants to the broad SIDs (including the actual Domain Users/Guests SIDs found by the audit), grants authenticated users read and execute again on release folders only, and resets the
    inventoried physical descendants of private folders individually to inherit (their earlier explicit entries are in the backup). Ordinary files use a file-handle native reset; directories retain individual `icacls /reset /L /C /Q` calls. The native reset opens the final object with `OPEN_REPARSE_POINT`, rejects directory/reparse handles and supplies a real empty DACL with inheritance enabled, never a null DACL. Owner, group and SACL are outside this DACL-only operation.
-3. Creates missing target parents with the same protected DACL supplied in the native exclusive [CreateDirectoryW operation](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw), verifies ACE bytes/protection
-   and required SYSTEM/Administrators access, then permits file writes. Creation failure, a raced existing path, unsupported storage or verification
-   failure refuses further writes. `Initialize-ALInstallation` creates a new AuthLens root the same way (protected SYSTEM/Administrators DACL) before any file is staged.
+3. New protected folders (the ACL backup storage, and the installation root through `Initialize-ALInstallation`) receive their DACL in the
+   native exclusive [CreateDirectoryW operation](https://learn.microsoft.com/en-us/windows/win32/api/fileapi/nf-fileapi-createdirectoryw); ACE
+   bytes/protection and required SYSTEM/Administrators access are verified before any file is written. Creation failure, a raced existing path,
+   unsupported storage or verification failure refuses further writes.
 4. Verifies required SYSTEM/Administrators full control and audits again; an unsafe result fails closed and retains the ACL backup.
 
 It refuses drive roots, `%ProgramData%`, `%ProgramFiles%`, the Windows folder, `%SystemDrive%\Users` and user profiles. The running service
@@ -254,7 +255,7 @@ keeps its access (SYSTEM for `LocalSystem`, its own grant otherwise), so it is n
 verified application backup, run `AuditAcl` and review each listed path, run in a quiet window, and keep the printed backup folder.
 `RestoreAcl` requires the independently approved roots again. Before its first restore command it validates all checksums and every UTF-16
 path/DACL record against the saved inventory, rejecting path escapes. It replays saved ACLs newest first and verifies every original DACL afterward;
-exit 4 indicates an unverified restore requiring manual recovery. Created protected parents and backup storage are retained. Schema-1 backups remain
+exit 4 indicates an unverified restore requiring manual recovery. Backup storage is retained; target-parent records of older backups are kept, never deleted. Schema-1 backups remain
 untouched and require reviewed manual restoration; they lack the inventories required for an automated verified restore.
 An elevated Windows token is required for native remediation/restore acceptance. An unprivileged `icacls /restore` can fail with exit 1300
 (missing privilege); that is an infrastructure limitation, not evidence that restoration passed. Keep the original ACL backup and investigate.

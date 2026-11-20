@@ -83,7 +83,7 @@ try {
     # NTFS audit (read-only) of the installation's private state, releases and configuration. Exit code 0 when no broad principal can read private
     # state or write anywhere it matters, 2 otherwise.
     if ($Action -eq 'AuditAcl' -or ($Action -eq 'ProtectAcl' -and $DryRun)) {
-        $report = Get-ALAclReport (Get-ALAclPlan $config $null)
+        $report = Get-ALAclReport (Get-ALAclPlan $config)
         Write-Result $report $(if ($report.safe) { 0 } else { 2 })
     }
     if ($changing -and -not (Test-Elevated)) { Stop-AL "$Action needs an elevated session (an administrator account over SSH, or Run as administrator)." }
@@ -138,9 +138,8 @@ try {
         'Recover' { Write-Result (Invoke-ALRecover $config) 0 }
         'ProtectAcl' {
             if (-not $ConfigFile) { Stop-AL 'ProtectAcl requires an explicit -ConfigFile.' }
-            $target = $null
             $backupRoot = if ($AclBackupRoot) { $AclBackupRoot } else { Join-AL $config.WorkRoot 'acl-backups' }
-            $result = Invoke-ALProtectAcl $config $target $backupRoot $ApprovedAclRoot
+            $result = Invoke-ALProtectAcl $config $backupRoot $ApprovedAclRoot
             Write-Result $result $(if ($result.after.safe) { 0 } else { 2 })
         }
         'RestoreAcl' {

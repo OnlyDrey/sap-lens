@@ -129,9 +129,6 @@ Not run: the complete browser suite, and anything native on Windows (service, in
 ## 9. Technical debt found and not changed
 
 - `LICENSE.md` names SAP Lens (owner decision).
-- `AuthLens.Acl.ps1` still builds a source/target plan; since the service migration was removed every entry point passes no target, so
-  the target branch (target parents, provisioning) is reachable only from `AuthLens.Acl.Tests.ps1`. Its fixtures model the reported SAP Lens
-  VM layout (`C:\saplens2`, `SapLens2`). Simplify both once the ACL tests can run on Windows; on Linux they cannot verify an ACL change.
 - Feature documents `ACCOUNT_REVIEW.md`, `EMPLOYEE_DIRECTORY.md` and `IMPORT_AND_REFRESH.md` still describe SAP Lens 1 file storage under
   `%LOCALAPPDATA%\SAP Lens`; AuthLens keeps that data in SQLite. They predate the rename and need a separate rewrite.
 - Logo file names `sap-lens.png`/`sap-lens.ico` and the `saplens_session` cookie keep the earlier name (renaming gains nothing visible and the

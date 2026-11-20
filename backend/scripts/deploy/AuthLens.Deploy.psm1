@@ -792,7 +792,7 @@ function Initialize-ALInstallation($Config) {
         if ($result.ExitCode -ne 0) { Stop-AL "icacls could not protect $root; it was left empty for inspection." 1 }
         Write-ALLog "created $root with a protected DACL (SYSTEM, Administrators)"
     } else {
-        $report = Get-ALAclReport (Get-ALAclPlan $Config $null)
+        $report = Get-ALAclReport (Get-ALAclPlan $Config)
         if (-not $report.safe) { Stop-AL "$root grants broad access; review it with -Action AuditAcl and prepare it with -Action ProtectAcl: $(Format-ALAclFindings $report)" }
     }
     foreach ($folder in $layout.ReleasesRoot, $layout.DataDirectory, $layout.ConfigRoot, $layout.TlsRoot, $layout.KeyRoot, $layout.BackupRoot, $layout.WorkRoot) {

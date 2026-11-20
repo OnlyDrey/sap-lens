@@ -115,7 +115,7 @@ Describe 'Bounded source releases/current junction' -Skip:([IO.Path]::DirectoryS
     }
     It 'rejects an unexpected sibling link before saving or modifying ACLs' {
         New-FixtureJunction (Join-Path $script:Releases 'other') $script:Release
-        { Invoke-ALProtectAcl $script:Config $null $script:Backup $script:Approved } | Should -Throw '*Unexpected reparse point*'
+        { Invoke-ALProtectAcl $script:Config $script:Backup $script:Approved } | Should -Throw '*Unexpected reparse point*'
         $script:Calls.Count | Should -Be 0
         Test-Path $script:Backup | Should -BeFalse
     }
@@ -130,7 +130,7 @@ Describe 'Bounded source releases/current junction' -Skip:([IO.Path]::DirectoryS
         { Get-ALReleaseJunction $script:Releases @($script:Root.ToUpperInvariant()) } | Should -Throw '*exact spelling*'
     }
     It 'backs up and restores physical paths without recursive flags or current-path records' {
-        $result = Invoke-ALProtectAcl $script:Config $null $script:Backup $script:Approved
+        $result = Invoke-ALProtectAcl $script:Config $script:Backup $script:Approved
         $result.after.safe | Should -BeTrue
         $script:Calls | Where-Object { $_ -match ' /T( |$)' -or $_.Contains($script:Current) -or $_ -match '\*' -and $_ -notmatch 'S-1-' } | Should -BeNullOrEmpty
         $record = Get-Content (Join-Path $result.backup 'acl-backup.json') -Raw | ConvertFrom-Json
@@ -140,7 +140,7 @@ Describe 'Bounded source releases/current junction' -Skip:([IO.Path]::DirectoryS
         (Get-ALReleaseJunction $script:Releases).target | Should -Be $script:Release
     }
     It 'refuses restoration after the current binding changes' {
-        $result = Invoke-ALProtectAcl $script:Config $null $script:Backup $script:Approved
+        $result = Invoke-ALProtectAcl $script:Config $script:Backup $script:Approved
         $other = New-FixtureRelease 'another-release'
         (Get-Item -LiteralPath $script:Current).Delete()
         New-FixtureJunction $script:Current $other
@@ -149,7 +149,7 @@ Describe 'Bounded source releases/current junction' -Skip:([IO.Path]::DirectoryS
         $script:Calls.Count | Should -Be 0
     }
     It 'rejects restore records that name paths through current' {
-        $result = Invoke-ALProtectAcl $script:Config $null $script:Backup $script:Approved
+        $result = Invoke-ALProtectAcl $script:Config $script:Backup $script:Approved
         $file = Join-Path $result.backup 'acl-backup.json'
         $saved = Get-Content $file -Raw | ConvertFrom-Json
         $saved.entries[0].snapshot[0].path = Join-Path $script:Current 'server/AuthLens.Api.exe'
