@@ -111,4 +111,5 @@ begin
     SuppressibleMsgBox('SAP Lens v1 is installed on this account. It stays installed and unchanged, with its own data; this Setup installs AuthLens Desktop (.NET) beside it.', mbInformation, MB_OK, IDOK);
 end;
 
+#include "AuthLens-Desktop-Code.iss"
 #include "AuthLens-Transaction.iss"

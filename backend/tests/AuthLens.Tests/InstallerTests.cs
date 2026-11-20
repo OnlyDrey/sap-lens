@@ -11,6 +11,8 @@ public sealed partial class InstallerTests
     private static readonly string Desktop = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "AuthLens-Desktop.iss"));
     private static readonly string Transaction = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "AuthLens-Transaction.iss"));
     private static readonly string Server = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "AuthLens-Server.iss"));
+    private static readonly string DesktopCode = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "AuthLens-Desktop-Code.iss"));
+    private static readonly string ServerCode = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "AuthLens-Server-Code.iss"));
 
     private static string FindRepo()
     {
@@ -21,6 +23,20 @@ public sealed partial class InstallerTests
 
     private static string Setting(string script, string key) => Regex.Match(script, $@"^{key}=(.*)$", RegexOptions.Multiline).Groups[1].Value.Trim();
     private static string Define(string script, string name) => Regex.Match(script, $@"^#define {name} ""([^""]*)""", RegexOptions.Multiline).Groups[1].Value;
+
+    [Fact]
+    public void Mode_specific_callbacks_are_physically_isolated_from_shared_events()
+    {
+        Assert.Contains("#include \"AuthLens-Desktop-Code.iss\"", Desktop);
+        Assert.DoesNotContain("AuthLens-Server-Code.iss", Desktop);
+        Assert.Contains("#include \"AuthLens-Server-Code.iss\"", Server);
+        Assert.DoesNotContain("AuthLens-Desktop-Code.iss", Server);
+        Assert.DoesNotMatch("CONFIGFILE|ConfigFile|PrepareOnly|ExtractTemporaryFiles|DesktopData|#if", Transaction);
+        Assert.DoesNotMatch("CONFIGFILE|ConfigFile|PrepareOnly|ExtractTemporaryFiles", DesktopCode);
+        Assert.DoesNotMatch("DesktopData|DATADIR|DataDirectory", ServerCode);
+        Assert.Contains("InstallerArguments()", Transaction);
+        Assert.Contains("Result := PrepareInstaller()", Transaction);
+    }
 
     [GeneratedRegex(@"^\[(UninstallDelete|InstallDelete)\]", RegexOptions.Multiline)] private static partial Regex DeleteSection();
     [GeneratedRegex(@"\b(DelTree|DeleteFile|RemoveDir|taskkill|Stop-Process|TerminateProcess)\b", RegexOptions.IgnoreCase)] private static partial Regex Destructive();
@@ -92,7 +108,10 @@ public sealed partial class InstallerTests
             Assert.True(call >= 0);
             var sections = Regex.Matches(script[..call], @"^\s*\[([^\]\r\n]+)\]\s*$", RegexOptions.Multiline);
             Assert.Equal("Code", sections[^1].Groups[1].Value);
-            Assert.Empty(SetupCommentsInCode(script.Replace(include, Transaction, StringComparison.Ordinal)));
+            var expanded = script.Replace(include, Transaction, StringComparison.Ordinal)
+                .Replace("#include \"AuthLens-Desktop-Code.iss\"", DesktopCode, StringComparison.Ordinal)
+                .Replace("#include \"AuthLens-Server-Code.iss\"", ServerCode, StringComparison.Ordinal);
+            Assert.Empty(SetupCommentsInCode(expanded));
         });
     }
 
@@ -123,8 +142,8 @@ public sealed partial class InstallerTests
     {
         Assert.Contains("ValueName: \"DataDirectory\"; ValueData: \"{code:DesktopData}\"", Desktop);
         Assert.Contains("Parameters: \"--data-dir \"\"{code:DesktopData}\"\"\"", Desktop);
-        Assert.Contains("RegQueryStringValue(HKCU, '{#VersionKey}', 'DataDirectory', Result)", Transaction);
-        Assert.Contains("Data := DesktopData('')", Transaction);
+        Assert.Contains("RegQueryStringValue(HKCU, '{#VersionKey}', 'DataDirectory', Result)", DesktopCode);
+        Assert.Contains("DesktopData('')", DesktopCode);
     }
 
     [Fact]
@@ -139,11 +158,12 @@ public sealed partial class InstallerTests
         Assert.Equal(DesktopLocation.MutexName, Setting(Desktop, "AppMutex"));
         // Server: explicit package/config adapter; service changes stay in the verified deployment engine.
         Assert.Equal("admin", Setting(Server, "PrivilegesRequired"));
-        Assert.Contains("CONFIGFILE", Transaction);
-        Assert.Contains("-PrepareOnly", Transaction);
-        Assert.Contains("ExtractTemporaryFiles", Transaction);
+        Assert.Contains("CONFIGFILE", ServerCode);
+        Assert.Contains("-PrepareOnly", ServerCode);
+        Assert.Contains("ExtractTemporaryFiles", ServerCode);
         Assert.Contains("RaiseException", Transaction);
-        Assert.Contains("-InstallRoot", Transaction);
+        Assert.Contains("-InstallRoot", DesktopCode);
+        Assert.Contains("-InstallRoot", ServerCode);
         Assert.DoesNotContain("net.exe", Server);
         Assert.DoesNotMatch(@"Exec\([^)]*sc\.exe", Server);
         Assert.Contains("Result[0] := 'AuthLens';", Server);

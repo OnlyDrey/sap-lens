@@ -445,8 +445,8 @@ powershell -NoProfile -File .\scripts\build-installers.ps1 -ReleasePath $release
 | `AuthLens-<version>-Setup.exe` (Desktop) | Per user, `%LOCALAPPDATA%\Programs\AuthLens Desktop`; data `%LOCALAPPDATA%\AuthLens\data` | New AppId, closed-application check, private recovery journal, encrypted protective backup, atomic executable replacement and readiness-verified binary rollback |
 | `AuthLens-Server-<version>-Setup.exe` | Machine, `C:\ProgramData\AuthLens\app`; executable under `releases\current\server` | Explicit `/CONFIGFILE`, protected root before staging, verified versioned deployment with the existing service state machine |
 
-Installer compilation and privileged service acceptance are **not verified here**. The PowerShell adapter has native isolated Desktop evidence;
-the Inno definitions have contract tests only. Installers are unsigned; approved transport, signing, publication and deployment are separate steps.
+Full release installer execution and privileged service acceptance are **not verified here**. The PowerShell adapter has native isolated Desktop evidence;
+the Inno definitions have contract tests and synthetic native compiler checks. Installers are unsigned; approved transport, signing, publication and deployment are separate steps.
 Do not run the examples against an existing installation during development.
 
 The shared `AuthLens-Transaction.iss` is included inside each installer's [Pascal Script `[Code]` section](https://jrsoftware.org/ishelp/topic_scriptcreating.htm). Its comments must use Pascal syntax (`//` or block
@@ -454,7 +454,29 @@ comments), not Setup-section `;` comments. Native acceptance of fdb7e87 exposed 
 The headers now use `//`; the include placement and all transaction/security logic are unchanged. Focused installer contracts expand the include
 in both callers, check that its context is `[Code]`, and reject Setup-style comments there. This guard detects the reported defect but is not a
 Pascal compiler. Recompile **both** variants with Inno Setup 6 using a newly verified release and helpers from the same fixed commit; preserve the
-failed build and use a new empty installer output directory. Local ISCC compilation remains unavailable on the development workstation.
+failed build and use a new empty installer output directory. ISCC was unavailable at that earlier checkpoint; the callback isolation checks below
+now have local Inno Setup 6.7.4 compiler evidence.
+
+### Desktop and Server callback isolation
+
+Each entry script includes only its own Pascal callbacks (`AuthLens-Desktop-Code.iss` or `AuthLens-Server-Code.iss`) before
+`AuthLens-Transaction.iss`. Shared events retain the immutable-payload refusal and transaction exit handling; they do not contain conditional
+Desktop/Server validation. Desktop preparation requires no `/CONFIGFILE`, uses per-user privileges and the selected HKCU data profile
+(default `%LOCALAPPDATA%\AuthLens\data`). Server alone requires `/CONFIGFILE` and provisions its protected root before payload extraction.
+Backup, rollback, recovery journals and legacy SAP Lens boundaries are unchanged.
+
+Focused checks: `dotnet test backend/tests/AuthLens.Tests -c Release --filter FullyQualifiedName~InstallerTests` and
+`Invoke-Pester backend/scripts/tests/InnoIsolation.Tests.ps1`. The latter uses Inno Setup 6 when installed to compile both actual entry scripts
+with synthetic payload bytes and inspect their preprocessed code. It never executes Setup; a skip means native compiler verification is deferred.
+These fixtures are not release artifacts. On this workstation Inno Setup **6.7.4** also correctly isolated the original `e16b9d3` branches;
+indented directives were **not proven to cause** the reported acceptance failure. Preserve the failing EXE, SHA-256, compiler version,
+build command and Setup log to reconcile artifact provenance. The callback split removes shared conditional validation but does not establish
+the cause of that particular executable's behavior.
+
+Rebuild a clean release and matching installers from the committed correction into fresh output paths. On a disposable Windows VM/user,
+confirm Desktop proceeds without `/CONFIGFILE`, keeps its selected per-user data on update/uninstall, and launches WebView2; confirm Server
+refuses missing/invalid configuration before staging and accepts only reviewed explicit configuration. Repeat update/failure/recovery and
+legacy sentinel checks in the acceptance procedure below. Neither existing SAP Lens installations nor preserved recovery artifacts may be changed.
 
 ### Manual installer transaction
 

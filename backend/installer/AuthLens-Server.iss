@@ -115,4 +115,5 @@ begin
     end;
 end;
 
+#include "AuthLens-Server-Code.iss"
 #include "AuthLens-Transaction.iss"

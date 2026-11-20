@@ -1,5 +1,35 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Installer callback isolation (after e16b9d3)
+
+Operator-reported Windows release evidence: **477/477 .NET tests**, **17 verified artifacts**, both Inno installers compiled, and no secret
+findings. Desktop then displayed the Server-only `/CONFIGFILE` refusal during Preparing to Install. Those release results are reported evidence,
+not reruns here. Version remains **2.0.0-alpha.1**; release recommendation remains **NOT READY**.
+
+The shared Pascal include previously contained both Server preparation and mode-specific transaction arguments behind `InstallerMode`
+conditionals. Both entry scripts now include physically separate Desktop/Server callbacks before shared events. Desktop contains no Server
+configuration refusal or protected-root provisioning; Server retains the exact explicit-configuration refusal and provisioning commands.
+The shared immutable-payload guard and transaction failure handling remain intact. Per-user Desktop data selection, Server rollback proof,
+legacy SAP Lens boundaries, stash and recovery artifacts are preserved. No version or CI change, push, merge, tag or release is authorized.
+
+**Cause limitation:** native Inno Setup **6.7.4** preprocessing and compilation also correctly isolate the original `e16b9d3` sources.
+The initial suspicion that directive indentation caused leakage is not substantiated on this compiler. Physical callback isolation removes the
+shared conditional validation path, but the failing executable's provenance/compiler behavior remains unresolved without its SHA-256,
+compiler version, exact build command and Setup log. Do not claim this is a reproduced runtime fix or completed native acceptance.
+
+Focused Windows validation: `InstallerTests` **12 passed, 0 failed** (.NET SDK 10.0.404); Pester 5.9.1 on Windows PowerShell 5.1,
+`InnoIsolation.Tests.ps1`, `AuthLens.Installer.Tests.ps1` and `AuthLens.Deploy.Tests.ps1`: **70 passed, 0 failed, 1 skipped** (51.89 seconds).
+The skip is the opt-in real-release Desktop adapter test; no verified release was selected. Both synthetic entry scripts compiled with Inno
+Setup 6.7.4 and their preprocessed code passed absence/presence checks for configuration, privileges, data, provisioning and shared guards.
+Pester's unused TestRegistry plugin was disabled because the sandbox blocks its registry fixture; no application registry was selected.
+Documentation links: **100 files, 0 failures**; `git diff --check` passed. Focused JSON/TRX and original preprocessing evidence are retained under
+ignored `build/test-artifacts/inno-isolation`. An intermediate .NET run failed against stale tests while callback files were being moved;
+the rebuilt complete affected class passed. Native compiler fixtures use synthetic payloads and do not launch Setup or produce deployable
+releases. Rebuild the clean release and both installers from the final local commit, using fresh output paths, then run
+isolated Desktop no-configuration/per-user/update/recovery and Server missing/invalid/valid configuration/SCM acceptance as described in
+[Windows deployment](../deployment/WINDOWS_DEPLOYMENT.md#desktop-and-server-callback-isolation). Full .NET and Playwright regression are excluded
+from this task. Preserve the failed installer and all existing recovery artifacts.
+
 ## Installer Pascal include correction (after fdb7e87)
 
 Native acceptance reported .NET SDK 10.0.404, Node 24.22.3 and Windows PowerShell 5.1: solution build, all 473 .NET tests, Server/Desktop publish,
