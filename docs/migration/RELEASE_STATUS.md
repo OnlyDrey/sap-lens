@@ -3,7 +3,7 @@
 ## Installer stabilization continuation (2026-11-20, starting 798d3d0)
 
 **NOT READY for release.** Manual installer transactions are implemented using the existing Inno/deployment/backup approach, with focused Windows
-and native isolated Desktop evidence. Inno compilation, different-build installer rollback, elevated SCM and interactive WebView2 acceptance
+and native isolated Desktop evidence. Inno compilation, compiled Setup rollback, elevated SCM and interactive WebView2 acceptance
 remain open. The dated continuation below records the previous checkpoint; this section supersedes its installer implementation status.
 
 Local installer commit: `fddf6f6`. The existing stash and ignored recovery artifacts remain preserved. No push, merge, tag, release or CI was
@@ -24,8 +24,11 @@ requested or performed. Product version, AuthLens identity and main-only CI poli
 Focused evidence: installer/deployment/helper/release Pester **108 passed, 0 failed**, plus subsequently added Server delegation/recovery and native
 junction cases passed separately; installer/backup/legacy/governance .NET **32 passed, 0 failed**. Native adapter acceptance using the verified
 `bfa7226` package passed five stages (fresh/readiness, isolated key, update/verified backup/readiness, interrupted recovery, preserved database).
-The recovery was same-build; it is not different-build or compiled Setup acceptance. PowerShell 5.1 parsed all 26 scripts without errors;
-documentation links passed (100 Markdown files). Final consolidated regression is pending and will be recorded here.
+A subsequent native different-build fixture passed bfa7226-to-8d05990 atomic replacement, an injected readiness failure with verified old-binary
+rollback/probe, successful update and explicit interrupted recovery (1 Pester case, 237.79 seconds). This is adapter evidence, not compiled Setup acceptance. PowerShell 5.1 parsed all 26 scripts without errors;
+documentation links passed (100 Markdown files). The complete Pester checkpoint passed **193, failed 0, skipped 11** (204 discovered, zero failed containers, 362.28 seconds). Nine skips are Linux
+launcher cases and two need elevated ACL restoration. A final retained-installation guard is in `7b789df`; its three focused cases passed after that
+checkpoint. Two additional packaged-entry integrity tests passed. Complete .NET/browser regression is pending and will be recorded here.
 
 Operator gates: provide approved Inno Setup 6; build a clean release and helper inventory at the same commit; compile into a new empty output;
 then execute fresh install, same-schema different-build update, induced readiness failure and interrupted recovery in a disposable elevated VM

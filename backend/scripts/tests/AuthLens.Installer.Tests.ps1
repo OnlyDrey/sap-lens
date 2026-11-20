@@ -71,6 +71,30 @@ Describe 'Native release-pointer update boundaries on synthetic fixtures' {
         finally { (Get-Item -LiteralPath $nested -Force).Delete() }
     }
 }
+Describe 'Packaged installer helper integrity before import' {
+    It 'refuses a missing helper manifest before creating any program or data directory' {
+        $root=Join-Path $TestDrive ([Guid]::NewGuid().ToString('N'))
+        $result=Invoke-TestPowerShell @('-File',(Join-Path $PSScriptRoot '../Install-AuthLens.ps1'),'-Mode','Desktop','-Package',$TestDrive,'-InstallRoot',$root,'-DataDirectory',($root+'-data'),'-Yes')
+        $result.Code | Should -Be 2
+        $result.Output | Should -BeLike '*integrity manifest is missing*'
+        Test-Path $root | Should -BeFalse
+        Test-Path ($root+'-data') | Should -BeFalse
+    }
+    It 'refuses changed helper code before importing it and copies only the runtime inventory' {
+        $run=Join-Path $TestDrive ([Guid]::NewGuid().ToString('N')); New-Item -ItemType Directory $run | Out-Null
+        Save-ALInstallerRecoveryTools $run
+        $tools=Join-Path $run 'recovery-tools'; $proof=Get-Content (Join-Path $tools 'installer-tools.json') -Raw | ConvertFrom-Json
+        $proof.files.Count | Should -Be 7
+        @(Get-ChildItem $tools -Recurse -File).Count | Should -Be 8
+        [IO.File]::WriteAllText((Join-Path $tools 'deploy/AuthLens.Deploy.psm1'),"throw 'Changed helper was executed'")
+        $root=Join-Path $run 'program'
+        $result=Invoke-TestPowerShell @('-File',(Join-Path $tools 'Install-AuthLens.ps1'),'-Mode','Desktop','-Package',$run,'-InstallRoot',$root,'-DataDirectory',(Join-Path $run 'data'),'-Yes')
+        $result.Code | Should -Be 2
+        $result.Output | Should -BeLike '*helper integrity verification failed*'
+        $result.Output | Should -Not -BeLike '*Changed helper was executed*'
+        Test-Path $root | Should -BeFalse
+    }
+}
 Describe 'Installer transactions on isolated program/data fixtures' {
     BeforeEach {
         $script:Fixture=New-InstallerFixture

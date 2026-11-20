@@ -168,8 +168,9 @@ checkpoint paths fix that native incompatibility. Child PowerShell selection is 
 requirement. Custom Desktop data profiles are retained in shortcuts, launch and updates. No schema, product version, UI identity or CI change.
 
 Native isolated Desktop fresh install, update with an encrypted verified backup, interrupted recovery and preserved canonical data passed using
-the previously verified bfa7226 package. SCM remains mocked, Inno remains uncompiled, and same-build native recovery is not different-build
-installer acceptance. Protective backup, schema compatibility and recovery hash guards are unchanged or stricter. No existing service/data/TLS/key
+the previously verified bfa7226 package. A further native fixture replaced bfa7226 with the verified 8d05990 binary, injected a readiness failure after real replacement, verified the old binary
+and its real probe, then passed update and interrupted recovery. SCM remains mocked and Inno remains uncompiled; this is adapter acceptance,
+not compiled Setup acceptance. Protective backup, schema compatibility and recovery hash guards are unchanged or stricter. No existing service/data/TLS/key
 was selected. New portable governance coverage restores the application-written v1 fixture's review history and frozen SoD evidence into fresh
 canonical storage through the shared backup engine; the former SoD-fixture gap in the matrix was stale and is corrected.
 
