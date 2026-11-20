@@ -483,29 +483,141 @@ only after administrator/current-password reauthentication, with a session-bound
 
 ## Acceptance checklist (Windows, pending)
 
-On a dedicated Windows VM, from an elevated Windows PowerShell 5.1 prompt in the repository root, with an isolated root (for example
-`C:\AuthLens-Acceptance\root`, `Root` in a private test configuration) and synthetic or copied data. Every step is **Pending** until its result is
-recorded. Existing SAP Lens services and installations stay untouched; never stop, rename or reconfigure them.
+**Status: not executed.** Nothing below has run on Windows yet; record each result before calling a step passed. Linux results (unit, Pester,
+browser, release build) are reported separately in [release status](../migration/RELEASE_STATUS.md) and are not Windows evidence.
 
-| # | Step | Command | Pass when |
-| --- | --- | --- | --- |
-| A | Fresh installation | `& $entry -Action Deploy -FirstInstall -ConfigFile $config -Tests focused -Yes` | Root created with a protected DACL; service `AuthLens` (display name AuthLens) running `releases\current\server\AuthLens.Api.exe`; `AuditAcl` exit 0 |
-| B | Database name | `Get-ChildItem <root>\data` | `authlens.sqlite3` present; no `sap-lens-v2.sqlite3` |
-| C, D | Restore a SAP Lens backup | `& $entry -Action Restore -Backup <SAP Lens .slbak> -KeyFile <exported key> -Yes` | Exit 0; the same users, roles, reviews, SoD decisions and settings as the SAP Lens installation |
-| E | Another machine | Repeat A and C on a second VM with only the backup and the key | Same result; no SAP Lens path exists there |
-| F | Wrong or missing key | Restore with another key, then without `-KeyFile` | Refused; data unchanged; no pending restore |
-| G | Corrupted backup | Restore a copy with one changed byte | Refused before anything is staged |
-| I | Interrupted activation | Stop the service during `Restore` after staging, then start it | The restore is applied or rolled back as a whole, never partially |
-| J | Earlier products untouched | `Get-Service SapLens2, sap-lens, SapLens -ErrorAction SilentlyContinue` before and after | Unchanged state, start mode and command line |
-| K | Version | `& $entry -Action Health -ConfigFile $config` | `2.0.0-alpha.1` and the expected commit |
-| M | Functional validation | Sign in; Dashboard, User Access, Account Review, SoD, reports, exports | As on SAP Lens; export file names start with `authlens-` |
-| N | Update and rollback | `Deploy` a newer commit, then `Rollback` | Data kept; previous release serves again |
-| | Service lifecycle | `Restart-Service AuthLens`; reboot the VM | Graceful stop, automatic start, ready |
-| | Installers | `build-installers.ps1`, then both setups | Install beside SAP Lens (own AppIds); Desktop data in `%LOCALAPPDATA%\AuthLens` |
-| | Desktop self-check | `"%LOCALAPPDATA%\Programs\AuthLens Desktop\AuthLens.exe" --self-check` | Exit 0; log written |
+Ground rules: an elevated **Windows PowerShell 5.1** prompt in a clean checkout of `experiment/dotnet-backend`; synthetic data first, a real backup
+only as a **copy** in an isolated root; the existing SAP Lens services (`SapLens2`, `sap-lens`, `SapLens`), their folders, ports, certificates and
+firewall rules are never stopped, changed or reused. Keep the evidence files of each step under `C:\AuthLens-Acceptance\evidence` (no secrets,
+codes, passwords or keys in them).
 
-Also run the native test suites once on the VM: `Invoke-Pester backend\scripts\tests` (includes the Windows-only tests that Linux skips) and
-`dotnet test backend\tests\AuthLens.Tests -c Release`.
+### 0. Baseline of the existing installations (read only)
+
+```powershell
+New-Item -ItemType Directory -Force C:\AuthLens-Acceptance\evidence | Out-Null
+$ev = 'C:\AuthLens-Acceptance\evidence'
+Get-CimInstance Win32_Service | Where-Object Name -in 'SapLens2','sap-lens','SapLens','AuthLens' |
+  Select-Object Name, DisplayName, State, StartMode, StartName, PathName | ConvertTo-Json | Set-Content "$ev\00-services-before.json"
+Get-NetTCPConnection -State Listen | Select-Object LocalAddress, LocalPort, OwningProcess | Sort-Object LocalPort | Out-File "$ev\00-ports-before.txt"
+```
+
+Pass: the file lists the SAP Lens services as they are; **no** `AuthLens` service yet. Choose a free port for AuthLens (for example `18796`).
+
+### 1. Release build, verification and installers
+
+```powershell
+git status --short; git rev-parse HEAD                                      # clean, expected commit
+Import-Module .\backend\scripts\deploy\AuthLens.Deploy.psm1 -Force; $filter = Get-ALTestFilter focused
+& .\backend\scripts\build-release.ps1 -Output C:\AuthLens-Acceptance\builds -TestFilter $filter
+$release = Get-ChildItem C:\AuthLens-Acceptance\builds -Directory -Filter 'AuthLens-*-win-x64' | Sort-Object Name | Select-Object -Last 1
+& .\backend\scripts\verify-release.ps1 -ReleasePath $release.FullName *>&1 | Tee-Object "$ev\01-verify.txt"
+& .\backend\scripts\build-installers.ps1 -ReleasePath $release.FullName -Output C:\AuthLens-Acceptance\installers
+Get-ChildItem $release.FullName\server, $release.FullName\desktop | Select-Object Name, Length | Out-File "$ev\01-files.txt"
+```
+
+Pass: `Release verified` for win-x64; `server\AuthLens.Api.exe` and `desktop\AuthLens.exe` exist; manifest product `AuthLens`, version
+`2.0.0-alpha.1`; `AuthLens-2.0.0-alpha.1-Setup.exe` and `AuthLens-Server-2.0.0-alpha.1-Setup.exe` are produced.
+
+### 2. Native test suites
+
+```powershell
+Invoke-Pester .\backend\scripts\tests -Output Detailed *>&1 | Tee-Object "$ev\02-pester.txt"   # includes the Windows-only ACL, junction and native tests
+dotnet test .\backend\tests\AuthLens.Tests -c Release *>&1 | Tee-Object "$ev\02-dotnet.txt"
+```
+
+Pass: no failures. The native ACL restore round trip needs elevation; record any skip with its reason.
+
+### 3. Fresh installation (canonical service and root)
+
+Create `C:\ProgramData\AuthLens\config\deploy.json` from `deploy.example.json` with `Root` `C:\ProgramData\AuthLens`, this checkout as
+`RepositoryPath`, the VM's own address as `ListenAddress`, the free port, `AllowedHosts` with that address (and a test host name). Put a TLS
+certificate for that name in `C:\ProgramData\AuthLens\tls` (`server.pfx`, `cert-password`; see
+[certificates](SERVER_NETWORK_ACCESS.md#4-tls-certificates)).
+
+```powershell
+$entry = '.\backend\scripts\deploy\Deploy-AuthLens.ps1'; $config = 'C:\ProgramData\AuthLens\config\deploy.json'
+& $entry -Action Deploy -FirstInstall -ConfigFile $config -DryRun                      # plan only
+& $entry -Action Deploy -FirstInstall -ConfigFile $config -Tests focused -Yes *>&1 | Tee-Object "$ev\03-install.txt"
+& $entry -Action Status -ConfigFile $config | Tee-Object "$ev\03-status.txt"
+& $entry -Action AuditAcl -ConfigFile $config | Tee-Object "$ev\03-acl.txt"; "exit $LASTEXITCODE"
+Get-CimInstance Win32_Service -Filter "Name='AuthLens'" | Select-Object Name, DisplayName, State, StartMode, StartName, PathName | Format-List
+Get-ChildItem C:\ProgramData\AuthLens, C:\ProgramData\AuthLens\data | Select-Object FullName
+foreach ($d in 'data','tls','keys','backups\predeploy','deployment','releases','config') { icacls "C:\ProgramData\AuthLens\$d" } | Out-File "$ev\03-icacls.txt"
+Invoke-WebRequest -UseBasicParsing "https://<host>:<port>/health/ready" | Select-Object StatusCode, Content
+```
+
+Pass:
+
+| Check | Expected |
+| --- | --- |
+| Service | Name `AuthLens`, DisplayName `AuthLens`, `Auto` start, `NT SERVICE\AuthLens`, running `C:\ProgramData\AuthLens\releases\current\server\AuthLens.Api.exe` |
+| Layout | `releases`, `data`, `config`, `tls`, `keys`, `backups\predeploy`, `deployment` under `C:\ProgramData\AuthLens` |
+| Database | `data\authlens.sqlite3` (plus `-wal`/`-shm`), no `sap-lens-v2.sqlite3`; `/health/ready` 200 |
+| ACLs | `AuditAcl` exit 0; root protected (SYSTEM, Administrators); service modify on `data`, read on `tls` and `keys`, read/execute on `releases`; no Users/Authenticated Users write anywhere and no read on private folders or `config` |
+| TLS and network | HTTPS on the configured address and port only; an unlisted host name is refused; the SAP Lens ports are unchanged |
+
+### 4. Service lifecycle
+
+```powershell
+Restart-Service AuthLens; (Get-Service AuthLens).Status
+Get-Content C:\ProgramData\AuthLens\data\logs\server-*.log -Tail 20     # graceful stop, then start and ready
+Restart-Computer                                                       # then, after sign-in:
+(Get-Service AuthLens).Status; Invoke-WebRequest -UseBasicParsing "https://<host>:<port>/health/ready"
+```
+
+Pass: stop is graceful (log shows shutdown, no integrity warning), the service starts automatically after a reboot and is ready.
+
+### 5. Backup and restore (synthetic first)
+
+On the fresh installation: activate the first administrator, import the synthetic CSVs from `examples\`, create a manual backup in
+Settings > Backup & Restore, download it and export the recovery key (Service Manager). Then:
+
+```powershell
+& $entry -Action Restore -ConfigFile $config -Backup <synthetic AuthLens.slbak> -KeyFile <exported.key> -Yes; "exit $LASTEXITCODE"
+& $entry -Action Restore -ConfigFile $config -Backup <SAP Lens .slbak copy> -KeyFile <SAP Lens recovery key copy> -Yes; "exit $LASTEXITCODE"
+Get-ChildItem C:\ProgramData\AuthLens\data -Filter *.sqlite3; Get-ChildItem C:\ProgramData\AuthLens\data\backups\archives -Filter 'destination-*'
+```
+
+Pass: exit 0; `authlens.sqlite3` only; a `destination-*` recovery backup of the replaced data; users, roles, account reviews, SoD decisions,
+saved filters and settings match the source; Data Health shows no integrity finding; `/health/ready` 200. Source paths of the SAP Lens host may
+not exist here: the imported records are still present, and a refresh reports such a source as failed without replacing its data.
+
+Failure cases (each must leave the current data unchanged and no `data\restore\pending.json`):
+
+| Case | How | Expected |
+| --- | --- | --- |
+| Wrong key | `-KeyFile` of another installation | Refused, exit 1 or 2 |
+| Missing key | No `-KeyFile`, key not configured | Refused |
+| Corrupted backup | A copy with one changed byte | Refused before staging |
+| Newer schema | Covered by `LegacyRestoreTests` on Linux; not reproducible with a real archive | — |
+| Interrupted restore | `Stop-Service AuthLens` right after the restore stage, then `Start-Service` | Applied or rolled back as a whole |
+| Existing data | Restore over the installation that already has data | Recovery backup first, then replaced |
+
+### 6. Updates, rollback and earlier products
+
+```powershell
+& $entry -Action Deploy -ConfigFile $config -Tests focused -Yes          # a newer commit
+& $entry -Action Rollback -ConfigFile $config -Yes
+Get-CimInstance Win32_Service | Where-Object Name -in 'SapLens2','sap-lens','SapLens' |
+  Select-Object Name, DisplayName, State, StartMode, StartName, PathName | ConvertTo-Json | Set-Content "$ev\06-services-after.json"
+Compare-Object (Get-Content "$ev\00-services-before.json") (Get-Content "$ev\06-services-after.json")    # no output
+```
+
+Pass: data kept across update and rollback; the SAP Lens services are identical to step 0.
+
+### 7. Installers and Desktop
+
+Run `AuthLens-Server-2.0.0-alpha.1-Setup.exe` only on a VM without the canonical installation from step 3 (it installs to
+`C:\ProgramData\AuthLens\app`), and `AuthLens-2.0.0-alpha.1-Setup.exe` for the current user.
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\AuthLens Desktop\AuthLens.exe" --self-check; "exit $LASTEXITCODE"
+Get-ChildItem "$env:LOCALAPPDATA\AuthLens" -Recurse -Depth 1 | Select-Object FullName
+```
+
+Pass: both setups install beside SAP Lens (own AppIds, SAP Lens entries unchanged in Apps & features); self-check exit 0 and a log under
+`%LOCALAPPDATA%\AuthLens\logs`; the Desktop window opens, imports a synthetic CSV, and exports (CSV, PDF, DOCX, backup) arrive as normal downloads.
+Uninstall removes the programs and keeps data.
 
 ## Post-promotion infrastructure verification
 
