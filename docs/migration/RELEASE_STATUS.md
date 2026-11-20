@@ -1,5 +1,64 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Windows Server functional acceptance
+
+2026-11-20, installed **4b20cdb**, repository starting at **9b85ac6**, AuthLens **2.0.0-alpha.1**: every independent requested read area was
+attempted against the authenticated Server and its migrated database. The operator's sign-in and the agent's rendered dashboard observation
+close the previous browser sign-in gate. **Overall functional acceptance: FAIL on one demonstrated compatibility defect; controlled writes
+BLOCKED by the read-only gate. Not production-ready.** Product code and the installation were not changed.
+
+| Feature | Result and scope |
+| --- | --- |
+| Dashboard/navigation | PASS: signed-in dashboard and navigation render populated source, review, directory and SoD metrics |
+| Role Lookup/User Access | PASS: 96-role catalogue, no-match search and reset, role detail, 265-user listing and actual user detail |
+| User comparison | PASS: two distinct users render comparison; roles/transactions and transaction evidence API return 200; same-user request is correctly refused |
+| Employee Directory/account mapping | PASS: source UI shows 1,767 records; status/match routes work; 257 of 265 identities match (6 missing emails, 2 unmatched) |
+| Saved filters | PASS for read/empty state (0 migrated); create/update/delete and restart persistence NOT TESTED |
+| Access packages | PASS for pure preview and CSV response: one actual catalogue role yields one valid export row; no package/business record is stored |
+| Account Review/history | PASS for real listing/history access and retained events; FAIL for unchanged V1 schema-2 compatibility in the synthetic reproduction below |
+| SoD periods/decisions/risks/evidence | PASS for overview, both matrices, explorer, risk-review list, queue, migrated period details/UI snapshot, and sampled activity/assignment history/evidence APIs |
+| Data Health/data sources | PASS for four-source health/status and diagnostics; warnings remain source limitations to investigate, not evidence of migration loss |
+| Settings/configuration | PASS for read access, reload-stable revision/content and disabled scheduling; no Apply/refresh/reset was invoked |
+| Controlled writes/extra backup/restart | BLOCKED: no phase-3 backup, synthetic saved-filter write or service restart was attempted after the compatibility failure |
+
+Count consistency: Dashboard 413 release roles is an all-validity count; the default current-validity list has 407 and `status=all` returns 413.
+Dashboard 6,847 pending SoD reviews equals queue Pending 6,696 + Investigate 148 + Outdated 3; the full 7,881-item queue also includes reviewed,
+removal, resolved and historical items. Role source rows, distinct catalogue roles and distinct role/T-code pairs have different units. Data Health
+reports 5,886 assignments without a catalogue mapping and 9 unparsed release-role names; all original observations remain retained. No unexplained
+dashboard/detail count inconsistency was established. Two guessed legacy route probes returned 501; the actual UI routes returned 200, so those
+probes are not product failures. Initial comparison/period selector mistakes were corrected against observed controls, without weakening checks.
+
+### Confirmed defect: V1 Account Review evidence serialization
+
+**Severity: Medium (P2), migration compatibility.** Reproduction: construct a synthetic unchanged SAP identity/account and a saved schema-2
+`No action required` decision with the evidence fingerprint computed as V1 did; call `V1AccountReview.Rows` on the same evidence with no
+invalidation. Expected: `stale=false`, decision remains applicable. Actual: `stale=true`, reopening the review. The isolated executable reproduced
+this against the current API project without starting a host or touching the service database. Root cause: the exact original backup source commit
+`b1fd924a6610` uses `json.dumps(..., sort_keys=True, ensure_ascii=False)` with default spaced separators for identity/outer hashes and default ASCII
+escaping for nested canonical evidence strings. Current .NET uses compact `CanonicalJson` for those layers. The bytes and hashes differ even when
+the evidence does not. Existing focused `AccountReviewTests` still pass **3/3**; their scope does not cover this V1 hash compatibility.
+
+Impact: unnecessary Outdated/Needs review status and loss of derived completion across otherwise unchanged evidence; no decision/evidence history
+loss and no authorization grant were observed. Proposed correction: schema-aware comparison supporting V1 and existing .NET encodings without
+rewriting immutable history, preserving absence/invalidation behavior, with explicit unchanged, changed, Unicode and schema-1 tests. No fix or
+replacement package was deployed during acceptance. The separate [Account Review guide](../features/ACCOUNT_REVIEW.md) records the limitation.
+
+For the three **actual** migrated decisions, independent V1 reconstruction gives `stale=true` as well: stored identity hashes match current
+identities under V1 encoding, but full current evidence hashes differ from the saved versions. Their present stale status is therefore not proof
+of false staleness. All three current decisions remain accessible; each has zero earlier events, matching the source. No reviewer was asked to
+re-save them. Legacy source files were not found in the protected installed release; the exact archived Git source was inspected read-only instead.
+
+Safety evidence: before/after fingerprints matched for all eight audited tables (38 datasets, 332,348 records, 3 review events, 1,086 SoD events,
+1,023 evidence snapshots, settings, 0 saved filters, 5 refresh reports) and **every stored document**. Service remains Running as `NT SERVICE\AuthLens`;
+original archive/key hashes remain equal, and scheduling remains disabled. Private fingerprints and the synthetic reproduction are retained outside
+tracked files; no credentials, keys or business-record exports were committed. Only focused Account Review tests and the in-memory reproduction
+ran; no full .NET/Playwright suite, service restart, installer rebuild, upgrade confirmation, push or merge occurred.
+
+Remaining: correct/rehearse the hash compatibility defect on a private restored copy, then repeat the read-only gate before a fresh encrypted backup,
+reversible synthetic writes and restart checks. Approved-period history is NOT TESTED (the sole migrated period is In review); positive saved-filter,
+remediation-action, approval/rejection and new-history workflows remain untested. Destructive restore, interruption/power-loss, binary rollback,
+other-client TLS trust, certificate renewal, source-path review and production cutover are separate acceptance gates.
+
 ## Windows V1 migration into the installed Server
 
 2026-11-20: the existing verified **4b20cdb** win-x64 release (17 artifacts) and matching Server Setup were used without rebuilding. Initial

@@ -6,6 +6,21 @@ license savings or actual license entitlement is inferred.
 
 ## Sources and prerequisites
 
+**Known migration compatibility defect (installed build 4b20cdb, Windows acceptance 2026-11-20):** unchanged SAP Lens 1 schema-2 decisions can
+be displayed as Outdated because V1 hashes spaced Python JSON, while the current .NET evidence calculation uses compact canonical JSON at
+both identity and nested evidence layers. A focused synthetic in-memory reproduction retained the exact V1 decision/evidence and returned
+`stale=true` instead of `false`. History remains intact; this is a derived-status compatibility failure, not loss of decisions.
+
+The three stale decisions in the real acceptance backup do **not** by themselves prove that defect: an independent reconstruction of the V1
+algorithm from the backup's exact source commit also reports their current evidence as different from their saved evidence. Their identities
+still match under V1's encoding; their complete evidence versions do not. Do not re-approve or rewrite those histories merely to clear the UI.
+Exact history contents and hash chains were verified. See the [functional acceptance result](../migration/RELEASE_STATUS.md#windows-server-functional-acceptance).
+
+Correction is **proposed, not implemented or deployed**: compare supported V1 hash/schema encodings alongside already-written .NET encodings,
+retain disappearance/invalidation protections, and add unchanged/changed-evidence and Unicode regressions. Do not change the shared canonical
+JSON format globally or rewrite immutable decisions. Legacy schema-1 compatibility needs its own test; that format was not present in the three
+actual samples. Controlled write acceptance remains gated until this read-compatibility failure is addressed.
+
 The existing User Access CSV supplies SAP identities, groups, account validity,
 locks and user types. The optional Employee Directory supplies AD state through a
 reliable exact email match. There is no additional CSV or direct SAP/AD connection.
