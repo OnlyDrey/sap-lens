@@ -89,10 +89,13 @@ action required**. This saves immediately through the explicit review action;
 Settings' Apply button is unrelated. The reviewer is self-declared local metadata,
 not an authenticated approval or an instruction to SAP.
 
-Annotations are atomically written to `%LOCALAPPDATA%\SAP Lens\account-review.json`
-(or the supported per-user configuration directory on other platforms). Keys are
-hashed usernames; stored records contain decision, reviewer, rationale, timestamp
-and an evidence fingerprint, not copied SAP rows. Review timestamps are stored and
+Decisions are appended to the AuthLens database (`authlens.sqlite3`, table `ReviewDecisions`, subject type `account`):
+append-only (database triggers reject updates and deletes) and SHA-256 hash-chained, so the latest decision is the
+current one and earlier ones are its history. Each record holds the decision, reviewer, rationale, timestamp, the
+User Access revision it was made against and an evidence fingerprint, not copied SAP rows. An account that disappears
+from a later User Access revision gets an invalidation record and needs a new review. Decisions travel with application
+backups and restores ([backup and recovery](../operations/BACKUP_AND_RECOVERY.md)); SAP Lens 1's `account-review.json`
+is imported by the [v1 data migration](../migration/V1_MIGRATION.md). Review timestamps are stored and
 exported in ISO UTC; the UI uses Norwegian dates and local 24-hour time. Reviewer/rationale can still
 contain personal information and must be treated as private local data.
 
@@ -120,8 +123,8 @@ retain prior annotations. Storage is bounded to 20 MiB; large tables remain pagi
 annotations. Export checks a generation covering SAP publication, directory,
 classification policy, review annotations and evaluation date across all pages and
 again before saving. Changed filters/evidence cancel export. Output is UTF-8/BOM,
-spreadsheet-formula-safe, bounded to 32 MiB, and uses the existing authenticated
-native CSV save dialog in desktop mode. Browser mode offers a local download.
+spreadsheet-formula-safe, bounded to 32 MiB, and is a browser download (Desktop
+included).
 CSV export contains identity data by design; diagnostic export remains redacted.
 
 No source CSV, employee snapshot or review annotation is sent to GitHub, bundled

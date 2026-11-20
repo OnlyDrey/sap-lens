@@ -13,17 +13,17 @@ Never point two sources at different interpretations of the same file without co
 
 ## Preparation, publication and persistence
 
-Parsing happens off the request thread. Each candidate is validated separately, and immutable content-addressed snapshot files are staged under `%LOCALAPPDATA%\SAP Lens\csv-data\snapshots\`. Employee Directory retains its existing content-addressed `employee-directory` format. SHA-256 verifies stored snapshot bytes before restoration; canonical observations are rebuilt through the existing catalogue/user processing, not deserialized executable objects.
+Parsing happens in a persistent background job, off the request thread. Each candidate is validated separately and staged as a dataset revision in the AuthLens database (`authlens.sqlite3`: `Datasets` with its canonical rows in `DatasetRecords`, identified by the SHA-256 of its content); Employee Directory uses the same store (source `employees`). Canonical observations are rebuilt from the stored rows through the catalogue/user processing, not deserialized executable objects. SAP Lens 1's `csv-data\snapshots` files are imported only by the [v1 data migration](../migration/V1_MIGRATION.md).
 
-The single atomic settings update contains snapshot references and bounded report references. A revision check rejects a competing settings/import operation. Only after that commit are the prepared cache generation and directory indexes activated. Readers keep the previous generation during preparation. Cancellation prevents the commit; no timed-out worker may later overwrite a newer generation.
+Activation is one database transaction: the staged revision becomes `Active`, the previous one `Retired` (a unique index allows one active revision per source), and the settings document records the source path and report reference with a revision check that rejects a competing settings/import operation. Only after that commit are the prepared cache generation and directory indexes activated. Readers keep the previous generation during preparation. Cancellation prevents the commit; no timed-out worker may later overwrite a newer generation.
 
-A source read/validation/staging failure retains that source. Other independent sources can succeed. If catalogue data changes while user CSV reading fails, retained **raw validated user observations** are remapped against the new catalogue. This rebuilds wildcard/transaction indexes; old derived transaction claims are never mixed with a new catalogue. A transaction/storage failure before pointer commit activates none of the staged candidates.
+A source read/validation/staging failure retains that source. Other independent sources can succeed. If catalogue data changes while user CSV reading fails, retained **raw validated user observations** are remapped against the new catalogue. This rebuilds wildcard/transaction indexes; old derived transaction claims are never mixed with a new catalogue. A transaction or storage failure before the activation commit activates none of the staged candidates.
 
 Successful imports store full replacements, not email-based upserts. For example, replacing 1,310 directory rows with 1,295 leaves exactly 1,295 active records, with removed employees absent from email/manager indexes. Missing email remains a quality warning. Empty email keys are excluded from duplicate-email indexing.
 
 Startup restores durable observations and initializes enabled dynamic sources. Failed live reads can retain restored data. Static sources restore without reopening the original CSV. A legacy, enabled directory that only has a readable path is validated and durably captured once at startup. An invalid/missing snapshot is reported; it is never silently accepted as valid data. Original source availability and durable snapshot availability are separate facts.
 
-Immutable staged files are private application data, never build inputs. Old snapshot files are retained conservatively for local configuration-backup recovery; clearing a source removes its active reference. Do not manually delete snapshots referenced by a backup you intend to restore. Report retention is independent and bounded to five recent operations.
+Staged and retired revisions are private application data inside the database, never build inputs. Clearing a source retires its active revision; retired revisions are removed only by approved [data retention](#data-retention), and every application backup contains the database as a whole.
 
 ## Change identity and evidence
 
@@ -84,9 +84,8 @@ For all four sources, selecting a file automatically reads, validates, stages an
 activates a complete non-empty dataset. There is no separate normal-flow Validate,
 Confirm or Import action. **Browse / Upload file** (one label for every source) is always available,
 also when a file is already configured; only an import in progress for that source
-blocks it. It opens the native dialog in the desktop app, the upload chooser where browser
-uploads are supported, and otherwise explains that native browsing is desktop-only and moves
-to the file location field. A replacement that does not validate (invalid, empty or
+blocks it. It opens the browser's file chooser (also in the Desktop window); a path the server can read
+can instead be entered in the file location field and committed with Enter. A replacement that does not validate (invalid, empty or
 unreadable) never replaces the configured file or its data: the attempted path stays in the field
 for correction or column mapping, and the message says the active file is unchanged and names
 it, while a valid replacement is confirmed by file name and counts.
@@ -147,8 +146,8 @@ server source-root permissions. Existing raw staging endpoints remain compatible
 packaging tools, but the UI uses multipart activation, not the legacy staging/confirmation flow.
 
 
-There is one primary **Browse / Upload file** action per Data Sources tab. Native desktop
-uses its file dialog; browser sessions use the authenticated multipart uploader. The optional
+There is one primary **Browse / Upload file** action per Data Sources tab. It uses the
+authenticated multipart uploader in the browser and in the Desktop window alike. The optional
 **Advanced server source path** contains only the path input, with no second Browse action.
 Uploaded replacements explicitly use Static mode (shown beside the action and in completion
 feedback/source mode); administrator-selected paths retain the chosen Static/Dynamic mode.
@@ -158,17 +157,18 @@ Global/manual/scheduled refresh behavior, inspection and failure recovery are un
 
 Start-up (Dynamic sources) and every refresh evaluate each source on its own:
 
-1. **Fingerprint.** For Role Catalogue, User-Role Mapping, SoD Matrix and Employee Directory ([details](EMPLOYEE_DIRECTORY.md#fingerprint-derived-copy-and-shared-identity-matching)) the file content digest is combined with the parsing settings (active import profile or SoD format) and the digest of the
-   parser code. The fingerprint of the input that produced the active revision is stored with that revision in the SQLite store.
-2. **Unchanged:** an equal fingerprint, the same path and a loaded active revision mean parsing would reproduce the active snapshot exactly. The source is reported `unchanged` (marked `fast_path`) and is
-   neither parsed, compared, anomaly-checked, snapshotted nor rebuilt; its `checked_at` is updated. The file is still read once to hash it; the content is never trusted by timestamp or size alone.
-3. **Changed:** only that source takes the full path (parse, validate, compare with the previous approved revision of the same source, anomaly check, snapshot). Users are re-mapped against the
-   catalogue **once**: when the users file is re-read they are already mapped to the final catalogue; when only the catalogue changed, the unchanged users are re-mapped without reading their file.
-4. **Unknown fingerprint** (first start after an upgrade, store missing or rebuilt, different parser) simply takes the full path once and then records the fingerprint.
+1. **Read and hash.** The configured file is read and parsed with the active import profile (or SoD format), and the SHA-256 of its canonical
+   records is computed.
+2. **Unchanged:** a hash equal to the active revision's `ContentHash` means the file reproduces the active data exactly. The source is reported
+   `unchanged` (marked `fast_path`); nothing is staged, compared again, anomaly-checked or activated, and its `checked_at` is updated. The
+   content is never trusted by timestamp or size.
+3. **Changed:** only that source is staged as a new revision, compared with the previous active revision of the same source, anomaly-checked
+   and activated (or held for confirmation). Users are mapped against the catalogue that is active after the refresh.
 
-Activation stays atomic. The new snapshot is written (immutable), its rows are *staged* in the store (invisible to readers), the configuration pointer is committed with the existing compare-and-swap, and
-only then are the staged revisions activated (one short transaction per source). Each load is a staging *operation* with its own identifier; staged revisions are owned by it. If the commit does not happen, or the load fails or is cancelled, only that operation's staged revisions are discarded (a snapshot two overlapping loaders both staged is handed to the remaining one, never deleted under it). Revisions left by a process that died are orphans: they are removed at start-up and, while running, when older than an hour and not owned by a live operation. Activation clears ownership. In memory the published dataset is replaced as one object.
-Snapshot integrity is verified on every start (SHA-256 of the snapshot file against its content address) even when the records come from the store or the derived cache.
+Activation is atomic. The candidate rows are streamed into a `Staged` revision in bounded batches (invisible to readers); a suspicious import
+stays `Held` until an administrator confirms it; activation is one transaction that marks the revision `Active`, retires the previous one and
+records the settings reference. A failed or cancelled job leaves its revision `Failed` or `Discarded`, never active. Readers switch to the new
+revision as one object after the commit. SQLite's integrity check runs at every start and gates readiness (`/health/ready`).
 
 ## Data retention
 
