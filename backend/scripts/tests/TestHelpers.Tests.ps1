@@ -40,7 +40,8 @@ Describe 'PowerShell test infrastructure' {
         New-Item -ItemType Directory $copy | Out-Null
         Copy-Item (Join-Path $PSScriptRoot '../deploy/AuthLens.Deploy.psm1'),
             (Join-Path $PSScriptRoot '../deploy/AuthLens.Paths.ps1'),
-            (Join-Path $PSScriptRoot '../deploy/AuthLens.Acl.ps1') -Destination $copy
+            (Join-Path $PSScriptRoot '../deploy/AuthLens.Acl.ps1'),
+            (Join-Path $PSScriptRoot '../deploy/AuthLens.Installer.ps1') -Destination $copy
         try {
             Import-TestDeploymentModule
             Import-Module (Join-Path $copy 'AuthLens.Deploy.psm1') -Force -Global

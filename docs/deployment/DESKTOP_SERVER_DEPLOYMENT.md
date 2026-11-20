@@ -1,7 +1,9 @@
 # Desktop and Server: builds, run commands and packaging assessment
 
-Nothing here changes the production Desktop launcher, installers, services, workflows or release artifacts. All output goes to isolated
-directories outside the repository (`artifacts/`, `bin/`, `obj/`, `out/` are ignored in `backend/.gitignore`).
+Build and acceptance commands use isolated output directories; they do not authorize changes to existing installations or services.
+Current Windows continuation evidence and remaining gates are in [release status](../migration/RELEASE_STATUS.md); the dated assessment below
+retains earlier measurements. Manual Inno install/update adapters use the existing backup/deployment engine, with their exact acceptance limits
+in [Windows installers](WINDOWS_DEPLOYMENT.md#installers).
 
 ## Status
 
@@ -9,7 +11,7 @@ directories outside the repository (`artifacts/`, `bin/`, `obj/`, `out/` are ign
 | --- | --- | --- | --- |
 | Server, linux-x64, self-contained | Yes | Yes: health, readiness, imports, all endpoints, 15-client load, graceful and crash shutdown | [M], [T] |
 | Server, win-x64, self-contained | Yes (Linux and the Windows 11 VM) | Not yet run as a service | Publish PASS on Windows [W] |
-| Desktop, win-x64, self-contained single file (WinForms + WebView2) | Yes (Linux and the Windows 11 VM) | Launched on Windows 11 before the UI fix: window, WebView2 and loopback API (401 without token) worked, `GET /` returned 404 [W]. Fixed build **not yet verified on Windows** | [W], [U] |
+| Desktop, win-x64, self-contained single file (WinForms + WebView2) | Yes (Linux and Windows 11) | Packaged self-check and isolated manual install/update/recovery passed; fixed interactive WebView2 window/download acceptance remains open | Current [release status](../migration/RELEASE_STATUS.md), [W], [U] |
 
 [W] = reported from the clean Windows 11 VM by the person who ran it (evidence files are not in the repository).
 
@@ -105,7 +107,7 @@ system-wide .NET.
 | Runtime dependencies | WebView2 Runtime; ICU from Windows 10 1903 or later | ICU from Windows Server 2019 or later | glibc and ICU (`libicu`, required) |
 | Size | 154 MB single exe (UI embedded) | 115 MB, 356 files | 114 MB, 353 files |
 | Startup reliability | Not measured on Windows [U]. Single-file extracts native libraries to a temp folder on first run unless `IncludeNativeLibrariesForSelfExtract` is avoided; a one-dir layout avoids extraction entirely | Not measured [U] | Cold start to ready 1.3 to 1.8 s, warm 1.2 to 1.4 s [M] |
-| Install / upgrade | Copy or MSIX/MSI (not built); data directory and schema migrations are independent of the binary, with a protected migration backup | Same; service registration via `UseWindowsService` + `sc.exe`/installer | Package + systemd unit |
+| Install / upgrade | Inno manual transaction adapter: protected data, verified backup, readiness and compatible binary rollback; compiler/interactive acceptance pending | Same packaging, delegating to versioned deployment and SCM; elevated acceptance pending | Package + systemd unit |
 | Logging | Console not visible in a WinExe; needs a file sink | Event Log or file sink | journald via stdout |
 | AV / App Control | **Unsigned binaries face the same App Control enforcement v1 and the Go experiment hit.** .NET does not change this. Signing all shipped PE files and an IT publisher rule remain mandatory. Single-file reduces the number of PE files to sign but self-extraction of native libraries can trigger AV heuristics; one-dir is the safer default under App Control | Same | n/a |
 | Signing | One exe (single-file) or every PE (one-dir) with Authenticode | Every PE | Optional (package signing) |

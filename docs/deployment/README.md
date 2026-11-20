@@ -13,7 +13,7 @@
 # Windows release folder (Server and Desktop, versioned, with build-manifest.json and SHA256SUMS)
 powershell -NoProfile -File .\backend\scripts\build-release.ps1 -Output C:\AuthLens-Build\builds
 powershell -NoProfile -File .\backend\scripts\verify-release.ps1 -ReleasePath <release folder>   # manifest contract, sizes, checksums
-# Installers (Inno Setup 6) from a verified release folder
+# Installers (Inno Setup 6): clean verified release and helper sources at the same commit; output must be empty
 powershell -NoProfile -File .\backend\scripts\build-installers.ps1 -ReleasePath <release folder> -Output C:\AuthLens-Build\installers
 # Managed Windows service deployment on the host (or over SSH with backend/scripts/deploy/deploy-windows.sh)
 .\backend\scripts\deploy\Deploy-AuthLens.ps1 -Action Status
@@ -22,5 +22,9 @@ powershell -NoProfile -File .\backend\scripts\build-installers.ps1 -ReleasePath 
 The previous `experiments/dotnet-backend` path is historical. Current checkouts use
 `backend/scripts`; the deployment resolver supports older commits for compatibility. Installed services run from the deployment's release folder (`ReleasesRoot\current`) and are not affected by the
 repository layout.
+
+Manual installer updates use the existing backup/deployment engine. Desktop retains the selected data profile and a private recovery journal;
+Server requires an explicit configuration. Both refuse updates with pending schema changes and preserve recovery artifacts. See
+[installer transactions and acceptance limits](WINDOWS_DEPLOYMENT.md#manual-installer-transaction) before any installation.
 
 SAP Lens 1 deployment (WinSW service, Docker, Linux native, v1 installer): [legacy v1 deployment](../archive/v1/deployment/README.md).

@@ -9,6 +9,7 @@ public sealed partial class InstallerTests
 {
     private static readonly string Repo = FindRepo();
     private static readonly string Desktop = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "AuthLens-Desktop.iss"));
+    private static readonly string Transaction = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "AuthLens-Transaction.iss"));
     private static readonly string Server = File.ReadAllText(Path.Combine(Repo, "backend", "installer", "AuthLens-Server.iss"));
 
     private static string FindRepo()
@@ -65,10 +66,27 @@ public sealed partial class InstallerTests
     [Fact]
     public void Installers_ship_exactly_the_release_executables()
     {
-        Assert.Contains(@"Source: ""{#ReleaseDir}\desktop\AuthLens.exe""", Desktop);
-        foreach (var file in new[] { "AuthLens.Api.exe", "e_sqlite3.dll", "libSkiaSharp.dll" }) Assert.Contains($@"Source: ""{{#ReleaseDir}}\server\{file}""; DestDir: ""{{app}}\server""", Server);
+        Assert.All([Desktop, Server], script =>
+        {
+            Assert.Contains(@"Source: ""{#ReleaseDir}\*""", script);
+            Assert.Contains(@"payload\{#PackageName}", script);
+            Assert.Contains(@"Source: ""{#ToolsDir}\*""", script);
+            Assert.Contains("#include \"AuthLens-Transaction.iss\"", script);
+        });
+        Assert.Contains("Install-AuthLens.ps1", Transaction);
+        Assert.Contains("-Package", Transaction);
+        Assert.Contains("ssPostInstall", Transaction);
         Assert.DoesNotContain("SapLens2Prototype.exe", Desktop + Server);
         Assert.Equal(@"{app}\AuthLens.exe", Setting(Desktop, "UninstallDisplayIcon"));
+    }
+
+    [Fact]
+    public void Desktop_shortcuts_and_updates_keep_the_explicit_data_profile()
+    {
+        Assert.Contains("ValueName: \"DataDirectory\"; ValueData: \"{code:DesktopData}\"", Desktop);
+        Assert.Contains("Parameters: \"--data-dir \"\"{code:DesktopData}\"\"\"", Desktop);
+        Assert.Contains("RegQueryStringValue(HKCU, '{#VersionKey}', 'DataDirectory', Result)", Transaction);
+        Assert.Contains("Data := DesktopData('')", Transaction);
     }
 
     [Fact]
@@ -81,11 +99,13 @@ public sealed partial class InstallerTests
         // Desktop: per user, and Setup waits for a running Desktop (current or earlier folder) instead of closing it.
         Assert.Equal("lowest", Setting(Desktop, "PrivilegesRequired"));
         Assert.Equal(DesktopLocation.MutexName, Setting(Desktop, "AppMutex"));
-        // Server: machine-wide; refuse unaccepted in-place updates before touching any service or program file.
+        // Server: explicit package/config adapter; service changes stay in the verified deployment engine.
         Assert.Equal("admin", Setting(Server, "PrivilegesRequired"));
-        Assert.Contains("RegKeyExists(HKLM, ServicesKey + Names[I])", Server);
-        Assert.Contains("installer-managed updates are not yet accepted", Server);
-        Assert.Contains("In-place installer updates are refused", Server);
+        Assert.Contains("CONFIGFILE", Transaction);
+        Assert.Contains("-PrepareOnly", Transaction);
+        Assert.Contains("ExtractTemporaryFiles", Transaction);
+        Assert.Contains("RaiseException", Transaction);
+        Assert.Contains("-InstallRoot", Transaction);
         Assert.DoesNotContain("net.exe", Server);
         Assert.DoesNotMatch(@"Exec\([^)]*sc\.exe", Server);
         Assert.Contains("Result[0] := 'AuthLens';", Server);
@@ -99,7 +119,7 @@ public sealed partial class InstallerTests
     {
         var script = File.ReadAllText(Path.Combine(Repo, "backend", "scripts", "build-installers.ps1"));
         Assert.Contains("verify-release.ps1", script);
-        foreach (var define in new[] { "FullVersion", "NumericVersion", "ReleaseDir" })
+        foreach (var define in new[] { "FullVersion", "NumericVersion", "ReleaseDir", "PackageName", "ToolsDir" })
         {
             Assert.Contains($"/D{define}=", script);
             Assert.All([Desktop, Server], s => Assert.Contains($"#ifndef {define}", s));

@@ -55,7 +55,7 @@ function Get-ALInstallLayout([string]$Root) {
     }
 }
 
-function Read-AuthLensSettings([string]$Path) {
+function Read-AuthLensSettings([string]$Path, [switch]$Packaged) {
     if (-not $Path) { $Path = Find-ALConfigFile }
     if (-not (Test-Path -LiteralPath $Path)) { Stop-AL "Deployment configuration not found: $Path (copy scripts\deploy\deploy.example.json; looked for `$env:$($script:ConfigVariables -join ', `$env:') and $($script:ConfigDefaults -join ', '))." }
     $raw = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
@@ -72,6 +72,7 @@ function Read-AuthLensSettings([string]$Path) {
         if (-not $config.Contains($p.Name)) { Stop-AL "Unknown deployment setting '$($p.Name)' in $Path." }
         $config[$p.Name] = $p.Value
     }
+    if ($Packaged -and -not $config.RepositoryPath) { $config.RepositoryPath = $PSScriptRoot } # packaged installs never build or invoke Git
     foreach ($required in 'RepositoryPath', 'ListenAddress', 'DataDirectory', 'CertificatePath', 'CertificatePasswordFile') {
         if (-not $config[$required]) { Stop-AL "Deployment setting '$required' is required ($Path)." }
     }
@@ -207,7 +208,12 @@ function Invoke-ALGit([string]$Repository, [string[]]$Arguments) {
     @($output | ForEach-Object { "$_" })
 }
 
-function Get-ALShell { if (Get-Command pwsh -ErrorAction SilentlyContinue) { 'pwsh' } else { 'powershell' } }
+function Get-ALShell {
+    $name = if ($PSVersionTable.PSEdition -eq 'Desktop') { 'powershell.exe' } elseif ($env:OS -eq 'Windows_NT') { 'pwsh.exe' } else { 'pwsh' }
+    $executable = Join-Path $PSHOME $name
+    if (-not (Test-Path -LiteralPath $executable -PathType Leaf)) { Stop-AL 'The current PowerShell executable is unavailable; no PATH fallback is allowed.' }
+    $executable
+}
 
 function Invoke-ALProcess([string]$File, [string[]]$Arguments, [string]$LogFile) {
     $ErrorActionPreference = 'Continue'
@@ -277,7 +283,14 @@ function Get-ALLink([string]$Link) {
 # Points the 'current' junction at a release folder: a new junction is created beside it and swapped in (remove + rename).
 function Set-ALLink([string]$Link, [string]$Target) {
     $staging = "$Link.next"
-    if (Test-Path -LiteralPath $staging) { (Get-Item -LiteralPath $staging -Force).Delete() }
+    if (Get-Item -LiteralPath $staging -Force -ErrorAction SilentlyContinue) { Stop-AL "$staging exists from another or interrupted operation; it was preserved for inspection." 4 }
+    $parent = Split-Path $Link
+    Test-ALPathTree $parent
+    if (-not (Test-ALPathWithin $Target $parent) -or [IO.Path]::GetFullPath($Target).TrimEnd('\','/') -ieq [IO.Path]::GetFullPath($parent).TrimEnd('\','/')) { Stop-AL 'Release link target must remain inside its releases directory.' }
+    $null = @(Get-ALTreeFiles $Target)
+    if (Test-Path -LiteralPath $Link) {
+        if ((Get-Item -LiteralPath $Link -Force).LinkType -ne 'Junction') { Stop-AL 'The current release pointer is not an expected junction.' 4 }
+    }
     New-Item -ItemType Junction -Path $staging -Target $Target | Out-Null
     if (Test-Path -LiteralPath $Link) { (Get-Item -LiteralPath $Link -Force).Delete() }   # removes the link only, never the release behind it
     Rename-Item -LiteralPath $staging -NewName (Split-Path $Link -Leaf)
@@ -353,7 +366,7 @@ function Exit-ALLock {
 }
 
 function New-ALRun($Config, [string]$Action) {
-    $id = '{0:yyyyMMdd-HHmmss}-{1}' -f [DateTime]::UtcNow, $Action
+    $id = '{0:yyyyMMdd-HHmmss}-{1}-{2}' -f [DateTime]::UtcNow, $Action, [Guid]::NewGuid().ToString('N').Substring(0,8)
     $script:RunId = $id
     $script:RunFolder = Join-AL (Join-AL $Config.WorkRoot 'runs') $id
     New-Item -ItemType Directory -Force $script:RunFolder | Out-Null
@@ -659,7 +672,7 @@ function Invoke-ALRollbackCore($Config, $Journal, [string]$Target) {
     Write-ALLog "rolled back to $Target ($($manifest.version) $($manifest.source_sha)); the service is ready"
 }
 
-function Invoke-ALDeploy($Config, [string]$ReleaseFolder, [string]$Commit, [switch]$DryRun, [switch]$FirstInstall, [switch]$AdoptService) {
+function Invoke-ALDeploy($Config, [string]$ReleaseFolder, [string]$Commit, [switch]$DryRun, [switch]$FirstInstall, [switch]$AdoptService, [switch]$RequireRollback) {
     $previousJournal = Read-ALJournal $Config
     if ($previousJournal -and $previousJournal.phase -in $script:CriticalPhases) {
         Stop-AL "An earlier deployment ($($previousJournal.run)) was interrupted in phase '$($previousJournal.phase)'. Run -Action Recover first."
@@ -686,6 +699,12 @@ function Invoke-ALDeploy($Config, [string]$ReleaseFolder, [string]$Commit, [swit
     $newExe = Join-AL (Join-AL $ReleaseFolder 'server') $script:Exe
     $schema = Invoke-ALMaintenance $newExe @('--schema-info', '--data-dir', $Config.DataDirectory)
     if (-not $schema.compatible) { Stop-AL ('The data directory was written by a newer AuthLens build (unknown migrations: {0}); this release would refuse it.' -f (@($schema.unknown_applied) -join ', ')) }
+    if ($RequireRollback -and $service.Exists) {
+        if (-not $previous -or -not (Test-ALPathWithin $previous $Config.ReleasesRoot) -or -not (Test-ALPublishedRelease $previous).Verified) { Stop-AL 'The previous managed release must verify before an installer update.' }
+        $oldSchema = Invoke-ALMaintenance (Join-AL $previous 'server\AuthLens.Api.exe') @('--schema-info', '--data-dir', $Config.DataDirectory)
+        if (-not $oldSchema.compatible -or @($schema.pending).Count -gt 0) { Stop-AL 'Installer update cannot prove binary rollback across a schema change. Use a separately approved migration/recovery procedure; nothing was stopped.' }
+        if ($service.Account -ine $Config.ServiceAccount) { Stop-AL 'The configured service identity differs; installer updates never reconfigure credentials or service accounts.' }
+    }
     $journal = [pscustomobject]@{
         run = $script:RunId; commit = $Commit; version = $manifest.version; to_release = $ReleaseFolder; from_release = $previous
         service_state_before = $service.State; applied_before = @($schema.applied); backup = $null; phase = 'prepared'; history = @(); updated = ''
@@ -702,8 +721,9 @@ function Invoke-ALDeploy($Config, [string]$ReleaseFolder, [string]$Commit, [swit
     }
     Set-ALPhase $Config $journal 'backup'
     if ($schema.database_exists) {
-        $backup = Invoke-ALMaintenance $newExe @('--backup-local', $Config.BackupRoot, '--data-dir', $Config.DataDirectory)
-        $verified = Invoke-ALMaintenance $newExe @('--backup-verify', $backup.file, '--data-dir', $Config.DataDirectory)
+        $backupExe = if ($previous) { Join-AL $previous 'server\AuthLens.Api.exe' } else { $newExe }
+        $backup = Invoke-ALMaintenance $backupExe @('--backup-local', $Config.BackupRoot, '--data-dir', $Config.DataDirectory)
+        $verified = Invoke-ALMaintenance $backupExe @('--backup-verify', $backup.file, '--data-dir', $Config.DataDirectory)
         if (-not $verified.verified -or $verified.sha256 -ne $backup.sha256) { Stop-AL 'The pre-deployment backup could not be verified; nothing was changed.' 1 }
         $journal.backup = [pscustomobject]@{ file = $backup.file; sha256 = $backup.sha256; size = $backup.size }
         Write-ALLog "pre-deployment backup verified: $($backup.file)"
@@ -843,4 +863,5 @@ function Invoke-ALRestore($Config, [string]$Backup, [string]$KeyFile) {
 
 . (Join-Path $PSScriptRoot 'AuthLens.Paths.ps1')
 . (Join-Path $PSScriptRoot 'AuthLens.Acl.ps1')
+. (Join-Path $PSScriptRoot 'AuthLens.Installer.ps1')
 Export-ModuleMember -Function * -Variable FocusedTests

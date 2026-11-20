@@ -7,7 +7,9 @@ real host names, addresses, paths and credentials stay in the host's own configu
 
 Status: the deployment state machine is tested with mocked SCM/network operations (Pester), the SSH orchestrator with a fake SSH (Bash), and the
 restore of SAP Lens backups into a fresh installation, also on another machine, by the .NET suite (`LegacyRestoreTests`). **Native Windows
-acceptance is pending** ([acceptance checklist](#acceptance-checklist-windows-pending)); nothing here has run on Windows from this environment.
+acceptance is partial** ([acceptance checklist](#acceptance-checklist-windows-pending)): Windows PowerShell 5.1, packaged Desktop self-check,
+isolated Desktop install/update/recovery and packaged console backup/restore have executed. Inno compilation, privileged SCM and interactive
+WebView2 acceptance remain blocked; see [release status](../migration/RELEASE_STATUS.md) for the exact evidence.
 
 ## Components
 
@@ -19,6 +21,7 @@ acceptance is pending** ([acceptance checklist](#acceptance-checklist-windows-pe
 | `scripts/deploy/AuthLens.Acl.ps1`, `scripts/deploy/AuthLens.Paths.ps1` | NTFS audit and remediation; path safety (no reparse points, disjoint roots) |
 | `scripts/deploy/deploy.example.json` | Configuration template (copy it outside the repository) |
 | `installer/AuthLens-Desktop.iss`, `installer/AuthLens-Server.iss`, `scripts/build-installers.ps1` | Inno Setup installers and their build script |
+| `installer/AuthLens-Transaction.iss`, `scripts/Install-AuthLens.ps1`, `scripts/deploy/AuthLens.Installer.ps1` | Manual installer transaction adapter; immutable payloads, Desktop recovery, Server delegation to the existing state machine |
 | `scripts/tests/AuthLens.Deploy.Tests.ps1`, `scripts/tests/deploy-windows.test.sh` | Pester (mocked operating system) and Bash (fake SSH, real PowerShell) tests |
 
 The bootstrap resolves the branch or commit **on the Windows host**, locks the full SHA, extracts the deployment scripts of exactly that commit with
@@ -55,7 +58,7 @@ location, and no configuration of an earlier product, is read.
 | Setting | Default | Notes |
 | --- | --- | --- |
 | `Root` | `C:\ProgramData\AuthLens` | The installation root; every path below defaults to its [layout](#installation-layout) |
-| `RepositoryPath` | required | The clone on the host (build time only; nothing runs from it) |
+| `RepositoryPath` | required for repository deployment | The clone on the host; packaged installer mode needs neither Git nor an SDK and supplies its tools directory when omitted |
 | `WorkRoot`, `ReleasesRoot`, `BackupRoot`, `DataDirectory` | `<Root>\deployment`, `\releases`, `\backups\predeploy`, `\data` | Set one explicitly only to move that path |
 | `CertificatePath`, `CertificatePasswordFile` | `<Root>\tls\server.pfx`, `<Root>\tls\cert-password` | Provided by the operator before installing |
 | `ServiceName`, `ServiceAccount` | `AuthLens`, `NT SERVICE\AuthLens` | Set only for an isolated test service |
@@ -104,7 +107,7 @@ exclusive lock:
 
 ### Release packages and integrity
 
-Implemented and tested on Linux (Pester `verify-release.Tests.ps1`); awaiting Windows acceptance.
+Implemented and tested on Linux and Windows PowerShell 5.1 (Pester `verify-release.Tests.ps1` and a native clean Windows package).
 
 | Kind | Where | Contents | Verify with |
 | --- | --- | --- | --- |
@@ -439,11 +442,63 @@ powershell -NoProfile -File .\scripts\build-installers.ps1 -ReleasePath $release
 
 | Installer | Scope and folder | Behavior |
 | --- | --- | --- |
-| `AuthLens-<version>-Setup.exe` (Desktop) | Per user, `%LOCALAPPDATA%\Programs\AuthLens Desktop`; data `%LOCALAPPDATA%\AuthLens` | New AppId; SAP Lens 1 and the SAP Lens Desktop are detected and left untouched (their data comes over by restoring a backup) |
-| `AuthLens-Server-<version>-Setup.exe` | Machine, `C:\ProgramData\AuthLens\app\server` | New AppId; installs beside SAP Lens. Fresh program-file installation only; refuses an existing AuthLens service or existing Server files before any change. Installer-managed updates/rollback remain unaccepted; use versioned deployment |
+| `AuthLens-<version>-Setup.exe` (Desktop) | Per user, `%LOCALAPPDATA%\Programs\AuthLens Desktop`; data `%LOCALAPPDATA%\AuthLens\data` | New AppId, closed-application check, private recovery journal, encrypted protective backup, atomic executable replacement and readiness-verified binary rollback |
+| `AuthLens-Server-<version>-Setup.exe` | Machine, `C:\ProgramData\AuthLens\app`; executable under `releases\current\server` | Explicit `/CONFIGFILE`, protected root before staging, verified versioned deployment with the existing service state machine |
 
-Silent: `AuthLens-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG=C:\ProgramData\AuthLens\install.log`. Installers are unsigned; signing,
-publishing and tagging are separate, authorized release steps. The Server installer no longer performs unverified in-place upgrades: it cannot promise a readiness-verified rollback and refuses that path. The existing versioned deployment remains the controlled manual update procedure. Installer-managed updates, first service registration and full installer acceptance remain release blockers until validated. The server and Desktop protect the database before schema migration.
+Installer compilation and privileged service acceptance are **not verified here**. The PowerShell adapter has native isolated Desktop evidence;
+the Inno definitions have contract tests only. Installers are unsigned; approved transport, signing, publication and deployment are separate steps.
+Do not run the examples against an existing installation during development.
+
+### Manual installer transaction
+
+The builder requires a clean release and helper sources at the **same Git commit**, plus an empty output directory. It copies only the seven
+runtime helper files and records their SHA-256 inventory in `installer-tools.json`; no host configuration or secret is embedded. Both installers
+stage the unchanged full release and tools under `app\setup\<package-name>`. An existing exact package directory is refused, including an incomplete
+one. This costs additional disk space (Desktop includes the Server maintenance executable); no second backup engine or installer framework is used.
+The entry point verifies every helper before importing code, then verifies the complete release before replacement. Checksums detect corruption;
+they do not replace an approved distribution/signing trust boundary. The release manifest is never rewritten.
+
+Desktop uses `/DATADIR="absolute private fixture data path"` optionally; otherwise it retains the registry's selected profile or uses the canonical
+default. Shortcuts and post-install launch pass that same directory. Updating an existing journal with a different data directory is refused.
+Close the selected Desktop first: neither installer nor helper kills it. Existing data must pass a private ACL audit; new dedicated directories
+are created with protected DACLs before files. Global Windows directories and protected earlier-product paths are rejected. New private directories
+retain SYSTEM, Administrators and the installing user. Broad binary read is allowed, broad write is refused.
+
+Before updating, Desktop verifies the old executable against its installed manifest, refuses a downgrade or any pending schema migration,
+retains the old executable/manifest, creates and verifies an encrypted `--backup-local` archive, and probes the old version. A configured private
+host key is required; it is never created, replaced or exported by Setup. The candidate is staged, hashed, atomically replaced, then run with
+`--self-check` against the selected data directory. Failure restores and probes the old executable only if the schema still matches the recorded
+history. Binary rollback never restores an older database automatically. An incompatible schema, unverified recovery file, busy application or
+failed rollback leaves exit 4 and preserved evidence for an operator. A fresh install has no previous version: failed readiness retains its
+diagnostics for manual review. A probe timeout records its owned PID and leaves it running for inspection rather than terminating it.
+
+Server Setup requires `/CONFIGFILE="absolute reviewed deployment config"` and `/DIR="<configured Root>\app"`. The root is protected before payload
+extraction; configuration, TLS, credentials and host keys must already be provisioned securely. No inferred or legacy service is adopted.
+An existing service must use the managed link and identical configured arguments/account, its previous release must verify and open the data,
+and the new release must have no pending migration. Its **previous executable** creates and verifies the predeployment backup before any stop.
+The existing deployment journal, lock, graceful stop, expected listener PID/version/commit readiness and rollback/recovery rules then apply.
+Installer updates involving schema changes fail before stopping; they require a separately reviewed migration/recovery procedure.
+
+### Interrupted Setup and recovery
+
+Desktop status is under `app\.setup-state\journal.json`; each run has a unique private directory, immutable previous executable/manifest,
+verified archive, hashed `recovery-tools` and unique journal checkpoints. The lock prevents concurrent transactions. A nonfinal journal blocks
+another installation. Preserve the whole run and its package; do not delete it, edit hashes or retry Setup over its existing payload.
+After inspecting the journal and closing the selected Desktop, use the recorded recovery tools and exact original paths:
+
+```powershell
+# Isolated acceptance fixture only; substitute the journal's reviewed run/root/data/package paths.
+powershell -NoProfile -File '<run>\recovery-tools\Install-AuthLens.ps1' -Mode Desktop `
+  -Package '<verified full release>' -InstallRoot '<program root>' -DataDirectory '<data>' -Recover -Yes
+# Server: same reviewed configuration; privileged isolated SCM acceptance only.
+powershell -NoProfile -File '<run>\recovery-tools\Install-AuthLens.ps1' -Mode Server -Recover `
+  -ConfigFile '<config>' -InstallRoot '<configured Root>\app' -Yes
+```
+
+Desktop recovery verifies recorded paths, old hashes and unchanged schema, then restores/probes the old program. It does not overwrite keys,
+TLS, configuration or data. Inno's own rollback can remove its new payload, so recovery tools and proof live outside that payload. Keep a separately
+verified complete package available. Uninstall removes tracked Setup payloads/shortcuts/registry entries; Desktop program/recovery files and
+Server managed releases/state, services and all persistent data are deliberately retained. Cleanup requires separate review.
 
 ## Local Service Manager
 
@@ -482,8 +537,8 @@ only after administrator/current-password reauthentication, with a session-bound
 
 ## Acceptance checklist (Windows, pending)
 
-**Status: not executed.** Nothing below has run on Windows yet; record each result before calling a step passed. Linux results (unit, Pester,
-browser, release build) are reported separately in [release status](../migration/RELEASE_STATUS.md) and are not Windows evidence.
+**Status: partial.** Native nonprivileged evidence is recorded in [release status](../migration/RELEASE_STATUS.md). This operator checklist still
+requires isolated elevated SCM, compiled installer and interactive WebView2 acceptance. Record each result; no production acceptance is implied.
 
 Ground rules: an elevated **Windows PowerShell 5.1** prompt in a clean checkout of `experiment/dotnet-backend`; synthetic data first, a real backup
 only as a **copy** in an isolated root; the existing SAP Lens services (`SapLens2`, `sap-lens`, `SapLens`), their folders, ports, certificates and

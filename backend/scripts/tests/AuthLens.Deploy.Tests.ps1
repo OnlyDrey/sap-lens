@@ -74,7 +74,7 @@ BeforeAll {
                     $script:Calls.Add('schema:' + (Split-Path (Split-Path (Split-Path $ExePath)) -Leaf))
                     if ($script:State.Options.OldBuildUnsupported -and $ExePath -like '*old*') { return $null }
                     $compatible = -not ($script:State.Options.NewerData -or ($script:State.Options.PreviousIncompatible -and $ExePath -like '*old*'))
-                    return [pscustomobject]@{ compatible = $compatible; database_exists = $true; applied = $script:State.Applied; pending = @(); unknown_applied = $(if ($compatible) { @() } else { @('m9') }) }
+                    return [pscustomobject]@{ compatible = $compatible; database_exists = $true; applied = $script:State.Applied; pending = $(if ($script:State.Options.PendingMigration -and $ExePath -like '*new*') { @('m2') } else { @() }); unknown_applied = $(if ($compatible) { @() } else { @('m9') }) }
                 }
                 '--backup-local' { $script:Calls.Add('backup'); return [pscustomobject]@{ file = (Join-Path $Arguments[1] 'pre.slbak'); sha256 = 'd' * 64; size = 10 } }
                 '--backup-verify' { $script:Calls.Add('verify'); return [pscustomobject]@{ verified = -not $script:State.Options.BackupBroken; sha256 = 'd' * 64 } }
@@ -194,6 +194,27 @@ Describe 'Deployment' {
         ($script:Calls -join ' ') | Should -Be 'schema:new backup verify stop link:new start:new'
         (Read-ALJournal $script:Config).phase | Should -Be 'complete'
         (Read-ALJournal $script:Config).backup.sha256 | Should -Be ('d' * 64)
+    }
+    It 'requires a verified previous release and compatible schema before an installer may stop a service' {
+        Use-FakeHost $script:Config $script:Previous
+        Mock -ModuleName $M Test-ALPublishedRelease { [pscustomobject]@{Verified=$false} }
+        { Invoke-ALDeploy $script:Config $script:Target $script:New -RequireRollback } | Should -Throw '*previous managed release must verify*'
+        $script:Calls | Should -Not -Contain 'stop'
+        Mock -ModuleName $M Test-ALPublishedRelease { [pscustomobject]@{Verified=$true} }
+        Use-FakeHost $script:Config $script:Previous @{PendingMigration=$true}
+        { Invoke-ALDeploy $script:Config $script:Target $script:New -RequireRollback } | Should -Throw '*cannot prove binary rollback*'
+        $script:Calls | Should -Not -Contain 'stop'
+        $script:Calls | Should -Not -Contain 'backup'
+    }
+    It 'uses the previous release backup engine and the unchanged service identity during installer updates' {
+        Use-FakeHost $script:Config $script:Previous
+        $script:State.Identity[$script:Target]=$script:New
+        Mock -ModuleName $M Test-ALPublishedRelease { [pscustomobject]@{Verified=$true} }
+        $null=New-ALRun $script:Config 'installer'
+        Invoke-ALDeploy $script:Config $script:Target $script:New -RequireRollback
+        (Read-ALJournal $script:Config).phase | Should -Be 'complete'
+        Should -Invoke -ModuleName $M Invoke-ALMaintenance -Times 1 -ParameterFilter { $Arguments[0] -eq '--backup-local' -and $ExePath -like '*old*' }
+        $script:Calls | Should -Not -Contain 'binary:managed'
     }
 
     It 'stops nothing when the data was written by a newer build, the backup cannot be verified, or an earlier run was interrupted' {

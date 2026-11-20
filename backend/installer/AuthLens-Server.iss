@@ -1,8 +1,8 @@
 ; AuthLens Server (.NET) machine-wide installer. Built by scripts/build-installers.ps1 from a verified release folder (build-release.ps1):
 ;   ISCC /DFullVersion=2.0.0-alpha.1 /DNumericVersion=2.0.0.1 /DReleaseDir=<release folder> AuthLens-Server.iss
-; Installs the server files into {app}\server. It never creates, reconfigures or deletes a Windows service and never touches a data directory (the
-; server's --data-dir is always outside {app}). In-place updates are refused before any service/file change because native installer rollback
-; acceptance is not complete. Use the existing versioned deployment procedure for controlled updates. No process is killed.
+; Stages an immutable payload under {app}\setup. The existing versioned deployment transaction owns service installation/update and readiness.
+; The server's --data-dir is outside program files; no earlier-product service or data directory is adopted.
+; Configuration is explicit; backup, rollback compatibility and readiness are mandatory. No process is killed.
 ; Uninstall is refused while a service still runs from {app}.
 ; Silent: AuthLens-Server-<version>-Setup.exe /VERYSILENT /SUPPRESSMSGBOXES /NORESTART [/LOG=<file>]
 #ifndef FullVersion
@@ -14,6 +14,13 @@
 #ifndef ReleaseDir
   #error ReleaseDir is required (a release folder verified by verify-release.ps1)
 #endif
+#ifndef PackageName
+  #error PackageName is required
+#endif
+#ifndef ToolsDir
+  #error ToolsDir is required
+#endif
+#define InstallerMode "Server"
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
 #define ProductIcon RepoRoot + "\assets\sap-lens.ico"
 #define AppIdGuid "B961C010-9B53-4514-9D2A-73A4641E4AAF"
@@ -37,7 +44,7 @@ WizardStyle=modern
 Compression=lzma2
 SolidCompression=yes
 SetupIconFile={#ProductIcon}
-UninstallDisplayIcon={app}\server\AuthLens.Api.exe
+UninstallDisplayIcon={app}\setup\{#PackageName}\payload\{#PackageName}\server\AuthLens.Api.exe
 UninstallDisplayName=AuthLens Server
 CloseApplications=no
 RestartApplications=no
@@ -50,16 +57,13 @@ VersionInfoDescription=AuthLens Server Setup
 OutputBaseFilename=AuthLens-Server-{#FullVersion}-Setup
 
 [Files]
-Source: "{#ReleaseDir}\server\AuthLens.Api.exe"; DestDir: "{app}\server"; Flags: ignoreversion
-Source: "{#ReleaseDir}\server\e_sqlite3.dll"; DestDir: "{app}\server"; Flags: ignoreversion
-Source: "{#ReleaseDir}\server\libSkiaSharp.dll"; DestDir: "{app}\server"; Flags: ignoreversion
-Source: "{#ReleaseDir}\README.txt"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#ReleaseDir}\Service-Manager.ps1"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#ReleaseDir}\build-manifest.json"; DestDir: "{app}"; Flags: ignoreversion
-Source: "{#RepoRoot}\LICENSE.md"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#ToolsDir}\*"; DestDir: "{tmp}\AuthLensPrerequisites\{#PackageName}\tools"; Flags: dontcopy recursesubdirs noencryption
+Source: "{#ReleaseDir}\*"; DestDir: "{app}\setup\{#PackageName}\payload\{#PackageName}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#ToolsDir}\*"; DestDir: "{app}\setup\{#PackageName}\tools"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#RepoRoot}\LICENSE.md"; DestDir: "{app}\setup\{#PackageName}"; Flags: ignoreversion
 
 [Icons]
-Name: "{group}\AuthLens Service Manager"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -File ""{app}\Service-Manager.ps1"""; WorkingDir: "{app}"
+Name: "{group}\AuthLens Service Manager"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -File ""{app}\setup\{#PackageName}\payload\{#PackageName}\Service-Manager.ps1"""; WorkingDir: "{app}"
 
 [Registry]
 Root: HKLM; Subkey: "{#VersionKey}"; ValueType: string; ValueName: "FileVersion"; ValueData: "{#NumericVersion}"; Flags: uninsdeletekey
@@ -98,22 +102,6 @@ begin
   end;
 end;
 
-// An in-place overwrite cannot promise verified database rollback. Refuse it before any service or program file changes.
-// Versioned deployments provide the existing backup/readiness/rollback procedure until installer update acceptance is implemented.
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-var Names: TArrayOfString; I: Integer;
-begin
-  Result := '';
-  Names := ServiceNames();
-  for I := 0 to GetArrayLength(Names) - 1 do
-    if RegKeyExists(HKLM, ServicesKey + Names[I]) then begin
-      Result := 'An AuthLens service already exists. This installer will not stop it or overwrite its files. Use the verified versioned deployment and rollback procedure; installer-managed updates are not yet accepted.';
-      Exit;
-    end;
-  if FileExists(ExpandConstant('{app}\server\AuthLens.Api.exe')) then
-    Result := 'AuthLens Server program files already exist. In-place installer updates are refused until verified backup, readiness and rollback acceptance is implemented. Keep the existing installation and use versioned deployment.';
-end;
-
 function InitializeUninstall(): Boolean;
 var Names: TArrayOfString; I: Integer;
 begin
@@ -126,3 +114,5 @@ begin
       Exit;
     end;
 end;
+
+#include "AuthLens-Transaction.iss"
