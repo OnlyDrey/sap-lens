@@ -1,5 +1,64 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Fresh Windows Server package and supplied-backup restore
+
+2026-11-21 (local date): **PASS for fresh isolated package/restore and exercised read-only workflows; left running for manual testing.**
+The clean `791ac11896cae0721a8f17c7157232efc2363233` source includes the Account Review compatibility fix and responsive frontend, product
+`2.0.0-alpha.1`. The existing Windows release script built a self-contained win-x64 package with .NET runtime 10.0.15; all 17 manifest artifacts,
+checksums, embedded UI/build identity and the release secret scan passed. The 22 selected Account Review/migration tests passed; no full suite or
+installer rebuild ran. An initial invocation with a relative output path failed the script's relative-file check after publishing; that incomplete
+output was retained and never deployed. The successful invocation used an absolute output path and reused the unchanged passing focused tests.
+
+- Verified release: `backend/artifacts/release/AuthLens-2.0.0-alpha.1-20261120-225824-791ac11-win-x64`.
+- Separate protected installation: `C:\AuthLens-Acceptance\fresh-67da2781db144878816e6502f5734d4f`, program under `program`, database under
+  `data/authlens.sqlite3`. No existing migrated database was copied. The original `AuthLens` service was already Stopped (PID 0) at task start
+  and remains Stopped; its database/table/document fingerprints match. No SCM configuration or legacy/Desktop installation was changed.
+- Server runs as a hidden isolated console process (initial PID 2328), accounts authentication, HTTPS port 18796, `--no-worker`. No second service
+  or automatic restart/logon/reboot task was installed. Operator access on the VM: `https://windows-vm:18796`; IP fallback `https://10.0.7.50:18796`.
+  Using the separate hostname avoids browser-cookie sharing with the old IP endpoint; otherwise use a separate browser profile.
+- TLS uses protected file copies of the existing trusted machine certificate/password file; originals are unchanged and normal chain/hostname
+  validation passed. A newly generated certificate's trust import did not complete; its files remain retained but unused. No TLS bypass was used.
+  Other-client trust, DNS and firewall reachability were not established by the VM-local checks.
+
+Supplied archive `AuthLens-backup-61af3b0a1d474e93bdaf41ead07346e5.slbak` remains byte-identical, SHA-256
+`9e1785837ed5b1d4dc6af24a1e901687e61d9bed15b9c87b893214faf10c85ef`. Its SLBAK3 host-key fingerprint matched an available existing recovery key;
+only a private key copy was selected. Supported `--backup-verify` authenticated/decrypted and verified the archive: version `2.0.0-alpha.1`, created
+`2026-11-20T18:42:50.765931+00:00`, four members including an accounts store. A fresh empty host first reached administrator setup and was stopped.
+Supported offline `--restore ... --replace-all-data` staged/confirmed the copied archive; HTTPS startup applied it and reported completed restore
+with the expected archive SHA, never an empty fallback. The original input archive/key and all prior recovery artifacts were preserved.
+
+Source-versus-restored comparison uses the authenticated staged backup itself, not assumptions from the earlier V1 migration:
+
+| Retained data | Source and restored |
+| --- | ---: |
+| Dataset revisions / records | 38 / 332,348 |
+| User/assignment revision records | 112,400 |
+| Role revision records | 182,846 |
+| Directory revision records | 36,550 |
+| SoD matrix revision records | 552 |
+| Account Review events / invalidations | 3 / 0 |
+| SoD events / evidence snapshots | 1,086 / 1,023 |
+| Saved filters / refresh reports | 0 / 5 |
+| Enabled administrator accounts | 1 |
+
+Every business table and stored document matched, both event chains and all evidence content addresses verified, SQLite integrity/foreign keys
+passed, and all six known schema migrations are applied with none pending. Account credentials/roles remain unchanged; normal sign-in updates
+last-login/audit/session state. Restore deliberately cleared four unavailable external source paths, made modes static and rebound lifecycle paths;
+other settings matched. Scheduling was already disabled and stays disabled; background refresh remains off. No records were imported or edited.
+
+Fourteen authenticated read routes passed plus sampled Account Review history, SoD history/evidence, frozen-period details, directory matching and
+pure access-package CSV export. Current views show 265 SAP users, 96 catalogue roles, 1,767 directory records, 257 matched identities (6 missing
+email, 2 unmatched), three reviewed/zero outdated Account Reviews and one SoD period. Access-package preview/export returned one exportable row;
+it stores no business record. Zero saved filters is the actual backup state. The isolated Edge installed-frontend check passed Dashboard rendering,
+Role Lookup, mobile drawer/Account Review, profile menu, viewport containment and absence of runtime errors. Node's `--use-system-ca` was needed
+for the HTTP test client to use Windows certificate trust; certificate checks were retained. Initial browser navigation opens Data Sources because
+the portable restore cleared old paths; **Back to AuthLens** exposes the retained snapshots without selecting a source or refreshing.
+
+Private reports and the authenticated source snapshot remain under the acceptance root; no credentials, keys or record exports were committed.
+PowerShell acceptance-client array wrapping/serialization mistakes were corrected without product changes or weakened assertions. The original
+archive and original instance fingerprints were rechecked after use. No push/merge, version/CI change or production-readiness claim is made.
+Manual business-action acceptance, installer upgrade/rollback, interruption recovery and off-VM connectivity remain separate gates.
+
 ## Account Review compatibility correction and isolated continuation
 
 The source correction adds a local read-only V1 schema-2 comparator; it preserves the current .NET fingerprint format and immutable decision

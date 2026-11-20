@@ -131,6 +131,10 @@ Rules:
   unreliable there). It is created if missing, with the `api-token` file inside, as soon as the options parse; a later validation failure
   (for example a missing `--allowed-hosts`) can leave that new directory behind. Use a separate directory per Server instance; never share
   one with the Desktop or v1.
+- **Side-by-side acceptance:** the packaged Server also runs as an isolated console process with a separate program/data directory, port and
+  explicit accounts/TLS/host options. This does not install a service or provide restart after logoff/reboot. Leave the existing SCM service alone.
+  Browser cookies are scoped to hostname/path, not TCP port: use distinct allowed hostnames covered by the certificate, or separate browser profiles,
+  to avoid sign-in cookies replacing each other between two instances on the same host. Do not weaken Host/Origin or certificate checks.
 - **Invalid configuration** stops startup before anything listens: the process prints `startup refused: <reason>` on stderr and exits with
   code **3**. Examples: `Unknown option '--bind'.`, `--port needs a value.`, `--port must be between 1 and 65535.`, `--listen must be an IP
   address, not 'server.lan'.`, `--data-dir must be an absolute path.`, `Listening on 192.168.10.20 needs network access to be enabled explicitly
