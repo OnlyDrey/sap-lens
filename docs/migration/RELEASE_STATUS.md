@@ -1,5 +1,63 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Permanent-service promotion preflight
+
+2026-11-21: **BLOCKED before cutover; the last working validated instance is preserved.** The requested target is existing service `AuthLens`,
+Automatic, `NT SERVICE\AuthLens`, HTTPS 18795. It is Stopped/PID 0, with no 18795 listener. Its existing junction/configuration still references
+the separate `server-v1-29d52739de914a138386dee79c11aab2` acceptance root and build **4b20cdb**. The validated instance remains running as owned
+process **11728** from `fresh-67da2781db144878816e6502f5734d4f/program-0c2e999`, data under that root's `data`, HTTPS **18796**, accounts mode,
+`--no-worker`. Its existing **0c2e999** release verifies all 17 artifacts and build identity; no rebuild was needed. Canonical `C:\ProgramData\AuthLens`
+was absent. No service, junction, data location, ACL, firewall, DNS, router, proxy or certificate trust was changed during this preflight.
+
+The operator has subsequently completed permanent deletion of `acceptance-admin`: read-only inspection now finds only enabled administrator
+`arkasa`, zero temporary-account rows, no orphan sessions/one-time codes, and one `user.delete` audit event. Account database schema 1, integrity
+and foreign keys pass. This supersedes the earlier pending deletion checkpoint below; the agent did not perform that operator action. The shared
+browser still returns 401 for `/api/auth/me`, so fresh administrator authentication/permission acceptance is not verified by this task.
+
+### Network gates
+
+- `lens.akio.no` resolves to Cloudflare addresses. VM requests receive **401 text/plain** before AuthLens at both `/` and `/health/ready`.
+  The external TLS hostname/chain validated normally from the VM (TLS 1.3, certificate `CN=akio.no`, Google Trust Services WE1, expires
+  2027-02-17). It was not modified. This does not verify the AuthLens upstream, sign-in, assets, API or WebSocket traffic.
+- No local reverse-proxy/connector process/service or known connector directory was found. No available SSH host/connected management tool
+  identified the remote resource. Its current target port, SNI/upstream trust, Host/forwarded-header behavior and exact trusted TCP peer are
+  unknown. Do not assume that it routes to 18795, or guess a trusted-proxy address. The operator has been asked for its management/configuration location.
+- Both preserved backend TLS copies have the same self-signed certificate, SANs `localhost`, `WINDOWS-VM`, `10.0.7.50`, expiry 2027-02-18.
+  They lack `lens.akio.no`. AuthLens must have certificate coverage for its allowed hosts; do not add the external allowed host and weaken
+  validation to make it start. Resolve backend SAN/upstream trust with the existing proxy setup while preserving the external certificate/security.
+- Ethernet is Private and Windows firewall profiles are enabled. The read-only queries found no AuthLens-specific/explicit 18795/18796 rule;
+  this is not a proof of effective remote reachability or router port exposure. No public backend port was opened. A separate LAN machine and
+  outside-network authenticated client were unavailable. Independent web probes could not access the public resource, so external application
+  accessibility is **NOT VERIFIED**, rather than passed or inferred from VM-local DNS/TLS.
+
+### Backup/recovery and rollback preparation
+
+Protected root `C:\AuthLens-Acceptance\promotion-0372c2b687d14ed0bb312bc9eebfd6a4` retains exact SCM state, copied keys/TLS/configuration,
+program/key/TLS SHA inventory, reports and a concrete `ROLLBACK.md`. Both source installations remain intact and in place. New encrypted archives
+were created and fully verified through supported maintenance CLI:
+
+| Instance | Archive SHA-256 | Accounts / enabled administrators |
+| --- | --- | --- |
+| Current validated state | `8d992e79b822c284ef89420ee0d8a0cca333a79c81d243e9096ae2b756646abb` | 1 / 1 |
+| Preserved old installation | `26243af09edc37b6d9b0d3d4fde4bb4e163bf7a1bd9d9d256484570e610b3c39` | 1 / 1 |
+
+The CURRENT validated archive was restored only into a new disposable rehearsal directory, never over a real instance or from the old supplied
+archive. HTTPS readiness and console restart passed with normal TLS checks. Every business table/document, user/verifier, audit and policy matched
+the authenticated backup; all 332,348 records, both history chains, evidence hashes, SQLite integrity and foreign keys passed. Settings content
+matched; its revision had only the documented portable-restore increment. A separately ownership/console-membership-guarded Ctrl+C rehearsal
+logged application shutdown without signalling either real instance. Rehearsal hosts are stopped and all recovery data is retained.
+
+Transactional preflight fingerprints cover the 38 datasets, 332,348 records, 3 Account Review events, 1,086 SoD events, 1,023 evidence snapshots,
+settings, zero saved filters, five refresh reports and all documents. Scheduling stays disabled. No direct live SQLite copy or SQL edit occurred.
+These checks demonstrate current-backup recovery and console shutdown/restart, **not a tested SCM cutover/rollback**. The planned promotion must
+gracefully stop the owned source, migrate its COMPLETE persistent state offline into a new protected service data directory, use the supported
+deployment/ACL mechanisms, reselect the identical copied key and compare all state. It must not restore the original supplied backup. Rollback
+must preserve newer writes: never point at a stale old database or automatically restore an older archive after post-cutover business changes.
+
+Remaining gates: identify/verify the exact proxy resource and backend TLS/forwarding configuration; authenticate `arkasa`; rehearse the final SCM
+rollback configuration; then perform controlled migration, virtual-account ACL/startup/readiness/restart checks, and independent LAN/external
+authentication/assets/API/WebSocket acceptance where applicable. No full regression, push, merge or production-readiness claim was made.
+
 ## Permanent local-account deletion
 
 Implemented: `DELETE /api/auth/users/{id}` and the confirmed **Delete account** action in Settings → User Management. Current administrator
