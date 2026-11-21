@@ -1,6 +1,78 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Permanent Windows service promotion — local acceptance completed
+
+2026-11-21: **PASS for controlled local promotion; Pangolin/external authenticated acceptance remains OUTSTANDING.** Existing artifacts under
+`C:\AuthLens-Acceptance\promotion-0372c2b687d14ed0bb312bc9eebfd6a4` were reused. A transactional comparison found no business/security-table
+changes since the verified current-state backup, so no replacement backup or product rebuild was needed. The old installation/data/configuration,
+isolated data and every backup remain retained. The current source is build **0c2e999** / product **2.0.0-alpha.1**.
+
+### Permanent service and state
+
+- `AuthLens` is **Running**, **Automatic**, account **NT SERVICE\AuthLens** (service SID enabled); final accepted process **12272** after a
+  controlled restart. Root `C:\ProgramData\AuthLens`; program `releases/current/server/AuthLens.Api.exe` links to the verified
+  `AuthLens-2.0.0-alpha.1-20261121-011033-0c2e999-win-x64` server package. Persistent state is in `data`, accounts in `data/security/accounts.sqlite3`,
+  key in `keys/host.key`, TLS in `tls/server.pfx` plus protected password file, deployment configuration in `config/deploy.json`.
+- Existing public deployment-module operations initialized/protected the new root, published/verified the server package, set the release link,
+  configured the existing service and granted its least-privilege file rights. The NTFS audit passed. Normal Windows chain/hostname TLS probes
+  were used; the deployment module's skip-validation diagnostic probe was not used.
+- The owned console was stopped gracefully before copying. All **25** persistent files were copied offline and SHA-256 matched before startup;
+  no old archive was restored over the validated state, and no SQL was edited directly. The identical copied key was selected through supported
+  `--backup-key use`. Source data stays untouched and the original service installation stays separate under its retained acceptance root.
+- Pre-copy, first-service-start and post-restart comparisons match **every business/settings/evidence table**, account credentials/roles, policy,
+  metadata and all previous audit rows. No operational security table changed in the observed acceptance window. Counts: 38 revisions / 332,348
+  records, 3 Account Review events, 1,086 SoD events, 1,023 evidence snapshots, zero saved filters and five refresh reports. Integrity, foreign keys
+  and evidence content hashes pass. `arkasa` remains the one active administrator; `acceptance-admin` remains absent. Schema is unchanged.
+- Scheduled refresh is disabled; all four sources remain static with empty external paths and no queued/running jobs or pending restore. Normal
+  service workers therefore have no external refresh to execute. The temporary 18796 process is stopped and no listener remains there.
+
+The first stop attempt also interrupted its PowerShell controller after gracefully stopping the source, before data copy/service changes. The
+last working source was immediately resumed against the same intact data (PID 16076), with normal HTTPS readiness. A separately built guarded
+signal utility then passed a disposable rehearsal and sent Ctrl+C without attaching the migration controller to the source console. The successful
+continuation reused the already prepared empty root, retained the first attempt and recovery logs, migrated the stopped state and completed the
+service restart/persistence checks. No forced source stop or database replacement was used.
+
+Local `https://10.0.7.50:18795/health/ready` and frontend/index/build identity pass with certificate validation enabled. All **91** initial frontend
+assets returned 200. The sign-in page rendered at 390/768/1440 px without horizontal overflow; account setup remains closed. These unauthenticated
+checks do not replace a fresh interactive `arkasa` sign-in or authenticated dashboard acceptance after cutover. No password was reset or collected.
+
+### Pangolin and remaining external checks
+
+The external browser redirect identifies existing resource **sap-lens**, auth-resource GUID **7537c399-5952-46af-9290-6c38578e7341**, at
+`auth.akio.no`. Its authentication gate is retained. Pangolin management access, current target configuration, Newt site/host/network and connector
+reachability are unavailable through the connected tools. No resource, tunnel, policy, DNS/router setting or public certificate was changed.
+
+The operator must verify/update **only that existing resource**:
+
+| Setting | Required verification |
+| --- | --- |
+| Domain / policy | Keep `lens.akio.no` and existing authentication/access policy |
+| Upstream | Certificate-valid reachable hostname/IP for this VM, e.g. **10.0.7.50**, protocol **HTTPS**, port **18795**; if it still uses 18796, change only that target port |
+| TLS / SNI | Keep verification enabled; use a server name covered by the preserved backend certificate and trust its issuing certificate on the verifying proxy/connector. Never skip validation |
+| Newt site | Keep the existing connector; prove its TCP/HTTPS reachability to 10.0.7.50:18795 from its own network location |
+| Host / forwarding | Inspect the actual Host and forwarded headers and then configure only the proven trusted peer. Current AuthLens configuration remains the validated local host list with no guessed trusted proxies; public-origin forwarding/authentication is not yet accepted |
+
+TLS to a certificate-valid upstream IP/name does not inherently need `lens.akio.no` in its SAN. Public TLS and backend TLS are distinct. The
+installed build additionally couples its allowed-HTTP-host startup validation to certificate names; public Host/forwarding support must therefore
+be checked against the actual resource configuration, without weakening Host/Origin or certificate safeguards. The lack of management access is
+not used to block the completed local service promotion or to infer a certificate error in Pangolin.
+
+The only new firewall rule is service-scoped `AuthLens-Service-18795`: inbound TCP, local address **10.0.7.50**, port **18795**, profiles **Private,
+Domain**, remote **LocalSubnet**. It opens neither the Public profile nor arbitrary remote addresses. If the actual connector is outside that scope,
+identify its exact private peer before any narrowly scoped adjustment. No router port-forward/public backend exposure was added. Independent LAN
+reachability and outside-network authenticated flow remain unverified. VM public probes still receive 401 at the existing Pangolin gate; the
+browser displays its login page. This proves the gate, **not** AuthLens backend/asset/API/admin accessibility through it. Production code contains
+no AuthLens WebSocket/EventSource channel to exercise; Newt tunnel transport itself is not claimed verified.
+
+`ROLLBACK.md` in the retained promotion root now describes the accepted service and post-cutover no-data-loss rules; its original version is
+preserved as `ROLLBACK-precutover.md`. After newer writes, rollback must retain/copy the CURRENT stopped service state into a new protected directory,
+not blindly resume the frozen 18796 database or start the original stale installation. No full regression, CI, push or merge ran. Overall production
+readiness is not declared until authenticated local/external and independent-network acceptance is complete.
+
 ## Permanent-service promotion preflight
+
+Historical initial checkpoint; local promotion is subsequently completed above. Its external-access findings remain acceptance limits, not proof
+that a certificate-valid upstream connection must use the public hostname.
 
 2026-11-21: **BLOCKED before cutover; the last working validated instance is preserved.** The requested target is existing service `AuthLens`,
 Automatic, `NT SERVICE\AuthLens`, HTTPS 18795. It is Stopped/PID 0, with no 18795 listener. Its existing junction/configuration still references
