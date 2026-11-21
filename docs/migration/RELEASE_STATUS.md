@@ -11,8 +11,30 @@ without incorrectly requiring those names in the backend TLS certificate. Direct
 Origin equality, per-session CSRF, authorization and secure cookies are unchanged. Refusal diagnostics now capture sanitized forwarded host,
 protocol and IP values before middleware consumes them. Arbitrary header content and secrets are not echoed.
 
-Deployment and authenticated end-to-end acceptance are pending at this checkpoint. Keep existing local names and backend certificate;
-use only verified peer `10.0.7.10` and public proxy host `lens.akio.no`. Do not disable upstream TLS validation or Pangolin authentication.
+Validation: **64/64** focused .NET origin/proxy/network-policy tests and **48/48** mocked deployment tests passed on Windows, with documentation,
+PowerShell syntax, diff and secret checks passing. The sandbox cannot import temporary Windows TLS keys; the focused tests passed outside that
+sandbox without changing certificate validation. One deployment test was isolated from the real protected installation configuration.
+
+Package **1bc0855** was built cleanly with the existing release script (`-SkipTests`, focused tests already passed), and all **17 artifacts**
+and checksums verified. A fresh encrypted backup and complete **26-file** offline rollback copy were verified before switching. First startup
+passed normal-TLS readiness/build identity and all business/settings/evidence, credentials/roles, audit-prefix, policy and metadata fingerprints.
+The controller then rolled back automatically: a negative public-Host probe in .NET HttpClient also changed its TLS validation target, causing
+the correctly internal-only certificate to fail hostname validation. The same probe with curl (internal TLS target preserved) returned the
+expected 421. The private controller was corrected; no TLS bypass was introduced.
+
+**Deployment remains BLOCKED:** the corrected retry awaited Windows UAC confirmation. It was explicitly deferred with a guard before reporting,
+so late acceptance of that pending prompt cannot silently perform a cutover. The old **0c2e999** service remains **Running / Automatic /
+NT SERVICE\AuthLens**, readiness 200. No database was restored or replaced. Private backup, offline copies, attempt evidence and rollback
+instructions remain under the existing promotion root's `proxy-3f3288908d3f495fac2940e6b21f9e42` subdirectory.
+
+Resume the guarded controller under confirmed elevation, then repeat normal-TLS/security/restart and final preservation checks. Keep existing
+local names and backend certificate; use only verified peer `10.0.7.10` and public proxy host `lens.akio.no`. The existing service-scoped firewall
+rule is unchanged (private/domain, local IP and TCP 18795, LocalSubnet); actual Newt HTTP arrivals prove connector reachability.
+
+Public TLS validated from the VM, but Pangolin returned its authentication-gate 401. No authenticated Pangolin session or management access was
+available; its exact forwarded values, upstream certificate-validation setting and authenticated frontend/API/admin flow remain unverified.
+An independent external fetch could not access the URL. No claim of authenticated external availability is made. Do not disable upstream TLS
+validation or Pangolin authentication.
 See the [network guide](../deployment/SERVER_NETWORK_ACCESS.md#11-reverse-proxy-pangolin-cloudflare) for the configuration boundary.
 
 ## Permanent Windows service promotion — local acceptance completed
