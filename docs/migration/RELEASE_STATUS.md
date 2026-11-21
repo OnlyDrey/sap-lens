@@ -1,5 +1,41 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Pangolin proxy fix deployment — local acceptance completed
+
+2026-11-21 continuation: **PASS for controlled deployment and local acceptance; authenticated external acceptance remains OUTSTANDING.**
+The previous deployment worker and UAC request were no longer running. The pause guard was reviewed and removed only for a supervised,
+time-bounded start; Windows elevation was confirmed and the corrected controller completed successfully without rollback. The guard was
+re-enabled afterwards, and no deployment worker remains. No rebuild or completed test suite was repeated.
+
+- Deployed product **2.0.0-alpha.1**, source **1bc0855c153da8181bae11cc6296457a0303abb1**, from the existing clean, checksum-verified package
+  `AuthLens-2.0.0-alpha.1-20261121-090138-1bc0855-win-x64`. Existing encrypted backup, original release/configuration and offline copies were retained;
+  a further **26-file** offline copy was verified before the switch. No database restore, replacement or schema migration was performed.
+- `AuthLens`: **Running**, **Automatic**, **NT SERVICE\AuthLens**, process **16280** after the controlled restart. Canonical root and persistent
+  paths remain `C:\ProgramData\AuthLens`; program junction `releases/current/server/AuthLens.Api.exe` now targets the verified package above.
+- Persistent deployment configuration and service command line set **TrustedProxies = [10.0.7.10]**, **ProxyHosts = [lens.akio.no]**.
+  Direct **AllowedHosts = [10.0.7.50, WINDOWS-VM, localhost]** remain unchanged. Backend TLS certificate, password file and encryption keys
+  retain their pre-deployment hashes. Filesystem ACL audit passed. No Pangolin policy, firewall rule or public DNS change was made.
+- Normal Windows TLS validation passed at `https://10.0.7.50:18795`: readiness **200**, frontend **200**, correct embedded build identity,
+  rendered sign-in and all three initial script/stylesheet assets **200**. Unauthenticated account API access remains **401**.
+  Unauthorized Origin and untrusted spoofed forwarding remain **403**; proxy-only Host from an untrusted client remains **421**;
+  a state change without a same-origin signal remains **403**. Same-origin local requests reach application validation.
+- First-start and post-restart comparisons preserve every business/settings/evidence table, account credentials/roles, audit history,
+  account policy and metadata; operational security-table comparison also found no changes. Both SQLite integrity and foreign-key checks
+  passed. **332,348 records / 38 dataset revisions / 3 Account Review decisions / 1,086 SoD events / 1,023 evidence snapshots** remain intact;
+  evidence content hashes passed. `arkasa` remains active administrator, `acceptance-admin` absent, scheduled refresh disabled and sources static.
+- Reused focused results: **64/64 .NET proxy/origin/network-policy tests**, **48/48 mocked deployment tests**. Native deployment, corrected
+  curl Host probe, normal-TLS probes, preservation checks and controlled service restart were executed in this continuation. FULL/CI were not run.
+
+Private deployment journal, fingerprints, verified archive, offline state and `ROLLBACK.md` remain in the promotion root's
+`proxy-3f3288908d3f495fac2940e6b21f9e42` subdirectory. Rollback returns the program/configuration while preserving the latest data; never restore
+an older copy over newer writes merely to undo proxy settings.
+
+**Remaining external acceptance:** the shared browser still requires Pangolin sign-in, then AuthLens sign-in. Public HTTPS from the VM validates
+and returns the gate's **401**, which does not prove backend or authenticated API reachability. No authenticated browser session was available.
+Verify frontend, login, administrator API/session-CSRF behavior and any applicable WebSockets after both gates; externally verify from outside
+the LAN. Exact upstream forwarded-header values and Pangolin upstream TLS-verification configuration remain uninspected without management
+access. Preserve certificate validation and existing policies. This local acceptance does not establish production readiness.
+
 ## Pangolin cross-origin correction — implementation validation
 
 2026-11-21: the permanent service log established that Newt connects from **10.0.7.10**, sends forwarded headers, and forwards an internal
