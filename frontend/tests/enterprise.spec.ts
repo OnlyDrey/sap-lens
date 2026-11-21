@@ -72,7 +72,7 @@ test('system identity, private logo storage, persisted theme and portable backup
     await page.getByRole('tab',{name:'Appearance & Branding'}).click()
     await page.getByRole('button',{name:'Remove custom logo / restore AuthLens default'}).click()
     await page.getByRole('button',{name:'Apply settings',exact:true}).click()
-    await expect(page.getByRole('banner').getByRole('img',{name:'AuthLens',exact:true})).toHaveAttribute('src','/sap-lens.png')
+    await expect(page.getByRole('banner').getByRole('img',{name:'AuthLens',exact:true})).toHaveAttribute('src','/logo.png')
   } finally {rmSync(directory,{recursive:true,force:true})}
 })
 

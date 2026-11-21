@@ -10,11 +10,11 @@ Describe 'Compiled Inno installer isolation' {
         $repo = Join-Path $TestDrive $Mode
         $installer = Join-Path $repo 'backend/installer'
         $payload = Join-Path $repo 'payload'; $tools = Join-Path $repo 'tools'
-        foreach ($dir in $installer,(Join-Path $repo 'assets'),(Join-Path $payload 'desktop'),(Join-Path $payload 'server'),$tools) {
+        foreach ($dir in $installer,(Join-Path $repo 'assets/branding'),(Join-Path $payload 'desktop'),(Join-Path $payload 'server'),$tools) {
             New-Item -ItemType Directory -Force $dir | Out-Null
         }
         Copy-Item (Join-Path $PSScriptRoot '../../installer/*.iss') $installer
-        Copy-Item (Join-Path $PSScriptRoot '../../../assets/sap-lens.ico') (Join-Path $repo 'assets')
+        Copy-Item (Join-Path $PSScriptRoot '../../../assets/branding/app.ico') (Join-Path $repo 'assets/branding')
         Copy-Item (Join-Path $PSScriptRoot '../../../LICENSE.md') $repo
         foreach ($file in (Join-Path $payload 'desktop/AuthLens.exe'),(Join-Path $payload 'server/AuthLens.Api.exe'),(Join-Path $tools 'Install-AuthLens.ps1')) {
             Set-Content -LiteralPath $file 'synthetic compile fixture; never execute'

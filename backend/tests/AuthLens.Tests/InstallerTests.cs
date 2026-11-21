@@ -61,11 +61,11 @@ public sealed partial class InstallerTests
     public void Both_use_the_official_multi_size_icon_and_the_product_name()
     {
         Assert.All([Desktop, Server], s => Assert.Equal("{#ProductIcon}", Setting(s, "SetupIconFile")));
-        Assert.All([Desktop, Server], s => Assert.Contains(@"#define ProductIcon RepoRoot + ""\assets\sap-lens.ico""", s));
+        Assert.All([Desktop, Server], s => Assert.Contains(@"#define ProductIcon RepoRoot + ""\assets\branding\app.ico""", s));
         Assert.All([Desktop, Server], s => Assert.Equal("AuthLens", Setting(s, "VersionInfoProductName")));
         Assert.Equal("AuthLens", Setting(Desktop, "AppName"));
         Assert.Equal("AuthLens", Setting(Server, "AppName"));
-        var ico = File.ReadAllBytes(Path.Combine(Repo, "assets", "sap-lens.ico"));
+        var ico = File.ReadAllBytes(Path.Combine(Repo, "assets", "branding", "app.ico"));
         Assert.Equal([0, 0, 1, 0], ico[..4]);                                                  // ICONDIR, type icon
         var sizes = Enumerable.Range(0, BitConverter.ToUInt16(ico, 4)).Select(i => ico[6 + 16 * i] == 0 ? 256 : ico[6 + 16 * i]).Order().ToArray();
         Assert.Equal([16, 24, 32, 48, 64, 128, 256], sizes);

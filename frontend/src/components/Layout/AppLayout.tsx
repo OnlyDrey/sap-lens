@@ -107,8 +107,8 @@ export function AppLayout({
             <img
               src={
                 organization?.name.trim()
-                  ? customLogo?.data_url || '/sap-lens.png'
-                  : '/sap-lens.png'
+                  ? customLogo?.data_url || '/logo.png'
+                  : '/logo.png'
               }
               alt={
                 organization?.name.trim() && customLogo?.data_url
@@ -117,8 +117,8 @@ export function AppLayout({
               }
               className="h-12 w-auto max-w-40 object-contain flex-shrink-0"
               onError={(e) => {
-                if (!e.currentTarget.src.endsWith('/sap-lens.png'))
-                  e.currentTarget.src = '/sap-lens.png'
+                if (!e.currentTarget.src.endsWith('/logo.png'))
+                  e.currentTarget.src = '/logo.png'
               }}
             />
             <div>

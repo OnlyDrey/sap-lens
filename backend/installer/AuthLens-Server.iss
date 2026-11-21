@@ -22,7 +22,7 @@
 #endif
 #define InstallerMode "Server"
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
-#define ProductIcon RepoRoot + "\assets\sap-lens.ico"
+#define ProductIcon RepoRoot + "\assets\branding\app.ico"
 #define AppIdGuid "B961C010-9B53-4514-9D2A-73A4641E4AAF"
 #define VersionKey "Software\AuthLens\Server"
 

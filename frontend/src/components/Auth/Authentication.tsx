@@ -56,7 +56,7 @@ function Login({setup,onActivated,onReady}:{setup:boolean;onActivated:()=>void;o
    else{await apiRequest('/api/auth/'+(mode==='reset'?'reset':'recover'),'POST',{code,password});setPassword('');setCode('');setMode('login');setMessage('Password updated. Sign in with your new password.')}
   }catch(error){setError(authMessage(error))}finally{setBusy(false)}
  }
- return <main id="main-content" className="startup-screen"><section className="startup-card"><img src="/sap-lens.png" alt="AuthLens" className="w-20 h-20 object-contain mx-auto"/><h1 className="text-2xl font-semibold">{setup?'Set up AuthLens':mode==='login'?'Sign in to AuthLens':'Reset password'}</h1>
+ return <main id="main-content" className="startup-screen"><section className="startup-card"><img src="/logo.png" alt="AuthLens" className="w-20 h-20 object-contain mx-auto"/><h1 className="text-2xl font-semibold">{setup?'Set up AuthLens':mode==='login'?'Sign in to AuthLens':'Reset password'}</h1>
  <form onSubmit={event=>void submit(event)} className="grid gap-4 text-left mt-4">
  {(setup||mode==='login')&&<FormField label="Username"><Input autoComplete="username" value={username} maxLength={100} required onChange={e=>setUsername(e.target.value)}/></FormField>}
  {setup&&<FormField label="Display name"><Input autoComplete="name" value={display} maxLength={120} required onChange={e=>setDisplay(e.target.value)}/></FormField>}

@@ -28,7 +28,7 @@ reference a classification and reason. Its counts are historical; the Windows co
 | Documentation | 31 | Name the earlier product, the repository `sap-lens`, or the migration path |
 | Tooling | 33 | `backend/tools` regenerate v1 fixtures from an external SAP Lens 1 checkout (`SAP_LENS_V1_BACKEND`) and set the `SAP_LENS_*` variables SAP Lens 1 reads |
 | Fixture | 6 | Recorded v1 evidence; regenerated, never edited by hand |
-| Asset | 4 | Logo and icon file names (`assets/sap-lens.ico`, `sap-lens.png`); the logo is unchanged by request |
+| Asset | 4 at rename baseline | Historical filenames retained in the inventory; now consolidated under generic names in `assets/branding/`, artwork unchanged |
 | Owner decision | 1 | `LICENSE.md` names the product in legal text; AGENTS.md keeps licensing intact, so the owner changes it |
 
 ## 3. Implemented changes
@@ -129,8 +129,8 @@ Not run: the complete browser suite, and anything native on Windows (service, in
 ## 9. Technical debt found and not changed
 
 - License product references were updated to AuthLens with explicit approval in the Windows continuation; legal clauses and ownership wording are unchanged.
-- Logo file names `sap-lens.png`/`sap-lens.ico` and the `saplens_session` cookie keep the earlier name (renaming gains nothing visible and the
-  cookie change signs users out).
+- Branding filenames were subsequently standardized under `assets/branding/`; see [source ownership](../architecture/DESIGN_SYSTEM.md#branding-source-assets).
+  The historical per-file inventory records the original rename checkpoint and is not a current asset manifest. Session cookie compatibility is unchanged.
 - 15 browser tests remained open at the Linux checkpoint; current Windows results supersede them in [release status](RELEASE_STATUS.md).
 
 ## Windows continuation assessment (2026-11-20, baseline 50bed6d)

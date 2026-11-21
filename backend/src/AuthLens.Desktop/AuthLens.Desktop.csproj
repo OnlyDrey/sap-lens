@@ -14,7 +14,7 @@
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
     <AssemblyName>AuthLens</AssemblyName>
     <!-- The official multi-size icon (16 to 256 px), embedded in AuthLens.exe and used for the window. -->
-    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\assets\sap-lens.ico</ApplicationIcon>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\assets\branding\app.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <InvariantGlobalization>false</InvariantGlobalization>
     <!-- AuthLens.Api is also the Server executable; Desktop uses it as a library. -->

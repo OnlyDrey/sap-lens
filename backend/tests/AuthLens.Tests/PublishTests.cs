@@ -81,10 +81,10 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
 
     private static bool Contains(string file, byte[] needle) => File.ReadAllBytes(file).AsSpan().IndexOf(needle) >= 0;
 
-    /// <summary>The largest image of the official icon, assets/sap-lens.ico (ICONDIR, then 16-byte entries with size at +8 and offset at +12).</summary>
+    /// <summary>The largest image of the official icon, assets/branding/app.ico (ICONDIR, then 16-byte entries with size at +8 and offset at +12).</summary>
     private static byte[] LargestIconImage()
     {
-        var ico = File.ReadAllBytes(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RepoProject("AuthLens.Api"))!, "..", "..", "..", "assets", "sap-lens.ico")));
+        var ico = File.ReadAllBytes(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(RepoProject("AuthLens.Api"))!, "..", "..", "..", "assets", "branding", "app.ico")));
         var (size, offset) = Enumerable.Range(0, BitConverter.ToUInt16(ico, 4)).Select(i => (BitConverter.ToInt32(ico, 14 + 16 * i), BitConverter.ToInt32(ico, 18 + 16 * i))).MaxBy(e => e.Item1);
         return ico[offset..(offset + size)];
     }
@@ -120,7 +120,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
             using var http = new HttpClient(new HttpClientHandler { UseProxy = false }) { BaseAddress = new Uri($"http://127.0.0.1:{port}") };
             var probe = await StartupProbe.WaitAsync(http.BaseAddress, TimeSpan.FromSeconds(30), token: token); // "/" served the React application
             Assert.True(probe.Ok, probe.Problem);
-            foreach (var (path, type) in new[] { ("/theme.js", "text/javascript"), ("/sap-lens.png", "image/png"), ("/login.html", "text/html"), ("/login.css", "text/css") })
+            foreach (var (path, type) in new[] { ("/theme.js", "text/javascript"), ("/logo.png", "image/png"), ("/login.html", "text/html"), ("/login.css", "text/css") })
             {
                 var response = await http.GetAsync(path);
                 Assert.Equal(HttpStatusCode.OK, response.StatusCode);
@@ -158,7 +158,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         Assert.True(Contains(exe, "System.Private.CoreLib.dll"));                         // self-contained
         Assert.True(Contains(exe, "AuthLens.Api.runtimeconfig.json"));
         Assert.True(new FileInfo(exe).Length > 50_000_000);
-        // The official icon is embedded as the application icon: its largest image (the 256 px entry of assets/sap-lens.ico) is in the exe's resources.
+        // The official icon is embedded as the application icon: its largest image (the 256 px entry of assets/branding/app.ico) is in the exe's resources.
         Assert.True(Contains(exe, LargestIconImage()));
     }
 
@@ -345,7 +345,7 @@ public sealed class PublishTests(PublishFixture fixture) : IDisposable
         Assert.True(Contains(exe, "WebView2Loader.dll"));
         Assert.True(Contains(exe, "System.Private.CoreLib.dll"));
         Assert.True(new FileInfo(exe).Length > 50_000_000);
-        Assert.True(Contains(exe, LargestIconImage()));   // the official icon (assets/sap-lens.ico) is the application icon
+        Assert.True(Contains(exe, LargestIconImage()));   // the official icon (assets/branding/app.ico) is the application icon
         Assert.Equal(["AuthLens.exe"], Files(output).Where(f => !f.EndsWith(".pdb", StringComparison.Ordinal)));   // no loose server host, docs or settings
     }
 }

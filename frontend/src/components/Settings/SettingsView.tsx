@@ -893,7 +893,7 @@ export function SettingsView({
                       <div className="min-w-0"><ThemeEditor
                         key={`${open}-${config.data?.settings.revision}`}
                         draft={draft}
-                        logoSrc={draft.logo_id ? logoPreview || logo.data?.data_url || '/sap-lens.png' : '/sap-lens.png'}
+                        logoSrc={draft.logo_id ? logoPreview || logo.data?.data_url || '/logo.png' : '/logo.png'}
                         onChange={(patch) => setDraft({ ...draft, ...patch })}
                       />
                       </div><div className="space-y-3"><h2 className="settings-subheading">Header logo</h2>
@@ -914,7 +914,7 @@ export function SettingsView({
                         is rejected.
                       </p>
                       <div className="branding-logo-grid">
-                      <div className="flex min-h-32 items-center justify-center rounded-card border border-line bg-elevated p-4"><img alt="Selected header logo preview" src={draft.logo_id?logoPreview||logo.data?.data_url||'/sap-lens.png':'/sap-lens.png'} className="max-h-24 max-w-full object-contain" onError={event=>{if(!event.currentTarget.src.endsWith('/sap-lens.png'))event.currentTarget.src='/sap-lens.png'}}/></div>
+                      <div className="flex min-h-32 items-center justify-center rounded-card border border-line bg-elevated p-4"><img alt="Selected header logo preview" src={draft.logo_id?logoPreview||logo.data?.data_url||'/logo.png':'/logo.png'} className="max-h-24 max-w-full object-contain" onError={event=>{if(!event.currentTarget.src.endsWith('/logo.png'))event.currentTarget.src='/logo.png'}}/></div>
                       <div className="branding-logo-controls">{logo.isError && (
                         <p
                           role="status"

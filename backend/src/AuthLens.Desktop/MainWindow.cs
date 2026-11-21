@@ -19,7 +19,7 @@ internal sealed class MainWindow : Form
     {
         (_origin, _token, _profile, _log, _logFile) = (origin, token, profile, log, logFile);
         Text = "AuthLens";
-        Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);   // the embedded application icon (assets/sap-lens.ico)
+        Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath!);   // the embedded application icon (assets/branding/app.ico)
         Width = 1400;
         Height = 900;
         Controls.Add(_view);

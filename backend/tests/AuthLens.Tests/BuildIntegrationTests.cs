@@ -57,7 +57,7 @@ public sealed class BuildIntegrationTests
     }
 
     /// <summary>The UI layout a provider exposes: every required file at the root, React assets in the nested "assets" directory, and every file of
-    /// the frontend build resolvable. This is the Windows release failure ("missing index.html, theme.js, sap-lens.png").</summary>
+    /// the frontend build resolvable. This is the Windows release failure ("missing index.html, theme.js, logo.png").</summary>
     internal static void AssertUiLayout(EmbeddedUiFileProvider provider, IEnumerable<string>? distFiles = null)
     {
         foreach (var name in UiAssets.Required) Assert.True(provider.GetFileInfo(name).Exists, name);
@@ -85,7 +85,7 @@ public sealed class BuildIntegrationTests
         // RecursiveDir is "assets\" on Windows and "assets/" on Linux; both builds must serve the same paths.
         foreach (var separator in new[] { '/', '\\' })
         {
-            var provider = Fake("AuthLensUi/index.html", "AuthLensUi/theme.js", "AuthLensUi/sap-lens.png", "AuthLensUi/login.html", "AuthLensUi/login.css",
+            var provider = Fake("AuthLensUi/index.html", "AuthLensUi/theme.js", "AuthLensUi/logo.png", "AuthLensUi/login.html", "AuthLensUi/login.css",
                 $"AuthLensUi/assets{separator}index-1a2b.js", $"AuthLensUi/assets{separator}icons{separator}x.svg", "V1Reference.registry.json", "Other/thing.txt");
             AssertUiLayout(provider, ["assets/index-1a2b.js", "assets/icons/x.svg"]);
             Assert.True(provider.GetFileInfo("/assets/index-1a2b.js").Exists);
@@ -180,7 +180,7 @@ public sealed class BuildIntegrationTests
             File.WriteAllText(Path.Combine(frontend, "package.json"), "{}");
             File.WriteAllText(Path.Combine(dist, "index.html"), "<html><body><div id=\"root\"></div></body></html>");
             File.WriteAllText(Path.Combine(dist, "theme.js"), "/* theme */");
-            File.WriteAllBytes(Path.Combine(dist, "sap-lens.png"), [137, 80, 78, 71]);
+            File.WriteAllBytes(Path.Combine(dist, "logo.png"), [137, 80, 78, 71]);
             File.WriteAllText(Path.Combine(dist, "assets", "first-1a2b.js"), "/* first */");
             var artifacts = Path.Combine(work, "artifacts");
             Directory.CreateDirectory(artifacts);
@@ -202,14 +202,14 @@ public sealed class BuildIntegrationTests
                 }
                 finally { context.Unload(); }
             }
-            Assert.Equal(["assets/first-1a2b.js", "index.html", "login.css", "login.html", "sap-lens.png", "theme.js"], Served());   // clean build
+            Assert.Equal(["assets/first-1a2b.js", "index.html", "login.css", "login.html", "logo.png", "theme.js"], Served());   // clean build
 
             // A new frontend build replaces the hashed asset. The incremental build must follow: the new file only.
             File.Delete(Path.Combine(dist, "assets", "first-1a2b.js"));
             File.WriteAllText(Path.Combine(dist, "assets", "second-3c4d.js"), "/* second */");
             (code, log) = Build(frontend, artifacts);
             Assert.True(code == 0, log);
-            Assert.Equal(["assets/second-3c4d.js", "index.html", "login.css", "login.html", "sap-lens.png", "theme.js"], Served());   // repeat build
+            Assert.Equal(["assets/second-3c4d.js", "index.html", "login.css", "login.html", "logo.png", "theme.js"], Served());   // repeat build
 
             // A file is only removed: nothing became newer, and the assembly must still be rebuilt without it.
             File.WriteAllText(Path.Combine(dist, "assets", "third-5e6f.js"), "/* third */");
@@ -218,7 +218,7 @@ public sealed class BuildIntegrationTests
             File.Delete(Path.Combine(dist, "assets", "second-3c4d.js"));
             (code, log) = Build(frontend, artifacts);
             Assert.True(code == 0, log);
-            Assert.Equal(["assets/third-5e6f.js", "index.html", "login.css", "login.html", "sap-lens.png", "theme.js"], Served());
+            Assert.Equal(["assets/third-5e6f.js", "index.html", "login.css", "login.html", "logo.png", "theme.js"], Served());
         }
         finally
         {

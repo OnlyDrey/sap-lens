@@ -38,7 +38,7 @@ Identifiers that keep an earlier name on purpose:
 | `"app": "sap-lens"` in the refresh status, other v1 API field values | v1-compatible API | API contract | The frontend and v1 clients read the v1 contract | With the v1 API |
 | Product, folder and manifest names `SAP Lens`, `SAP-Lens-*`, `SAP-Lens-2-*` (accepted, never written) | `verify-release.ps1` | Compatibility (input) | Verifying releases built before the rename | When no such release is verified |
 | `SAP_LENS_V1_BACKEND` | `backend/tools` | Historical | Points the reference generators at a SAP Lens 1 checkout | With the v1 reference tools |
-| Logo files `assets/sap-lens.png`, `assets/sap-lens.ico`, `frontend/public/sap-lens.png` | Assets | Visual identity | Unchanged images (no product name in them); the README logo path is preserved | A deliberate asset change |
+| Branding filenames | Assets | Visual identity | Generic sources in `assets/branding/`; original images unchanged; no legacy filename compatibility needed | See [branding ownership](DESIGN_SYSTEM.md#branding-source-assets) |
 | `.gitignore` patterns `*.sap-lens.json`, `SAP-Lens-diagnostics*.json` (beside the AuthLens ones) | `.gitignore` | Safety guard | Exports made by SAP Lens must stay out of Git too | Never |
 | Earlier products' folders and service names in the test launcher's protected paths | `start-server-test.ps1` | Safety guard | A test run must never write into any production or Desktop location | Never |
 

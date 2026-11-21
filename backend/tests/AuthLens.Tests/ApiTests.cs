@@ -165,7 +165,7 @@ public sealed class ApiTests : IAsyncLifetime
 
     [Theory]
     [InlineData("/theme.js", "text/javascript")]
-    [InlineData("/sap-lens.png", "image/png")]
+    [InlineData("/logo.png", "image/png")]
     [InlineData("/login.html", "text/html")]
     [InlineData("/login.css", "text/css")]
     public async Task Static_ui_assets_are_served_without_credentials_and_with_security_headers(string path, string mediaType)

@@ -13,7 +13,7 @@ public static class UiAssets
     public const string Marker = "<div id=\"root\">";
     public const string ResourcePrefix = "AuthLensUi/";
     public const string ProductIdentityFile = "product-version.json";
-    public static readonly string[] Required = ["index.html", "theme.js", "sap-lens.png", "login.html", "login.css"];
+    public static readonly string[] Required = ["index.html", "theme.js", "logo.png", "login.html", "login.css"];
 
     public static IFileProvider Create() => Validate(new EmbeddedUiFileProvider(typeof(UiAssets).Assembly));
 

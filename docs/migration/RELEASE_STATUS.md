@@ -1,5 +1,26 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Branding asset names — repository validation completed
+
+2026-11-21: **implemented and verified in repository builds; not deployed.** Four existing, byte-identical images now live under
+`assets/branding/`: `app.png`, `app.ico`, `logo.png`, `favicon.png`, with roles in `manifest.json`. The sources differ in size/format, so none was
+discarded as an identical duplicate. No SVG, separate theme variant, converted image or placeholder was invented. The previous frontend source
+locations and product-specific filenames were removed after references were updated; historical archive/inventory names remain as evidence.
+
+Vite serves/emits canonical web images directly; React default/fallback logos, HTML, README, .NET embedded-UI validation, both Windows executable
+projects, both installer scripts and affected tests use generic names. Custom uploaded logos, report fixtures and compatibility identifiers are
+unchanged. See [branding ownership and replacement](../architecture/DESIGN_SYSTEM.md#branding-source-assets).
+
+Validation: production frontend build/TypeScript passed; **3/3 branding Node tests**, **31/31 affected .NET build/installer/static-asset tests**,
+**2/2 real Inno script compilations using synthetic payloads**, and **1/1 isolated branding browser workflow** passed. Browser executable override:
+installed Microsoft Edge via `PLAYWRIGHT_EXECUTABLE_PATH`. Server and Desktop compiled, and the canonical ICO's largest image was found in both
+Windows executable resources. All four source images match original Git bytes; both emitted web images match canonical sources. Documentation,
+secrets and whitespace checks passed. Affected ESLint checks had zero errors and five pre-existing SettingsView hook warnings.
+
+No full regression, release-package/installer distribution build, installer execution, CI, push or merge was performed. The running production
+service, deployed build, settings and databases were not modified or restarted by this branding task. New branding names reach an installed
+distribution only through a future deliberate package/deployment update.
+
 ## Pangolin proxy fix deployment — local acceptance completed
 
 2026-11-21 continuation: **PASS for controlled deployment and local acceptance; authenticated external acceptance remains OUTSTANDING.**

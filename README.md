@@ -1,7 +1,7 @@
 <!-- LOGO -->
 <h1>
 <p align="center">
-  <img src="assets/sap-lens.png" alt="Logo" width="200">
+  <img src="assets/branding/app.png" alt="Logo" width="200">
   <br>AuthLens
 </h1>
   <p align="center">

@@ -6,6 +6,32 @@ Build new screens from existing shared components. Navigation changes location, 
 
 This consolidates the existing React/TypeScript/Vite/Tailwind application rather than introducing another framework. Color customization, saved theme presets, module classifications, source parsing, review decisions and comparison evidence sets are unchanged. The integrated reference is **Settings → APPLICATION → Component Library**.
 
+## Branding source assets
+
+All built-in branding sources live in [`assets/branding/`](../../assets/branding/), with roles listed in
+[`manifest.json`](../../assets/branding/manifest.json):
+
+| File | Use |
+| --- | --- |
+| `logo.png` | Existing 256 px application/header/sign-in logo |
+| `app.png` | Existing full-resolution README/application image |
+| `favicon.png` | Existing browser favicon |
+| `app.ico` | Existing seven-size Windows Server, Desktop and installer icon |
+
+Replace these source files at the same paths to update branding; preserve valid formats and the multi-size ICO contract. No application code
+change is required. The original raster artwork is unchanged. There is no SVG source or distinct light/dark artwork, so `logo.svg`, `icon.svg`,
+`logo-light.svg`, `logo-dark.svg` and `favicon.ico` are deliberately absent; do not rename raster bytes to an incompatible extension or invent variants.
+
+The Vite branding plugin reads the manifest and serves/emits `/logo.png` and `/favicon.png` directly from canonical sources for development and
+production. There are no checked-in frontend copies. The .NET API embeds the production UI for both Server and Desktop; both executable projects
+and both Inno Setup scripts consume `assets/branding/app.ico`. The Desktop window extracts that embedded executable icon. Existing custom uploaded
+header/report logos are user data and are unaffected. Report image fixtures are synthetic validation inputs, not application branding.
+
+The former product-specific asset paths are not compatibility interfaces; no redirects or duplicate aliases are retained. Archived documentation
+and the historical rename inventory retain original names as evidence. An already-installed release keeps its embedded images until deliberately
+updated; changing repository branding never changes a running service. Validate with `node --test scripts/tests/branding.test.mjs`, the frontend
+production build, affected .NET build/installer tests and native Inno compilation when available.
+
 ## Token ownership
 
 `frontend/src/styles/tokens.css` owns default palette values and shared dimensions. `frontend/src/lib/theme.ts` remains authoritative for validated user palettes, derived colors, readable foregrounds and System appearance. Its existing CSS property contract is preserved; aliases resolve live values rather than copying a preset. `styles/components.css` owns canonical component styles and compatibility classes. `index.css` retains domain layouts, calendar/combobox placement, module/editor presentation and responsive source arrangements.

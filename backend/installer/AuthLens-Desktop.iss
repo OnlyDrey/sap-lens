@@ -21,7 +21,7 @@
 #endif
 #define InstallerMode "Desktop"
 #define RepoRoot AddBackslash(SourcePath) + "..\.."
-#define ProductIcon RepoRoot + "\assets\sap-lens.ico"
+#define ProductIcon RepoRoot + "\assets\branding\app.ico"
 #define AppIdGuid "F237DA74-B79E-4C1B-A69C-8BA7BCB9DABF"
 #define V1AppIdGuid "5DB5BC51-A860-44CA-93CA-09AE85812DF0"
 #define VersionKey "Software\AuthLens\Desktop"

@@ -53,7 +53,7 @@ export function StartupGate({ children }: { children: ReactNode }) {
   return (
     <div className="startup-screen">
       <div className="startup-card">
-        <img src="/sap-lens.png" alt="AuthLens" className="w-24 h-24 object-contain mx-auto" />
+        <img src="/logo.png" alt="AuthLens" className="w-24 h-24 object-contain mx-auto" />
         <h1 className="text-3xl font-semibold mt-3">AuthLens</h1>
         <p className="text-sm text-[var(--muted)] mt-2">Your local SAP role workspace</p>
         {showRecovery && copy ? (

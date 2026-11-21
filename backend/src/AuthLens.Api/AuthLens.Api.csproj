@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- The official multi-size icon for the Windows server executable (AuthLens.Api.exe). -->
-    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\assets\sap-lens.ico</ApplicationIcon>
+    <ApplicationIcon>$(MSBuildThisFileDirectory)..\..\..\assets\branding\app.ico</ApplicationIcon>
     <!-- The production React UI (frontend/, the same sources as origin/work) and the server's sign-in page are compiled into this assembly, so every host
          (Server, Desktop single-file, tests) serves the same files regardless of working directory or publish layout. Each file is a manifest resource
          named "AuthLensUi/<relative path>" (explicit LogicalName), served by UiAssets/EmbeddedUiFileProvider. The embedded-files manifest

@@ -96,9 +96,9 @@ export function ThemeEditor({
             }}
           >
             <img
-              src={logoSrc || "/sap-lens.png"}
+              src={logoSrc || "/logo.png"}
               alt="Header logo preview"
-              onError={event=>{if(!event.currentTarget.src.endsWith('/sap-lens.png'))event.currentTarget.src='/sap-lens.png'}}
+              onError={event=>{if(!event.currentTarget.src.endsWith('/logo.png'))event.currentTarget.src='/logo.png'}}
               className="h-12 w-auto max-w-24 shrink-0 object-contain sm:max-w-40"
             />
             <div className="min-w-0">
