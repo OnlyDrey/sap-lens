@@ -13,7 +13,8 @@ interface Auth {user:Account|null;session:boolean;canAdmin:boolean;canReview:boo
 const Context=createContext<Auth>({user:null,session:false,canAdmin:true,canReview:true,reload:async()=>{},logout:async()=>{}})
 export const useAuthentication=()=>useContext(Context)
 const messages:Record<string,string>={invalid_credentials:'Username or password was not accepted.',temporarily_throttled:'Too many attempts. Wait briefly before trying again.',invalid_activation:'The code is invalid, expired or exhausted. Request another code from the local administrator.',last_administrator:'Keep at least one enabled Administrator.',stale_user:'This account changed. Reload before saving.',password_length:'Use a passphrase of 12–1024 characters.'}
-export const authMessage=(error:unknown)=>error instanceof Error?(messages[error.message.split(' Reference:')[0]]||error.message):'The operation could not be completed.'
+const deletionMessages:Record<string,string>={cannot_delete_self:'You cannot delete your own account.',username_mismatch:'The account no longer matches your confirmation. Reload before deleting.',confirmation_required:'Confirm this action before continuing.'}
+export const authMessage=(error:unknown)=>error instanceof Error?(messages[error.message.split(' Reference:')[0]]||deletionMessages[error.message.split(' Reference:')[0]]||error.message):'The operation could not be completed.'
 
 export function AuthenticationGate({children}:{children:ReactNode}) {
  const qc=useQueryClient(),[ready,setReady]=useState(false),[session,setSession]=useState(false),[setup,setSetup]=useState(false),[user,setUser]=useState<Account|null>(null),[error,setError]=useState('')

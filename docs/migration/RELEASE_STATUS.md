@@ -1,5 +1,26 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Permanent local-account deletion
+
+Implemented: `DELETE /api/auth/users/{id}` and the confirmed **Delete account** action in Settings → User Management. Current administrator
+authorization, CSRF, exact confirmed username and expected revision are required. Self-deletion and last-active-administrator removal are refused.
+One account-store transaction removes the user/verifier, all sessions and owned one-time codes, minimizes ID-linked security-audit names while
+keeping opaque accountability, and records `user.delete`. Failure rolls back audit minimization and removal together. Account schema remains 1;
+application schema and immutable business evidence are untouched. Unlinked legacy audit text and retained encrypted backups are not rewritten;
+see [account retention constraints](../deployment/SERVER_NETWORK_ACCESS.md#accounts-mode-default).
+
+Focused validation: **64/64** in `AccountDeletionTests`, `AccountsTests` and `AccountCompatibilityTests`; **3/3** new browser/component tests
+cover confirmation/cancellation/Escape, self/last-admin UI protection, exact DELETE payload, stale refusal, account/audit refresh and mobile dialog
+containment. Frontend build/type checks and scoped lint passed. New backend cases exercise authorization/CSRF, name/revision/confirmation checks,
+session/code removal, concurrent removal, unchanged unrelated accounts/application state, minimized accountable audit and injected audit-failure
+rollback. No full regression ran. Test code initially hit xUnit analyzer rules and ambiguous heading/action selectors; corrected tests retained
+the protections and original failed artifacts under ignored `build/test-artifacts/account-deletion`.
+
+Native update/deletion acceptance is pending. The isolated port-18796 target remains `acceptance-admin`, already disabled; `arkasa` is the one
+active administrator. A fresh encrypted application/account backup was created and independently verified (2 accounts, 1 enabled administrator).
+No destructive API call has occurred. Actual deletion requires authenticated `arkasa` access after safe isolated binary update; no password reset,
+direct SQLite edit, change to another installation, push or merge is authorized by these source tests.
+
 ## Fresh Windows Server package and supplied-backup restore
 
 2026-11-21 (local date): **PASS for fresh isolated package/restore and exercised read-only workflows; left running for manual testing.**

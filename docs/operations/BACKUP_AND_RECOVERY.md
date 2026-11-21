@@ -24,6 +24,11 @@ PNG files and the account database with active sessions removed. Arbitrary unref
 Machine TLS, service arguments/credentials, host/recovery keys and WebView2 profiles remain outside the portable archive and must be preserved
 separately. A passphrase archive still requires a protected destination host key before restore confirmation; this prerequisite is unchanged.
 
+Permanent local-account deletion removes credentials, sessions and one-time codes from the live account store, and minimizes linked security-audit
+names while retaining opaque accountability. It does not erase immutable business evidence or existing encrypted backup snapshots. In particular,
+restoring a backup taken before deletion can restore the deleted account; review the restored account list and administrator access before
+reopening network access. Keep the verified protective backup under the normal explicit retention policy; do not silently rewrite or delete it.
+
 `V1DataMigrationTests` now round-trips the existing application-written synthetic v1 fixture through an AuthLens portable archive into fresh
 canonical storage and rechecks its review history, SoD chain IDs, periods, remediation and frozen evidence through public routes. This is an
 isolated fixture test, not another migration of an existing installation. `LegacyRestoreTests` verifies SAP Lens .NET archives and cross-machine

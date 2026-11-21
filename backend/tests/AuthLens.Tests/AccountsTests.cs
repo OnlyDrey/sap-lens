@@ -277,6 +277,45 @@ public sealed class AccountsTests : IDisposable
             if (csrf && Cookies.GetCookies(Client.BaseAddress)[V1Auth.CsrfCookie] is not null) request.Headers.Add(V1Auth.CsrfHeader, Csrf);
             return await Client.SendAsync(request);
         }
+
+        public async Task<HttpResponseMessage> Delete(string path, object body, bool csrf = true)
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Delete, path) { Content = JsonContent.Create(body) };
+            request.Headers.Add("Origin", Client.BaseAddress!.GetLeftPart(UriPartial.Authority));
+            if (csrf && Cookies.GetCookies(Client.BaseAddress)[V1Auth.CsrfCookie] is not null) request.Headers.Add(V1Auth.CsrfHeader, Csrf);
+            return await Client.SendAsync(request);
+        }
+    }
+
+    [Fact]
+    public async Task Permanent_deletion_http_requires_admin_csrf_confirmation_and_preserves_business_state()
+    {
+        await using var server = await StartServer();
+        var admin = await Bootstrap(server.Store);
+        var viewer = await server.Store.CreateUserAsync(admin, "delete-viewer", "Delete Viewer", "viewer", Password);
+        var target = await server.Store.CreateUserAsync(admin, "delete-target", "Delete Target", "reviewer", Password);
+        var id = (string)target["id"]!;
+        var body = new { expected_revision = 0, confirm_username = "delete-target", confirm = true };
+        Assert.Equal(HttpStatusCode.Unauthorized, (await server.Delete("/api/auth/users/" + id, body)).StatusCode);
+        await server.Post("/api/auth/login", new { username = "delete-viewer", password = Password });
+        Assert.Equal(HttpStatusCode.Forbidden, (await server.Delete("/api/auth/users/" + id, body)).StatusCode);
+        await server.Post("/api/auth/logout");
+        await server.Post("/api/auth/login", new { username = "admin", password = Password });
+        await server.Post("/api/saved-filters", new { name = "Unrelated", view = "roles", filters = new { } });
+        var filters = await server.Client.GetStringAsync("/api/saved-filters");
+        var settings = await server.Client.GetStringAsync("/api/configuration");
+        Assert.Equal(HttpStatusCode.Forbidden, (await server.Delete("/api/auth/users/" + id, body, csrf: false)).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await server.Delete("/api/auth/users/" + id, new { expected_revision = 0, confirm_username = "delete-target", confirm = false })).StatusCode);
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, (await server.Delete("/api/auth/users/" + id, new { confirm = true })).StatusCode);
+        Assert.Equal(HttpStatusCode.Conflict, (await server.Delete("/api/auth/users/" + id, new { expected_revision = 1, confirm_username = "delete-target", confirm = true })).StatusCode);
+        var token = (await server.Store.LoginAsync("delete-target", Password, "fixture")).Token;
+        Assert.Equal(HttpStatusCode.OK, (await server.Delete("/api/auth/users/" + id, body)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await server.Delete("/api/auth/users/" + id, body)).StatusCode);
+        await Assert.ThrowsAsync<AuthException>(() => server.Store.SessionAsync(token));
+        Assert.Equal(filters, await server.Client.GetStringAsync("/api/saved-filters"));
+        Assert.Equal(settings, await server.Client.GetStringAsync("/api/configuration"));
+        Assert.Equal(HttpStatusCode.OK, (await server.Client.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, (await server.Post("/api/auth/login", new { username = "delete-target", password = Password })).StatusCode);
     }
 
     private async Task<Server> StartServer()

@@ -187,6 +187,7 @@ The Server uses the SAP Lens v1 account model, ported to .NET on the same SQLite
 | Roles | `administrator`, `reviewer`, `viewer`, enforced per route by the v1 permission map (deny by default; unknown writes are refused for everyone). Deliberate differences from v1: `PUT`, `PATCH` and `DELETE` on administrator paths are administrator writes (v1 refused them for every session, so the retention policy, SoD reference library, report branding and group renames could not be saved in Server account mode), and reads under `/api/v1/admin` are administrator reads. Viewers read and export; reviewers additionally record review decisions; administrators manage settings, data sources, saved filters and accounts. The Access Package preview and export are open to every signed-in role (v1 maps them to no permission at all, which refuses them for everyone in session mode; they never change data) |
 | Brute force | Per client digest: the fifth failure locks for 30 s, each further failure doubles the lock up to 15 min; separate counters for password-reset codes |
 | Audit | Account, role, password, session and policy events in the store's `audit` table with the actor's public identity; never verifiers, tokens or codes. Unauthenticated denial events are capped at the newest 10 000 |
+| Permanent account deletion | Settings → User Management → account actions → Delete account, or `DELETE /api/auth/users/{id}` with `{expected_revision, confirm_username, confirm:true}`. A current administrator session, same-origin request and CSRF proof are required. Self-deletion and deletion of the last active administrator are refused; revision/username must match. Sessions, one-time codes and the live credential/account row are removed in one transaction |
 | Transport | Plain HTTP only from a loopback peer; on the network the server is HTTPS-only (`secure_transport_required`) |
 | Attribution | Every write (imports, confirmations, settings, saved filters, review decisions) records the signed-in username |
 | API clients | The protected access token (`X-SAP-Lens-Token`) still authenticates automation as the operator principal (`AUTHLENS_PRINCIPAL`, provenance `access-token`). It cannot administer accounts, because account operations need a real session |
@@ -194,6 +195,14 @@ The Server uses the SAP Lens v1 account model, ported to .NET on the same SQLite
 | SAP Lens 1 migration | Local operation of the server binary (`--migrate-v1`); the v1 data is only read, a `.slbak` is authenticated and checked against its manifest before use, the secret is typed without echo or read from the recovery key file, and all intermediate data stays in the private data directory. See [V1_MIGRATION.md](../migration/V1_MIGRATION.md) |
 
 `--auth shared-token` restores the earlier single-secret browser sign-in described next (for isolated tests only).
+
+Account deletion keeps security-audit event IDs, timestamps, operations and opaque actor/target account IDs. For records linked by the deleted
+account ID, its actor snapshot becomes `deleted-account`, and target before/after snapshots retain only ID, role, enabled status and revision.
+Unrelated actors/accounts and immutable SAP/Account Review/SoD evidence are untouched. Unlinked legacy actor text cannot safely be attributed by
+name and is not rewritten. The account schema remains version 1; no application-schema migration is needed. Audit minimization and account/session/
+code removal roll back together if any step fails. Existing encrypted backups deliberately retain their old account snapshots until separately
+approved retention: deletion is permanent in the live store, not forensic erasure of previous WAL/storage blocks or retained backups. Restoring an
+older account-bearing backup can restore that account; review restored accounts before exposing a recovered Server.
 
 ### Shared-token mode (`--auth shared-token`)
 

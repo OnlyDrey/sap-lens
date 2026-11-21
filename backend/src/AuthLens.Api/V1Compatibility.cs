@@ -69,7 +69,7 @@ public static class V1Compatibility
         // Accounts mode (the Server default); in shared-token mode these answer 501.
         "POST /api/auth/activate", "POST /api/auth/recover", "POST /api/auth/login", "POST /api/auth/reset", "GET /api/auth/me", "GET /api/auth/sessions",
         "POST /api/auth/logout", "POST /api/auth/logout-all", "POST /api/auth/logout-others", "POST /api/auth/password", "POST /api/auth/profile",
-        "GET /api/auth/users", "POST /api/auth/users", "POST /api/auth/users/{identity}", "POST /api/auth/users/{identity}/revoke", "POST /api/auth/users/{identity}/reset",
+        "GET /api/auth/users", "POST /api/auth/users", "POST /api/auth/users/{identity}", "DELETE /api/auth/users/{identity}", "POST /api/auth/users/{identity}/revoke", "POST /api/auth/users/{identity}/reset",
         "GET /api/auth/audit", "GET /api/auth/policy", "POST /api/auth/policy", "GET /api/auth/migration", "POST /api/auth/migration/{identifier}/{action}",
     ];
 

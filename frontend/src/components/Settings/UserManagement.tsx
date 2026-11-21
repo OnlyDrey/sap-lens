@@ -1,7 +1,7 @@
 import {IdentityMigration} from './IdentityMigration'
 import {useMemo,useState} from 'react'
 import {useQuery,useQueryClient} from '@tanstack/react-query'
-import {KeyRound,LogOut,Pencil,Plus,RotateCw,ShieldCheck,UserCheck,UserX,UsersRound} from 'lucide-react'
+import {KeyRound,LogOut,Pencil,Plus,RotateCw,ShieldCheck,Trash2,UserCheck,UserX,UsersRound} from 'lucide-react'
 import {apiRequest} from '@/api/client'
 import {authMessage,formatAccountTime,PASSWORD_MAX,PASSWORD_MIN,RoleBadge,useAuthentication,type Account} from '@/components/Auth/Authentication'
 import {ActionMenu} from '@/components/Shared/ActionMenu'
@@ -39,6 +39,8 @@ export function UserManagement(){
  const clear=()=>{setSearch('');setRole('');setStatus('')}
  const act=(user:Account,id:string)=>{
   if(id==='edit'){setEditing(user);return}
+  if(id==='delete')setPending({title:`Permanently delete ${user.username}?`,confirmLabel:'Delete account',body:'The account, credentials, sessions and one-time codes will be permanently removed from this installation. Security audit keeps opaque identity links without the deleted account’s names. Historical review evidence and existing backups are preserved. This cannot be undone except by restoring a backup.',
+   action:async()=>{await apiRequest(`/api/auth/users/${user.id}`,'DELETE',{expected_revision:user.revision,confirm_username:user.username,confirm:true});setMessage(`Account ${user.username} permanently deleted.`)}})
   if(id==='revoke')setPending({title:`Revoke sessions for ${user.username}?`,confirmLabel:'Revoke sessions',body:`Every signed-in session of ${user.display_name||user.username} ends immediately. The account stays enabled. The action is recorded in the security audit.`,
    action:async()=>{await apiRequest(`/api/auth/users/${user.id}/revoke`,'POST');setMessage(`Sessions of ${user.username} revoked.`)}})
   if(id==='reset')setPending({title:`Reset password for ${user.username}?`,confirmLabel:'Create reset code',body:'A one-time reset code is created and the current password stops working. Existing sessions end. The action is recorded in the security audit.',
@@ -68,6 +70,7 @@ export function UserManagement(){
       {id:'reset',label:'Reset password',description:'Create a one-time reset code',icon:<KeyRound size={16} aria-hidden="true"/>},
       {id:'revoke',label:'Revoke sessions',description:'Sign out everywhere',icon:<LogOut size={16} aria-hidden="true"/>},
       {id:'toggle',label:user.enabled?'Disable account':'Enable account',description:user.enabled?'Block sign-in and end sessions':'Allow sign-in again',tone:user.enabled?'destructive':'default',icon:user.enabled?<UserX size={16} aria-hidden="true"/>:<UserCheck size={16} aria-hidden="true"/>},
+      {id:'delete',label:'Delete account',description:me?.id===user.id?'You cannot delete your own account':user.enabled&&user.role==='administrator'&&all.filter(item=>item.enabled&&item.role==='administrator').length<=1?'Keep at least one active administrator':'Permanently remove account and sign-in secrets',disabled:me?.id===user.id||user.enabled&&user.role==='administrator'&&all.filter(item=>item.enabled&&item.role==='administrator').length<=1,tone:'destructive',icon:<Trash2 size={16} aria-hidden="true"/>},
      ]}/></td></tr>)}</tbody></DataTable>
    :<EmptyState>{filtered?<>No accounts match these filters. <Button variant="ghost" size="compact" onClick={clear}>Clear filters</Button></>:'No application accounts yet.'}</EmptyState>}
   </>}
@@ -81,6 +84,7 @@ export function UserManagement(){
 
 /** Audit actor as recorded by the server: a JSON identity ({id, username, display_name, provenance}) or a fixed word such as "local-bootstrap". */
 export function describeActor(actor:string){
+ try{const deleted=JSON.parse(actor) as {id?:unknown;provenance?:unknown};if(deleted?.provenance==='deleted-account'&&typeof deleted.id==='string')return `Deleted account (${deleted.id})`}catch{/* fixed legacy actor */}
  try{const value=JSON.parse(actor) as {username?:unknown;display_name?:unknown};if(value&&typeof value.username==='string')return typeof value.display_name==='string'&&value.display_name&&value.display_name!==value.username?`${value.display_name} (${value.username})`:value.username}catch{/* not JSON: shown as recorded */}
  return actor||'—'
 }

@@ -223,6 +223,16 @@ public static partial class V1Auth
             return Json(await store.UpdateUserAsync(actor, (string)http.GetRouteValue("identity")!, revision, role, enabled, display));
         });
 
+        Route("DELETE", "/auth/users/{identity}", async (http, store, actor) =>
+        {
+            if (await Read(http) is not { } b) return Invalid();
+            var (revision, username, confirm) = (b.Integer("expected_revision", 0), b.Text("confirm_username", 1, 100), b.Flag("confirm"));
+            if (!b.Done()) return Invalid();
+            if (!confirm) throw new AuthException("confirmation_required");
+            await store.DeleteUserAsync(actor, (string)http.GetRouteValue("identity")!, revision, username);
+            return Json(new { ok = true });
+        });
+
         Route("POST", "/auth/users/{identity}/revoke", async (http, store, actor) =>
         {
             await store.RevokeAsync(actor, (string)http.GetRouteValue("identity")!);
