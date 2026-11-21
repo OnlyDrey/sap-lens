@@ -16,10 +16,21 @@ session/code removal, concurrent removal, unchanged unrelated accounts/applicati
 rollback. No full regression ran. Test code initially hit xUnit analyzer rules and ambiguous heading/action selectors; corrected tests retained
 the protections and original failed artifacts under ignored `build/test-artifacts/account-deletion`.
 
-Native update/deletion acceptance is pending. The isolated port-18796 target remains `acceptance-admin`, already disabled; `arkasa` is the one
-active administrator. A fresh encrypted application/account backup was created and independently verified (2 accounts, 1 enabled administrator).
-No destructive API call has occurred. Actual deletion requires authenticated `arkasa` access after safe isolated binary update; no password reset,
-direct SQLite edit, change to another installation, push or merge is authorized by these source tests.
+Two directly dependent profile/session browser cases also passed (**5/5 selected frontend cases in total**); their run was kept separate from
+packaging because the release script rebuilds disposable frontend assets. The native release from **0c2e999** was verified (17 artifacts, clean
+source identity, checksums, embedded UI, zero release-secret findings) and safely installed into the isolated root's `program-0c2e999` directory.
+Only its owned console process was restarted, now PID 11728 on HTTPS 18796, same accounts/TLS/host configuration and `--no-worker`. The previous
+program and state are retained for binary rollback. Schema inspection refused pending changes; all six application migrations and account schema
+1 remain unchanged. Both instances' eight application/settings/history-table and every document fingerprints match before/after. The original
+`AuthLens` service remains Stopped, PID 0, without configuration changes.
+
+**Actual deletion acceptance: BLOCKED on authenticated operator access.** The port-18796 target remains `acceptance-admin`, already disabled,
+with zero sessions; `arkasa` is the one active administrator. A fresh encrypted application/account backup was created and independently verified
+(2 accounts, 1 enabled administrator) before the update. Live account integrity/foreign keys pass. No destructive API call has occurred: the shared
+browser remains on sign-in, and `/api/auth/me` returns 401. The operator has been asked to sign in as `arkasa` without sending a password in chat.
+Its authentication and post-delete access, permanent row/verifier/code/session removal, and deployed deletion/audit behavior cannot be claimed
+verified until that authenticated API operation is actually performed. No recovery/password reset, direct SQLite edit, credential-file deletion,
+change to another installation, push or merge was used to bypass this gate. The upgraded Server is left running.
 
 ## Fresh Windows Server package and supplied-backup restore
 
