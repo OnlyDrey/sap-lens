@@ -65,7 +65,7 @@ function Read-AuthLensSettings([string]$Path, [switch]$Packaged) {
     $config = [ordered]@{
         Root = $root; RepositoryPath = ''; Remote = 'origin'; Branch = 'experiment/dotnet-backend'; WorkRoot = $layout.WorkRoot; ReleasesRoot = $layout.ReleasesRoot
         BackupRoot = $layout.BackupRoot; ServiceName = $script:ServiceName; ServiceAccount = ''; ListenAddress = ''; Port = 0
-        AllowedHosts = @(); TrustedProxies = @(); DataDirectory = $layout.DataDirectory; CertificatePath = (Join-AL $layout.TlsRoot 'server.pfx')
+        AllowedHosts = @(); ProxyHosts = @(); TrustedProxies = @(); DataDirectory = $layout.DataDirectory; CertificatePath = (Join-AL $layout.TlsRoot 'server.pfx')
         CertificatePasswordFile = (Join-AL $layout.TlsRoot 'cert-password'); ReadyTimeoutSeconds = 120; StopTimeoutSeconds = 90
     }
     foreach ($p in $raw.PSObject.Properties) {
@@ -80,7 +80,7 @@ function Read-AuthLensSettings([string]$Path, [switch]$Packaged) {
     foreach ($pathSetting in 'Root', 'RepositoryPath', 'WorkRoot', 'ReleasesRoot', 'BackupRoot', 'DataDirectory', 'CertificatePath', 'CertificatePasswordFile') {
         if ([string]$config[$pathSetting] -notmatch '^([A-Za-z]:[\\/]|\\\\|/)') { Stop-AL "Deployment setting '$pathSetting' must be an absolute path." }
     }
-    $config.AllowedHosts = @($config.AllowedHosts); $config.TrustedProxies = @($config.TrustedProxies)
+    $config.AllowedHosts = @($config.AllowedHosts); $config.ProxyHosts = @($config.ProxyHosts); $config.TrustedProxies = @($config.TrustedProxies)
     $config['ConfigFile'] = $Path
     $config['ServiceNameConfigured'] = [bool]($raw.PSObject.Properties['ServiceName'] -and $raw.ServiceName)
     if ($config.ServiceName -notmatch '^[A-Za-z0-9_.-]{1,80}$') { Stop-AL "Deployment setting 'ServiceName' may contain letters, digits, '.', '_' and '-' only." }
@@ -93,6 +93,7 @@ function Get-ALServiceArguments($Config) {
     $arguments = @('--data-dir', $Config.DataDirectory, '--network', '--listen', $Config.ListenAddress, '--port', [string]$Config.Port,
         '--allowed-hosts', ($Config.AllowedHosts -join ','), '--cert', $Config.CertificatePath, '--cert-password-file', $Config.CertificatePasswordFile)
     if (@($Config.TrustedProxies).Count -gt 0) { $arguments += @('--trusted-proxies', ($Config.TrustedProxies -join ',')) }
+    if ($Config.PSObject.Properties['ProxyHosts'] -and @($Config.ProxyHosts).Count -gt 0) { $arguments += @('--proxy-hosts', ($Config.ProxyHosts -join ',')) }
     $arguments
 }
 
@@ -105,7 +106,7 @@ function Split-ALCommandLine([string]$CommandLine) {
 
 # The server options a managed service command line may carry (AuthLens.Api ServerConfiguration): value options and the one flag. Names are
 # case-sensitive, as the server parses them.
-$script:ServiceValueOptions = @('--data-dir', '--listen', '--port', '--allowed-hosts', '--trusted-proxies', '--cert', '--cert-password-file')
+$script:ServiceValueOptions = @('--data-dir', '--listen', '--port', '--allowed-hosts', '--proxy-hosts', '--trusted-proxies', '--cert', '--cert-password-file')
 $script:ServiceFlagOptions = @('--network')
 
 # Parses service arguments (without the executable) into option -> value ('' for the flag). Throws on an unknown option, a stray value, a value
@@ -157,6 +158,7 @@ function Compare-ALServiceArguments([string[]]$Existing, [string[]]$Wanted) {
                 [System.Net.IPAddress]::TryParse($a, [ref]$x) -and [System.Net.IPAddress]::TryParse($b, [ref]$y) -and $x.Equals($y)
             }
             '--allowed-hosts' { ((Get-ALListSet $a) -join ',') -ceq ((Get-ALListSet $b) -join ',') }
+            '--proxy-hosts' { ((Get-ALListSet $a) -join ',') -ceq ((Get-ALListSet $b) -join ',') }
             '--trusted-proxies' { ((Get-ALListSet $a -Address) -join ',') -ceq ((Get-ALListSet $b -Address) -join ',') }
             default { [string]::Equals($a, $b, [StringComparison]::OrdinalIgnoreCase) }      # --data-dir, --cert, --cert-password-file
         }

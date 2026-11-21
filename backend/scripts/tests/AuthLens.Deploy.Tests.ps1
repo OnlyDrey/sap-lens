@@ -121,6 +121,22 @@ Describe 'Configuration' {
         $binary | Should -Not -Match '--cert-password '
     }
 
+    It 'keeps proxy-only hosts distinct from backend TLS names in service configuration' {
+        $config = New-TestConfig
+        $raw = Get-Content -LiteralPath $config.ConfigFile -Raw | ConvertFrom-Json
+        $raw | Add-Member ProxyHosts @('lens.public.test', 'other.public.test')
+        $raw | ConvertTo-Json | Set-Content -LiteralPath $config.ConfigFile
+        $config = Read-AuthLensSettings $config.ConfigFile
+        $arguments = @(Get-ALServiceArguments $config)
+        $arguments | Should -Contain '--proxy-hosts'
+        $config.AllowedHosts | Should -Not -Contain 'lens.public.test'
+        $reordered = @($arguments)
+        $reordered[[array]::IndexOf($reordered, '--proxy-hosts') + 1] = 'OTHER.PUBLIC.TEST,lens.public.test'
+        @(Compare-ALServiceArguments $arguments $reordered).Count | Should -Be 0
+        $reordered[[array]::IndexOf($reordered, '--proxy-hosts') + 1] = 'evil.example'
+        @(Compare-ALServiceArguments $arguments $reordered).Count | Should -Be 1
+    }
+
     It 'names the service AuthLens and never selects a service of an earlier product' {
         $config = New-TestConfig
         ($config.ServiceName, $config.ServiceAccount, $config.ServiceNameConfigured) | Should -Be @('AuthLens', 'NT SERVICE\AuthLens', $false)
@@ -131,6 +147,8 @@ Describe 'Configuration' {
 
     It 'reads the configuration from -ConfigFile, AUTHLENS_DEPLOY_CONFIG or the root, never from an earlier product location' {
         $config = New-TestConfig
+        # Never inspect a real installed service configuration, including protected acceptance installations.
+        Mock -ModuleName $M Test-Path { $false } -ParameterFilter { $LiteralPath -eq 'C:\ProgramData\AuthLens\config\deploy.json' }
         $saved = $env:AUTHLENS_DEPLOY_CONFIG, $env:SAPLENS_DEPLOY_CONFIG, $env:SAPLENS2_DEPLOY_CONFIG
         try {
             $env:AUTHLENS_DEPLOY_CONFIG = $null; $env:SAPLENS_DEPLOY_CONFIG = $config.ConfigFile; $env:SAPLENS2_DEPLOY_CONFIG = $config.ConfigFile

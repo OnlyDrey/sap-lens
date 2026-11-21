@@ -1,5 +1,20 @@
 # Release status and checkpoint (Phases 3 to 6)
 
+## Pangolin cross-origin correction — implementation validation
+
+2026-11-21: the permanent service log established that Newt connects from **10.0.7.10**, sends forwarded headers, and forwards an internal
+Host `10.0.7.50` while the browser Origin is `https://lens.akio.no`. With no trusted proxies configured, the boundary correctly ignored those
+headers and rejected the login with **403 HostMismatch**. This is AuthLens's request boundary, not Pangolin's separate authentication gate.
+
+A focused correction introduces explicit `ProxyHosts` / `--proxy-hosts`: public HTTP hosts may be accepted only from configured trusted TCP peers,
+without incorrectly requiring those names in the backend TLS certificate. Direct `AllowedHosts` certificate validation remains unchanged.
+Origin equality, per-session CSRF, authorization and secure cookies are unchanged. Refusal diagnostics now capture sanitized forwarded host,
+protocol and IP values before middleware consumes them. Arbitrary header content and secrets are not echoed.
+
+Deployment and authenticated end-to-end acceptance are pending at this checkpoint. Keep existing local names and backend certificate;
+use only verified peer `10.0.7.10` and public proxy host `lens.akio.no`. Do not disable upstream TLS validation or Pangolin authentication.
+See the [network guide](../deployment/SERVER_NETWORK_ACCESS.md#11-reverse-proxy-pangolin-cloudflare) for the configuration boundary.
+
 ## Permanent Windows service promotion — local acceptance completed
 
 2026-11-21: **PASS for controlled local promotion; Pangolin/external authenticated acceptance remains OUTSTANDING.** Existing artifacts under

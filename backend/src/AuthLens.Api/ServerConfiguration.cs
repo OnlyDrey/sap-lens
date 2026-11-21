@@ -8,7 +8,7 @@ namespace AuthLens.Api;
 /// Unknown options are errors, so a typo never silently falls back to a default.</summary>
 public static class ServerConfiguration
 {
-    public static readonly string[] ValueOptions = ["--data-dir", "--listen", "--port", "--allowed-hosts", "--cert", "--cert-key", "--cert-password-file", "--auth", "--trusted-proxies", "--trusted-proxy-hops"];
+    public static readonly string[] ValueOptions = ["--data-dir", "--listen", "--port", "--allowed-hosts", "--proxy-hosts", "--cert", "--cert-key", "--cert-password-file", "--auth", "--trusted-proxies", "--trusted-proxy-hops"];
     public static readonly string[] FlagOptions = ["--network", "--no-worker"];
 
     /// <summary>--help (-h) and --version: answered before any configuration is read, so they create no directory or token, open no certificate and
@@ -80,6 +80,7 @@ public static class ServerConfiguration
           --port <1-65535>             AUTHLENS_PORT            Default 18790.
           --network                    AUTHLENS_NETWORK=true    Allow LAN access: one private --listen address, --cert and --allowed-hosts.
           --allowed-hosts <a,b>        AUTHLENS_ALLOWED_HOSTS   Host names or addresses clients use (no wildcards). Required with --network.
+          --proxy-hosts <a,b>          AUTHLENS_PROXY_HOSTS     Public HTTP hosts accepted only from trusted proxy peers; not backend TLS names.
           --cert <file>                AUTHLENS_CERT            .pfx/.p12 or PEM certificate; enables HTTPS. Required with --network.
           --cert-key <file>            AUTHLENS_CERT_KEY        PEM private key file (PEM certificates only).
           --cert-password-file <file>  AUTHLENS_CERT_PASSWORD_FILE  File holding the certificate password.
@@ -169,6 +170,7 @@ public static class ServerConfiguration
         return new HostSettings
         {
             DataDirectory = Path.GetFullPath(dataDirectory), ListenAddress = listen, Port = port, NetworkAccess = network, AllowedHosts = hosts, Certificate = certificate,
+            ProxyHosts = (Get("--proxy-hosts", "AUTHLENS_PROXY_HOSTS") ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
             AccessToken = Token(dataDirectory, environment), WorkerEnabled = !options.ContainsKey("--no-worker"), Authentication = auth,
             PrincipalName = environment("AUTHLENS_PRINCIPAL") ?? "server-operator", TrustedProxies = proxies, TrustedProxyHops = hops,
         };

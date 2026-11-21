@@ -490,7 +490,7 @@ Rules for trusted proxies:
 
 - Only addresses or networks you list are trusted: single addresses, or networks no wider than /24 (IPv4) or /64 (IPv6). Loopback,
   unspecified and multicast are refused; private ranges, Docker networks and Cloudflare are never trusted implicitly. Requires `--network`.
-- `X-Forwarded-Host` is applied only if its host is one of `--allowed-hosts` (exact; the port may differ, it is then part of the origin, for
+- `X-Forwarded-Host` is applied only if its host is one of `--allowed-hosts` or `--proxy-hosts` (exact; the port may differ, it is then part of the origin, for
   example `lens.example:8443`). Otherwise the request is judged on its own Host.
 - `X-Forwarded-Proto` must end up `https`: a proxy reporting a plain-HTTP client gets `403 HTTPS is required.`, so cookies never lose
   `Secure`/`__Host-`.
@@ -499,12 +499,16 @@ Rules for trusted proxies:
 - The RFC 7239 `Forwarded` header is not processed. Cloudflare headers (`CF-Connecting-IP`, `CF-Visitor`) are not used.
 - Host allowlisting (421), Origin and CSRF checks, Accounts sessions and CSRF tokens, HTTPS-only transport, secure cookies, security headers
   and correlation ids are unchanged; they operate on the effective values.
+- `--proxy-hosts` (`AUTHLENS_PROXY_HOSTS`, deployment JSON `ProxyHosts`) lists public HTTP host names accepted only when the original TCP peer
+  is explicitly trusted. It requires `--trusted-proxies`. Keep direct backend names in `--allowed-hosts`: their certificate SAN validation is
+  unchanged. Proxy-only names do not need to appear in the backend certificate, because the proxy validates its separate upstream TLS name.
+  A direct, untrusted client cannot use a proxy-only Host or spoof forwarding to obtain access.
 - Sign-in throttling uses the effective client address: with one trusted hop behind Cloudflare that is normally the Cloudflare edge address
   Pangolin connected from, so the per-client limit is shared by users of that edge; the global limit still applies.
 
 ### Example configuration
 
-Public origin `https://lens.example.com`, backend `https://192.168.10.20:18795`, certificate SAN `lens.example.com` and `192.168.10.20`.
+Public origin `https://lens.example.com`, backend `https://192.168.10.20:18795`, backend certificate SAN `192.168.10.20`.
 `<PANGOLIN_PEER_IP>` is a placeholder for the address the backend actually sees as the TCP peer of Pangolin's connections. It is not
 necessarily the Pangolin server's public address, a Cloudflare address, the gateway or the VM's own address. With a Newt site connector it is
 normally the LAN address of the machine running Newt (the VM's own address if Newt runs on the VM). Determine it as shown below before
@@ -512,11 +516,12 @@ configuring it.
 
 ```powershell
 & .\AuthLens.Api.exe --data-dir C:\AuthLens-Test\runtime-test --network --listen 192.168.10.20 --port 18795 `
-  --allowed-hosts lens.example.com,192.168.10.20 --cert C:\ProgramData\AuthLens\tls\server.pfx `
+  --allowed-hosts 192.168.10.20 --proxy-hosts lens.example.com --cert C:\ProgramData\AuthLens\tls\server.pfx `
   --cert-password-file C:\ProgramData\AuthLens\tls\cert-password --trusted-proxies <PANGOLIN_PEER_IP>
 ```
 
-With the test launcher: `.\scripts\start-server-test.ps1 -AllowedHosts 'lens.example.com','192.168.10.20' -TrustedProxies '<PANGOLIN_PEER_IP>'`.
+The test launcher currently supports only `AllowedHosts` (all of which require backend SAN coverage); use the Server CLI or deployment JSON
+for proxy-only hosts.
 
 Finding the peer address and what the proxy sends (before trusting anything): start without `--trusted-proxies`, sign in through
 `https://lens.example.com`, and read the warning the refusal logs:
@@ -538,7 +543,7 @@ Pangolin is built on Traefik; field names differ between versions, so check them
 | --- | --- |
 | Resource domain | `lens.example.com` (HTTP resource, TLS at Pangolin) |
 | Target | method `https`, address `192.168.10.20`, port `18795` |
-| Upstream TLS | verify the backend certificate: add the private CA (`authlens-ca.cer`) to the trust store Traefik uses for upstream connections, and use a server name (SNI) that the SAN covers (`lens.example.com` or `192.168.10.20`). Skipping verification is acceptable only for a short diagnostic run, never as the configuration |
+| Upstream TLS | verify the backend certificate: add the private CA (`authlens-ca.cer`) to the trust store used for upstream connections, and use a server name (SNI) that the backend SAN covers (`192.168.10.20` in this example). Do not disable verification |
 | Host header | leave Traefik's default (pass the client's Host) or set a custom Host of `lens.example.com`; either works once the proxy is trusted, because `X-Forwarded-Host` carries the public host |
 | Forwarded headers | keep `X-Forwarded-Proto`, `X-Forwarded-Host` and `X-Forwarded-For` (Traefik sets them by default); do not strip them |
 | Pangolin authentication | optional. With Pangolin's resource authentication on, unauthenticated requests get Pangolin's own (plain-text) 401 before reaching AuthLens; AuthLens accounts still apply after it |
@@ -549,13 +554,13 @@ Cloudflare: use SSL mode "Full (strict)" so Cloudflare to Pangolin is verified H
 
 | Response (title) | Meaning | Check |
 | --- | --- | --- |
-| `421 Unexpected host.` | The effective Host is not loopback and not in `--allowed-hosts` | Add the public name to `--allowed-hosts` (and to the certificate SAN); check `raw`/`effective` in the log |
+| `421 Unexpected host.` | The effective Host is neither directly allowed nor a proxy-only host from a trusted peer | Add a public proxy name to `--proxy-hosts` and verify the peer; direct names remain in `--allowed-hosts` with backend SAN coverage |
 | `403 Cross-origin request refused.` with `trusted proxy False` | Forwarded headers ignored: the peer is not trusted | Add the logged `peer` to `--trusted-proxies` |
 | `403 Cross-origin request refused.` with `trusted proxy True`, `applied False` | Proxy trusted, but no allowed `X-Forwarded-Host` | Make Pangolin send `X-Forwarded-Host: lens.example.com`; check the name is in `--allowed-hosts` |
 | `403 Cross-origin request refused.` with `comparison PortMismatch` | Host and Origin differ by port (for example `:18795` against the public 443) | Same as above: the public host must come from the trusted proxy |
 | `403 HTTPS is required.` | A trusted proxy reported `X-Forwarded-Proto: http` | Serve the resource over HTTPS only |
 | `403 State-changing requests need a same-origin signal.` | No Origin and no `Sec-Fetch-Site: same-origin` on a state change | Expected for non-browser clients; use the access-token header |
-| Plain-text 401 not in JSON | Pangolin's authentication layer, not AuthLens | Sign in to Pangolin first or disable its resource authentication |
+| Plain-text 401 not in JSON | Pangolin's authentication layer, not AuthLens | Sign in to Pangolin first; preserve its authentication policy |
 
 A 401 from `/api/auth/login` with an error `code` means the request passed the boundary and the credentials were wrong; it is not a
 successful sign-in. A successful sign-in returns 200 with the account and sets `sap-lens-session` (Secure, HttpOnly, SameSite=Strict).

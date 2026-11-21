@@ -37,7 +37,9 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
         var request = context.Request;
         var origin = request.Headers.Origin.ToString();
         // Scheme and Host are the effective values: the connection's own, or those a trusted proxy forwarded (ProxyTrust runs earlier).
-        if (!settings.HostAllowed(request.Host.Host)) { await Reject(context, 421, "Unexpected host.", origin); return; }
+        var peer = context.Items[ProxyTrust.PeerItem] as System.Net.IPAddress ?? context.Connection.RemoteIpAddress;
+        var proxyHost = ProxyTrust.Trusted(settings, peer) && settings.ProxyHosts.Any(h => OriginPolicy.HostsEqual(h, request.Host.Host));
+        if (!settings.HostAllowed(request.Host.Host) && !proxyHost) { await Reject(context, 421, "Unexpected host.", origin); return; }
         // An HTTPS listener serves HTTPS only: a trusted proxy reporting a plain-HTTP client is refused, never downgraded to insecure cookies.
         if (settings.Https && !request.IsHttps) { await Reject(context, 403, "HTTPS is required.", origin); return; }
         var unsafeMethod = !HttpMethods.IsGet(request.Method) && !HttpMethods.IsHead(request.Method) && !HttpMethods.IsOptions(request.Method);
@@ -96,9 +98,10 @@ public sealed partial class RequestBoundary(RequestDelegate next, HostSettings s
         var applied = !string.Equals(rawScheme, request.Scheme, StringComparison.Ordinal) || !string.Equals(rawHost, request.Host.Value, StringComparison.Ordinal) ||
                       !Equals(peer, context.Connection.RemoteIpAddress);
         logger.LogWarning("Request refused ({Status} {Reason}): {Method} {Path}; peer {Peer} trusted proxy {PeerTrusted}; client {Client}; forwarded headers present {ForwardedPresent} applied {ForwardedApplied}; " +
-                          "raw {RawScheme}://{RawHost}; effective {Scheme}://{Host}; origin {Origin} comparison {Comparison}",
+                          "raw {RawScheme}://{RawHost}; effective {Scheme}://{Host}; origin {Origin} comparison {Comparison}; forwarded {ForwardedSummary}",
             status, detail, request.Method, Clip(request.Path.Value), peer, ProxyTrust.Trusted(settings, peer), context.Connection.RemoteIpAddress, ProxyTrust.HasForwardedHeaders(request), applied,
-            rawScheme, Clip(rawHost), request.Scheme, Clip(request.Host.Value), OriginPolicy.Describe(origin), comparison?.ToString() ?? OriginPolicy.Compare(origin, request.Scheme, request.Host).ToString());
+            rawScheme, Clip(rawHost), request.Scheme, Clip(request.Host.Value), OriginPolicy.Describe(origin), comparison?.ToString() ?? OriginPolicy.Compare(origin, request.Scheme, request.Host).ToString(),
+            context.Items[ProxyTrust.ForwardedSummaryItem] as string ?? "(unavailable)");
         return Reject(context, status, detail);
     }
 

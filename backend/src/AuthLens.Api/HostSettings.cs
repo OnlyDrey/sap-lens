@@ -26,6 +26,8 @@ public sealed class HostSettings
     public bool NetworkAccess { get; init; }
     public X509Certificate2? Certificate { get; init; }
     public IReadOnlyList<string> AllowedHosts { get; init; } = [];
+    /// <summary>Public HTTP hosts accepted only from explicitly trusted proxy peers. These are not backend TLS names.</summary>
+    public IReadOnlyList<string> ProxyHosts { get; init; } = [];
     public required string AccessToken { get; init; }
     public string PrincipalName { get; init; } = "local-user";
     /// <summary>Server only. Accounts: v1 local accounts with server sessions and roles (the default for a deployed Server). SharedToken: one
@@ -55,7 +57,7 @@ public sealed class HostSettings
             throw new InvalidOperationException("The Desktop has one local user; account sign-in is a Server feature.");
         if (Mode == HostMode.Desktop)
         {
-            if (NetworkAccess || !IPAddress.IsLoopback(ListenAddress) || Certificate is not null || AllowedHosts.Count > 0 || TrustedProxies.Count > 0)
+            if (NetworkAccess || !IPAddress.IsLoopback(ListenAddress) || Certificate is not null || AllowedHosts.Count > 0 || ProxyHosts.Count > 0 || TrustedProxies.Count > 0)
                 throw new InvalidOperationException("The Desktop is loopback-only; network access, certificates, extra host names and trusted proxies are refused.");
             return;
         }
@@ -64,6 +66,11 @@ public sealed class HostSettings
             if (!NetworkAccess) throw new InvalidOperationException("Trusted proxies (--trusted-proxies) need network access (--network) with HTTPS.");
             ProxyTrust.Validate(TrustedProxies, TrustedProxyHops);
         }
+        if (ProxyHosts.Count > 0 && TrustedProxies.Count == 0)
+            throw new InvalidOperationException("Proxy hosts (--proxy-hosts) need explicit trusted proxies (--trusted-proxies).");
+        foreach (var host in ProxyHosts)
+            if (Uri.CheckHostName(host) == UriHostNameType.Unknown || host.Contains('*') || host.Contains(':') && !IPAddress.TryParse(host, out _))
+                throw new InvalidOperationException($"'{host}' is not a valid host name or address for --proxy-hosts.");
         if (!NetworkAccess)
         {
             if (!IPAddress.IsLoopback(ListenAddress))

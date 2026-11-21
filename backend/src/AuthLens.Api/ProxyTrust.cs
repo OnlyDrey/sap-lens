@@ -58,6 +58,7 @@ public static class ProxyTrust
     public const string PeerItem = "AuthLens.Peer";
     public const string RawSchemeItem = "AuthLens.RawScheme";
     public const string RawHostItem = "AuthLens.RawHost";
+    public const string ForwardedSummaryItem = "AuthLens.ForwardedSummary";
     private static readonly string[] ForwardedHeaderNames = ["X-Forwarded-For", "X-Forwarded-Proto", "X-Forwarded-Host", "Forwarded"];
 
     public static IPNetwork ParseNetwork(string text)
@@ -99,6 +100,16 @@ public static class ProxyTrust
 
     public static bool HasForwardedHeaders(HttpRequest request) => ForwardedHeaderNames.Any(request.Headers.ContainsKey);
 
+    // Capture before middleware consumes the headers. Never echo arbitrary header text, URLs, cookies or credentials.
+    public static string DescribeForwarded(HttpRequest request)
+    {
+        string Values(string name, Func<string, string> describe) => string.Join(",", request.Headers[name].ToString().Split(',').Take(MaxHops)
+            .Select(v => v.Trim()).Select(v => v.Length == 0 ? "(absent)" : describe(v)));
+        return $"host={Values("X-Forwarded-Host", v => OriginPolicy.TryParse("https://" + v, out _, out _, out _) ? OriginPolicy.Describe("https://" + v) : "(invalid)")}; " +
+               $"proto={Values("X-Forwarded-Proto", v => v is "https" or "http" ? v : "(invalid)")}; " +
+               $"for={Values("X-Forwarded-For", v => IPAddress.TryParse(v, out var ip) ? ip.ToString() : "(invalid)")}";
+    }
+
     /// <summary>Registers the pipeline start: records the TCP peer and the raw scheme and Host for diagnostics, then (only with trusted proxies)
     /// ForwardedHeadersMiddleware. Must run before the request boundary.</summary>
     public static void Use(WebApplication app, HostSettings settings)
@@ -108,6 +119,7 @@ public static class ProxyTrust
             context.Items[PeerItem] = context.Connection.RemoteIpAddress;
             context.Items[RawSchemeItem] = context.Request.Scheme;
             context.Items[RawHostItem] = context.Request.Host.Value;
+            context.Items[ForwardedSummaryItem] = DescribeForwarded(context.Request);
             return next(context);
         });
         if (settings.TrustedProxies.Count == 0) return;
@@ -117,7 +129,7 @@ public static class ProxyTrust
             ForwardLimit = settings.TrustedProxyHops,
             RequireHeaderSymmetry = false,
             // Exactly the allowed hosts (IPv6 literals in brackets, as they appear in a Host value); the middleware compares host names, not ports.
-            AllowedHosts = [.. settings.AllowedHosts.Select(h => IPAddress.TryParse(h, out var ip) && ip.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{h}]" : h)],
+            AllowedHosts = [.. settings.AllowedHosts.Concat(settings.ProxyHosts).Select(h => IPAddress.TryParse(h, out var ip) && ip.AddressFamily == AddressFamily.InterNetworkV6 ? $"[{h}]" : h)],
         };
         options.KnownProxies.Clear();          // the defaults trust loopback; nothing is trusted implicitly
         options.KnownIPNetworks.Clear();

@@ -51,6 +51,16 @@ public sealed class OriginPolicyTests
         Assert.Equal("(none)", OriginPolicy.Describe(null));
     }
 
+    [Fact]
+    public void Forwarded_diagnostics_never_echo_unparsed_header_values()
+    {
+        var request = new DefaultHttpContext().Request;
+        request.Headers["X-Forwarded-Host"] = "lens.proxy.test,secret@example.test/path";
+        request.Headers["X-Forwarded-Proto"] = "https,secret";
+        request.Headers["X-Forwarded-For"] = "198.51.100.7,secret";
+        Assert.Equal("host=https://lens.proxy.test:443,(invalid); proto=https,(invalid); for=198.51.100.7,(invalid)", ProxyTrust.DescribeForwarded(request));
+    }
+
     private readonly string _root = Directory.CreateTempSubdirectory("saplens-proxy-config-").FullName;
     private Func<string, string?> Env(params (string Key, string Value)[] values) =>
         key => key == "AUTHLENS_TOKEN" ? new string('t', 40) : values.FirstOrDefault(v => v.Key == key).Value;
@@ -101,6 +111,25 @@ public sealed class OriginPolicyTests
         var desktop = new HostSettings { DataDirectory = _root, AccessToken = new string('t', 40), Mode = HostMode.Desktop, TrustedProxies = [ProxyTrust.ParseNetwork("192.168.10.10")] };
         Assert.Contains("trusted proxies", Assert.Throws<InvalidOperationException>(() => desktop.Validate()).Message);
     }
+
+    [Fact]
+    public void Proxy_hosts_are_explicit_and_do_not_replace_backend_certificate_validation()
+    {
+        var parsed = ServerConfiguration.Parse(["--data-dir", _root, "--proxy-hosts", "lens.proxy.test"], Env());
+        Assert.Equal(["lens.proxy.test"], parsed.ProxyHosts);
+        Assert.Equal(["lens.proxy.test"], ServerConfiguration.Parse(["--data-dir", _root], Env(("AUTHLENS_PROXY_HOSTS", "lens.proxy.test"))).ProxyHosts);
+        Assert.Contains("need explicit trusted proxies", Assert.Throws<InvalidOperationException>(() => parsed.Validate()).Message);
+        using var cert = TestCertificates.Create([], [IPAddress.Parse("192.168.10.5")]);
+        HostSettings Settings(string backend, string proxy) => new()
+        {
+            DataDirectory = _root, AccessToken = new string('t', 40), ListenAddress = IPAddress.Parse("192.168.10.5"), Port = 18795,
+            NetworkAccess = true, Certificate = cert, AllowedHosts = [backend], ProxyHosts = [proxy], TrustedProxies = [ProxyTrust.ParseNetwork("192.168.10.10")],
+        };
+        Settings("192.168.10.5", "lens.proxy.test").Validate(); // public name deliberately absent from backend SAN
+        Assert.Contains("subject alternative names", Assert.Throws<InvalidOperationException>(() => Settings("wrong.example", "lens.proxy.test").Validate()).Message);
+        foreach (var invalid in new[] { "*", "*.example", "https://lens.proxy.test", "lens.proxy.test:443", "bad host" })
+            Assert.Contains("--proxy-hosts", Assert.Throws<InvalidOperationException>(() => Settings("192.168.10.5", invalid).Validate()).Message);
+    }
 }
 
 /// <summary>Reverse-proxy behaviour through the real pipeline: Kestrel with TLS on this machine's LAN interface, ProxyTrust and ForwardedHeadersMiddleware,
@@ -113,7 +142,7 @@ public sealed class ReverseProxyTests : IAsyncDisposable
     private static readonly IPAddress Ipv6Name = IPAddress.Parse("fd00::5");
     private readonly string _root = Directory.CreateTempSubdirectory("saplens-proxy-").FullName;
     private readonly string _token = HostSettings.NewToken();
-    private readonly X509Certificate2 _cert;
+    private X509Certificate2 _cert;
     private readonly CollectingLoggerProvider _log = new();
     private readonly IPAddress? _lan = NetworkInterface.GetAllNetworkInterfaces()
         .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
@@ -138,12 +167,14 @@ public sealed class ReverseProxyTests : IAsyncDisposable
         try { Directory.Delete(_root, true); } catch (IOException) { }
     }
 
-    private async Task StartAsync(string[] trusted, int hops = 1, AuthenticationMode auth = AuthenticationMode.SharedToken)
+    private async Task StartAsync(string[] trusted, int hops = 1, AuthenticationMode auth = AuthenticationMode.SharedToken, bool proxyOnly = false)
     {
+        if (proxyOnly) { _cert.Dispose(); _cert = TestCertificates.Create([], [_lan!]); }
         _app = AuthLensHost.Build(new HostSettings
         {
             DataDirectory = Path.Combine(_root, "data"), AccessToken = _token, ListenAddress = _lan!, Port = _port, NetworkAccess = true, Certificate = _cert,
-            AllowedHosts = [Public, _lan!.ToString(), Ipv6Name.ToString()], JsonConsoleLogging = false, PermittedNetworkAddress = a => a.Equals(_lan),
+            AllowedHosts = proxyOnly ? [_lan!.ToString()] : [Public, _lan!.ToString(), Ipv6Name.ToString()],
+            ProxyHosts = proxyOnly ? [Public] : [], JsonConsoleLogging = false, PermittedNetworkAddress = a => a.Equals(_lan),
             TrustedProxies = [.. trusted.Select(ProxyTrust.ParseNetwork)], TrustedProxyHops = hops, Authentication = auth,
         }, null, b => b.Logging.AddProvider(_log));
         await _app.StartAsync();
@@ -174,6 +205,25 @@ public sealed class ReverseProxyTests : IAsyncDisposable
 
     private static Dictionary<string, string> Forwarded(string host, string proto = "https", string @for = "198.51.100.7") =>
         new() { ["X-Forwarded-Host"] = host, ["X-Forwarded-Proto"] = proto, ["X-Forwarded-For"] = @for };
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Proxy_only_public_host_needs_the_verified_peer_and_keeps_origin_and_csrf_checks(bool trusted)
+    {
+        if (_lan is null) return;
+        await StartAsync([trusted ? _lan.ToString() : "192.0.2.10"], proxyOnly: true);
+        PassedBoundary(await Login(Internal, $"https://{Internal}"));
+        var publicRequest = await Login(Internal, $"https://{Public}", Forwarded(Public));
+        if (trusted) PassedBoundary(publicRequest);
+        else Refused(publicRequest, 403, "Cross-origin request refused.");
+        var rawPublic = await Login(Public, $"https://{Public}");
+        if (trusted) PassedBoundary(rawPublic);
+        else Refused(rawPublic, 421, "Unexpected host.");
+        Refused(await Login(Internal, "https://evil.example", Forwarded(Public)), 403, "Cross-origin request refused.");
+        Refused(await Login(Internal, null, Forwarded(Public)), 403, "State-changing requests need a same-origin signal.");
+        if (trusted) Refused(await Login(Internal, $"http://{Public}", Forwarded(Public, "http")), 403, "HTTPS is required.");
+    }
 
     [Fact]
     public async Task Direct_lan_access_without_proxy_configuration_keeps_the_existing_boundary()
